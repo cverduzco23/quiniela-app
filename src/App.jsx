@@ -1,7 +1,7 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
-import Predicciones from './pages/Predicciones'
-import Ranking from './pages/Ranking'
-import Admin from './pages/Admin'
+import Predicciones from './pages/predicciones'
+import Ranking from './pages/ranking'
+import Admin from './pages/admin'
 
 function App() {
   return (
