@@ -1,121 +1,315 @@
-import { useState } from 'react'
-import { collection, addDoc } from 'firebase/firestore'
+import { useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
+import { doc, getDoc, addDoc, collection, updateDoc } from 'firebase/firestore'
 import { db } from '../firebase'
 
-const partidos = [
-  { id: 0, local: 'Chivas', visitante: 'América', hora: 'Sáb 10 may · 19:00' },
-  { id: 1, local: 'Pumas', visitante: 'Tigres', hora: 'Sáb 10 may · 21:00' },
-  { id: 2, local: 'Monterrey', visitante: 'Toluca', hora: 'Dom 11 may · 18:00' },
-  { id: 3, local: 'Cruz Azul', visitante: 'Atlas', hora: 'Dom 11 may · 20:00' },
-]
-
-export default function Predicciones() {
-  const [nombre, setNombre] = useState('')
-  const [picks, setPicks] = useState({})
-  const [enviado, setEnviado] = useState(false)
-
-  const seleccionar = (id, opcion) => {
-    setPicks(prev => ({ ...prev, [id]: opcion }))
-  }
-
-  const listoParaEnviar = nombre.trim().length > 0 && Object.keys(picks).length === partidos.length
-
-  const enviar = async () => {
-  if (!listoParaEnviar) return
+function formatFecha(iso) {
+  if (!iso) return ''
   try {
-    await addDoc(collection(db, 'predicciones'), {
-      nombre,
-      picks,
-      fecha: new Date().toISOString(),
+    return new Date(iso).toLocaleString('es-MX', {
+      weekday: 'short', day: 'numeric', month: 'short',
+      hour: '2-digit', minute: '2-digit',
     })
-    setEnviado(true)
-  } catch (error) {
-    console.error('Error al guardar:', error)
-    alert('Hubo un error al guardar. Intenta de nuevo.')
-  }
+  } catch { return iso }
 }
 
-  if (enviado) {
-    return (
-      <div style={{ textAlign: 'center', padding: '3rem 1rem' }}>
-        <p style={{ fontSize: 48 }}>✓</p>
-        <h2>¡Listo, {nombre}!</h2>
-        <p style={{ color: '#666' }}>Tus predicciones fueron registradas.</p>
-      </div>
-    )
+function pickValido(pick) {
+  if (!pick) return false
+  const l = pick.local, v = pick.visitante
+  return l !== '' && l !== undefined && v !== '' && v !== undefined &&
+    !isNaN(Number(l)) && !isNaN(Number(v))
+}
+
+function getPickResultado(pick) {
+  if (!pickValido(pick)) return null
+  const l = Number(pick.local), v = Number(pick.visitante)
+  return l > v ? 'home' : l === v ? 'draw' : 'away'
+}
+
+const resultadoInfo = (res, local, visitante) => ({
+  home:  { label: `${local} gana`,  bg: '#DCFCE7', color: '#15803D' },
+  draw:  { label: 'Empate',          bg: '#F3F4F6', color: '#4B5563' },
+  away:  { label: `${visitante} gana`, bg: '#EBF3FF', color: '#1D4ED8' },
+}[res])
+
+export default function Predicciones() {
+  const [searchParams] = useSearchParams()
+  const quinielaId = searchParams.get('q')
+
+  const [quiniela, setQuiniela]   = useState(null)
+  const [cargando, setCargando]   = useState(true)
+  const [error, setError]         = useState(null)
+  const [nombre, setNombre]       = useState('')
+  const [picks, setPicks]         = useState({})
+  const [enviado, setEnviado]     = useState(false)
+  const [enviando, setEnviando]   = useState(false)
+
+  useEffect(() => {
+    if (!quinielaId) { setCargando(false); setError('no-id'); return }
+    getDoc(doc(db, 'quinielas', quinielaId))
+      .then(snap => {
+        if (!snap.exists()) setError('not-found')
+        else setQuiniela(snap.data())
+      })
+      .catch(() => setError('error'))
+      .finally(() => setCargando(false))
+  }, [quinielaId])
+
+  const partidos   = quiniela?.partidos ?? []
+  const cerrada    = quiniela?.cerrada || (quiniela?.cierre && new Date() > new Date(quiniela.cierre))
+  const progreso   = partidos.filter((_, i) => pickValido(picks[i])).length
+  const completado = nombre.trim().length > 0 && progreso === partidos.length
+
+  // Auto-cierre: si ESPN detecta que algún partido ya inició
+  useEffect(() => {
+    if (!quiniela || cerrada || !quinielaId) return
+    const conEspn = partidos.filter(p => p.espnId && p.ligaId)
+    if (conEspn.length === 0) return
+
+    const checkInicio = async () => {
+      const porLiga = {}
+      conEspn.forEach(p => {
+        if (!porLiga[p.ligaId]) porLiga[p.ligaId] = []
+        porLiga[p.ligaId].push(p)
+      })
+      for (const [liga, ps] of Object.entries(porLiga)) {
+        try {
+          const r = await fetch(`https://site.api.espn.com/apis/site/v2/sports/soccer/${liga}/scoreboard`)
+          const d = await r.json()
+          const events = d.events ?? []
+          for (const p of ps) {
+            const ev = events.find(e => e.id === p.espnId)
+            if (!ev) continue
+            const state = ev.status?.type?.state
+            if (state === 'in' || state === 'post') {
+              await updateDoc(doc(db, 'quinielas', quinielaId), { cerrada: true })
+              setQuiniela(prev => ({ ...prev, cerrada: true }))
+              return
+            }
+          }
+        } catch { /* silencioso */ }
+      }
+    }
+
+    checkInicio()
+  }, [quiniela?.id])
+
+  const setPick = (i, campo, valor) =>
+    setPicks(prev => ({ ...prev, [i]: { ...(prev[i] ?? {}), [campo]: valor } }))
+
+  const enviar = async () => {
+    if (!completado || cerrada || enviando) return
+    setEnviando(true)
+    try {
+      await addDoc(collection(db, 'predicciones'), {
+        quinielaId,
+        nombre: nombre.trim(),
+        picks,
+        fecha: new Date().toISOString(),
+      })
+      setEnviado(true)
+    } catch {
+      alert('Error al guardar. Intenta de nuevo.')
+      setEnviando(false)
+    }
   }
 
-  return (
-    <div style={{ maxWidth: 560, margin: '0 auto', padding: '1.5rem 1rem' }}>
-      <h2 style={{ marginBottom: 4 }}>Jornada 17 — Liga MX</h2>
-      <p style={{ color: '#666', marginBottom: 24 }}>Cierre: sábado 10 mayo, 12:00 pm</p>
+  if (cargando) return (
+    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', color: '#6B7280', fontSize: 14 }}>
+      Cargando quiniela…
+    </div>
+  )
 
-      <input
-        type="text"
-        placeholder="Tu nombre"
-        value={nombre}
-        onChange={e => setNombre(e.target.value)}
-        style={{ width: '100%', marginBottom: 20, padding: 10, fontSize: 14, boxSizing: 'border-box' }}
-      />
-
-      {partidos.map(p => (
-        <div key={p.id} style={{ border: '1px solid #e5e5e5', borderRadius: 12, padding: '1rem', marginBottom: 12 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
-            <span style={{ fontSize: 12, color: '#999' }}>Liga MX</span>
-            <span style={{ fontSize: 12, color: '#999' }}>{p.hora}</span>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', marginBottom: 14, gap: 8 }}>
-            <span style={{ textAlign: 'center', fontWeight: 500 }}>{p.local}</span>
-            <span style={{ color: '#999', fontSize: 13 }}>vs</span>
-            <span style={{ textAlign: 'center', fontWeight: 500 }}>{p.visitante}</span>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
-            {['home', 'draw', 'away'].map(opcion => (
-              <button
-                key={opcion}
-                onClick={() => seleccionar(p.id, opcion)}
-                style={{
-                  padding: '8px 4px',
-                  borderRadius: 8,
-                  border: picks[p.id] === opcion ? '2px solid #185FA5' : '1px solid #e5e5e5',
-                  background: picks[p.id] === opcion ? '#E6F1FB' : 'white',
-                  cursor: 'pointer',
-                  fontSize: 13,
-                  fontWeight: picks[p.id] === opcion ? 500 : 400,
-                  color: picks[p.id] === opcion ? '#185FA5' : '#333',
-                }}
-              >
-                <span style={{ display: 'block', fontSize: 11, color: '#999', marginBottom: 2 }}>
-                  {opcion === 'home' ? 'Local' : opcion === 'draw' ? 'Empate' : 'Visitante'}
-                </span>
-                {opcion === 'home' ? p.local : opcion === 'draw' ? 'X' : p.visitante}
-              </button>
-            ))}
-          </div>
-        </div>
-      ))}
-
-      <p style={{ fontSize: 13, color: '#999', margin: '12px 0' }}>
-        {Object.keys(picks).length} de {partidos.length} partidos predichos
+  if (error) return (
+    <div style={{ textAlign: 'center', padding: '5rem 1.5rem', color: '#6B7280' }}>
+      <div style={{ fontSize: 52, marginBottom: 20 }}>⚠️</div>
+      <p style={{ fontSize: 18, fontWeight: 600, color: '#111827', marginBottom: 8 }}>
+        {error === 'no-id' ? 'Enlace inválido' : error === 'not-found' ? 'Quiniela no encontrada' : 'Error de conexión'}
       </p>
+      <p style={{ fontSize: 14 }}>Contacta al organizador para obtener el enlace correcto.</p>
+    </div>
+  )
 
-      <button
-        onClick={() => enviar()}
-        disabled={!listoParaEnviar}
-        style={{
-          width: '100%',
-          padding: 12,
-          borderRadius: 8,
-          border: 'none',
-          background: listoParaEnviar ? '#185FA5' : '#ccc',
-          color: 'white',
-          fontSize: 14,
-          fontWeight: 500,
-          cursor: listoParaEnviar ? 'pointer' : 'not-allowed',
-        }}
-      >
-        Enviar predicciones
-      </button>
+  if (enviado) return (
+    <div style={{ minHeight: '100vh', background: '#EEF2F8', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ textAlign: 'center', padding: '2rem 1.5rem' }}>
+        <div style={{
+          width: 88, height: 88, borderRadius: '50%',
+          background: 'linear-gradient(135deg, #16A34A, #22C55E)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          margin: '0 auto 24px', fontSize: 44, color: '#fff',
+        }}>✓</div>
+        <h2 style={{ fontSize: 26, fontWeight: 700, marginBottom: 10 }}>¡Listo, {nombre}!</h2>
+        <p style={{ color: '#6B7280', fontSize: 15, marginBottom: 6 }}>Tus predicciones fueron registradas.</p>
+        <p style={{ color: '#9CA3AF', fontSize: 13 }}>Revisa el ranking cuando terminen los partidos.</p>
+      </div>
+    </div>
+  )
+
+  const pct = partidos.length > 0 ? (progreso / partidos.length) * 100 : 0
+
+  return (
+    <div style={{ minHeight: '100vh', background: '#EEF2F8' }}>
+      {/* Hero */}
+      <div style={{ background: 'linear-gradient(150deg, #0F2942 0%, #1B5299 100%)', color: '#fff', padding: '2rem 1.25rem 1.75rem' }}>
+        <div style={{ maxWidth: 560, margin: '0 auto' }}>
+          <p style={{ fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', opacity: 0.55, marginBottom: 8, fontWeight: 600 }}>⚽ QuinielaApp</p>
+          <h1 style={{ fontSize: 22, fontWeight: 700, lineHeight: 1.25, marginBottom: 10 }}>{quiniela.nombre}</h1>
+          {quiniela.cierre && (
+            <span style={{
+              display: 'inline-block', fontSize: 12, fontWeight: 500,
+              padding: '4px 12px', borderRadius: 99,
+              background: cerrada ? 'rgba(220,38,38,0.25)' : 'rgba(255,255,255,0.15)',
+              color: cerrada ? '#FCA5A5' : 'rgba(255,255,255,0.9)',
+            }}>
+              {cerrada ? '🔒 Quiniela cerrada' : `⏳ Cierre: ${formatFecha(quiniela.cierre)}`}
+            </span>
+          )}
+        </div>
+      </div>
+
+      <div style={{ maxWidth: 560, margin: '0 auto', padding: '1.25rem 1rem 3rem' }}>
+
+        {/* Regla de puntos */}
+        <div style={{
+          display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap',
+        }}>
+          {[
+            { pts: '1 pt',  desc: 'Resultado correcto' },
+            { pts: '+2 pts', desc: 'Marcador exacto' },
+          ].map(r => (
+            <div key={r.desc} style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              background: '#fff', borderRadius: 8, padding: '6px 12px',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.07)', flex: '1 1 auto',
+            }}>
+              <span style={{ fontSize: 13, fontWeight: 800, color: '#1B5299' }}>{r.pts}</span>
+              <span style={{ fontSize: 12, color: '#6B7280' }}>{r.desc}</span>
+            </div>
+          ))}
+        </div>
+
+        {cerrada ? (
+          <div style={{ background: '#fff', borderRadius: 16, padding: '3rem 2rem', textAlign: 'center', boxShadow: '0 1px 4px rgba(0,0,0,0.08)' }}>
+            <div style={{ fontSize: 52, marginBottom: 16 }}>🔒</div>
+            <p style={{ fontWeight: 700, fontSize: 17, color: '#111827', marginBottom: 8 }}>Plazo de registro cerrado</p>
+            <p style={{ fontSize: 14, color: '#6B7280' }}>Ya no se pueden ingresar predicciones.</p>
+          </div>
+        ) : (
+          <>
+            {/* Nombre */}
+            <div style={{ background: '#fff', borderRadius: 14, padding: '1.1rem 1.25rem', marginBottom: 10, boxShadow: '0 1px 3px rgba(0,0,0,0.07)' }}>
+              <label style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 8 }}>
+                Tu nombre
+              </label>
+              <input
+                type="text"
+                placeholder="¿Cómo te llamas?"
+                value={nombre}
+                onChange={e => setNombre(e.target.value)}
+                style={{ fontSize: 15 }}
+              />
+            </div>
+
+            {/* Partidos */}
+            {partidos.map((p, i) => {
+              const pick = picks[i]
+              const res = getPickResultado(pick)
+              const info = res ? resultadoInfo(res, p.local, p.visitante) : null
+
+              return (
+                <div key={i} style={{ background: '#fff', borderRadius: 14, padding: '1.1rem 1.25rem', marginBottom: 10, boxShadow: '0 1px 3px rgba(0,0,0,0.07)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: '#9CA3AF', letterSpacing: 1, textTransform: 'uppercase' }}>
+                      Partido {i + 1}
+                    </span>
+                    {p.hora && <span style={{ fontSize: 11, color: '#9CA3AF' }}>{formatFecha(p.hora)}</span>}
+                  </div>
+
+                  {/* Score inputs */}
+                  <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'center', gap: 12 }}>
+                    {/* Local */}
+                    <div style={{ textAlign: 'center' }}>
+                      <span style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#374151', marginBottom: 6, maxWidth: 80, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {p.local}
+                      </span>
+                      <input
+                        type="number" min="0" max="99"
+                        value={pick?.local ?? ''}
+                        onChange={e => setPick(i, 'local', e.target.value)}
+                        placeholder="0"
+                        style={{
+                          width: 68, textAlign: 'center', fontSize: 30, fontWeight: 800,
+                          padding: '10px 4px', borderRadius: 12,
+                          border: pickValido({ local: pick?.local, visitante: '0' }) ? '2px solid #1B5299' : '1.5px solid #E5E7EB',
+                          background: pick?.local !== undefined && pick?.local !== '' ? '#EBF3FF' : '#FAFAFA',
+                          color: '#0F2942',
+                        }}
+                      />
+                    </div>
+
+                    <span style={{ fontSize: 22, color: '#D1D5DB', fontWeight: 700, paddingBottom: 12 }}>–</span>
+
+                    {/* Visitante */}
+                    <div style={{ textAlign: 'center' }}>
+                      <span style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#374151', marginBottom: 6, maxWidth: 80, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {p.visitante}
+                      </span>
+                      <input
+                        type="number" min="0" max="99"
+                        value={pick?.visitante ?? ''}
+                        onChange={e => setPick(i, 'visitante', e.target.value)}
+                        placeholder="0"
+                        style={{
+                          width: 68, textAlign: 'center', fontSize: 30, fontWeight: 800,
+                          padding: '10px 4px', borderRadius: 12,
+                          border: pickValido({ local: '0', visitante: pick?.visitante }) ? '2px solid #1B5299' : '1.5px solid #E5E7EB',
+                          background: pick?.visitante !== undefined && pick?.visitante !== '' ? '#EBF3FF' : '#FAFAFA',
+                          color: '#0F2942',
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Resultado derivado */}
+                  <div style={{ textAlign: 'center', marginTop: 12, minHeight: 24 }}>
+                    {info && (
+                      <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 12px', borderRadius: 99, background: info.bg, color: info.color }}>
+                        {info.label}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+
+            {/* Progreso */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '14px 0' }}>
+              <div style={{ flex: 1, height: 5, background: '#E5E7EB', borderRadius: 99, overflow: 'hidden' }}>
+                <div style={{ height: '100%', borderRadius: 99, background: 'linear-gradient(90deg, #0F2942, #1B5299)', width: `${pct}%`, transition: 'width 0.25s' }} />
+              </div>
+              <span style={{ fontSize: 12, color: '#6B7280', fontWeight: 500, whiteSpace: 'nowrap' }}>
+                {progreso}/{partidos.length} partidos
+              </span>
+            </div>
+
+            {/* Botón enviar */}
+            <button
+              onClick={enviar}
+              disabled={!completado || enviando}
+              style={{
+                width: '100%', padding: '15px', borderRadius: 12, border: 'none',
+                background: completado ? 'linear-gradient(135deg, #0F2942 0%, #1B5299 100%)' : '#D1D5DB',
+                color: '#fff', fontSize: 15, fontWeight: 700, letterSpacing: 0.3,
+                cursor: completado ? 'pointer' : 'not-allowed',
+                boxShadow: completado ? '0 4px 14px rgba(27,82,153,0.35)' : 'none',
+              }}
+            >
+              {enviando ? 'Enviando…' : 'Enviar predicciones →'}
+            </button>
+          </>
+        )}
+      </div>
     </div>
   )
 }
