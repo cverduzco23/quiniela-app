@@ -449,7 +449,7 @@ export default function Admin() {
         <div style={{ textAlign: 'center', marginBottom: 28 }}>
           <div style={{ fontSize: 40, marginBottom: 12 }}>🔐</div>
           <h2 style={{ fontSize: 20, fontWeight: 700, color: '#0F2942' }}>Panel de Administrador</h2>
-          <p style={{ fontSize: 13, color: '#6B7280', marginTop: 4 }}>⚽ Quiniela APP</p>
+          <p style={{ fontSize: 13, color: '#6B7280', marginTop: 4 }}>⚽ QuinielApp</p>
         </div>
         <div style={card}>
           <label style={lbl}>Correo electrónico</label>
@@ -485,7 +485,7 @@ export default function Admin() {
       <div style={{ background: 'linear-gradient(150deg, #0F2942 0%, #1B5299 100%)', color: '#fff', padding: '2rem 1.25rem 1.5rem' }}>
         <div style={{ maxWidth: 580, margin: '0 auto', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
           <div>
-            <p style={{ fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', opacity: 0.55, marginBottom: 6, fontWeight: 600 }}>⚽ Quiniela APP</p>
+            <p style={{ fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', opacity: 0.55, marginBottom: 6, fontWeight: 600 }}>⚽ QuinielApp</p>
             <h1 style={{ fontSize: 22, fontWeight: 700 }}>Panel de Administrador</h1>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
