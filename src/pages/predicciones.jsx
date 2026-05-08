@@ -210,8 +210,9 @@ export default function Predicciones() {
       })
       try { if (lsKey) localStorage.removeItem(lsKey) } catch { /* noop */ }
       setEnviado(true)
-    } catch {
-      alert('Error al guardar. Intenta de nuevo.')
+    } catch (err) {
+      console.error('Firestore error:', err)
+      alert(`Error al guardar (${err?.code ?? err?.message ?? 'unknown'}). Intenta de nuevo.`)
       setEnviando(false)
     }
   }
