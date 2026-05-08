@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { doc, getDoc, addDoc, collection, updateDoc, getDocs, query, where } from 'firebase/firestore'
+import { doc, getDoc, addDoc, collection, getDocs, query, where } from 'firebase/firestore'
 import { db } from '../firebase'
 import { cierreToDate, quinielaCerrada } from '../utils/cierre'
 import { RankingTable } from '../components/RankingTable'
@@ -154,7 +154,6 @@ export default function Predicciones() {
             if (!ev) continue
             const state = ev.status?.type?.state
             if (state === 'in' || state === 'post') {
-              await updateDoc(doc(db, 'quinielas', quinielaId), { cerrada: true })
               setQuiniela(prev => ({ ...prev, cerrada: true }))
               return
             }
@@ -179,10 +178,9 @@ export default function Predicciones() {
     try {
       const snap = await getDocs(query(
         collection(db, 'predicciones'),
-        where('quinielaId', '==', quinielaId),
-        where('nombre', '==', nombre.trim())
+        where('quinielaId', '==', quinielaId)
       ))
-      if (!snap.empty) {
+      if (snap.docs.some(d => d.data().nombre === nombre.trim())) {
         setNombreError(`Ya hay alguien registrado como "${nombre.trim()}". Usa un nombre diferente o añade tu apellido.`)
         setMostrarResumen(false)
         setEnviando(false)
