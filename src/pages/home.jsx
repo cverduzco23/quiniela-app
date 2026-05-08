@@ -18,13 +18,24 @@ function formatFecha(iso) {
 
 export default function Home() {
   const [quinielas, setQuinielas] = useState([])
-  const [cargando, setCargando] = useState(true)
+  const [conteos, setConteos]     = useState({})
+  const [cargando, setCargando]   = useState(true)
 
   useEffect(() => {
-    getDocs(query(collection(db, 'quinielas'), orderBy('creada', 'desc'), limit(10)))
-      .then(snap => setQuinielas(snap.docs.map(d => ({ id: d.id, ...d.data() }))))
-      .catch(() => {})
-      .finally(() => setCargando(false))
+    Promise.all([
+      getDocs(query(collection(db, 'quinielas'), orderBy('creada', 'desc'), limit(10))),
+      getDocs(collection(db, 'predicciones')),
+    ]).then(([qSnap, pSnap]) => {
+      const conteoMap = {}
+      pSnap.docs.forEach(d => {
+        const qId = d.data().quinielaId
+        conteoMap[qId] = (conteoMap[qId] ?? 0) + 1
+      })
+      setConteos(conteoMap)
+      setQuinielas(qSnap.docs.map(d => ({ id: d.id, ...d.data() })))
+    })
+    .catch(() => {})
+    .finally(() => setCargando(false))
   }, [])
 
   if (cargando) return (
@@ -33,8 +44,8 @@ export default function Home() {
     </div>
   )
 
-  const activas  = quinielas.filter(q => !esCerrada(q))
-  const cerradas = quinielas.filter(q => esCerrada(q))
+  const activas   = quinielas.filter(q => !esCerrada(q))
+  const cerradas  = quinielas.filter(q => esCerrada(q))
   const principal = activas[0] ?? null
   const ultima    = cerradas[0] ?? null
 
@@ -72,7 +83,12 @@ export default function Home() {
             }}>
               <p style={{ fontSize: 19, fontWeight: 700, color: '#0F2942', marginBottom: 8 }}>{principal.nombre}</p>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 20 }}>
-                <span style={{ fontSize: 13, color: '#6B7280' }}>⚽ {principal.partidos?.length ?? 0} partidos</span>
+                <span style={{ fontSize: 13, color: '#6B7280' }}>
+                  ⚽ {principal.partidos?.length ?? 0} partidos
+                </span>
+                <span style={{ fontSize: 13, color: '#6B7280' }}>
+                  👥 {conteos[principal.id] ?? 0} {(conteos[principal.id] ?? 0) === 1 ? 'participante' : 'participantes'}
+                </span>
                 {principal.cierre && (
                   <span style={{ fontSize: 13, color: '#D97706', fontWeight: 600 }}>
                     ⏳ Cierra: {formatFecha(principal.cierre)}
@@ -94,9 +110,9 @@ export default function Home() {
               <a
                 href={`/ranking?q=${principal.id}`}
                 style={{
-                  display: 'block', textAlign: 'center', padding: '11px', borderRadius: 10,
-                  background: 'transparent', border: '1px solid #D1D5DB',
-                  color: '#6B7280', fontWeight: 500, fontSize: 13, textDecoration: 'none',
+                  display: 'block', textAlign: 'center', padding: '12px', borderRadius: 10,
+                  background: '#EBF3FF', border: '1.5px solid #1B5299',
+                  color: '#1B5299', fontWeight: 700, fontSize: 14, textDecoration: 'none',
                 }}
               >
                 Ver ranking
@@ -119,7 +135,9 @@ export default function Home() {
               }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <p style={{ fontSize: 14, fontWeight: 600, color: '#111827', marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{q.nombre}</p>
-                  <span style={{ fontSize: 12, color: '#6B7280' }}>⚽ {q.partidos?.length ?? 0} partidos</span>
+                  <span style={{ fontSize: 12, color: '#6B7280' }}>
+                    ⚽ {q.partidos?.length ?? 0} · 👥 {conteos[q.id] ?? 0}
+                  </span>
                 </div>
                 <a href={`/?q=${q.id}`} style={{ fontSize: 13, color: '#1B5299', fontWeight: 600, textDecoration: 'none', whiteSpace: 'nowrap' }}>
                   Predecir →
@@ -136,21 +154,21 @@ export default function Home() {
               {principal ? 'Última quiniela terminada' : 'Quiniela más reciente'}
             </p>
             <div style={{ background: '#fff', borderRadius: 14, padding: '1.25rem 1.5rem', boxShadow: '0 1px 3px rgba(0,0,0,0.07)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
-                <div>
-                  <p style={{ fontSize: 16, fontWeight: 600, color: '#111827', marginBottom: 4 }}>{ultima.nombre}</p>
-                  <span style={{ fontSize: 12, color: '#9CA3AF' }}>⚽ {ultima.partidos?.length ?? 0} partidos</span>
-                </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                <p style={{ fontSize: 16, fontWeight: 600, color: '#111827' }}>{ultima.nombre}</p>
                 <span style={{ fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 99, background: '#F3F4F6', color: '#6B7280', flexShrink: 0, marginLeft: 8 }}>
                   Finalizada
                 </span>
               </div>
+              <p style={{ fontSize: 12, color: '#9CA3AF', marginBottom: 14 }}>
+                ⚽ {ultima.partidos?.length ?? 0} partidos · 👥 {conteos[ultima.id] ?? 0} {(conteos[ultima.id] ?? 0) === 1 ? 'participante' : 'participantes'}
+              </p>
               <a
                 href={`/ranking?q=${ultima.id}`}
                 style={{
                   display: 'block', textAlign: 'center', padding: '12px', borderRadius: 10,
-                  background: '#F3F4F6', color: '#374151', fontWeight: 600, fontSize: 14,
-                  textDecoration: 'none',
+                  background: '#EBF3FF', border: '1.5px solid #1B5299',
+                  color: '#1B5299', fontWeight: 700, fontSize: 14, textDecoration: 'none',
                 }}
               >
                 Ver ranking completo →

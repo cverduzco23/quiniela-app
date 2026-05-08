@@ -285,6 +285,7 @@ export default function Admin() {
     if (!quinielaActual || guardandoEdicion) return
     if (editPartidos.length === 0) return alert('La quiniela debe tener al menos un partido.')
     if (!editNombre.trim()) return alert('El nombre no puede estar vacío.')
+    if (!editCierre) return alert('La fecha y hora de cierre es obligatoria.')
     setGuardandoEdicion(true)
     try {
       await updateDoc(doc(db, 'quinielas', quinielaActual.id), {
@@ -363,6 +364,7 @@ export default function Admin() {
   // ─── Guardar nueva quiniela ───────────────────────────────────────────────
   const guardarNuevaQuiniela = async () => {
     if (!nombre.trim()) return alert('Ponle un nombre a la quiniela')
+    if (!cierre) return alert('La fecha y hora de cierre es obligatoria')
     if (partidos.length === 0) return alert('Agrega al menos un partido')
     if (partidos.some(p => !p.local.trim() || !p.visitante.trim())) return alert('Completa nombre de equipos en todos los partidos')
     setGuardando(true)
@@ -645,7 +647,7 @@ export default function Admin() {
       <div style={{ background: 'linear-gradient(150deg, #0F2942 0%, #1B5299 100%)', color: '#fff', padding: '2rem 1.25rem 1.5rem' }}>
         <div style={{ maxWidth: 580, margin: '0 auto', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
           <div>
-            <p style={{ fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', opacity: 0.55, marginBottom: 6, fontWeight: 600 }}>⚽ QuinielApp</p>
+            <a href="/" style={{ fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', opacity: 0.55, marginBottom: 6, fontWeight: 600, color: 'inherit', textDecoration: 'none', display: 'block' }}>⚽ QuinielApp</a>
             <h1 style={{ fontSize: 22, fontWeight: 700 }}>Panel de Administrador</h1>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
@@ -728,8 +730,13 @@ export default function Admin() {
             <div style={card}>
               <label style={lbl}>Nombre de la quiniela</label>
               <input type="text" placeholder="Ej. Jornada 17 — Liga MX" value={nombre} onChange={e => setNombre(e.target.value)} style={{ marginBottom: 12 }} />
-              <label style={lbl}>Fecha y hora de cierre</label>
-              <input type="datetime-local" value={cierre} onChange={e => setCierre(e.target.value)} />
+              <label style={{ ...lbl, marginBottom: 4 }}>
+                Fecha y hora de cierre <span style={{ color: '#EF4444' }}>*</span>
+              </label>
+              <p style={{ fontSize: 11, color: '#9CA3AF', marginBottom: 8 }}>
+                Los jugadores no podrán registrar predicciones después de esta hora.
+              </p>
+              <input type="datetime-local" value={cierre} onChange={e => setCierre(e.target.value)} style={{ borderColor: !cierre ? '#FCA5A5' : undefined }} />
             </div>
 
             {renderBuscadorFixtures(agregarSeleccionados)}
@@ -978,8 +985,13 @@ export default function Admin() {
 
                   {/* Fecha de cierre */}
                   <div style={card}>
-                    <label style={lbl}>Fecha y hora de cierre</label>
-                    <input type="datetime-local" value={editCierre} onChange={e => setEditCierre(e.target.value)} />
+                    <label style={{ ...lbl, marginBottom: 4 }}>
+                      Fecha y hora de cierre <span style={{ color: '#EF4444' }}>*</span>
+                    </label>
+                    <p style={{ fontSize: 11, color: '#9CA3AF', marginBottom: 8 }}>
+                      Los jugadores no podrán registrar predicciones después de esta hora.
+                    </p>
+                    <input type="datetime-local" value={editCierre} onChange={e => setEditCierre(e.target.value)} style={{ borderColor: !editCierre ? '#FCA5A5' : undefined }} />
                   </div>
 
                   {/* Lista de partidos */}

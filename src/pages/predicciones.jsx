@@ -54,7 +54,7 @@ export default function Predicciones() {
     getDoc(doc(db, 'quinielas', quinielaId))
       .then(snap => {
         if (!snap.exists()) setError('not-found')
-        else setQuiniela(snap.data())
+        else setQuiniela({ id: snap.id, ...snap.data() })
       })
       .catch(() => setError('error'))
       .finally(() => setCargando(false))
@@ -187,7 +187,7 @@ export default function Predicciones() {
       {/* Hero */}
       <div style={{ background: 'linear-gradient(150deg, #0F2942 0%, #1B5299 100%)', color: '#fff', padding: '2rem 1.25rem 1.75rem' }}>
         <div style={{ maxWidth: 560, margin: '0 auto' }}>
-          <p style={{ fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', opacity: 0.55, marginBottom: 8, fontWeight: 600 }}>⚽ QuinielApp</p>
+          <a href="/" style={{ fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', opacity: 0.55, marginBottom: 8, fontWeight: 600, color: 'inherit', textDecoration: 'none', display: 'block' }}>⚽ QuinielApp</a>
           <h1 style={{ fontSize: 22, fontWeight: 700, lineHeight: 1.25, marginBottom: 10 }}>{quiniela.nombre}</h1>
           {quiniela.cierre && (
             <span style={{
@@ -226,7 +226,18 @@ export default function Predicciones() {
           <div style={{ background: '#fff', borderRadius: 16, padding: '3rem 2rem', textAlign: 'center', boxShadow: '0 1px 4px rgba(0,0,0,0.08)' }}>
             <div style={{ fontSize: 52, marginBottom: 16 }}>🔒</div>
             <p style={{ fontWeight: 700, fontSize: 17, color: '#111827', marginBottom: 8 }}>Plazo de registro cerrado</p>
-            <p style={{ fontSize: 14, color: '#6B7280' }}>Ya no se pueden ingresar predicciones.</p>
+            <p style={{ fontSize: 14, color: '#6B7280', marginBottom: 24 }}>Ya no se pueden ingresar predicciones.</p>
+            <a
+              href={`/ranking?q=${quinielaId}`}
+              style={{
+                display: 'inline-block', padding: '12px 28px', borderRadius: 12,
+                background: 'linear-gradient(135deg, #0F2942 0%, #1B5299 100%)',
+                color: '#fff', fontWeight: 700, fontSize: 14, textDecoration: 'none',
+                boxShadow: '0 4px 14px rgba(27,82,153,0.35)',
+              }}
+            >
+              Ver ranking →
+            </a>
           </div>
 
         /* ── Pantalla de resumen antes de enviar (item 11) ──────────────── */
@@ -437,6 +448,16 @@ export default function Predicciones() {
             >
               Revisar predicciones →
             </button>
+            {!completado && (
+              <p style={{ fontSize: 12, color: '#9CA3AF', textAlign: 'center', marginTop: 8 }}>
+                {!nombre.trim() && progreso < partidos.length
+                  ? `Falta tu nombre y ${partidos.length - progreso} partido${partidos.length - progreso !== 1 ? 's' : ''}`
+                  : !nombre.trim()
+                    ? 'Falta tu nombre'
+                    : `Falta${partidos.length - progreso !== 1 ? 'n' : ''} ${partidos.length - progreso} partido${partidos.length - progreso !== 1 ? 's' : ''} por completar`
+                }
+              </p>
+            )}
           </>
         )}
       </div>
