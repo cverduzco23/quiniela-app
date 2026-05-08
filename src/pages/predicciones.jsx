@@ -3,7 +3,6 @@ import { useSearchParams } from 'react-router-dom'
 import { doc, getDoc, addDoc, collection, getDocs, query, where } from 'firebase/firestore'
 import { db } from '../firebase'
 import { cierreToDate, quinielaCerrada } from '../utils/cierre'
-import { RankingTable } from '../components/RankingTable'
 
 function formatFecha(value) {
   const d = cierreToDate(value)
@@ -63,7 +62,6 @@ export default function Predicciones() {
   const [nombreError, setNombreError]     = useState('')
   const [mostrarResumen, setMostrarResumen] = useState(false)
   const [celebrando, setCelebrando]       = useState(false)
-  const [predsCerradas, setPredsCerradas] = useState([])
 
   const visitanteRefs = useRef([])
   const progresoPrevRef = useRef(0)
@@ -123,14 +121,6 @@ export default function Predicciones() {
       return () => clearTimeout(t)
     }
   }, [progreso, partidos.length, cerrada, enviado])
-
-  // Cargar predicciones cuando la quiniela está cerrada (para ranking inline)
-  useEffect(() => {
-    if (!cerrada || !quiniela?.id) return
-    getDocs(query(collection(db, 'predicciones'), where('quinielaId', '==', quiniela.id)))
-      .then(snap => setPredsCerradas(snap.docs.map(d => d.data())))
-      .catch(() => {})
-  }, [cerrada, quiniela?.id])
 
   // Forzar re-render exactamente cuando pasa la hora de cierre
   useEffect(() => {
@@ -345,16 +335,26 @@ export default function Predicciones() {
 
       <div style={{ maxWidth: 560, margin: '0 auto', padding: '1.25rem 1rem 3rem' }}>
 
-        {/* ── Quiniela cerrada — ranking inline ───────────────────────── */}
+        {/* ── Quiniela cerrada ────────────────────────────────────────── */}
         {cerrada ? (
-          <>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
-              <a href={`/ranking?q=${quinielaId}`} style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)', textDecoration: 'none' }}>
-                Ver ranking completo →
-              </a>
-            </div>
-            <RankingTable quiniela={quiniela} predicciones={predsCerradas} liveScores={{}} />
-          </>
+          <div style={{ textAlign: 'center', padding: '3rem 1.5rem' }}>
+            <div style={{ fontSize: 48, marginBottom: 16 }}>⚽</div>
+            <p style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-strong)', marginBottom: 8 }}>
+              ¡Los partidos están en juego!
+            </p>
+            <p style={{ fontSize: 14, color: 'var(--muted)', lineHeight: 1.6, marginBottom: 28 }}>
+              El tiempo para registrar predicciones ya cerró.<br />
+              Sigue los resultados en el ranking en tiempo real.
+            </p>
+            <a href={`/ranking?q=${quinielaId}`} style={{
+              display: 'inline-block', padding: '12px 28px', borderRadius: 'var(--radius-md)',
+              background: 'linear-gradient(135deg, var(--green), var(--green-light))',
+              color: '#07120A', fontWeight: 800, fontSize: 15, textDecoration: 'none',
+              boxShadow: 'var(--shadow-green)', letterSpacing: 0.2,
+            }}>
+              Ver ranking →
+            </a>
+          </div>
 
         ) : (
           <>
