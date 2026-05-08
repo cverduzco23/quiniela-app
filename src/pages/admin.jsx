@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
-import { collection, addDoc, doc, updateDoc, getDocs, query, orderBy } from 'firebase/firestore'
+import { collection, addDoc, doc, updateDoc, getDocs, deleteDoc, query, orderBy, where } from 'firebase/firestore'
 import { db } from '../firebase'
 
-const ADMIN_PASSWORD = 'quiniela2025'
+const ADMIN_PASSWORD = '235689'
 
 // Slugs de la API pública de ESPN (sin API key)
 const LIGAS = [
@@ -10,6 +10,11 @@ const LIGAS = [
   { id: 'fifa.world',         nombre: '🌍 Mundial 2026' },
   { id: 'uefa.champions',     nombre: '⭐ Champions League' },
   { id: 'concacaf.champions', nombre: '🌎 CONCACAF Champions Cup' },
+  { id: 'eng.1',              nombre: '🏴󠁧󠁢󠁥󠁮󠁧󠁿 Premier League' },
+  { id: 'esp.1',              nombre: '🇪🇸 La Liga' },
+  { id: 'ita.1',              nombre: '🇮🇹 Serie A' },
+  { id: 'ger.1',              nombre: '🇩🇪 Bundesliga' },
+  { id: 'usa.1',              nombre: '🇺🇸 MLS' },
 ]
 
 function goalsToResultado(local, visitante) {
@@ -80,13 +85,33 @@ export default function Admin() {
   const [sincrMsg, setSincrMsg]           = useState('')
 
   // ─── Buscador de partidos (TheSportsDB) ──────────────────────────────────
-  const [ligaId, setLigaId]               = useState('4350')
+  const [ligaId, setLigaId]               = useState('')
   const [fixtures, setFixtures]           = useState([])
   const [loadingFixtures, setLoadingFixtures] = useState(false)
   const [errorFixtures, setErrorFixtures] = useState(null)
   const [seleccionados, setSeleccionados] = useState([])
+  const [buscarPasados, setBuscarPasados] = useState(false)
+
+  // ─── Edición de quiniela existente ───────────────────────────────────────
+  const [editPartidos, setEditPartidos]         = useState([])
+  const [editCierre, setEditCierre]             = useState('')
+  const [conteoPredicciones, setConteoPredicciones] = useState(null)
+  const [guardandoEdicion, setGuardandoEdicion] = useState(false)
+  const [deleteConfirm, setDeleteConfirm]       = useState('')
+  const [eliminando, setEliminando]             = useState(false)
 
   useEffect(() => { if (autenticado) cargarQuinielas() }, [autenticado])
+
+  useEffect(() => {
+    if (tab !== 'editar' || !quinielaActual) return
+    setEditPartidos([...(quinielaActual.partidos ?? [])])
+    setEditCierre(quinielaActual.cierre ?? '')
+    setFixtures([]); setSeleccionados([])
+    setConteoPredicciones(null)
+    getDocs(query(collection(db, 'predicciones'), where('quinielaId', '==', quinielaActual.id)))
+      .then(snap => setConteoPredicciones(snap.size))
+      .catch(() => setConteoPredicciones(0))
+  }, [tab, quinielaActual?.id])
 
   const cargarQuinielas = async () => {
     setLoadingLista(true)
@@ -113,22 +138,32 @@ export default function Admin() {
     setSeleccionados([])
 
     const fmt = d => d.toISOString().slice(0, 10).replace(/-/g, '')
-    const hoy    = new Date()
-    const futuro = new Date(hoy)
-    futuro.setDate(futuro.getDate() + 60)
+    const hoy = new Date()
+    let desde, hasta
+
+    if (buscarPasados) {
+      desde = new Date(hoy); desde.setDate(desde.getDate() - 30)
+      hasta = hoy
+    } else {
+      desde = hoy
+      hasta = new Date(hoy); hasta.setDate(hasta.getDate() + 60)
+    }
 
     try {
       const res = await fetch(
-        `https://site.api.espn.com/apis/site/v2/sports/soccer/${ligaId}/scoreboard?dates=${fmt(hoy)}-${fmt(futuro)}&limit=50`
+        `https://site.api.espn.com/apis/site/v2/sports/soccer/${ligaId}/scoreboard?dates=${fmt(desde)}-${fmt(hasta)}&limit=50`
       )
       const data = await res.json()
-      const proximos = (data.events ?? []).filter(e =>
-        e.status?.type?.state === 'pre' || !e.status?.type?.state
+      const estado = buscarPasados ? 'post' : 'pre'
+      const filtrados = (data.events ?? []).filter(e =>
+        e.status?.type?.state === estado || (!buscarPasados && !e.status?.type?.state)
       )
-      if (proximos.length === 0) {
-        setErrorFixtures('No hay partidos próximos disponibles para esta competición.')
+      if (filtrados.length === 0) {
+        setErrorFixtures(buscarPasados
+          ? 'No hay partidos terminados en los últimos 30 días para esta competición.'
+          : 'No hay partidos próximos disponibles para esta competición.')
       } else {
-        setFixtures(proximos)
+        setFixtures(filtrados)
       }
     } catch {
       setErrorFixtures('Error de conexión.')
@@ -150,11 +185,21 @@ export default function Admin() {
       const comps = f.competitions?.[0]?.competitors ?? []
       const home  = comps.find(c => c.homeAway === 'home')?.team?.displayName ?? ''
       const away  = comps.find(c => c.homeAway === 'away')?.team?.displayName ?? ''
+      const toLocalISO = (iso) => {
+        if (!iso) return ''
+        const d = new Date(iso)
+        const pad = n => String(n).padStart(2, '0')
+        return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+      }
+      const homeCmp = comps.find(c => c.homeAway === 'home')
+      const awayCmp = comps.find(c => c.homeAway === 'away')
       return {
-        local:     home,
-        visitante: away,
-        hora:      f.date ? new Date(f.date).toISOString().slice(0, 16) : '',
-        espnId:    f.id,
+        local:         homeCmp?.team?.displayName ?? '',
+        visitante:     awayCmp?.team?.displayName ?? '',
+        escudoLocal:   homeCmp?.team?.logo ?? '',
+        escudoVisitante: awayCmp?.team?.logo ?? '',
+        hora:          toLocalISO(f.date),
+        espnId:        f.id,
         ligaId,
       }
     })
@@ -164,6 +209,80 @@ export default function Admin() {
     })
     setSeleccionados([])
     setFixtures([])
+  }
+
+  // ─── Edición de quiniela existente ───────────────────────────────────────
+  const quitarEditPartido = (i) => {
+    if (conteoPredicciones > 0) {
+      if (!window.confirm(`Hay ${conteoPredicciones} predicción(es) registrada(s). Eliminar este partido desalineará los picks existentes. ¿Continuar de todas formas?`)) return
+    }
+    setEditPartidos(prev => prev.filter((_, idx) => idx !== i))
+  }
+
+  const agregarSeleccionadosAEdicion = () => {
+    const nuevos = seleccionados.map(f => {
+      const comps  = f.competitions?.[0]?.competitors ?? []
+      const toLocalISO = (iso) => {
+        if (!iso) return ''
+        const d = new Date(iso)
+        const pad = n => String(n).padStart(2, '0')
+        return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+      }
+      const homeCmp = comps.find(c => c.homeAway === 'home')
+      const awayCmp = comps.find(c => c.homeAway === 'away')
+      return {
+        local:           homeCmp?.team?.displayName ?? '',
+        visitante:       awayCmp?.team?.displayName ?? '',
+        escudoLocal:     homeCmp?.team?.logo ?? '',
+        escudoVisitante: awayCmp?.team?.logo ?? '',
+        hora:            toLocalISO(f.date),
+        espnId:          f.id,
+        ligaId,
+      }
+    })
+    setEditPartidos(prev => [...prev, ...nuevos])
+    setSeleccionados([])
+    setFixtures([])
+  }
+
+  const eliminarQuiniela = async () => {
+    if (!quinielaActual || eliminando) return
+    if (!window.confirm(`¿Seguro que deseas eliminar "${quinielaActual.nombre}"? Esta acción no se puede deshacer.`)) return
+    if (deleteConfirm.trim() !== quinielaActual.nombre.trim()) return
+    setEliminando(true)
+    try {
+      const predsSnap = await getDocs(query(collection(db, 'predicciones'), where('quinielaId', '==', quinielaActual.id)))
+      await Promise.all(predsSnap.docs.map(d => deleteDoc(doc(db, 'predicciones', d.id))))
+      await deleteDoc(doc(db, 'quinielas', quinielaActual.id))
+      setQuinielas(prev => prev.filter(q => q.id !== quinielaActual.id))
+      setQuinielaActual(null)
+      setDeleteConfirm('')
+      setVista('lista')
+    } catch {
+      alert('Error al eliminar. Intenta de nuevo.')
+    } finally {
+      setEliminando(false)
+    }
+  }
+
+  const guardarEdicion = async () => {
+    if (!quinielaActual || guardandoEdicion) return
+    if (editPartidos.length === 0) return alert('La quiniela debe tener al menos un partido.')
+    setGuardandoEdicion(true)
+    try {
+      await updateDoc(doc(db, 'quinielas', quinielaActual.id), {
+        partidos: editPartidos,
+        cierre: editCierre,
+      })
+      const actualizado = { ...quinielaActual, partidos: editPartidos, cierre: editCierre }
+      setQuinielaActual(actualizado)
+      setQuinielas(prev => prev.map(q => q.id === quinielaActual.id ? actualizado : q))
+      setTab('resultados')
+    } catch {
+      alert('Error al guardar cambios.')
+    } finally {
+      setGuardandoEdicion(false)
+    }
   }
 
   // ─── Guardar nueva quiniela ───────────────────────────────────────────────
@@ -218,6 +337,7 @@ export default function Admin() {
       setGuardadoRes(true)
       setTimeout(() => setGuardadoRes(false), 3000)
       setQuinielaActual(prev => ({ ...prev, resultados: resGuardar }))
+      setQuinielas(prev => prev.map(q => q.id === quinielaActual.id ? { ...q, resultados: resGuardar } : q))
     } catch { alert('Error al guardar resultados.') }
     finally { setGuardandoRes(false) }
   }
@@ -279,6 +399,7 @@ export default function Admin() {
         await updateDoc(doc(db, 'quinielas', quinielaActual.id), { resultados: resGuardar })
         setResultados(resGuardar)
         setQuinielaActual(prev => ({ ...prev, resultados: resGuardar }))
+        setQuinielas(prev => prev.map(q => q.id === quinielaActual.id ? { ...q, resultados: resGuardar } : q))
         setSincrMsg(`✓ ${actualizados} partido${actualizados !== 1 ? 's' : ''} sincronizado${actualizados !== 1 ? 's' : ''}`)
         setTimeout(() => setSincrMsg(''), 4000)
       } catch { setSincrMsg('⚠ Error al guardar. Intenta de nuevo.') }
@@ -328,7 +449,7 @@ export default function Admin() {
       <div style={{ background: 'linear-gradient(150deg, #0F2942 0%, #1B5299 100%)', color: '#fff', padding: '2rem 1.25rem 1.5rem' }}>
         <div style={{ maxWidth: 580, margin: '0 auto', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
           <div>
-            <p style={{ fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', opacity: 0.55, marginBottom: 6, fontWeight: 600 }}>QuinielaApp</p>
+            <p style={{ fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', opacity: 0.55, marginBottom: 6, fontWeight: 600 }}>⚽ Quiniela APP</p>
             <h1 style={{ fontSize: 22, fontWeight: 700 }}>Panel de Administrador</h1>
           </div>
           {vista !== 'lista' && (
@@ -400,7 +521,23 @@ export default function Admin() {
             <div style={card}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                 <label style={{ ...lbl, marginBottom: 0 }}>Buscar partidos</label>
-                <span style={{ fontSize: 10, color: '#9CA3AF', fontWeight: 500 }}>Sin API key requerida</span>
+                <div style={{ display: 'flex', background: '#F3F4F6', borderRadius: 8, padding: 3, gap: 2 }}>
+                  {[{ val: false, label: 'Próximos' }, { val: true, label: 'Pasados' }].map(op => (
+                    <button
+                      key={String(op.val)}
+                      onClick={() => { setBuscarPasados(op.val); setFixtures([]); setSeleccionados([]) }}
+                      style={{
+                        padding: '5px 12px', fontSize: 12, fontWeight: 600, border: 'none',
+                        borderRadius: 6, cursor: 'pointer', transition: 'all 0.15s',
+                        background: buscarPasados === op.val ? '#fff' : 'transparent',
+                        color: buscarPasados === op.val ? '#0F2942' : '#9CA3AF',
+                        boxShadow: buscarPasados === op.val ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                      }}
+                    >
+                      {op.label}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {/* Selector de liga + botón buscar */}
@@ -408,14 +545,15 @@ export default function Admin() {
                 <select
                   value={ligaId}
                   onChange={e => { setLigaId(e.target.value); setFixtures([]); setSeleccionados([]) }}
-                  style={{ fontSize: 14 }}
+                  style={{ fontSize: 14, color: ligaId ? '#111827' : '#9CA3AF' }}
                 >
+                  <option value="" disabled>Selecciona una liga…</option>
                   {LIGAS.map(l => <option key={l.id} value={l.id}>{l.nombre}</option>)}
                 </select>
                 <button
                   onClick={buscarFixtures}
-                  disabled={loadingFixtures}
-                  style={{ ...btn('#1B5299', loadingFixtures), padding: '9px 16px', whiteSpace: 'nowrap' }}
+                  disabled={loadingFixtures || !ligaId}
+                  style={{ ...btn('#1B5299', loadingFixtures || !ligaId), padding: '9px 16px', whiteSpace: 'nowrap' }}
                 >
                   {loadingFixtures ? 'Buscando…' : 'Buscar'}
                 </button>
@@ -431,11 +569,15 @@ export default function Admin() {
                 <>
                   <div style={{ maxHeight: 320, overflowY: 'auto', marginTop: 4, borderRadius: 8, border: '1px solid #E5E7EB' }}>
                     {fixtures.map((f, i) => {
-                      const sel   = seleccionados.some(s => s.id === f.id)
-                      const comps = f.competitions?.[0]?.competitors ?? []
-                      const home  = comps.find(c => c.homeAway === 'home')?.team?.displayName ?? '?'
-                      const away  = comps.find(c => c.homeAway === 'away')?.team?.displayName ?? '?'
-                      const fecha = f.date ? formatFixtureDate(f.date) : ''
+                      const sel    = seleccionados.some(s => s.id === f.id)
+                      const comps  = f.competitions?.[0]?.competitors ?? []
+                      const homeCmp = comps.find(c => c.homeAway === 'home')
+                      const awayCmp = comps.find(c => c.homeAway === 'away')
+                      const home   = homeCmp?.team?.displayName ?? '?'
+                      const away   = awayCmp?.team?.displayName ?? '?'
+                      const homeLogo = homeCmp?.team?.logo ?? ''
+                      const awayLogo = awayCmp?.team?.logo ?? ''
+                      const fecha  = f.date ? formatFixtureDate(f.date) : ''
                       return (
                         <div
                           key={f.id}
@@ -456,12 +598,14 @@ export default function Admin() {
                           }}>
                             {sel && <span style={{ color: '#fff', fontSize: 11, fontWeight: 700, lineHeight: 1 }}>✓</span>}
                           </div>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <p style={{ fontSize: 13, fontWeight: 600, color: '#111827', marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {home} <span style={{ color: '#9CA3AF', fontWeight: 400 }}>vs</span> {away}
-                            </p>
-                            <p style={{ fontSize: 11, color: '#9CA3AF' }}>{fecha}</p>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
+                            {homeLogo && <img src={homeLogo} alt="" style={{ width: 20, height: 20, objectFit: 'contain', flexShrink: 0 }} onError={e => { e.target.style.display = 'none' }} />}
+                            <span style={{ fontSize: 13, fontWeight: 600, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{home}</span>
+                            <span style={{ fontSize: 11, color: '#9CA3AF', flexShrink: 0 }}>vs</span>
+                            {awayLogo && <img src={awayLogo} alt="" style={{ width: 20, height: 20, objectFit: 'contain', flexShrink: 0 }} onError={e => { e.target.style.display = 'none' }} />}
+                            <span style={{ fontSize: 13, fontWeight: 600, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{away}</span>
                           </div>
+                          <span style={{ fontSize: 11, color: '#9CA3AF', flexShrink: 0 }}>{fecha}</span>
                         </div>
                       )
                     })}
@@ -535,7 +679,7 @@ export default function Admin() {
 
             {/* Tabs */}
             <div style={{ display: 'flex', gap: 4, background: '#E5E7EB', borderRadius: 10, padding: 4, marginBottom: 16 }}>
-              {[{ key: 'resultados', label: '⚽ Resultados' }, { key: 'compartir', label: '🔗 Compartir' }].map(t => (
+              {[{ key: 'resultados', label: '⚽ Resultados' }, { key: 'editar', label: '✏️ Editar' }, { key: 'compartir', label: '🔗 Compartir' }].map(t => (
                 <button
                   key={t.key}
                   onClick={() => setTab(t.key)}
@@ -619,6 +763,160 @@ export default function Admin() {
                       {guardandoRes ? 'Guardando…' : 'Guardar manual'}
                     </button>
                   </div>
+                </div>
+              </>
+            )}
+
+            {/* Tab: Editar */}
+            {tab === 'editar' && (
+              <>
+                {/* Fecha de cierre */}
+                <div style={card}>
+                  <label style={lbl}>Fecha y hora de cierre</label>
+                  <input
+                    type="datetime-local"
+                    value={editCierre}
+                    onChange={e => setEditCierre(e.target.value)}
+                  />
+                </div>
+
+                {/* Lista de partidos */}
+                <div style={card}>
+                  <label style={{ ...lbl, marginBottom: 14 }}>Partidos</label>
+                  {conteoPredicciones > 0 && (
+                    <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: 12, color: '#92400E' }}>
+                      ⚠️ Hay {conteoPredicciones} predicción(es) registrada(s). Eliminar partidos puede desalinear los picks existentes.
+                    </div>
+                  )}
+                  {editPartidos.map((p, i) => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: i < editPartidos.length - 1 ? '1px solid #F3F4F6' : 'none' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
+                        {p.escudoLocal && <img src={p.escudoLocal} alt="" style={{ width: 18, height: 18, objectFit: 'contain', flexShrink: 0 }} onError={e => { e.target.style.display = 'none' }} />}
+                        <span style={{ fontSize: 13, color: '#374151', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.local}</span>
+                        <span style={{ fontSize: 11, color: '#9CA3AF', flexShrink: 0 }}>vs</span>
+                        {p.escudoVisitante && <img src={p.escudoVisitante} alt="" style={{ width: 18, height: 18, objectFit: 'contain', flexShrink: 0 }} onError={e => { e.target.style.display = 'none' }} />}
+                        <span style={{ fontSize: 13, color: '#374151', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.visitante}</span>
+                      </div>
+                      {p.hora && <span style={{ fontSize: 11, color: '#9CA3AF', flexShrink: 0 }}>{formatFixtureDate(p.hora)}</span>}
+                      <button
+                        onClick={() => quitarEditPartido(i)}
+                        style={{ background: 'none', border: 'none', color: '#EF4444', fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: '2px 6px', borderRadius: 6, flexShrink: 0 }}
+                      >
+                        Quitar ✕
+                      </button>
+                    </div>
+                  ))}
+                  {editPartidos.length === 0 && (
+                    <p style={{ fontSize: 13, color: '#9CA3AF', textAlign: 'center', padding: '1rem 0' }}>Sin partidos. Agrega desde el buscador o manualmente.</p>
+                  )}
+                </div>
+
+                {/* Buscador ESPN para agregar más */}
+                <div style={card}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                    <label style={{ ...lbl, marginBottom: 0 }}>Agregar partidos</label>
+                    <div style={{ display: 'flex', background: '#F3F4F6', borderRadius: 8, padding: 3, gap: 2 }}>
+                      {[{ val: false, label: 'Próximos' }, { val: true, label: 'Pasados' }].map(op => (
+                        <button key={String(op.val)} onClick={() => { setBuscarPasados(op.val); setFixtures([]); setSeleccionados([]) }}
+                          style={{ padding: '5px 12px', fontSize: 12, fontWeight: 600, border: 'none', borderRadius: 6, cursor: 'pointer', transition: 'all 0.15s', background: buscarPasados === op.val ? '#fff' : 'transparent', color: buscarPasados === op.val ? '#0F2942' : '#9CA3AF', boxShadow: buscarPasados === op.val ? '0 1px 3px rgba(0,0,0,0.1)' : 'none' }}>
+                          {op.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, marginBottom: fixtures.length > 0 ? 12 : 0 }}>
+                    <select value={ligaId} onChange={e => { setLigaId(e.target.value); setFixtures([]); setSeleccionados([]) }} style={{ fontSize: 14, color: ligaId ? '#111827' : '#9CA3AF' }}>
+                      <option value="" disabled>Selecciona una liga…</option>
+                      {LIGAS.map(l => <option key={l.id} value={l.id}>{l.nombre}</option>)}
+                    </select>
+                    <button onClick={buscarFixtures} disabled={loadingFixtures || !ligaId} style={{ ...btn('#1B5299', loadingFixtures || !ligaId), padding: '9px 16px', whiteSpace: 'nowrap' }}>
+                      {loadingFixtures ? 'Buscando…' : 'Buscar'}
+                    </button>
+                  </div>
+                  {errorFixtures && <p style={{ fontSize: 12, color: '#EF4444', marginTop: 8 }}>{errorFixtures}</p>}
+                  {fixtures.length > 0 && (
+                    <>
+                      <div style={{ maxHeight: 260, overflowY: 'auto', borderRadius: 8, border: '1px solid #E5E7EB' }}>
+                        {fixtures.map((f, i) => {
+                          const sel = seleccionados.some(s => s.id === f.id)
+                          const comps = f.competitions?.[0]?.competitors ?? []
+                          const homeCmp = comps.find(c => c.homeAway === 'home')
+                          const awayCmp = comps.find(c => c.homeAway === 'away')
+                          const home = homeCmp?.team?.displayName ?? '?'
+                          const away = awayCmp?.team?.displayName ?? '?'
+                          const homeLogo = homeCmp?.team?.logo ?? ''
+                          const awayLogo = awayCmp?.team?.logo ?? ''
+                          return (
+                            <div key={f.id} onClick={() => toggleFixture(f)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', cursor: 'pointer', borderBottom: i < fixtures.length - 1 ? '1px solid #F3F4F6' : 'none', background: sel ? '#EBF3FF' : '#fff' }}>
+                              <div style={{ width: 18, height: 18, borderRadius: 4, flexShrink: 0, border: sel ? '2px solid #1B5299' : '2px solid #D1D5DB', background: sel ? '#1B5299' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                {sel && <span style={{ color: '#fff', fontSize: 11, fontWeight: 700 }}>✓</span>}
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
+                                {homeLogo && <img src={homeLogo} alt="" style={{ width: 18, height: 18, objectFit: 'contain' }} onError={e => { e.target.style.display = 'none' }} />}
+                                <span style={{ fontSize: 13, fontWeight: 600, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{home}</span>
+                                <span style={{ fontSize: 11, color: '#9CA3AF' }}>vs</span>
+                                {awayLogo && <img src={awayLogo} alt="" style={{ width: 18, height: 18, objectFit: 'contain' }} onError={e => { e.target.style.display = 'none' }} />}
+                                <span style={{ fontSize: 13, fontWeight: 600, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{away}</span>
+                              </div>
+                              <span style={{ fontSize: 11, color: '#9CA3AF', flexShrink: 0 }}>{f.date ? formatFixtureDate(f.date) : ''}</span>
+                            </div>
+                          )
+                        })}
+                      </div>
+                      {seleccionados.length > 0 && (
+                        <button onClick={agregarSeleccionadosAEdicion} style={{ ...btn('#16A34A', false), width: '100%', marginTop: 10, padding: '11px' }}>
+                          + Agregar {seleccionados.length} partido{seleccionados.length !== 1 ? 's' : ''}
+                        </button>
+                      )}
+                    </>
+                  )}
+                  <button
+                    onClick={() => setEditPartidos(prev => [...prev, { local: '', visitante: '', hora: '' }])}
+                    style={{ width: '100%', padding: '10px', border: '1.5px dashed #D1D5DB', background: 'transparent', borderRadius: 10, cursor: 'pointer', color: '#6B7280', fontSize: 13, fontWeight: 500, marginTop: 10 }}
+                  >
+                    + Agregar partido manualmente
+                  </button>
+                </div>
+
+                <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                  <button onClick={() => { setTab('resultados'); setFixtures([]); setSeleccionados([]) }} style={{ ...btn('#6B7280', false) }}>
+                    Cancelar
+                  </button>
+                  <button onClick={guardarEdicion} disabled={guardandoEdicion} style={{ ...btn('linear-gradient(135deg, #0F2942, #1B5299)', guardandoEdicion) }}>
+                    {guardandoEdicion ? 'Guardando…' : 'Guardar cambios →'}
+                  </button>
+                </div>
+
+                {/* Zona de peligro */}
+                <div style={{ marginTop: 24, border: '1.5px solid #FECACA', borderRadius: 14, padding: '1.1rem 1.25rem' }}>
+                  <p style={{ fontSize: 13, fontWeight: 700, color: '#DC2626', marginBottom: 4 }}>Zona de peligro</p>
+                  <p style={{ fontSize: 12, color: '#6B7280', marginBottom: 14, lineHeight: 1.5 }}>
+                    Eliminar la quiniela borrará también todas las predicciones registradas. Esta acción es permanente e irreversible.
+                  </p>
+                  <label style={{ ...lbl, marginBottom: 6 }}>
+                    Escribe el nombre de la quiniela para confirmar
+                  </label>
+                  <p style={{ fontSize: 11, color: '#9CA3AF', marginBottom: 8, fontStyle: 'italic' }}>
+                    "{quinielaActual.nombre}"
+                  </p>
+                  <input
+                    type="text"
+                    placeholder="Escribe el nombre exacto…"
+                    value={deleteConfirm}
+                    onChange={e => setDeleteConfirm(e.target.value)}
+                    style={{ marginBottom: 10, borderColor: '#FECACA' }}
+                  />
+                  <button
+                    onClick={eliminarQuiniela}
+                    disabled={eliminando || deleteConfirm.trim() !== quinielaActual.nombre.trim()}
+                    style={{
+                      ...btn('#DC2626', eliminando || deleteConfirm.trim() !== quinielaActual.nombre.trim()),
+                      width: '100%', padding: '11px',
+                      background: (eliminando || deleteConfirm.trim() !== quinielaActual.nombre.trim()) ? '#D1D5DB' : '#DC2626',
+                    }}
+                  >
+                    {eliminando ? 'Eliminando…' : '🗑 Eliminar quiniela permanentemente'}
+                  </button>
                 </div>
               </>
             )}

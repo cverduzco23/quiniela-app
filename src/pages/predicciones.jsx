@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { doc, getDoc, addDoc, collection, updateDoc } from 'firebase/firestore'
+import { doc, getDoc, addDoc, collection, updateDoc, getDocs, query, where } from 'firebase/firestore'
 import { db } from '../firebase'
 
 function formatFecha(iso) {
@@ -43,6 +43,7 @@ export default function Predicciones() {
   const [picks, setPicks]         = useState({})
   const [enviado, setEnviado]     = useState(false)
   const [enviando, setEnviando]   = useState(false)
+  const [nombreError, setNombreError] = useState('')
 
   useEffect(() => {
     if (!quinielaId) { setCargando(false); setError('no-id'); return }
@@ -100,7 +101,18 @@ export default function Predicciones() {
   const enviar = async () => {
     if (!completado || cerrada || enviando) return
     setEnviando(true)
+    setNombreError('')
     try {
+      const snap = await getDocs(query(
+        collection(db, 'predicciones'),
+        where('quinielaId', '==', quinielaId),
+        where('nombre', '==', nombre.trim())
+      ))
+      if (!snap.empty) {
+        setNombreError(`Ya hay alguien registrado como "${nombre.trim()}". Usa un nombre diferente o añade tu apellido.`)
+        setEnviando(false)
+        return
+      }
       await addDoc(collection(db, 'predicciones'), {
         quinielaId,
         nombre: nombre.trim(),
@@ -141,7 +153,18 @@ export default function Predicciones() {
         }}>✓</div>
         <h2 style={{ fontSize: 26, fontWeight: 700, marginBottom: 10 }}>¡Listo, {nombre}!</h2>
         <p style={{ color: '#6B7280', fontSize: 15, marginBottom: 6 }}>Tus predicciones fueron registradas.</p>
-        <p style={{ color: '#9CA3AF', fontSize: 13 }}>Revisa el ranking cuando terminen los partidos.</p>
+        <p style={{ color: '#9CA3AF', fontSize: 13, marginBottom: 28 }}>Revisa el ranking cuando terminen los partidos.</p>
+        <a
+          href={`/ranking?q=${quinielaId}`}
+          style={{
+            display: 'inline-block', padding: '13px 28px', borderRadius: 12,
+            background: 'linear-gradient(135deg, #0F2942 0%, #1B5299 100%)',
+            color: '#fff', fontWeight: 700, fontSize: 14, textDecoration: 'none',
+            boxShadow: '0 4px 14px rgba(27,82,153,0.35)',
+          }}
+        >
+          Ver ranking →
+        </a>
       </div>
     </div>
   )
@@ -153,7 +176,7 @@ export default function Predicciones() {
       {/* Hero */}
       <div style={{ background: 'linear-gradient(150deg, #0F2942 0%, #1B5299 100%)', color: '#fff', padding: '2rem 1.25rem 1.75rem' }}>
         <div style={{ maxWidth: 560, margin: '0 auto' }}>
-          <p style={{ fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', opacity: 0.55, marginBottom: 8, fontWeight: 600 }}>⚽ QuinielaApp</p>
+          <p style={{ fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', opacity: 0.55, marginBottom: 8, fontWeight: 600 }}>⚽ Quiniela APP</p>
           <h1 style={{ fontSize: 22, fontWeight: 700, lineHeight: 1.25, marginBottom: 10 }}>{quiniela.nombre}</h1>
           {quiniela.cierre && (
             <span style={{
@@ -206,9 +229,12 @@ export default function Predicciones() {
                 type="text"
                 placeholder="¿Cómo te llamas?"
                 value={nombre}
-                onChange={e => setNombre(e.target.value)}
-                style={{ fontSize: 15 }}
+                onChange={e => { setNombre(e.target.value); setNombreError('') }}
+                style={{ fontSize: 15, borderColor: nombreError ? '#EF4444' : undefined }}
               />
+              {nombreError && (
+                <p style={{ fontSize: 12, color: '#EF4444', marginTop: 8 }}>{nombreError}</p>
+              )}
             </div>
 
             {/* Partidos */}
@@ -230,14 +256,17 @@ export default function Predicciones() {
                   <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'center', gap: 12 }}>
                     {/* Local */}
                     <div style={{ textAlign: 'center' }}>
+                      {p.escudoLocal && (
+                        <img src={p.escudoLocal} alt="" style={{ width: 36, height: 36, objectFit: 'contain', display: 'block', margin: '0 auto 4px' }} onError={e => { e.target.style.display = 'none' }} />
+                      )}
                       <span style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#374151', marginBottom: 6, maxWidth: 80, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {p.local}
                       </span>
                       <input
-                        type="number" min="0" max="99"
+                        type="text" inputMode="numeric" pattern="[0-9]*"
                         value={pick?.local ?? ''}
-                        onChange={e => setPick(i, 'local', e.target.value)}
-                        placeholder="0"
+                        onChange={e => { const v = e.target.value.replace(/[^0-9]/g, ''); setPick(i, 'local', v) }}
+                        placeholder="–"
                         style={{
                           width: 68, textAlign: 'center', fontSize: 30, fontWeight: 800,
                           padding: '10px 4px', borderRadius: 12,
@@ -252,14 +281,17 @@ export default function Predicciones() {
 
                     {/* Visitante */}
                     <div style={{ textAlign: 'center' }}>
+                      {p.escudoVisitante && (
+                        <img src={p.escudoVisitante} alt="" style={{ width: 36, height: 36, objectFit: 'contain', display: 'block', margin: '0 auto 4px' }} onError={e => { e.target.style.display = 'none' }} />
+                      )}
                       <span style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#374151', marginBottom: 6, maxWidth: 80, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {p.visitante}
                       </span>
                       <input
-                        type="number" min="0" max="99"
+                        type="text" inputMode="numeric" pattern="[0-9]*"
                         value={pick?.visitante ?? ''}
-                        onChange={e => setPick(i, 'visitante', e.target.value)}
-                        placeholder="0"
+                        onChange={e => { const v = e.target.value.replace(/[^0-9]/g, ''); setPick(i, 'visitante', v) }}
+                        placeholder="–"
                         style={{
                           width: 68, textAlign: 'center', fontSize: 30, fontWeight: 800,
                           padding: '10px 4px', borderRadius: 12,
@@ -307,6 +339,15 @@ export default function Predicciones() {
             >
               {enviando ? 'Enviando…' : 'Enviar predicciones →'}
             </button>
+            {nombreError && (
+              <div style={{
+                marginTop: 10, padding: '10px 14px', borderRadius: 10,
+                background: '#FEF2F2', border: '1px solid #FECACA',
+                fontSize: 13, color: '#DC2626', lineHeight: 1.5,
+              }}>
+                ⚠️ {nombreError}
+              </div>
+            )}
           </>
         )}
       </div>
