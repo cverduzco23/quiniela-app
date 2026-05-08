@@ -1,11 +1,7 @@
 import { useState, useEffect } from 'react'
 import { collection, addDoc, doc, updateDoc, getDocs, deleteDoc, query, orderBy, where } from 'firebase/firestore'
-import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth'
-import { db, auth, googleProvider } from '../firebase'
-
-const ADMIN_EMAILS = [
-  'cverduzco2008@gmail.com',
-]
+import { signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth'
+import { db, auth } from '../firebase'
 
 // Slugs de la API pública de ESPN (sin API key)
 const LIGAS = [
@@ -60,32 +56,28 @@ export default function Admin() {
   // ─── Autenticación ────────────────────────────────────────────────────────
   const [autenticado, setAutenticado] = useState(false)
   const [authListo, setAuthListo]     = useState(false)
+  const [email, setEmail]             = useState('')
+  const [password, setPassword]       = useState('')
   const [loginError, setLoginError]   = useState('')
   const [loginLoading, setLoginLoading] = useState(false)
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, user => {
-      setAutenticado(!!(user && ADMIN_EMAILS.includes(user.email)))
+      setAutenticado(!!user)
       setAuthListo(true)
     })
     return unsub
   }, [])
 
   const entrar = async () => {
+    if (!email.trim() || !password) return
     setLoginLoading(true)
     setLoginError('')
     try {
-      const result = await signInWithPopup(auth, googleProvider)
-      if (!ADMIN_EMAILS.includes(result.user.email)) {
-        await signOut(auth)
-        setLoginError('Esta cuenta de Google no tiene permiso de acceso. Contacta al administrador.')
-      }
-    } catch (e) {
-      if (e.code === 'auth/popup-blocked') {
-        setLoginError('Tu navegador bloqueó la ventana emergente. Permite popups para este sitio en la barra de direcciones e intenta de nuevo.')
-      } else if (e.code !== 'auth/popup-closed-by-user') {
-        setLoginError(`Error: ${e.code}`)
-      }
+      await signInWithEmailAndPassword(auth, email.trim(), password)
+    } catch {
+      setLoginError('Correo o contraseña incorrectos.')
+      setPassword('')
     } finally {
       setLoginLoading(false)
     }
@@ -460,27 +452,28 @@ export default function Admin() {
           <p style={{ fontSize: 13, color: '#6B7280', marginTop: 4 }}>⚽ Quiniela APP</p>
         </div>
         <div style={card}>
-          <button
-            onClick={entrar}
-            disabled={loginLoading}
-            style={{
-              width: '100%', padding: '12px 16px', borderRadius: 10, border: '1.5px solid #E5E7EB',
-              background: loginLoading ? '#F9FAFB' : '#fff', cursor: loginLoading ? 'not-allowed' : 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
-              fontSize: 14, fontWeight: 600, color: '#374151',
-            }}
-          >
-            <svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
-              <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z" fill="#4285F4"/>
-              <path d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z" fill="#34A853"/>
-              <path d="M3.964 10.707A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.707V4.961H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.039l3.007-2.332z" fill="#FBBC05"/>
-              <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.96L3.964 7.293C4.672 5.163 6.656 3.58 9 3.58z" fill="#EA4335"/>
-            </svg>
-            {loginLoading ? 'Abriendo Google…' : 'Continuar con Google'}
+          <label style={lbl}>Correo electrónico</label>
+          <input
+            type="email"
+            placeholder="correo@ejemplo.com"
+            value={email}
+            onChange={e => { setEmail(e.target.value); setLoginError('') }}
+            onKeyDown={e => e.key === 'Enter' && entrar()}
+            style={{ marginBottom: 12, borderColor: loginError ? '#EF4444' : undefined }}
+          />
+          <label style={lbl}>Contraseña</label>
+          <input
+            type="password"
+            placeholder="Tu contraseña"
+            value={password}
+            onChange={e => { setPassword(e.target.value); setLoginError('') }}
+            onKeyDown={e => e.key === 'Enter' && entrar()}
+            style={{ marginBottom: 10, borderColor: loginError ? '#EF4444' : undefined }}
+          />
+          {loginError && <p style={{ fontSize: 12, color: '#EF4444', marginBottom: 10 }}>{loginError}</p>}
+          <button onClick={entrar} disabled={loginLoading} style={{ ...btn('linear-gradient(135deg, #0F2942, #1B5299)', loginLoading), width: '100%', padding: '12px' }}>
+            {loginLoading ? 'Entrando…' : 'Entrar →'}
           </button>
-          {loginError && (
-            <p style={{ fontSize: 12, color: '#EF4444', marginTop: 10, textAlign: 'center', lineHeight: 1.5 }}>{loginError}</p>
-          )}
         </div>
       </div>
     </div>
