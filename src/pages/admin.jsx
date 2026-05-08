@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { collection, addDoc, doc, updateDoc, getDocs, deleteDoc, query, orderBy, where } from 'firebase/firestore'
-import { signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged } from 'firebase/auth'
+import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth'
 import { db, auth, googleProvider } from '../firebase'
 
 const ADMIN_EMAILS = [
@@ -71,22 +71,24 @@ export default function Admin() {
     return unsub
   }, [])
 
-  useEffect(() => {
-    getRedirectResult(auth).then(async result => {
-      if (!result) return
+  const entrar = async () => {
+    setLoginLoading(true)
+    setLoginError('')
+    try {
+      const result = await signInWithPopup(auth, googleProvider)
       if (!ADMIN_EMAILS.includes(result.user.email)) {
         await signOut(auth)
         setLoginError('Esta cuenta de Google no tiene permiso de acceso. Contacta al administrador.')
       }
-    }).catch((e) => {
-      setLoginError(`Error: ${e.code ?? e.message}`)
-    })
-  }, [])
-
-  const entrar = () => {
-    setLoginLoading(true)
-    setLoginError('')
-    signInWithRedirect(auth, googleProvider)
+    } catch (e) {
+      if (e.code === 'auth/popup-blocked') {
+        setLoginError('Tu navegador bloqueó la ventana emergente. Permite popups para este sitio en la barra de direcciones e intenta de nuevo.')
+      } else if (e.code !== 'auth/popup-closed-by-user') {
+        setLoginError(`Error: ${e.code}`)
+      }
+    } finally {
+      setLoginLoading(false)
+    }
   }
 
   const salir = () => signOut(auth)
