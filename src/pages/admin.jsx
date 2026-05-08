@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { collection, addDoc, doc, updateDoc, getDocs, deleteDoc, query, orderBy, where } from 'firebase/firestore'
 import { signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth'
 import { db, auth } from '../firebase'
+import { cierreToDate, cierreToInputValue, inputValueACierre, quinielaCerrada } from '../utils/cierre'
 
 const LIGAS = [
   { id: 'mex.1',              nombre: '🇲🇽 Liga MX' },
@@ -21,38 +22,45 @@ function goalsToResultado(local, visitante) {
   return l > v ? 'home' : l === v ? 'draw' : 'away'
 }
 
-function esCerradaQ(q) {
-  return !!(q.cerrada || (q.cierre && new Date() > new Date(q.cierre)))
+const esCerradaQ = quinielaCerrada
+
+function formatFecha(value) {
+  const d = cierreToDate(value)
+  if (!d) return '—'
+  return d.toLocaleString('es-MX', {
+    day: 'numeric', month: 'short', year: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+  })
 }
 
-function formatFecha(iso) {
-  if (!iso) return '—'
-  try {
-    return new Date(iso).toLocaleString('es-MX', {
-      day: 'numeric', month: 'short', year: 'numeric',
-      hour: '2-digit', minute: '2-digit',
-    })
-  } catch { return iso }
-}
-
-function formatFixtureDate(iso) {
-  if (!iso) return ''
-  try {
-    return new Date(iso).toLocaleString('es-MX', {
-      weekday: 'short', day: 'numeric', month: 'short',
-      hour: '2-digit', minute: '2-digit',
-    })
-  } catch { return '' }
+function formatFixtureDate(value) {
+  const d = cierreToDate(value)
+  if (!d) return ''
+  return d.toLocaleString('es-MX', {
+    weekday: 'short', day: 'numeric', month: 'short',
+    hour: '2-digit', minute: '2-digit',
+  })
 }
 
 // ─── Estilos compartidos ──────────────────────────────────────────────────────
-const card = { background: '#fff', borderRadius: 14, padding: '1.1rem 1.25rem', marginBottom: 10, boxShadow: '0 1px 3px rgba(0,0,0,0.07)' }
-const lbl = { fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 8 }
+const card = { background: 'var(--card)', borderRadius: 'var(--radius-md)', padding: '1.1rem 1.25rem', marginBottom: 10, border: '1px solid var(--border)' }
+const lbl = { fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 8 }
 const btn = (bg, disabled) => ({
-  padding: '10px 20px', borderRadius: 10, border: 'none',
-  background: disabled ? '#D1D5DB' : bg, color: '#fff',
-  fontSize: 13, fontWeight: 600, cursor: disabled ? 'not-allowed' : 'pointer',
+  padding: '10px 20px', borderRadius: 'var(--radius-sm)', border: 'none',
+  background: disabled ? 'var(--card-light)' : bg,
+  color: disabled ? 'var(--muted)' : (bg === 'green-cta' ? '#07120A' : 'var(--text)'),
+  fontSize: 13, fontWeight: 700, cursor: disabled ? 'not-allowed' : 'pointer',
   letterSpacing: 0.2,
+})
+
+const greenCta = 'linear-gradient(135deg, var(--green), var(--green-light))'
+const greenCtaStyle = (disabled) => ({
+  padding: '10px 20px', borderRadius: 'var(--radius-sm)', border: 'none',
+  background: disabled ? 'var(--card-light)' : greenCta,
+  color: disabled ? 'var(--muted)' : '#07120A',
+  fontSize: 13, fontWeight: 800, cursor: disabled ? 'not-allowed' : 'pointer',
+  letterSpacing: 0.2,
+  boxShadow: disabled ? 'none' : 'var(--shadow-green)',
 })
 
 export default function Admin() {
@@ -94,7 +102,7 @@ export default function Admin() {
   const [loadingLista, setLoadingLista]   = useState(true)
   const [quinielaActual, setQuinielaActual] = useState(null)
   const [tab, setTab]                     = useState('resultados')
-  const [conteos, setConteos]             = useState({})   // quinielaId → nº predicciones
+  const [conteos, setConteos]             = useState({})
 
   // ─── Formulario nueva quiniela ────────────────────────────────────────────
   const [nombre, setNombre]     = useState('')
@@ -132,7 +140,7 @@ export default function Admin() {
   // ─── Lista de predicciones individuales ──────────────────────────────────
   const [listaPredicciones, setListaPredicciones]       = useState([])
   const [loadingPredicciones, setLoadingPredicciones]   = useState(false)
-  const [eliminandoPred, setEliminandoPred]             = useState(null) // id del doc eliminándose
+  const [eliminandoPred, setEliminandoPred]             = useState(null)
 
   // ─── Compartir ───────────────────────────────────────────────────────────
   const [copiado, setCopiado] = useState(null)
@@ -152,7 +160,7 @@ export default function Admin() {
     if (tab !== 'editar' || !quinielaActual) return
     setEditNombre(quinielaActual.nombre ?? '')
     setEditPartidos([...(quinielaActual.partidos ?? [])])
-    setEditCierre(quinielaActual.cierre ?? '')
+    setEditCierre(cierreToInputValue(quinielaActual.cierre))
     setFixtures([]); setSeleccionados([])
     setConteoPredicciones(null)
     getDocs(query(collection(db, 'predicciones'), where('quinielaId', '==', quinielaActual.id)))
@@ -274,13 +282,6 @@ export default function Admin() {
   }
 
   // ─── Edición de quiniela existente ───────────────────────────────────────
-  const quitarEditPartido = (i) => {
-    if (conteoPredicciones > 0) {
-      if (!window.confirm(`Hay ${conteoPredicciones} predicción(es) registrada(s). Eliminar este partido desalineará los picks existentes. ¿Continuar de todas formas?`)) return
-    }
-    setEditPartidos(prev => prev.filter((_, idx) => idx !== i))
-  }
-
   const guardarEdicion = async () => {
     if (!quinielaActual || guardandoEdicion) return
     if (editPartidos.length === 0) return alert('La quiniela debe tener al menos un partido.')
@@ -288,12 +289,13 @@ export default function Admin() {
     if (!editCierre) return alert('La fecha y hora de cierre es obligatoria.')
     setGuardandoEdicion(true)
     try {
+      const cierreTs = inputValueACierre(editCierre)
       await updateDoc(doc(db, 'quinielas', quinielaActual.id), {
         nombre:   editNombre.trim(),
         partidos: editPartidos,
-        cierre:   editCierre,
+        cierre:   cierreTs,
       })
-      const actualizado = { ...quinielaActual, nombre: editNombre.trim(), partidos: editPartidos, cierre: editCierre }
+      const actualizado = { ...quinielaActual, nombre: editNombre.trim(), partidos: editPartidos, cierre: cierreTs }
       setQuinielaActual(actualizado)
       setQuinielas(prev => prev.map(q => q.id === quinielaActual.id ? actualizado : q))
       setTab('resultados')
@@ -311,7 +313,7 @@ export default function Admin() {
     setToggling(true)
     try {
       const changes = estaCerrada
-        ? { cerrada: false, cierre: '' }  // reabrir: limpiar cierre para evitar re-cierre automático
+        ? { cerrada: false, cierre: null }
         : { cerrada: true }
       await updateDoc(doc(db, 'quinielas', quinielaActual.id), changes)
       const actualizado = { ...quinielaActual, ...changes }
@@ -369,11 +371,13 @@ export default function Admin() {
     if (partidos.some(p => !p.local.trim() || !p.visitante.trim())) return alert('Completa nombre de equipos en todos los partidos')
     setGuardando(true)
     try {
+      const cierreTs = inputValueACierre(cierre)
+      const creada   = new Date().toISOString()
       const ref = await addDoc(collection(db, 'quinielas'), {
-        nombre: nombre.trim(), cierre, partidos,
-        resultados: {}, creada: new Date().toISOString(), cerrada: false,
+        nombre: nombre.trim(), cierre: cierreTs, partidos,
+        resultados: {}, creada, cerrada: false,
       })
-      const nueva = { id: ref.id, nombre: nombre.trim(), cierre, partidos, resultados: {}, creada: new Date().toISOString(), cerrada: false }
+      const nueva = { id: ref.id, nombre: nombre.trim(), cierre: cierreTs, partidos, resultados: {}, creada, cerrada: false }
       setQuinielaActual(nueva)
       setResultados({})
       setVista('gestionar')
@@ -457,7 +461,7 @@ export default function Admin() {
           const ev = events.find(e => e.id === p.espnId)
           if (!ev) return
           const state = ev.status?.type?.state
-          if (state !== 'in' && state !== 'post') return
+          if (state !== 'post') return
           const comps = ev.competitions?.[0]?.competitors ?? []
           const home  = comps.find(c => c.homeAway === 'home')
           const away  = comps.find(c => c.homeAway === 'away')
@@ -479,7 +483,7 @@ export default function Admin() {
         setTimeout(() => setSincrMsg(''), 4000)
       } catch { setSincrMsg('⚠ Error al guardar. Intenta de nuevo.') }
     } else {
-      setSincrMsg('Sin partidos en curso o terminados para sincronizar.')
+      setSincrMsg('Sin partidos terminados para sincronizar.')
       setTimeout(() => setSincrMsg(''), 4000)
     }
 
@@ -502,18 +506,18 @@ export default function Admin() {
 
   // ─── Login ────────────────────────────────────────────────────────────────
   if (!authListo) return (
-    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', color: '#6B7280', fontSize: 14 }}>
+    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', color: 'var(--muted)', fontSize: 14 }}>
       Cargando…
     </div>
   )
 
   if (!autenticado) return (
-    <div style={{ minHeight: '100vh', background: '#EEF2F8', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ width: '100%', maxWidth: 360, padding: '0 1rem' }}>
         <div style={{ textAlign: 'center', marginBottom: 28 }}>
           <div style={{ fontSize: 40, marginBottom: 12 }}>🔐</div>
-          <h2 style={{ fontSize: 20, fontWeight: 700, color: '#0F2942' }}>Panel de Administrador</h2>
-          <p style={{ fontSize: 13, color: '#6B7280', marginTop: 4 }}>⚽ QuinielApp</p>
+          <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, color: 'var(--text-strong)', letterSpacing: '-0.01em' }}>Panel de Administrador</h2>
+          <p style={{ fontSize: 13, color: 'var(--green-light)', marginTop: 4, fontWeight: 600 }}>⚽ QuinielApp</p>
         </div>
         <div style={card}>
           <label style={lbl}>Correo electrónico</label>
@@ -521,17 +525,17 @@ export default function Admin() {
             type="email" placeholder="correo@ejemplo.com" value={email}
             onChange={e => { setEmail(e.target.value); setLoginError('') }}
             onKeyDown={e => e.key === 'Enter' && entrar()}
-            style={{ marginBottom: 12, borderColor: loginError ? '#EF4444' : undefined }}
+            style={{ marginBottom: 12, borderColor: loginError ? 'var(--red)' : undefined }}
           />
           <label style={lbl}>Contraseña</label>
           <input
             type="password" placeholder="Tu contraseña" value={password}
             onChange={e => { setPassword(e.target.value); setLoginError('') }}
             onKeyDown={e => e.key === 'Enter' && entrar()}
-            style={{ marginBottom: 10, borderColor: loginError ? '#EF4444' : undefined }}
+            style={{ marginBottom: 10, borderColor: loginError ? 'var(--red)' : undefined }}
           />
-          {loginError && <p style={{ fontSize: 12, color: '#EF4444', marginBottom: 10 }}>{loginError}</p>}
-          <button onClick={entrar} disabled={loginLoading} style={{ ...btn('linear-gradient(135deg, #0F2942, #1B5299)', loginLoading), width: '100%', padding: '12px' }}>
+          {loginError && <p style={{ fontSize: 12, color: 'var(--red)', marginBottom: 10 }}>{loginError}</p>}
+          <button onClick={entrar} disabled={loginLoading} style={{ ...greenCtaStyle(loginLoading), width: '100%', padding: '12px' }}>
             {loginLoading ? 'Entrando…' : 'Entrar →'}
           </button>
         </div>
@@ -539,24 +543,23 @@ export default function Admin() {
     </div>
   )
 
-  // ─── Buscador de fixtures (reutilizable en nueva y en editar) ─────────────
+  // ─── Buscador de fixtures (reutilizable) ──────────────────────────────────
   const renderBuscadorFixtures = (onAgregar) => (
     <div style={card}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
         <label style={{ ...lbl, marginBottom: 0 }}>
           {onAgregar === agregarSeleccionados ? 'Buscar partidos' : 'Agregar partidos'}
         </label>
-        <div style={{ display: 'flex', background: '#F3F4F6', borderRadius: 8, padding: 3, gap: 2 }}>
+        <div style={{ display: 'flex', background: 'var(--bg-soft)', borderRadius: 'var(--radius-sm)', padding: 3, gap: 2, border: '1px solid var(--border)' }}>
           {[{ val: false, label: 'Próximos' }, { val: true, label: 'Pasados' }].map(op => (
             <button
               key={String(op.val)}
               onClick={() => { setBuscarPasados(op.val); setFixtures([]); setSeleccionados([]) }}
               style={{
-                padding: '5px 12px', fontSize: 12, fontWeight: 600, border: 'none',
+                padding: '5px 12px', fontSize: 12, fontWeight: 700, border: 'none',
                 borderRadius: 6, cursor: 'pointer', transition: 'all 0.15s',
-                background: buscarPasados === op.val ? '#fff' : 'transparent',
-                color: buscarPasados === op.val ? '#0F2942' : '#9CA3AF',
-                boxShadow: buscarPasados === op.val ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                background: buscarPasados === op.val ? 'var(--card-light)' : 'transparent',
+                color: buscarPasados === op.val ? 'var(--text-strong)' : 'var(--muted)',
               }}
             >
               {op.label}
@@ -569,7 +572,7 @@ export default function Admin() {
         <select
           value={ligaId}
           onChange={e => { setLigaId(e.target.value); setFixtures([]); setSeleccionados([]) }}
-          style={{ fontSize: 14, color: ligaId ? '#111827' : '#9CA3AF' }}
+          style={{ fontSize: 14, color: ligaId ? 'var(--text)' : 'var(--muted)' }}
         >
           <option value="" disabled>Selecciona una liga…</option>
           {LIGAS.map(l => <option key={l.id} value={l.id}>{l.nombre}</option>)}
@@ -577,17 +580,17 @@ export default function Admin() {
         <button
           onClick={buscarFixtures}
           disabled={loadingFixtures || !ligaId}
-          style={{ ...btn('#1B5299', loadingFixtures || !ligaId), padding: '9px 16px', whiteSpace: 'nowrap' }}
+          style={{ ...greenCtaStyle(loadingFixtures || !ligaId), padding: '9px 16px', whiteSpace: 'nowrap' }}
         >
           {loadingFixtures ? 'Buscando…' : 'Buscar'}
         </button>
       </div>
 
-      {errorFixtures && <p style={{ fontSize: 12, color: '#EF4444', marginTop: 8, lineHeight: 1.5 }}>{errorFixtures}</p>}
+      {errorFixtures && <p style={{ fontSize: 12, color: 'var(--red)', marginTop: 8, lineHeight: 1.5 }}>{errorFixtures}</p>}
 
       {fixtures.length > 0 && (
         <>
-          <div style={{ maxHeight: 320, overflowY: 'auto', marginTop: 4, borderRadius: 8, border: '1px solid #E5E7EB' }}>
+          <div style={{ maxHeight: 320, overflowY: 'auto', marginTop: 4, borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
             {fixtures.map((f, i) => {
               const sel     = seleccionados.some(s => s.id === f.id)
               const comps   = f.competitions?.[0]?.competitors ?? []
@@ -603,26 +606,26 @@ export default function Admin() {
                   style={{
                     display: 'flex', alignItems: 'center', gap: 10,
                     padding: '10px 12px', cursor: 'pointer',
-                    borderBottom: i < fixtures.length - 1 ? '1px solid #F3F4F6' : 'none',
-                    background: sel ? '#EBF3FF' : '#fff', transition: 'background 0.1s',
+                    borderBottom: i < fixtures.length - 1 ? '1px solid var(--border)' : 'none',
+                    background: sel ? 'var(--green-bg)' : 'var(--card)', transition: 'background 0.1s',
                   }}
                 >
                   <div style={{
                     width: 18, height: 18, borderRadius: 4, flexShrink: 0,
-                    border: sel ? '2px solid #1B5299' : '2px solid #D1D5DB',
-                    background: sel ? '#1B5299' : 'transparent',
+                    border: sel ? '2px solid var(--green)' : '2px solid var(--border-strong)',
+                    background: sel ? 'var(--green)' : 'transparent',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                   }}>
-                    {sel && <span style={{ color: '#fff', fontSize: 11, fontWeight: 700, lineHeight: 1 }}>✓</span>}
+                    {sel && <span style={{ color: '#07120A', fontSize: 11, fontWeight: 800, lineHeight: 1 }}>✓</span>}
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
                     {homeLogo && <img src={homeLogo} alt="" style={{ width: 20, height: 20, objectFit: 'contain', flexShrink: 0 }} onError={e => { e.target.style.display = 'none' }} />}
-                    <span style={{ fontSize: 13, fontWeight: 600, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{home}</span>
-                    <span style={{ fontSize: 11, color: '#9CA3AF', flexShrink: 0 }}>vs</span>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{home}</span>
+                    <span style={{ fontSize: 11, color: 'var(--muted)', flexShrink: 0 }}>vs</span>
                     {awayLogo && <img src={awayLogo} alt="" style={{ width: 20, height: 20, objectFit: 'contain', flexShrink: 0 }} onError={e => { e.target.style.display = 'none' }} />}
-                    <span style={{ fontSize: 13, fontWeight: 600, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{away}</span>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{away}</span>
                   </div>
-                  <span style={{ fontSize: 11, color: '#9CA3AF', flexShrink: 0 }}>{f.date ? formatFixtureDate(f.date) : ''}</span>
+                  <span style={{ fontSize: 11, color: 'var(--muted)', flexShrink: 0 }}>{f.date ? formatFixtureDate(f.date) : ''}</span>
                 </div>
               )
             })}
@@ -630,7 +633,7 @@ export default function Admin() {
           {seleccionados.length > 0 && (
             <button
               onClick={onAgregar}
-              style={{ ...btn('#16A34A', false), width: '100%', marginTop: 10, padding: '11px' }}
+              style={{ ...greenCtaStyle(false), width: '100%', marginTop: 10, padding: '11px' }}
             >
               + Agregar {seleccionados.length} partido{seleccionados.length !== 1 ? 's' : ''} al formulario
             </button>
@@ -642,26 +645,26 @@ export default function Admin() {
 
   // ─── Render principal ─────────────────────────────────────────────────────
   return (
-    <div style={{ minHeight: '100vh', background: '#EEF2F8' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
       {/* Hero */}
-      <div style={{ background: 'linear-gradient(150deg, #0F2942 0%, #1B5299 100%)', color: '#fff', padding: '2rem 1.25rem 1.5rem' }}>
+      <div className="hero-pad" style={{ background: 'var(--hero-gradient)', color: 'var(--text)', borderBottom: '1px solid var(--border)' }}>
         <div style={{ maxWidth: 580, margin: '0 auto', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
           <div>
-            <a href="/" style={{ fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', opacity: 0.55, marginBottom: 6, fontWeight: 600, color: 'inherit', textDecoration: 'none', display: 'block' }}>⚽ QuinielApp</a>
-            <h1 style={{ fontSize: 22, fontWeight: 700 }}>Panel de Administrador</h1>
+            <a href="/" style={{ fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', color: 'var(--green-light)', marginBottom: 6, fontWeight: 700, textDecoration: 'none', display: 'block' }}>⚽ QuinielApp</a>
+            <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, letterSpacing: '-0.01em' }}>Panel de Administrador</h1>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             {vista !== 'lista' && (
               <button
                 onClick={() => { setVista('lista'); setQuinielaActual(null); setFixtures([]); setSeleccionados([]) }}
-                style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', padding: '7px 14px', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}
+                style={{ background: 'var(--neutral-bg)', border: '1px solid var(--border)', color: 'var(--text)', padding: '7px 14px', borderRadius: 'var(--radius-sm)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
               >
                 ← Lista
               </button>
             )}
             <button
               onClick={salir}
-              style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', color: 'rgba(255,255,255,0.8)', padding: '7px 14px', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}
+              style={{ background: 'transparent', border: '1px solid var(--border-strong)', color: 'var(--muted)', padding: '7px 14px', borderRadius: 'var(--radius-sm)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
             >
               Salir
             </button>
@@ -675,29 +678,28 @@ export default function Admin() {
         {vista === 'lista' && (
           <>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-              <span style={{ fontSize: 15, fontWeight: 600, color: '#374151' }}>Tus quinielas</span>
-              <button onClick={() => setVista('nueva')} style={{ ...btn('linear-gradient(135deg, #0F2942, #1B5299)', false), padding: '9px 18px' }}>
+              <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)' }}>Tus quinielas</span>
+              <button onClick={() => setVista('nueva')} style={{ ...greenCtaStyle(false), padding: '9px 18px' }}>
                 + Nueva quiniela
               </button>
             </div>
 
             {loadingLista ? (
-              <div style={{ textAlign: 'center', padding: '2rem', color: '#9CA3AF', fontSize: 14 }}>Cargando…</div>
+              <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--muted)', fontSize: 14 }}>Cargando…</div>
             ) : quinielas.length === 0 ? (
               <div style={{ ...card, textAlign: 'center', padding: '3rem 2rem' }}>
                 <div style={{ fontSize: 48, marginBottom: 16 }}>📋</div>
-                <p style={{ fontWeight: 600, fontSize: 16, color: '#374151', marginBottom: 8 }}>Sin quinielas todavía</p>
-                <p style={{ fontSize: 13, color: '#9CA3AF', marginBottom: 20 }}>Crea tu primera quiniela para comenzar.</p>
-                <button onClick={() => setVista('nueva')} style={{ ...btn('linear-gradient(135deg, #0F2942, #1B5299)', false) }}>
+                <p style={{ fontWeight: 600, fontSize: 16, color: 'var(--text)', marginBottom: 8 }}>Sin quinielas todavía</p>
+                <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 20 }}>Crea tu primera quiniela para comenzar.</p>
+                <button onClick={() => setVista('nueva')} style={{ ...greenCtaStyle(false) }}>
                   Crear ahora →
                 </button>
               </div>
             ) : (
               <>
-                {/* Activas */}
                 {quinielasActivas.length > 0 && (
                   <>
-                    <p style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
+                    <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
                       Activas
                     </p>
                     {quinielasActivas.map(q => (
@@ -706,10 +708,9 @@ export default function Admin() {
                   </>
                 )}
 
-                {/* Cerradas */}
                 {quinielasCerradas.length > 0 && (
                   <>
-                    <p style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8, marginTop: quinielasActivas.length > 0 ? 16 : 0 }}>
+                    <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8, marginTop: quinielasActivas.length > 0 ? 16 : 0 }}>
                       Cerradas
                     </p>
                     {quinielasCerradas.map(q => (
@@ -725,18 +726,18 @@ export default function Admin() {
         {/* ── Vista: Nueva quiniela ────────────────────────────────────────── */}
         {vista === 'nueva' && (
           <>
-            <p style={{ fontSize: 15, fontWeight: 600, color: '#374151', marginBottom: 14 }}>Nueva quiniela</p>
+            <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)', marginBottom: 14 }}>Nueva quiniela</p>
 
             <div style={card}>
               <label style={lbl}>Nombre de la quiniela</label>
               <input type="text" placeholder="Ej. Jornada 17 — Liga MX" value={nombre} onChange={e => setNombre(e.target.value)} style={{ marginBottom: 12 }} />
               <label style={{ ...lbl, marginBottom: 4 }}>
-                Fecha y hora de cierre <span style={{ color: '#EF4444' }}>*</span>
+                Fecha y hora de cierre <span style={{ color: 'var(--red)' }}>*</span>
               </label>
-              <p style={{ fontSize: 11, color: '#9CA3AF', marginBottom: 8 }}>
+              <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>
                 Los jugadores no podrán registrar predicciones después de esta hora.
               </p>
-              <input type="datetime-local" value={cierre} onChange={e => setCierre(e.target.value)} style={{ borderColor: !cierre ? '#FCA5A5' : undefined }} />
+              <input type="datetime-local" value={cierre} onChange={e => setCierre(e.target.value)} style={{ borderColor: !cierre ? 'var(--red)' : undefined }} />
             </div>
 
             {renderBuscadorFixtures(agregarSeleccionados)}
@@ -744,20 +745,20 @@ export default function Admin() {
             <div style={card}>
               <label style={lbl}>Partidos</label>
               {partidos.map((p, i) => (
-                <div key={i} style={{ marginBottom: 16, paddingBottom: 16, borderBottom: i < partidos.length - 1 ? '1px solid #F3F4F6' : 'none' }}>
+                <div key={i} style={{ marginBottom: 16, paddingBottom: 16, borderBottom: i < partidos.length - 1 ? '1px solid var(--border)' : 'none' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: 0.8 }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.8 }}>
                       Partido {i + 1}
                     </span>
                     {partidos.length > 1 && (
-                      <button onClick={() => quitarPartido(i)} style={{ background: 'none', border: 'none', color: '#EF4444', fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: '2px 6px', borderRadius: 6 }}>
+                      <button onClick={() => quitarPartido(i)} style={{ background: 'none', border: 'none', color: 'var(--red)', fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: '2px 6px', borderRadius: 6 }}>
                         Quitar ✕
                       </button>
                     )}
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: 8, marginBottom: 8, alignItems: 'center' }}>
                     <input placeholder="Equipo local"     value={p.local}     onChange={e => actualizarPartido(i, 'local', e.target.value)} />
-                    <span style={{ color: '#9CA3AF', fontSize: 12, fontWeight: 700, textAlign: 'center' }}>VS</span>
+                    <span style={{ color: 'var(--muted)', fontSize: 12, fontWeight: 700, textAlign: 'center' }}>VS</span>
                     <input placeholder="Equipo visitante" value={p.visitante} onChange={e => actualizarPartido(i, 'visitante', e.target.value)} />
                   </div>
                   <input type="datetime-local" value={p.hora} onChange={e => actualizarPartido(i, 'hora', e.target.value)} />
@@ -765,17 +766,17 @@ export default function Admin() {
               ))}
               <button
                 onClick={agregarPartido}
-                style={{ width: '100%', padding: '10px', border: '1.5px dashed #D1D5DB', background: 'transparent', borderRadius: 10, cursor: 'pointer', color: '#6B7280', fontSize: 13, fontWeight: 500 }}
+                style={{ width: '100%', padding: '10px', border: '1.5px dashed var(--border-strong)', background: 'transparent', borderRadius: 'var(--radius-sm)', cursor: 'pointer', color: 'var(--muted)', fontSize: 13, fontWeight: 600 }}
               >
                 + Agregar partido manualmente
               </button>
             </div>
 
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-              <button onClick={() => { setVista('lista'); setFixtures([]); setSeleccionados([]) }} style={{ ...btn('#6B7280', false) }}>
+              <button onClick={() => { setVista('lista'); setFixtures([]); setSeleccionados([]) }} style={{ padding: '10px 20px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-strong)', background: 'transparent', color: 'var(--muted)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
                 Cancelar
               </button>
-              <button onClick={guardarNuevaQuiniela} disabled={guardando} style={{ ...btn('linear-gradient(135deg, #0F2942, #1B5299)', guardando) }}>
+              <button onClick={guardarNuevaQuiniela} disabled={guardando} style={greenCtaStyle(guardando)}>
                 {guardando ? 'Guardando…' : 'Guardar y continuar →'}
               </button>
             </div>
@@ -790,35 +791,35 @@ export default function Admin() {
               {/* Encabezado */}
               <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 14 }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontSize: 15, fontWeight: 700, color: '#111827', marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <p style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-strong)', marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {quinielaActual.nombre}
                   </p>
-                  <p style={{ fontSize: 12, color: '#9CA3AF' }}>
+                  <p style={{ fontSize: 12, color: 'var(--muted)' }}>
                     {quinielaActual.partidos?.length ?? 0} partidos · Creada {formatFecha(quinielaActual.creada)}
                   </p>
                 </div>
-                {/* Botón cerrar / reabrir (item 1) */}
                 <button
                   onClick={toggleCerrar}
                   disabled={toggling}
                   style={{
-                    ...btn(estaCerrada ? '#16A34A' : '#D97706', toggling),
                     padding: '8px 14px', fontSize: 12, flexShrink: 0,
+                    borderRadius: 'var(--radius-sm)', border: 'none', fontWeight: 700, cursor: toggling ? 'not-allowed' : 'pointer',
+                    background: toggling ? 'var(--card-light)' : (estaCerrada ? 'var(--green)' : 'var(--yellow)'),
+                    color: toggling ? 'var(--muted)' : (estaCerrada ? '#07120A' : '#3F2700'),
                   }}
                 >
                   {toggling ? '…' : estaCerrada ? '🔓 Reabrir' : '🔒 Cerrar'}
                 </button>
               </div>
 
-              {/* Aviso al reabrir */}
-              {!estaCerrada && !quinielaActual.cierre && quinielaActual.cerrada === false && (
-                <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: 12, color: '#92400E' }}>
+              {!estaCerrada && !quinielaActual.cierre && (
+                <div style={{ background: 'var(--yellow-bg)', border: '1px solid var(--yellow)', borderRadius: 'var(--radius-sm)', padding: '8px 12px', marginBottom: 12, fontSize: 12, color: 'var(--yellow-soft)' }}>
                   ⚠️ Quiniela reabierta sin fecha de cierre. Ve a Editar para configurar una si la necesitas.
                 </div>
               )}
 
               {/* Tabs */}
-              <div style={{ display: 'flex', gap: 4, background: '#E5E7EB', borderRadius: 10, padding: 4, marginBottom: 16 }}>
+              <div style={{ display: 'flex', gap: 4, background: 'var(--bg-soft)', borderRadius: 'var(--radius-sm)', padding: 4, marginBottom: 16, border: '1px solid var(--border)' }}>
                 {[
                   { key: 'resultados',   label: '⚽ Resultados' },
                   { key: 'participantes', label: `👥 ${conteos[quinielaActual.id] ?? 0}` },
@@ -828,11 +829,10 @@ export default function Admin() {
                   <button
                     key={t.key} onClick={() => setTab(t.key)}
                     style={{
-                      flex: 1, padding: '9px 8px', fontSize: 13, fontWeight: 600,
+                      flex: 1, padding: '9px 8px', fontSize: 13, fontWeight: 700,
                       border: 'none', borderRadius: 7, cursor: 'pointer',
-                      background: tab === t.key ? '#fff' : 'transparent',
-                      color: tab === t.key ? '#0F2942' : '#6B7280',
-                      boxShadow: tab === t.key ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                      background: tab === t.key ? 'var(--card-light)' : 'transparent',
+                      color: tab === t.key ? 'var(--text-strong)' : 'var(--muted)',
                       transition: 'all 0.15s',
                     }}
                   >
@@ -849,16 +849,16 @@ export default function Admin() {
                     {(quinielaActual.partidos ?? []).map((p, i) => {
                       const r = resultados[i] ?? { local: '', visitante: '' }
                       const resultado  = goalsToResultado(r.local, r.visitante)
-                      const resColor   = resultado === 'home' ? { bg: '#DCFCE7', color: '#15803D' }
-                        : resultado === 'draw' ? { bg: '#F3F4F6', color: '#4B5563' }
-                        : resultado === 'away' ? { bg: '#EBF3FF', color: '#1D4ED8' }
-                        : { bg: '#F9FAFB', color: '#9CA3AF' }
+                      const resColor   = resultado === 'home' ? { bg: 'var(--green-bg)',  color: 'var(--green)' }
+                        : resultado === 'draw' ? { bg: 'var(--neutral-bg)', color: 'var(--muted)' }
+                        : resultado === 'away' ? { bg: 'var(--yellow-bg)', color: 'var(--yellow)' }
+                        : { bg: 'var(--neutral-bg)', color: 'var(--muted)' }
                       const resLabel = resultado === 'home' ? 'Local' : resultado === 'draw' ? 'Empate' : resultado === 'away' ? 'Visitante' : 'Pendiente'
 
                       return (
-                        <div key={i} style={{ padding: '12px 0', borderBottom: i < (quinielaActual.partidos?.length ?? 0) - 1 ? '1px solid #F3F4F6' : 'none' }}>
+                        <div key={i} style={{ padding: '12px 0', borderBottom: i < (quinielaActual.partidos?.length ?? 0) - 1 ? '1px solid var(--border)' : 'none' }}>
                           <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr auto', alignItems: 'center', gap: 8 }}>
-                            <span style={{ fontSize: 13, fontWeight: 500, color: '#374151', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                               {p.local || `Local ${i + 1}`}
                             </span>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -866,20 +866,20 @@ export default function Admin() {
                                 type="number" min="0" max="99" placeholder="0"
                                 value={r.local}
                                 onChange={e => setResultados(prev => ({ ...prev, [i]: { ...(prev[i] ?? {}), local: e.target.value } }))}
-                                style={{ width: 44, textAlign: 'center', padding: '6px 4px', fontSize: 15, fontWeight: 700 }}
+                                style={{ width: 44, textAlign: 'center', padding: '6px 4px', fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 700 }}
                               />
-                              <span style={{ color: '#9CA3AF', fontWeight: 700, fontSize: 13 }}>–</span>
+                              <span style={{ color: 'var(--muted)', fontWeight: 700, fontSize: 13 }}>–</span>
                               <input
                                 type="number" min="0" max="99" placeholder="0"
                                 value={r.visitante}
                                 onChange={e => setResultados(prev => ({ ...prev, [i]: { ...(prev[i] ?? {}), visitante: e.target.value } }))}
-                                style={{ width: 44, textAlign: 'center', padding: '6px 4px', fontSize: 15, fontWeight: 700 }}
+                                style={{ width: 44, textAlign: 'center', padding: '6px 4px', fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 700 }}
                               />
                             </div>
-                            <span style={{ fontSize: 13, fontWeight: 500, color: '#374151', textAlign: 'right', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', textAlign: 'right', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                               {p.visitante || `Visitante ${i + 1}`}
                             </span>
-                            <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 99, background: resColor.bg, color: resColor.color, whiteSpace: 'nowrap', letterSpacing: 0.3 }}>
+                            <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 'var(--radius-full)', background: resColor.bg, color: resColor.color, whiteSpace: 'nowrap', letterSpacing: 0.3 }}>
                               {resLabel}
                             </span>
                           </div>
@@ -889,17 +889,25 @@ export default function Admin() {
                   </div>
 
                   <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginTop: 4 }}>
-                    <div style={{ fontSize: 13, fontWeight: 500, color: sincrMsg.startsWith('✓') ? '#16A34A' : sincrMsg.startsWith('⚠') ? '#D97706' : '#6B7280' }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: sincrMsg.startsWith('✓') ? 'var(--green)' : sincrMsg.startsWith('⚠') ? 'var(--yellow)' : 'var(--muted)' }}>
                       {sincrMsg || (guardadoRes ? '✓ Ranking actualizado' : '')}
                     </div>
                     <div style={{ display: 'flex', gap: 8, marginLeft: 'auto' }}>
                       <button
                         onClick={sincronizarDesdeESPN} disabled={sincronizando}
-                        style={{ ...btn('#16A34A', sincronizando), display: 'flex', alignItems: 'center', gap: 5 }}
+                        style={{ ...greenCtaStyle(sincronizando), display: 'flex', alignItems: 'center', gap: 5 }}
                       >
                         {sincronizando ? 'Sincronizando…' : '⚡ Sincronizar ESPN'}
                       </button>
-                      <button onClick={guardarResultados} disabled={guardandoRes} style={{ ...btn('linear-gradient(135deg, #0F2942, #1B5299)', guardandoRes) }}>
+                      <button
+                        onClick={guardarResultados} disabled={guardandoRes}
+                        style={{
+                          padding: '10px 20px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-strong)',
+                          background: 'var(--card-light)', color: 'var(--text)',
+                          fontSize: 13, fontWeight: 600, cursor: guardandoRes ? 'not-allowed' : 'pointer',
+                          opacity: guardandoRes ? 0.5 : 1,
+                        }}
+                      >
                         {guardandoRes ? 'Guardando…' : 'Guardar manual'}
                       </button>
                     </div>
@@ -910,20 +918,18 @@ export default function Admin() {
               {/* Tab: Participantes */}
               {tab === 'participantes' && (
                 <div style={card}>
-                  <label style={{ ...lbl, marginBottom: 14 }}>
-                    Predicciones registradas
-                  </label>
+                  <label style={{ ...lbl, marginBottom: 14 }}>Predicciones registradas</label>
 
                   {loadingPredicciones ? (
-                    <p style={{ fontSize: 13, color: '#9CA3AF', textAlign: 'center', padding: '1.5rem 0' }}>Cargando…</p>
+                    <p style={{ fontSize: 13, color: 'var(--muted)', textAlign: 'center', padding: '1.5rem 0' }}>Cargando…</p>
                   ) : listaPredicciones.length === 0 ? (
                     <div style={{ textAlign: 'center', padding: '2rem 1rem' }}>
                       <p style={{ fontSize: 36, marginBottom: 12 }}>📭</p>
-                      <p style={{ fontSize: 14, color: '#9CA3AF' }}>Nadie ha registrado predicciones todavía.</p>
+                      <p style={{ fontSize: 14, color: 'var(--muted)' }}>Nadie ha registrado predicciones todavía.</p>
                     </div>
                   ) : (
                     <>
-                      <p style={{ fontSize: 12, color: '#6B7280', marginBottom: 12 }}>
+                      <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 12 }}>
                         Al eliminar una predicción el jugador podrá volver a registrarse con su nombre.
                       </p>
                       {listaPredicciones.map((pred, i) => {
@@ -937,14 +943,14 @@ export default function Admin() {
                             style={{
                               display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
                               padding: '10px 0',
-                              borderBottom: i < listaPredicciones.length - 1 ? '1px solid #F3F4F6' : 'none',
+                              borderBottom: i < listaPredicciones.length - 1 ? '1px solid var(--border)' : 'none',
                             }}
                           >
                             <div style={{ flex: 1, minWidth: 0 }}>
-                              <p style={{ fontSize: 14, fontWeight: 600, color: '#111827', marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                 {pred.nombre}
                               </p>
-                              <p style={{ fontSize: 11, color: '#9CA3AF' }}>
+                              <p style={{ fontSize: 11, color: 'var(--muted)' }}>
                                 {nPicks} pick{nPicks !== 1 ? 's' : ''} · {fecha}
                               </p>
                             </div>
@@ -952,9 +958,9 @@ export default function Admin() {
                               onClick={() => eliminarPrediccion(pred)}
                               disabled={eliminandoPred === pred.id}
                               style={{
-                                background: 'none', border: '1px solid #FECACA', color: '#DC2626',
+                                background: 'transparent', border: '1px solid var(--red)', color: 'var(--red)',
                                 fontSize: 12, fontWeight: 600, padding: '5px 12px',
-                                borderRadius: 8, cursor: eliminandoPred === pred.id ? 'not-allowed' : 'pointer',
+                                borderRadius: 'var(--radius-sm)', cursor: eliminandoPred === pred.id ? 'not-allowed' : 'pointer',
                                 opacity: eliminandoPred === pred.id ? 0.5 : 1,
                                 flexShrink: 0,
                               }}
@@ -972,60 +978,46 @@ export default function Admin() {
               {/* Tab: Editar */}
               {tab === 'editar' && (
                 <>
-                  {/* Nombre de la quiniela (item 4) */}
                   <div style={card}>
                     <label style={lbl}>Nombre de la quiniela</label>
-                    <input
-                      type="text"
-                      value={editNombre}
-                      onChange={e => setEditNombre(e.target.value)}
-                      placeholder="Nombre de la quiniela"
-                    />
+                    <input type="text" value={editNombre} onChange={e => setEditNombre(e.target.value)} placeholder="Nombre de la quiniela" />
                   </div>
 
-                  {/* Fecha de cierre */}
                   <div style={card}>
                     <label style={{ ...lbl, marginBottom: 4 }}>
-                      Fecha y hora de cierre <span style={{ color: '#EF4444' }}>*</span>
+                      Fecha y hora de cierre <span style={{ color: 'var(--red)' }}>*</span>
                     </label>
-                    <p style={{ fontSize: 11, color: '#9CA3AF', marginBottom: 8 }}>
+                    <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>
                       Los jugadores no podrán registrar predicciones después de esta hora.
                     </p>
-                    <input type="datetime-local" value={editCierre} onChange={e => setEditCierre(e.target.value)} style={{ borderColor: !editCierre ? '#FCA5A5' : undefined }} />
+                    <input type="datetime-local" value={editCierre} onChange={e => setEditCierre(e.target.value)} style={{ borderColor: !editCierre ? 'var(--red)' : undefined }} />
                   </div>
 
-                  {/* Lista de partidos */}
                   <div style={card}>
                     <label style={{ ...lbl, marginBottom: 14 }}>Partidos</label>
                     {conteoPredicciones > 0 && (
-                      <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: 12, color: '#92400E' }}>
-                        ⚠️ Hay {conteoPredicciones} predicción(es) registrada(s). Eliminar partidos puede desalinear los picks existentes.
+                      <div style={{ background: 'var(--yellow-bg)', border: '1px solid var(--yellow)', borderRadius: 'var(--radius-sm)', padding: '8px 12px', marginBottom: 12, fontSize: 12, color: 'var(--yellow-soft)' }}>
+                        ⚠️ Hay {conteoPredicciones} predicción(es) registrada(s). Solo agregues partidos al final, no reordenes ni elimines.
                       </div>
                     )}
                     {editPartidos.map((p, i) => (
-                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: i < editPartidos.length - 1 ? '1px solid #F3F4F6' : 'none' }}>
+                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: i < editPartidos.length - 1 ? '1px solid var(--border)' : 'none' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
                           {p.escudoLocal && <img src={p.escudoLocal} alt="" style={{ width: 18, height: 18, objectFit: 'contain', flexShrink: 0 }} onError={e => { e.target.style.display = 'none' }} />}
-                          <span style={{ fontSize: 13, color: '#374151', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.local}</span>
-                          <span style={{ fontSize: 11, color: '#9CA3AF', flexShrink: 0 }}>vs</span>
+                          <span style={{ fontSize: 13, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.local}</span>
+                          <span style={{ fontSize: 11, color: 'var(--muted)', flexShrink: 0 }}>vs</span>
                           {p.escudoVisitante && <img src={p.escudoVisitante} alt="" style={{ width: 18, height: 18, objectFit: 'contain', flexShrink: 0 }} onError={e => { e.target.style.display = 'none' }} />}
-                          <span style={{ fontSize: 13, color: '#374151', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.visitante}</span>
+                          <span style={{ fontSize: 13, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.visitante}</span>
                         </div>
-                        {p.hora && <span style={{ fontSize: 11, color: '#9CA3AF', flexShrink: 0 }}>{formatFixtureDate(p.hora)}</span>}
-                        <button
-                          onClick={() => quitarEditPartido(i)}
-                          style={{ background: 'none', border: 'none', color: '#EF4444', fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: '2px 6px', borderRadius: 6, flexShrink: 0 }}
-                        >
-                          Quitar ✕
-                        </button>
+                        {p.hora && <span style={{ fontSize: 11, color: 'var(--muted)', flexShrink: 0 }}>{formatFixtureDate(p.hora)}</span>}
                       </div>
                     ))}
                     {editPartidos.length === 0 && (
-                      <p style={{ fontSize: 13, color: '#9CA3AF', textAlign: 'center', padding: '1rem 0' }}>Sin partidos. Agrega desde el buscador o manualmente.</p>
+                      <p style={{ fontSize: 13, color: 'var(--muted)', textAlign: 'center', padding: '1rem 0' }}>Sin partidos. Agrega desde el buscador o manualmente.</p>
                     )}
                     <button
                       onClick={() => setEditPartidos(prev => [...prev, { local: '', visitante: '', hora: '' }])}
-                      style={{ width: '100%', padding: '10px', border: '1.5px dashed #D1D5DB', background: 'transparent', borderRadius: 10, cursor: 'pointer', color: '#6B7280', fontSize: 13, fontWeight: 500, marginTop: 10 }}
+                      style={{ width: '100%', padding: '10px', border: '1.5px dashed var(--border-strong)', background: 'transparent', borderRadius: 'var(--radius-sm)', cursor: 'pointer', color: 'var(--muted)', fontSize: 13, fontWeight: 600, marginTop: 10 }}
                     >
                       + Agregar partido manualmente
                     </button>
@@ -1034,34 +1026,37 @@ export default function Admin() {
                   {renderBuscadorFixtures(agregarSeleccionadosAEdicion)}
 
                   <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-                    <button onClick={() => { setTab('resultados'); setFixtures([]); setSeleccionados([]) }} style={{ ...btn('#6B7280', false) }}>
+                    <button onClick={() => { setTab('resultados'); setFixtures([]); setSeleccionados([]) }} style={{ padding: '10px 20px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-strong)', background: 'transparent', color: 'var(--muted)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
                       Cancelar
                     </button>
-                    <button onClick={guardarEdicion} disabled={guardandoEdicion} style={{ ...btn('linear-gradient(135deg, #0F2942, #1B5299)', guardandoEdicion) }}>
+                    <button onClick={guardarEdicion} disabled={guardandoEdicion} style={greenCtaStyle(guardandoEdicion)}>
                       {guardandoEdicion ? 'Guardando…' : 'Guardar cambios →'}
                     </button>
                   </div>
 
                   {/* Zona de peligro */}
-                  <div style={{ marginTop: 24, border: '1.5px solid #FECACA', borderRadius: 14, padding: '1.1rem 1.25rem' }}>
-                    <p style={{ fontSize: 13, fontWeight: 700, color: '#DC2626', marginBottom: 4 }}>Zona de peligro</p>
-                    <p style={{ fontSize: 12, color: '#6B7280', marginBottom: 14, lineHeight: 1.5 }}>
+                  <div style={{ marginTop: 24, border: '1.5px solid var(--red)', borderRadius: 'var(--radius-md)', padding: '1.1rem 1.25rem', background: 'var(--red-bg)' }}>
+                    <p style={{ fontSize: 13, fontWeight: 700, color: '#FCA5A5', marginBottom: 4 }}>Zona de peligro</p>
+                    <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 14, lineHeight: 1.5 }}>
                       Eliminar la quiniela borrará también todas las predicciones registradas. Esta acción es permanente e irreversible.
                     </p>
                     <label style={{ ...lbl, marginBottom: 6 }}>Escribe el nombre de la quiniela para confirmar</label>
-                    <p style={{ fontSize: 11, color: '#9CA3AF', marginBottom: 8, fontStyle: 'italic' }}>"{quinielaActual.nombre}"</p>
+                    <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8, fontStyle: 'italic' }}>"{quinielaActual.nombre}"</p>
                     <input
                       type="text" placeholder="Escribe el nombre exacto…"
                       value={deleteConfirm} onChange={e => setDeleteConfirm(e.target.value)}
-                      style={{ marginBottom: 10, borderColor: '#FECACA' }}
+                      style={{ marginBottom: 10, borderColor: 'var(--red)' }}
                     />
                     <button
                       onClick={eliminarQuiniela}
                       disabled={eliminando || deleteConfirm.trim() !== quinielaActual.nombre.trim()}
                       style={{
-                        ...btn('#DC2626', eliminando || deleteConfirm.trim() !== quinielaActual.nombre.trim()),
                         width: '100%', padding: '11px',
-                        background: (eliminando || deleteConfirm.trim() !== quinielaActual.nombre.trim()) ? '#D1D5DB' : '#DC2626',
+                        borderRadius: 'var(--radius-sm)', border: 'none',
+                        fontSize: 13, fontWeight: 700,
+                        cursor: (eliminando || deleteConfirm.trim() !== quinielaActual.nombre.trim()) ? 'not-allowed' : 'pointer',
+                        background: (eliminando || deleteConfirm.trim() !== quinielaActual.nombre.trim()) ? 'var(--card-light)' : 'var(--red)',
+                        color: (eliminando || deleteConfirm.trim() !== quinielaActual.nombre.trim()) ? 'var(--muted)' : 'var(--text-strong)',
                       }}
                     >
                       {eliminando ? 'Eliminando…' : '🗑 Eliminar quiniela permanentemente'}
@@ -1070,37 +1065,27 @@ export default function Admin() {
                 </>
               )}
 
-              {/* Tab: Compartir (items 6 + Extra 1) */}
+              {/* Tab: Compartir */}
               {tab === 'compartir' && (
                 <>
                   {[
-                    {
-                      key:   'jugadores',
-                      label: 'Link para jugadores',
-                      link:  linkJugadores,
-                      desc:  'Comparte este enlace para que los jugadores ingresen sus predicciones.',
-                    },
-                    {
-                      key:   'ranking',
-                      label: 'Link del ranking',
-                      link:  linkRanking,
-                      desc:  'Comparte este enlace para que todos vean el ranking en tiempo real.',
-                    },
+                    { key: 'jugadores', label: 'Link para jugadores', link: linkJugadores, desc: 'Comparte este enlace para que los jugadores ingresen sus predicciones.' },
+                    { key: 'ranking',   label: 'Link del ranking',    link: linkRanking,   desc: 'Comparte este enlace para que todos vean el ranking en tiempo real.' },
                   ].map(({ key, label, link, desc }) => (
                     <div key={key} style={card}>
-                      <p style={{ fontWeight: 700, fontSize: 14, color: '#111827', marginBottom: 4 }}>{label}</p>
-                      <p style={{ fontSize: 12, color: '#6B7280', marginBottom: 12 }}>{desc}</p>
+                      <p style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-strong)', marginBottom: 4 }}>{label}</p>
+                      <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 12 }}>{desc}</p>
 
-                      {/* Botones de acción directa (Extra 1) */}
                       <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
                         <a
                           href={link}
                           target="_blank" rel="noreferrer"
                           style={{
                             flex: 1, display: 'block', textAlign: 'center',
-                            padding: '10px', borderRadius: 9,
-                            background: 'linear-gradient(135deg, #0F2942, #1B5299)',
-                            color: '#fff', fontWeight: 600, fontSize: 13, textDecoration: 'none',
+                            padding: '10px', borderRadius: 'var(--radius-sm)',
+                            background: greenCta,
+                            color: '#07120A', fontWeight: 800, fontSize: 13, textDecoration: 'none',
+                            boxShadow: 'var(--shadow-green)',
                           }}
                         >
                           Abrir →
@@ -1108,10 +1093,10 @@ export default function Admin() {
                         <button
                           onClick={() => copiar(link, key)}
                           style={{
-                            flex: 1, padding: '10px', borderRadius: 9, border: '1px solid #D1D5DB',
-                            background: copiado === key ? '#DCFCE7' : '#fff',
-                            color: copiado === key ? '#15803D' : '#374151',
-                            fontWeight: 600, fontSize: 13, cursor: 'pointer',
+                            flex: 1, padding: '10px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-strong)',
+                            background: copiado === key ? 'var(--green-bg)' : 'var(--card-light)',
+                            color: copiado === key ? 'var(--green)' : 'var(--text)',
+                            fontWeight: 700, fontSize: 13, cursor: 'pointer',
                             transition: 'all 0.2s',
                           }}
                         >
@@ -1119,9 +1104,8 @@ export default function Admin() {
                         </button>
                       </div>
 
-                      {/* URL visual */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#F3F4F6', borderRadius: 8, padding: '9px 12px' }}>
-                        <span style={{ fontSize: 11, color: '#6B7280', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--bg-soft)', borderRadius: 'var(--radius-sm)', padding: '9px 12px', border: '1px solid var(--border)' }}>
+                        <span style={{ fontSize: 11, color: 'var(--muted)', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
                           {link}
                         </span>
                       </div>
@@ -1144,30 +1128,28 @@ function QuinielaCard({ q, conteos, onGestionar }) {
 
   return (
     <div style={{
-      background: '#fff', borderRadius: 14, padding: '1rem 1.25rem', marginBottom: 10,
-      boxShadow: '0 1px 3px rgba(0,0,0,0.07)',
+      background: 'var(--card)', borderRadius: 'var(--radius-md)', padding: '1rem 1.25rem', marginBottom: 10,
+      border: '1px solid var(--border)',
       display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
     }}>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-          <p style={{ fontWeight: 600, fontSize: 15, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <p style={{ fontWeight: 600, fontSize: 15, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {q.nombre}
           </p>
-          {/* Badge de estado (item 10) */}
           <span style={{
-            fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 99, flexShrink: 0,
-            background: cerrada ? '#F3F4F6' : '#DCFCE7',
-            color: cerrada ? '#6B7280' : '#15803D',
+            fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 'var(--radius-full)', flexShrink: 0,
+            background: cerrada ? 'var(--neutral-bg)' : 'var(--green-bg)',
+            color: cerrada ? 'var(--muted)' : 'var(--green)',
           }}>
             {cerrada ? 'Cerrada' : 'Activa'}
           </span>
         </div>
-        {/* Conteo de participantes (item 5) */}
-        <p style={{ fontSize: 12, color: '#9CA3AF' }}>
+        <p style={{ fontSize: 12, color: 'var(--muted)' }}>
           {q.partidos?.length ?? 0} partidos · {n} {n === 1 ? 'participante' : 'participantes'}
         </p>
       </div>
-      <button onClick={() => onGestionar(q)} style={{ ...btn('#1B5299', false), whiteSpace: 'nowrap', flexShrink: 0 }}>
+      <button onClick={() => onGestionar(q)} style={{ ...greenCtaStyle(false), whiteSpace: 'nowrap', flexShrink: 0 }}>
         Gestionar
       </button>
     </div>

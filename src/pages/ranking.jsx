@@ -2,65 +2,16 @@ import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { doc, onSnapshot, collection, query, where } from 'firebase/firestore'
 import { db } from '../firebase'
+import { cierreToDate, quinielaCerrada } from '../utils/cierre'
+import { goalsToResultado, getResultado, getPickResultado, getEfectivo, calcularPuntos } from '../utils/scoring'
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-function goalsToResultado(local, visitante) {
-  const l = Number(local), v = Number(visitante)
-  if (isNaN(l) || isNaN(v)) return null
-  return l > v ? 'home' : l === v ? 'draw' : 'away'
-}
-
-function getResultado(r) {
-  if (!r) return null
-  if (r.resultado) return r.resultado
-  return goalsToResultado(r.local, r.visitante)
-}
-
-function getPickResultado(pick) {
-  if (!pick) return null
-  if (typeof pick === 'object') return goalsToResultado(pick.local, pick.visitante)
-  return pick
-}
-
-function getEfectivo(partido, idx, resultados, liveScores) {
-  const live = partido?.espnId ? liveScores?.[partido.espnId] : null
-  if (live && (live.state === 'in' || live.state === 'post') &&
-      live.local !== '' && live.visitante !== '') {
-    return { local: live.local, visitante: live.visitante, resultado: goalsToResultado(live.local, live.visitante) }
-  }
-  return resultados?.[idx] ?? resultados?.[String(idx)] ?? null
-}
-
-function calcularPuntos(picks, resultados, liveScores, partidos) {
-  let puntos = 0, aciertos = 0, exactos = 0
-  partidos.forEach((p, i) => {
-    const res  = getEfectivo(p, i, resultados, liveScores)
-    const pick = picks?.[i] ?? picks?.[String(i)]
-    if (!res || !pick) return
-    const resR  = getResultado(res)
-    const pickR = getPickResultado(pick)
-    if (!resR || !pickR) return
-    if (resR === pickR) {
-      puntos += 1; aciertos++
-      if (typeof pick === 'object' && pick !== null &&
-          Number(res.local) === Number(pick.local) &&
-          Number(res.visitante) === Number(pick.visitante)) {
-        puntos += 2; exactos++
-      }
-    }
+function formatFecha(value) {
+  const d = cierreToDate(value)
+  if (!d) return ''
+  return d.toLocaleString('es-MX', {
+    weekday: 'short', day: 'numeric', month: 'short',
+    hour: '2-digit', minute: '2-digit',
   })
-  return { puntos, aciertos, exactos }
-}
-
-function formatFecha(iso) {
-  if (!iso) return ''
-  try {
-    return new Date(iso).toLocaleString('es-MX', {
-      weekday: 'short', day: 'numeric', month: 'short',
-      hour: '2-digit', minute: '2-digit',
-    })
-  } catch { return iso }
 }
 
 function pickDisplay(pick) {
@@ -72,17 +23,13 @@ function pickDisplay(pick) {
   return { home: 'Local', draw: 'Empate', away: 'Visitante' }[pick] ?? pick
 }
 
-// ─── Constantes ───────────────────────────────────────────────────────────────
-
 const medals = ['🥇', '🥈', '🥉']
 const resultColor = {
-  home: { bg: '#DCFCE7', color: '#15803D' },
-  draw: { bg: '#F3F4F6', color: '#4B5563' },
-  away: { bg: '#EBF3FF', color: '#1D4ED8' },
+  home: { bg: 'var(--green-bg)',   color: 'var(--green)' },
+  draw: { bg: 'var(--neutral-bg)', color: 'var(--muted)' },
+  away: { bg: 'var(--yellow-bg)',  color: 'var(--yellow)' },
 }
 const resultLabel = { home: 'Local', draw: 'Empate', away: 'Visitante' }
-
-// ─── Componente ───────────────────────────────────────────────────────────────
 
 export default function Ranking() {
   const [searchParams] = useSearchParams()
@@ -106,7 +53,7 @@ export default function Ranking() {
     })
   }
 
-  // ── Firebase ────────────────────────────────────────────────────────────────
+  // ── Firebase ────────────────────────────────────────────────────
   useEffect(() => {
     if (!quinielaId) { setCargando(false); setError('no-id'); return }
 
@@ -127,7 +74,7 @@ export default function Ranking() {
     return () => { unsubQ(); unsubP() }
   }, [quinielaId])
 
-  // ── Polling ESPN ────────────────────────────────────────────────────────────
+  // ── Polling ESPN ────────────────────────────────────────────────
   const fetchLiveData = async (quinielaData) => {
     const partidos = quinielaData?.partidos ?? []
     const conEspn  = partidos.filter(p => p.espnId && p.ligaId)
@@ -182,22 +129,24 @@ export default function Ranking() {
     }
   }
 
-  // ── Render estados ──────────────────────────────────────────────────────────
+  // ── Render estados ────────────────────────────────────────────────
   if (cargando) return (
-    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', color: '#6B7280', fontSize: 14 }}>
+    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', color: 'var(--muted)', fontSize: 14 }}>
       Cargando ranking…
     </div>
   )
   if (error || !quiniela) return (
-    <div style={{ textAlign: 'center', padding: '5rem 1.5rem', color: '#6B7280' }}>
-      <div style={{ fontSize: 52, marginBottom: 20 }}>⚠️</div>
-      <p style={{ fontSize: 18, fontWeight: 600, color: '#111827' }}>No se pudo cargar el ranking</p>
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '5rem 1.5rem', color: 'var(--muted)' }}>
+      <div>
+        <div style={{ fontSize: 52, marginBottom: 20 }}>⚠️</div>
+        <p style={{ fontSize: 18, fontWeight: 600, color: 'var(--text)' }}>No se pudo cargar el ranking</p>
+      </div>
     </div>
   )
 
   const partidos    = quiniela.partidos ?? []
   const resultados  = quiniela.resultados ?? {}
-  const cerrada     = quiniela.cerrada || (quiniela.cierre && new Date() > new Date(quiniela.cierre))
+  const cerrada     = quinielaCerrada(quiniela)
   const terminados  = partidos.filter((_, i) => getResultado(resultados[i] ?? resultados[String(i)]) !== null).length
   const enVivo      = Object.values(liveScores).some(l => l.state === 'in')
   const hayResultados = terminados > 0 || enVivo
@@ -206,35 +155,39 @@ export default function Ranking() {
     .map(p => ({ nombre: p.nombre, picks: p.picks, ...calcularPuntos(p.picks, resultados, liveScores, partidos) }))
     .sort((a, b) => b.puntos - a.puntos || b.exactos - a.exactos || b.aciertos - a.aciertos)
 
-  // ── Render ──────────────────────────────────────────────────────────────────
   return (
-    <div style={{ minHeight: '100vh', background: '#EEF2F8' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
       {/* Hero */}
-      <div style={{ background: 'linear-gradient(150deg, #0F2942 0%, #1B5299 100%)', color: '#fff', padding: '2rem 1.25rem 1.75rem' }}>
+      <div className="hero-pad" style={{ background: 'var(--hero-gradient)', color: 'var(--text)', borderBottom: '1px solid var(--border)' }}>
         <div style={{ maxWidth: 560, margin: '0 auto' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-            <a href="/" style={{ fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', opacity: 0.55, fontWeight: 600, color: 'inherit', textDecoration: 'none' }}>⚽ QuinielApp · Ranking</a>
-            <a href="/" style={{ background: 'rgba(255,255,255,0.15)', color: '#fff', padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 500, textDecoration: 'none' }}>← Inicio</a>
+            <a href="/" style={{ fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', color: 'var(--green-light)', fontWeight: 700, textDecoration: 'none' }}>⚽ QuinielApp · Ranking</a>
+            <a href="/" style={{ background: 'var(--neutral-bg)', color: 'var(--text)', padding: '6px 12px', borderRadius: 'var(--radius-sm)', fontSize: 12, fontWeight: 600, textDecoration: 'none', border: '1px solid var(--border)' }}>← Inicio</a>
           </div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, lineHeight: 1.25, marginBottom: 10 }}>{quiniela.nombre}</h1>
+          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 700, lineHeight: 1.2, marginBottom: 10, letterSpacing: '-0.01em' }}>{quiniela.nombre}</h1>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 500, padding: '4px 12px', borderRadius: 99, background: enVivo ? 'rgba(220,38,38,0.3)' : 'rgba(255,255,255,0.15)' }}>
-              {enVivo && <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#F87171', display: 'inline-block' }} />}
+            <span style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600,
+              padding: '4px 12px', borderRadius: 'var(--radius-full)',
+              background: enVivo ? 'var(--red-bg-strong)' : 'var(--neutral-bg)',
+              border: `1px solid ${enVivo ? 'var(--red)' : 'var(--border)'}`,
+            }}>
+              {enVivo && <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#FCA5A5', display: 'inline-block' }} />}
               {enVivo ? 'EN VIVO' : terminados === 0 ? 'Sin resultados aún' : `${terminados}/${partidos.length} partidos terminados`}
             </span>
             {ultimaAct && Object.keys(liveScores).length > 0 && (
-              <span style={{ fontSize: 11, opacity: 0.6 }}>
+              <span style={{ fontSize: 11, color: 'var(--muted)' }}>
                 Actualizado {ultimaAct.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
               </span>
             )}
-            {/* Botón actualizar ahora (item 9) */}
             <button
               onClick={handleRefresh}
               disabled={actualizando}
+              aria-label="Actualizar resultados"
               style={{
-                background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.25)',
-                color: '#fff', padding: '4px 12px', borderRadius: 99, fontSize: 11,
-                fontWeight: 600, cursor: actualizando ? 'not-allowed' : 'pointer',
+                background: 'var(--neutral-bg)', border: '1px solid var(--border-strong)',
+                color: 'var(--text)', padding: '4px 12px', borderRadius: 'var(--radius-full)', fontSize: 11,
+                fontWeight: 700, cursor: actualizando ? 'not-allowed' : 'pointer',
                 opacity: actualizando ? 0.6 : 1,
               }}
             >
@@ -249,9 +202,9 @@ export default function Ranking() {
         {/* Reglas */}
         <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
           {[{ pts: '1 pt', desc: 'Resultado correcto' }, { pts: '+2 pts', desc: 'Marcador exacto' }].map(r => (
-            <div key={r.desc} style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#fff', borderRadius: 8, padding: '6px 12px', boxShadow: '0 1px 3px rgba(0,0,0,0.07)', flex: '1 1 auto' }}>
-              <span style={{ fontSize: 13, fontWeight: 800, color: '#1B5299' }}>{r.pts}</span>
-              <span style={{ fontSize: 12, color: '#6B7280' }}>{r.desc}</span>
+            <div key={r.desc} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--card)', borderRadius: 'var(--radius-sm)', padding: '6px 12px', border: '1px solid var(--border)', flex: '1 1 auto' }}>
+              <span style={{ fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 700, color: 'var(--green)' }}>{r.pts}</span>
+              <span style={{ fontSize: 12, color: 'var(--muted)' }}>{r.desc}</span>
             </div>
           ))}
         </div>
@@ -263,19 +216,19 @@ export default function Ranking() {
             { val: `${terminados}/${partidos.length}`, label: 'Partidos' },
             { val: jugadores[0]?.puntos ?? 0,          label: 'Pts líder' },
           ].map(s => (
-            <div key={s.label} style={{ background: '#fff', borderRadius: 12, padding: '14px 10px', textAlign: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.07)' }}>
-              <span style={{ fontSize: 26, fontWeight: 800, display: 'block', color: '#0F2942' }}>{s.val}</span>
-              <span style={{ fontSize: 11, color: '#9CA3AF', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>{s.label}</span>
+            <div key={s.label} style={{ background: 'var(--card)', borderRadius: 'var(--radius-md)', padding: '14px 10px', textAlign: 'center', border: '1px solid var(--border)' }}>
+              <span style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 700, display: 'block', color: 'var(--yellow)' }}>{s.val}</span>
+              <span style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>{s.label}</span>
             </div>
           ))}
         </div>
 
         {/* Partidos */}
         {partidos.length > 0 && (
-          <div style={{ background: '#fff', borderRadius: 14, overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.07)', marginBottom: 16 }}>
-            <div style={{ padding: '12px 16px', borderBottom: '1px solid #F3F4F6', background: '#F9FAFB', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: 0.8 }}>Partidos</span>
-              {enVivo && <span style={{ fontSize: 11, fontWeight: 700, color: '#DC2626', display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 6, height: 6, borderRadius: '50%', background: '#DC2626', display: 'inline-block' }} />En vivo</span>}
+          <div style={{ background: 'var(--card)', borderRadius: 'var(--radius-md)', overflow: 'hidden', border: '1px solid var(--border)', marginBottom: 16 }}>
+            <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', background: 'var(--card-light)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.8 }}>Partidos</span>
+              {enVivo && <span style={{ fontSize: 11, fontWeight: 700, color: '#FCA5A5', display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--red)', display: 'inline-block' }} />En vivo</span>}
             </div>
             {partidos.map((p, i) => {
               const live     = p.espnId ? liveScores?.[p.espnId] : null
@@ -291,36 +244,36 @@ export default function Ranking() {
                 resDisplay = getResultado(stored)
               }
               return (
-                <div key={i} style={{ borderBottom: i < partidos.length - 1 ? '1px solid #F3F4F6' : 'none', background: esVivo ? '#FFFBF0' : 'transparent' }}>
+                <div key={i} style={{ borderBottom: i < partidos.length - 1 ? '1px solid var(--border)' : 'none', background: esVivo ? 'rgba(250, 204, 21, 0.06)' : 'transparent' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: p.hora ? '9px 16px 2px' : '11px 16px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 5, flex: 1, minWidth: 0 }}>
                       {p.escudoLocal && <img src={p.escudoLocal} alt="" style={{ width: 20, height: 20, objectFit: 'contain', flexShrink: 0 }} onError={e => { e.target.style.display = 'none' }} />}
-                      <span style={{ fontSize: 12, fontWeight: 500, color: '#374151', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.local}</span>
+                      <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.local}</span>
                     </div>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: esVivo ? '#DC2626' : '#0F2942', padding: '3px 8px', background: esVivo ? '#FEE2E2' : '#F3F4F6', borderRadius: 6, margin: '0 6px', minWidth: 46, textAlign: 'center', flexShrink: 0 }}>
+                    <span style={{ fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 700, color: esVivo ? '#FCA5A5' : 'var(--text-strong)', padding: '3px 8px', background: esVivo ? 'var(--red-bg)' : 'var(--card-light)', borderRadius: 'var(--radius-sm)', margin: '0 6px', minWidth: 46, textAlign: 'center', flexShrink: 0 }}>
                       {scoreLocal}–{scoreVisitante}
                     </span>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 5, flex: 1, minWidth: 0 }}>
-                      <span style={{ fontSize: 12, fontWeight: 500, color: '#374151', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.visitante}</span>
+                      <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.visitante}</span>
                       {p.escudoVisitante && <img src={p.escudoVisitante} alt="" style={{ width: 20, height: 20, objectFit: 'contain', flexShrink: 0 }} onError={e => { e.target.style.display = 'none' }} />}
                     </div>
                     <div style={{ marginLeft: 10, minWidth: 70, textAlign: 'right' }}>
                       {esVivo ? (
-                        <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 7px', borderRadius: 99, background: '#FEE2E2', color: '#DC2626', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-                          <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#DC2626', display: 'inline-block' }} />{live.clock || 'EN VIVO'}
+                        <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 7px', borderRadius: 'var(--radius-full)', background: 'var(--red-bg-strong)', color: '#FCA5A5', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                          <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--red)', display: 'inline-block' }} />{live.clock || 'EN VIVO'}
                         </span>
                       ) : resDisplay ? (
-                        <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 99, background: resultColor[resDisplay].bg, color: resultColor[resDisplay].color, whiteSpace: 'nowrap' }}>
+                        <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 'var(--radius-full)', background: resultColor[resDisplay].bg, color: resultColor[resDisplay].color, whiteSpace: 'nowrap' }}>
                           {resultLabel[resDisplay]}
                         </span>
                       ) : (
-                        <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 99, background: '#F3F4F6', color: '#9CA3AF' }}>Pendiente</span>
+                        <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 'var(--radius-full)', background: 'var(--neutral-bg)', color: 'var(--muted)' }}>Pendiente</span>
                       )}
                       {(esFinish || stored) && !esVivo && p.espnId && (
                         <a
                           href={`https://www.espn.com/soccer/match/_/gameId/${p.espnId}`}
                           target="_blank" rel="noreferrer"
-                          style={{ display: 'block', fontSize: 10, color: '#9CA3AF', textDecoration: 'none', marginTop: 4 }}
+                          style={{ display: 'block', fontSize: 10, color: 'var(--muted)', textDecoration: 'none', marginTop: 4 }}
                         >
                           Ver resumen →
                         </a>
@@ -328,7 +281,7 @@ export default function Ranking() {
                     </div>
                   </div>
                   {p.hora && (
-                    <p style={{ fontSize: 10, color: '#9CA3AF', padding: '0 16px 8px', margin: 0 }}>
+                    <p style={{ fontSize: 10, color: 'var(--muted)', padding: '0 16px 8px', margin: 0 }}>
                       {formatFecha(p.hora)}
                     </p>
                   )}
@@ -339,23 +292,23 @@ export default function Ranking() {
         )}
 
         {/* Tabla ranking */}
-        <div style={{ background: '#fff', borderRadius: 14, overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.07)' }}>
+        <div style={{ background: 'var(--card)', borderRadius: 'var(--radius-md)', overflow: 'hidden', border: '1px solid var(--border)' }}>
           {enVivo && (
-            <div style={{ background: '#FEF2F2', borderBottom: '1px solid #FECACA', padding: '8px 16px', display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#DC2626', display: 'inline-block', flexShrink: 0 }} />
-              <span style={{ fontSize: 12, color: '#DC2626', fontWeight: 600 }}>Ranking provisional — actualizando cada minuto</span>
+            <div style={{ background: 'var(--red-bg)', borderBottom: '1px solid var(--red)', padding: '8px 16px', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--red)', display: 'inline-block', flexShrink: 0 }} />
+              <span style={{ fontSize: 12, color: '#FCA5A5', fontWeight: 600 }}>Ranking provisional — actualizando cada minuto</span>
             </div>
           )}
 
           {/* Header */}
-          <div style={{ display: 'grid', gridTemplateColumns: '44px 1fr 60px 60px 52px', padding: '10px 16px', background: '#F9FAFB', borderBottom: '1px solid #F3F4F6' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '44px 1fr 60px 60px 52px', padding: '10px 16px', background: 'var(--card-light)', borderBottom: '1px solid var(--border)' }}>
             {['#', 'Jugador', 'Result.', 'Exactos', 'Pts'].map((h, idx) => (
-              <span key={h} style={{ fontSize: 10, color: '#9CA3AF', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.8, textAlign: idx >= 2 ? 'center' : 'left' }}>{h}</span>
+              <span key={h} style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.8, textAlign: idx >= 2 ? 'center' : 'left' }}>{h}</span>
             ))}
           </div>
 
           {jugadores.length === 0 ? (
-            <div style={{ padding: '2.5rem', textAlign: 'center', color: '#9CA3AF', fontSize: 14 }}>
+            <div style={{ padding: '2.5rem', textAlign: 'center', color: 'var(--muted)', fontSize: 14 }}>
               Nadie ha registrado predicciones todavía.
             </div>
           ) : jugadores.map((j, i) => {
@@ -363,34 +316,32 @@ export default function Ranking() {
             const esLider = i === 0 && hayResultados
 
             return (
-              <div key={j.nombre} style={{ borderBottom: i < jugadores.length - 1 ? '1px solid #F3F4F6' : 'none' }}>
-                {/* Fila principal */}
+              <div key={j.nombre} style={{ borderBottom: i < jugadores.length - 1 ? '1px solid var(--border)' : 'none' }}>
                 <div
                   onClick={() => cerrada && toggleExpandido(j.nombre)}
                   style={{
                     display: 'grid', gridTemplateColumns: '44px 1fr 60px 60px 52px',
                     padding: '13px 16px', alignItems: 'center',
-                    background: esLider ? 'linear-gradient(90deg, #FFFBEB, #fff)' : 'transparent',
+                    background: esLider ? 'linear-gradient(90deg, var(--yellow-bg), transparent 60%)' : 'transparent',
                     cursor: cerrada ? 'pointer' : 'default',
                     transition: 'background 0.1s',
                   }}
                 >
-                  <span style={{ fontSize: i < 3 ? 18 : 14, fontWeight: 600, color: i < 3 ? '#D97706' : '#9CA3AF' }}>
+                  <span style={{ fontSize: i < 3 ? 18 : 14, fontWeight: 700, color: i < 3 ? 'var(--yellow)' : 'var(--muted)' }}>
                     {i < 3 ? medals[i] : `${i + 1}`}
                   </span>
-                  <span style={{ fontSize: 14, fontWeight: i === 0 ? 700 : 400, color: '#111827', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 14, fontWeight: i === 0 ? 700 : 500, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 6 }}>
                     {j.nombre}
-                    {cerrada && <span style={{ fontSize: 11, color: '#9CA3AF' }}>{abierto ? '▲' : '▼'}</span>}
+                    {cerrada && <span style={{ fontSize: 11, color: 'var(--muted)' }}>{abierto ? '▲' : '▼'}</span>}
                   </span>
-                  <span style={{ fontSize: 13, color: '#6B7280', textAlign: 'center' }}>{j.aciertos}</span>
-                  <span style={{ fontSize: 13, textAlign: 'center', color: j.exactos > 0 ? '#D97706' : '#6B7280', fontWeight: j.exactos > 0 ? 700 : 400 }}>{j.exactos}</span>
-                  <span style={{ fontSize: 17, fontWeight: 800, textAlign: 'center', color: esLider ? '#D97706' : '#1B5299' }}>{j.puntos}</span>
+                  <span style={{ fontSize: 13, color: 'var(--muted)', textAlign: 'center' }}>{j.aciertos}</span>
+                  <span style={{ fontFamily: 'var(--font-display)', fontSize: 13, textAlign: 'center', color: j.exactos > 0 ? 'var(--yellow)' : 'var(--muted)', fontWeight: j.exactos > 0 ? 700 : 600 }}>{j.exactos}</span>
+                  <span style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 700, textAlign: 'center', color: esLider ? 'var(--yellow)' : 'var(--green)' }}>{j.puntos}</span>
                 </div>
 
-                {/* Picks expandidos */}
                 {abierto && cerrada && (
-                  <div style={{ background: '#F8FAFC', borderTop: '1px solid #F3F4F6', padding: '0 16px 12px' }}>
-                    <p style={{ fontSize: 10, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: 0.8, padding: '10px 0 8px' }}>
+                  <div style={{ background: 'var(--bg-soft)', borderTop: '1px solid var(--border)', padding: '0 16px 12px' }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.8, padding: '10px 0 8px' }}>
                       Predicciones de {j.nombre}
                     </p>
                     {partidos.map((partido, pi) => {
@@ -408,34 +359,28 @@ export default function Ranking() {
                         <div key={pi} style={{
                           display: 'grid', gridTemplateColumns: '1fr auto auto auto',
                           alignItems: 'center', gap: 8,
-                          padding: '8px 12px', marginBottom: 4, borderRadius: 8,
-                          background: !resR ? '#fff' : exacto ? '#F0FDF4' : correcto ? '#F0FDF4' : '#FFF5F5',
+                          padding: '8px 12px', marginBottom: 4, borderRadius: 'var(--radius-sm)',
+                          background: !resR ? 'var(--card)' : exacto ? 'var(--green-bg)' : correcto ? 'var(--green-bg)' : 'var(--red-bg)',
                           border: '1px solid',
-                          borderColor: !resR ? '#F3F4F6' : exacto ? '#BBF7D0' : correcto ? '#D1FAE5' : '#FECACA',
+                          borderColor: !resR ? 'var(--border)' : exacto ? 'var(--green)' : correcto ? 'var(--green-dark)' : 'var(--red)',
                         }}>
                           <div style={{ minWidth: 0 }}>
-                            <p style={{ fontSize: 12, fontWeight: 600, color: '#374151', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                               {partido.local} vs {partido.visitante}
                             </p>
                           </div>
 
-                          {/* Pick del jugador */}
-                          <span style={{
-                            fontSize: 12, fontWeight: 700, padding: '2px 8px', borderRadius: 6,
-                            background: '#EBF3FF', color: '#1B5299', whiteSpace: 'nowrap',
-                          }}>
+                          <span style={{ fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 700, padding: '2px 8px', borderRadius: 'var(--radius-sm)', background: 'var(--neutral-bg)', color: 'var(--text)', whiteSpace: 'nowrap' }}>
                             {pickDisplay(pick)}
                           </span>
 
-                          {/* Resultado real */}
-                          <span style={{ fontSize: 12, color: '#6B7280', whiteSpace: 'nowrap' }}>
+                          <span style={{ fontFamily: 'var(--font-display)', fontSize: 13, color: 'var(--muted)', whiteSpace: 'nowrap' }}>
                             {res ? `${res.local}–${res.visitante}` : '—'}
                           </span>
 
-                          {/* Puntos */}
                           <span style={{
                             fontSize: 12, fontWeight: 800, whiteSpace: 'nowrap', minWidth: 36, textAlign: 'right',
-                            color: pts === 3 ? '#D97706' : pts === 1 ? '#16A34A' : pts === 0 ? '#DC2626' : '#9CA3AF',
+                            color: pts === 3 ? 'var(--yellow)' : pts === 1 ? 'var(--green)' : pts === 0 ? 'var(--red)' : 'var(--muted)',
                           }}>
                             {pts === null ? '—' : pts === 0 ? '✗' : `+${pts}`}
                           </span>
@@ -443,10 +388,9 @@ export default function Ranking() {
                       )
                     })}
 
-                    {/* Total */}
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8, marginTop: 6, paddingTop: 6, borderTop: '1px solid #E5E7EB' }}>
-                      <span style={{ fontSize: 12, color: '#6B7280' }}>Total</span>
-                      <span style={{ fontSize: 15, fontWeight: 800, color: '#1B5299' }}>{j.puntos} pts</span>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8, marginTop: 6, paddingTop: 6, borderTop: '1px solid var(--border)' }}>
+                      <span style={{ fontSize: 12, color: 'var(--muted)' }}>Total</span>
+                      <span style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 700, color: 'var(--green)' }}>{j.puntos} pts</span>
                     </div>
                   </div>
                 )}
@@ -454,15 +398,14 @@ export default function Ranking() {
             )
           })}
 
-          {/* Aviso si aún no cerró */}
           {!cerrada && jugadores.length > 0 && (
-            <div style={{ padding: '10px 16px', background: '#FFFBEB', borderTop: '1px solid #FEF3C7', display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ fontSize: 12, color: '#92400E' }}>🔒 Las predicciones de cada jugador se revelan al cierre de la quiniela</span>
+            <div style={{ padding: '10px 16px', background: 'var(--yellow-bg)', borderTop: '1px solid var(--yellow-soft)', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: 12, color: 'var(--yellow-soft)' }}>🔒 Las predicciones de cada jugador se revelan al cierre de la quiniela</span>
             </div>
           )}
         </div>
 
-        <p style={{ fontSize: 11, color: '#9CA3AF', textAlign: 'center', marginTop: 14, lineHeight: 1.8 }}>
+        <p style={{ fontSize: 11, color: 'var(--muted)', textAlign: 'center', marginTop: 14, lineHeight: 1.8 }}>
           1 pt resultado correcto · +2 pts marcador exacto (máx. 3 pts por partido){'\n'}
           Empate de puntos: gana quien tenga más marcadores exactos; si persiste, más resultados correctos · {enVivo ? '🔴 Actualizando cada 60 seg' : 'Actualización en tiempo real'}
         </p>
