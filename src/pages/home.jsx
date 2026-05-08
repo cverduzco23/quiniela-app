@@ -1,19 +1,30 @@
 import { useState, useEffect } from 'react'
 import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore'
 import { db } from '../firebase'
+import { cierreToDate, quinielaCerrada } from '../utils/cierre'
 
-function esCerrada(q) {
-  return !!(q.cerrada || (q.cierre && new Date() > new Date(q.cierre)))
+const esCerrada = quinielaCerrada
+
+function formatFecha(value) {
+  const d = cierreToDate(value)
+  if (!d) return ''
+  return d.toLocaleString('es-MX', {
+    weekday: 'short', day: 'numeric', month: 'short',
+    hour: '2-digit', minute: '2-digit',
+  })
 }
 
-function formatFecha(iso) {
-  if (!iso) return ''
-  try {
-    return new Date(iso).toLocaleString('es-MX', {
-      weekday: 'short', day: 'numeric', month: 'short',
-      hour: '2-digit', minute: '2-digit',
-    })
-  } catch { return iso }
+const ctaPrimary = {
+  display: 'block', textAlign: 'center', padding: '14px', borderRadius: 'var(--radius-md)',
+  background: 'linear-gradient(135deg, var(--green), var(--green-light))',
+  color: '#07120A', fontWeight: 800, fontSize: 15, textDecoration: 'none',
+  boxShadow: 'var(--shadow-green)', letterSpacing: 0.2,
+}
+
+const ctaSecondary = {
+  display: 'block', textAlign: 'center', padding: '12px', borderRadius: 'var(--radius-md)',
+  background: 'var(--neutral-bg)', border: '1px solid var(--border-strong)',
+  color: 'var(--text)', fontWeight: 700, fontSize: 14, textDecoration: 'none',
 }
 
 export default function Home() {
@@ -39,7 +50,7 @@ export default function Home() {
   }, [])
 
   if (cargando) return (
-    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', color: '#6B7280', fontSize: 14 }}>
+    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', color: 'var(--muted)', fontSize: 14 }}>
       Cargando…
     </div>
   )
@@ -50,71 +61,57 @@ export default function Home() {
   const ultima    = cerradas[0] ?? null
 
   return (
-    <div style={{ minHeight: '100vh', background: '#EEF2F8' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
       {/* Hero */}
-      <div style={{ background: 'linear-gradient(150deg, #0F2942 0%, #1B5299 100%)', color: '#fff', padding: '2.5rem 1.25rem 2rem', textAlign: 'center' }}>
+      <div className="hero-pad" style={{ background: 'var(--hero-gradient)', color: 'var(--text)', textAlign: 'center', borderBottom: '1px solid var(--border)' }}>
         <div style={{ maxWidth: 560, margin: '0 auto' }}>
-          <p style={{ fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', opacity: 0.55, marginBottom: 12, fontWeight: 600 }}>⚽ QuinielApp</p>
-          <h1 style={{ fontSize: 28, fontWeight: 800, lineHeight: 1.2, marginBottom: 10 }}>Predice. Compite. Gana.</h1>
-          <p style={{ fontSize: 14, opacity: 0.75, lineHeight: 1.6 }}>La quiniela deportiva de tu grupo.</p>
+          <p style={{ fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', color: 'var(--green-light)', marginBottom: 12, fontWeight: 700 }}>⚽ QuinielApp</p>
+          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(28px, 7vw, 40px)', fontWeight: 700, lineHeight: 1.05, marginBottom: 12, letterSpacing: '-0.02em' }}>
+            Predice. Compite. <span style={{ color: 'var(--green)' }}>Gana.</span>
+          </h1>
+          <p style={{ fontSize: 14, color: 'var(--muted)', lineHeight: 1.6 }}>La quiniela deportiva de tu grupo.</p>
         </div>
       </div>
 
       <div style={{ maxWidth: 560, margin: '0 auto', padding: '1.5rem 1rem 3rem' }}>
 
         {!principal && !ultima && (
-          <div style={{ background: '#fff', borderRadius: 16, padding: '3rem 2rem', textAlign: 'center', boxShadow: '0 1px 4px rgba(0,0,0,0.08)' }}>
-            <div style={{ fontSize: 52, marginBottom: 16 }}>⏳</div>
-            <p style={{ fontWeight: 700, fontSize: 17, color: '#111827', marginBottom: 8 }}>Sin quinielas activas</p>
-            <p style={{ fontSize: 14, color: '#6B7280' }}>El organizador aún no ha publicado ninguna quiniela.</p>
+          <div style={{ background: 'var(--card)', borderRadius: 'var(--radius-lg)', padding: '3rem 2rem', textAlign: 'center', boxShadow: 'var(--shadow-sm)', border: '1px solid var(--border)' }}>
+            <div style={{ fontSize: 52, marginBottom: 16 }}>⚽</div>
+            <p style={{ fontWeight: 700, fontSize: 17, color: 'var(--text)', marginBottom: 8 }}>Próximamente la siguiente jornada</p>
+            <p style={{ fontSize: 14, color: 'var(--muted)', lineHeight: 1.5 }}>Estamos preparando la próxima quiniela. Vuelve pronto para registrar tus predicciones.</p>
           </div>
         )}
 
         {/* Quiniela activa principal */}
         {principal && (
           <div style={{ marginBottom: 20 }}>
-            <p style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
+            <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
               Quiniela activa
             </p>
             <div style={{
-              background: '#fff', borderRadius: 16, padding: '1.5rem',
-              boxShadow: '0 4px 16px rgba(27,82,153,0.14)',
-              border: '2px solid #1B5299',
+              background: 'var(--card)', borderRadius: 'var(--radius-lg)', padding: '1.5rem',
+              boxShadow: 'var(--shadow-md)',
+              border: '1px solid var(--green)',
             }}>
-              <p style={{ fontSize: 19, fontWeight: 700, color: '#0F2942', marginBottom: 8 }}>{principal.nombre}</p>
+              <p style={{ fontSize: 19, fontWeight: 700, color: 'var(--text-strong)', marginBottom: 10 }}>{principal.nombre}</p>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 20 }}>
-                <span style={{ fontSize: 13, color: '#6B7280' }}>
+                <span style={{ fontSize: 13, color: 'var(--muted)' }}>
                   ⚽ {principal.partidos?.length ?? 0} partidos
                 </span>
-                <span style={{ fontSize: 13, color: '#6B7280' }}>
+                <span style={{ fontSize: 13, color: 'var(--muted)' }}>
                   👥 {conteos[principal.id] ?? 0} {(conteos[principal.id] ?? 0) === 1 ? 'participante' : 'participantes'}
                 </span>
                 {principal.cierre && (
-                  <span style={{ fontSize: 13, color: '#D97706', fontWeight: 600 }}>
+                  <span style={{ fontSize: 13, color: 'var(--yellow)', fontWeight: 600 }}>
                     ⏳ Cierra: {formatFecha(principal.cierre)}
                   </span>
                 )}
               </div>
-              <a
-                href={`/?q=${principal.id}`}
-                style={{
-                  display: 'block', textAlign: 'center', padding: '14px', borderRadius: 12,
-                  background: 'linear-gradient(135deg, #0F2942 0%, #1B5299 100%)',
-                  color: '#fff', fontWeight: 700, fontSize: 15, textDecoration: 'none',
-                  boxShadow: '0 4px 14px rgba(27,82,153,0.35)',
-                  marginBottom: 10,
-                }}
-              >
+              <a href={`/?q=${principal.id}`} style={{ ...ctaPrimary, marginBottom: 10 }}>
                 Hacer mi predicción →
               </a>
-              <a
-                href={`/ranking?q=${principal.id}`}
-                style={{
-                  display: 'block', textAlign: 'center', padding: '12px', borderRadius: 10,
-                  background: '#EBF3FF', border: '1.5px solid #1B5299',
-                  color: '#1B5299', fontWeight: 700, fontSize: 14, textDecoration: 'none',
-                }}
-              >
+              <a href={`/ranking?q=${principal.id}`} style={ctaSecondary}>
                 Ver ranking
               </a>
             </div>
@@ -124,22 +121,22 @@ export default function Home() {
         {/* Otras activas */}
         {activas.length > 1 && (
           <div style={{ marginBottom: 20 }}>
-            <p style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
+            <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
               Otras quinielas activas
             </p>
             {activas.slice(1).map(q => (
               <div key={q.id} style={{
-                background: '#fff', borderRadius: 12, padding: '1rem 1.25rem', marginBottom: 10,
-                boxShadow: '0 1px 3px rgba(0,0,0,0.07)',
+                background: 'var(--card)', borderRadius: 'var(--radius-md)', padding: '1rem 1.25rem', marginBottom: 10,
+                border: '1px solid var(--border)',
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
               }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontSize: 14, fontWeight: 600, color: '#111827', marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{q.nombre}</p>
-                  <span style={{ fontSize: 12, color: '#6B7280' }}>
+                  <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{q.nombre}</p>
+                  <span style={{ fontSize: 12, color: 'var(--muted)' }}>
                     ⚽ {q.partidos?.length ?? 0} · 👥 {conteos[q.id] ?? 0}
                   </span>
                 </div>
-                <a href={`/?q=${q.id}`} style={{ fontSize: 13, color: '#1B5299', fontWeight: 600, textDecoration: 'none', whiteSpace: 'nowrap' }}>
+                <a href={`/?q=${q.id}`} style={{ fontSize: 13, color: 'var(--green)', fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap' }}>
                   Predecir →
                 </a>
               </div>
@@ -147,30 +144,23 @@ export default function Home() {
           </div>
         )}
 
-        {/* Última quiniela cerrada */}
+        {/* Última cerrada */}
         {ultima && (
           <div>
-            <p style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
+            <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
               {principal ? 'Última quiniela terminada' : 'Quiniela más reciente'}
             </p>
-            <div style={{ background: '#fff', borderRadius: 14, padding: '1.25rem 1.5rem', boxShadow: '0 1px 3px rgba(0,0,0,0.07)' }}>
+            <div style={{ background: 'var(--card)', borderRadius: 'var(--radius-lg)', padding: '1.25rem 1.5rem', border: '1px solid var(--border)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
-                <p style={{ fontSize: 16, fontWeight: 600, color: '#111827' }}>{ultima.nombre}</p>
-                <span style={{ fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 99, background: '#F3F4F6', color: '#6B7280', flexShrink: 0, marginLeft: 8 }}>
+                <p style={{ fontSize: 16, fontWeight: 600, color: 'var(--text)' }}>{ultima.nombre}</p>
+                <span style={{ fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 'var(--radius-full)', background: 'var(--neutral-bg)', color: 'var(--muted)', flexShrink: 0, marginLeft: 8 }}>
                   Finalizada
                 </span>
               </div>
-              <p style={{ fontSize: 12, color: '#9CA3AF', marginBottom: 14 }}>
+              <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 14 }}>
                 ⚽ {ultima.partidos?.length ?? 0} partidos · 👥 {conteos[ultima.id] ?? 0} {(conteos[ultima.id] ?? 0) === 1 ? 'participante' : 'participantes'}
               </p>
-              <a
-                href={`/ranking?q=${ultima.id}`}
-                style={{
-                  display: 'block', textAlign: 'center', padding: '12px', borderRadius: 10,
-                  background: '#EBF3FF', border: '1.5px solid #1B5299',
-                  color: '#1B5299', fontWeight: 700, fontSize: 14, textDecoration: 'none',
-                }}
-              >
+              <a href={`/ranking?q=${ultima.id}`} style={ctaSecondary}>
                 Ver ranking completo →
               </a>
             </div>

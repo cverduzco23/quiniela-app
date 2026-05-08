@@ -1,3 +1,66 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Rajdhani:wght@600;700&display=swap');
+
+:root {
+  /* Backgrounds */
+  --bg: #0B1220;
+  --bg-soft: #111827;
+  --card: #151F32;
+  --card-light: #1E293B;
+  --card-hover: #1F2A40;
+
+  /* Brand */
+  --green: #22C55E;
+  --green-dark: #16A34A;
+  --green-light: #86EFAC;
+  --yellow: #FACC15;
+  --yellow-soft: #FDE68A;
+  --red: #EF4444;
+  --red-dark: #DC2626;
+
+  /* Text */
+  --text: #F9FAFB;
+  --text-strong: #FFFFFF;
+  --muted: #9CA3AF;
+  --muted-soft: #6B7280;
+  --muted-dim: #4B5563;
+
+  /* Borders */
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.16);
+
+  /* Status surface tints (sobre fondo dark) */
+  --green-bg: rgba(34, 197, 94, 0.12);
+  --green-bg-strong: rgba(34, 197, 94, 0.22);
+  --yellow-bg: rgba(250, 204, 21, 0.12);
+  --yellow-bg-strong: rgba(250, 204, 21, 0.20);
+  --red-bg: rgba(239, 68, 68, 0.12);
+  --red-bg-strong: rgba(239, 68, 68, 0.22);
+  --neutral-bg: rgba(255, 255, 255, 0.05);
+
+  /* Shadows */
+  --shadow-sm: 0 1px 4px rgba(0, 0, 0, 0.25);
+  --shadow-md: 0 6px 22px rgba(0, 0, 0, 0.35);
+  --shadow-lg: 0 24px 70px rgba(0, 0, 0, 0.4);
+  --shadow-green: 0 16px 36px rgba(34, 197, 94, 0.28);
+
+  /* Hero gradient (radial accents + dark base) */
+  --hero-gradient:
+    radial-gradient(circle at top left, rgba(34, 197, 94, 0.18), transparent 32%),
+    radial-gradient(circle at top right, rgba(250, 204, 21, 0.12), transparent 28%),
+    linear-gradient(135deg, #08111F 0%, #0B1220 45%, #111827 100%);
+
+  /* Tipografías */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-display: 'Rajdhani', 'Inter', sans-serif;
+
+  /* Radii */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 22px;
+  --radius-full: 999px;
+}
+
 *, *::before, *::after {
   box-sizing: border-box;
   margin: 0;
@@ -5,9 +68,9 @@
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
-  background: #EEF2F8;
-  color: #111827;
+  font-family: var(--font-sans);
+  background: var(--bg);
+  color: var(--text);
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
 }
@@ -21,41 +84,101 @@ textarea,
 select {
   font-family: inherit;
   font-size: 14px;
-  color: #111827;
-  background: #fff;
-  border: 1.5px solid #D1D5DB;
-  border-radius: 8px;
-  padding: 9px 12px;
+  color: var(--text);
+  background: var(--card-light);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
   outline: none;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
   width: 100%;
+}
+
+input::placeholder, textarea::placeholder {
+  color: var(--muted-soft);
 }
 
 input:-webkit-autofill,
 input:-webkit-autofill:hover,
 input:-webkit-autofill:focus {
-  -webkit-box-shadow: 0 0 0 30px #fff inset !important;
-  -webkit-text-fill-color: #111827 !important;
+  -webkit-box-shadow: 0 0 0 30px var(--card-light) inset !important;
+  -webkit-text-fill-color: var(--text) !important;
   transition: background-color 9999s ease-in-out 0s;
 }
 
 input:focus,
 textarea:focus,
 select:focus {
-  border-color: #1B5299;
-  box-shadow: 0 0 0 3px rgba(27, 82, 153, 0.12);
+  border-color: var(--green);
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.18);
+  background: var(--card-hover);
 }
 
 button {
   font-family: inherit;
   cursor: pointer;
-  transition: opacity 0.15s;
+  transition: opacity 0.15s, transform 0.15s, box-shadow 0.15s;
 }
 
-button:active {
-  opacity: 0.8;
+button:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+button:focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: 2px;
+}
+
+a:focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+/* Scrollbar dark-themed */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--card-light);
+  border-radius: 999px;
+  border: 2px solid var(--bg);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--card-hover);
 }
 
 #root {
   min-height: 100vh;
+}
+
+/* Utility para fuente display deportiva en marcadores y números grandes */
+.font-display {
+  font-family: var(--font-display);
+  letter-spacing: -0.01em;
+}
+
+/* Animación celebración (Fase 3) */
+@keyframes pop {
+  0%   { transform: scale(0); opacity: 0; }
+  60%  { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(1); }
+}
+@keyframes confetti {
+  0%   { transform: translateY(0) rotate(0); opacity: 1; }
+  100% { transform: translateY(120vh) rotate(720deg); opacity: 0; }
+}
+
+/* Hero responsive */
+.hero-pad {
+  padding: 2rem 1.25rem 1.75rem;
+}
+@media (max-width: 480px) {
+  .hero-pad {
+    padding: 1.25rem 1rem 1rem;
+  }
 }

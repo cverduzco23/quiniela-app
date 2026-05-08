@@ -1,0 +1,20 @@
+{
+  "name": "QuinielApp",
+  "short_name": "QuinielApp",
+  "description": "Predice los partidos, compite con tus amigos y sube en el ranking.",
+  "lang": "es-MX",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0B1220",
+  "theme_color": "#0B1220",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

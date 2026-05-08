@@ -2,16 +2,15 @@ import { useState, useEffect, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { doc, getDoc, addDoc, collection, updateDoc, getDocs, query, where } from 'firebase/firestore'
 import { db } from '../firebase'
-import Home from './home'
+import { cierreToDate, quinielaCerrada } from '../utils/cierre'
 
-function formatFecha(iso) {
-  if (!iso) return ''
-  try {
-    return new Date(iso).toLocaleString('es-MX', {
-      weekday: 'short', day: 'numeric', month: 'short',
-      hour: '2-digit', minute: '2-digit',
-    })
-  } catch { return iso }
+function formatFecha(value) {
+  const d = cierreToDate(value)
+  if (!d) return ''
+  return d.toLocaleString('es-MX', {
+    weekday: 'short', day: 'numeric', month: 'short',
+    hour: '2-digit', minute: '2-digit',
+  })
 }
 
 function pickValido(pick) {
@@ -28,10 +27,26 @@ function getPickResultado(pick) {
 }
 
 const resultadoInfo = (res, local, visitante) => ({
-  home:  { label: `${local} gana`,     bg: '#DCFCE7', color: '#15803D' },
-  draw:  { label: 'Empate',            bg: '#F3F4F6', color: '#4B5563' },
-  away:  { label: `${visitante} gana`, bg: '#EBF3FF', color: '#1D4ED8' },
+  home:  { label: `${local} gana`,     bg: 'var(--green-bg)',  color: 'var(--green)' },
+  draw:  { label: 'Empate',            bg: 'var(--neutral-bg)', color: 'var(--muted)' },
+  away:  { label: `${visitante} gana`, bg: 'var(--yellow-bg)', color: 'var(--yellow)' },
 }[res])
+
+const ctaPrimary = (disabled) => ({
+  width: '100%', padding: '15px', borderRadius: 'var(--radius-md)', border: 'none',
+  background: disabled ? 'var(--card-light)' : 'linear-gradient(135deg, var(--green), var(--green-light))',
+  color: disabled ? 'var(--muted)' : '#07120A', fontSize: 15, fontWeight: 800, letterSpacing: 0.3,
+  cursor: disabled ? 'not-allowed' : 'pointer',
+  boxShadow: disabled ? 'none' : 'var(--shadow-green)',
+})
+
+const card = {
+  background: 'var(--card)', borderRadius: 'var(--radius-md)',
+  padding: '1.1rem 1.25rem', marginBottom: 10,
+  border: '1px solid var(--border)',
+}
+
+const lbl = { fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 8 }
 
 export default function Predicciones() {
   const [searchParams] = useSearchParams()
@@ -61,11 +76,11 @@ export default function Predicciones() {
   }, [quinielaId])
 
   const partidos   = quiniela?.partidos ?? []
-  const cerrada    = quiniela?.cerrada || (quiniela?.cierre && new Date() > new Date(quiniela.cierre))
+  const cerrada    = quinielaCerrada(quiniela)
   const progreso   = partidos.filter((_, i) => pickValido(picks[i])).length
   const completado = nombre.trim().length > 0 && progreso === partidos.length
 
-  // Auto-cierre ESPN con intervalo cada 60s (item 2)
+  // Auto-cierre ESPN con intervalo cada 60s
   useEffect(() => {
     if (!quiniela || cerrada || !quinielaId) return
     const conEspn = partidos.filter(p => p.espnId && p.ligaId)
@@ -133,45 +148,46 @@ export default function Predicciones() {
     }
   }
 
-  // ── Estados de pantalla ────────────────────────────────────────────────────
+  // ── Estados ─────────────────────────────────────────────────
 
   if (cargando) return (
-    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', color: '#6B7280', fontSize: 14 }}>
+    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', color: 'var(--muted)', fontSize: 14 }}>
       Cargando quiniela…
     </div>
   )
 
-  if (error === 'no-id') return <Home />
-
   if (error) return (
-    <div style={{ textAlign: 'center', padding: '5rem 1.5rem', color: '#6B7280' }}>
-      <div style={{ fontSize: 52, marginBottom: 20 }}>⚠️</div>
-      <p style={{ fontSize: 18, fontWeight: 600, color: '#111827', marginBottom: 8 }}>
-        {error === 'not-found' ? 'Quiniela no encontrada' : 'Error de conexión'}
-      </p>
-      <p style={{ fontSize: 14 }}>Contacta al organizador para obtener el enlace correcto.</p>
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '5rem 1.5rem', color: 'var(--muted)' }}>
+      <div style={{ textAlign: 'center' }}>
+        <div style={{ fontSize: 52, marginBottom: 20 }}>⚠️</div>
+        <p style={{ fontSize: 18, fontWeight: 600, color: 'var(--text)', marginBottom: 8 }}>
+          {error === 'not-found' ? 'Quiniela no encontrada' : 'Error de conexión'}
+        </p>
+        <p style={{ fontSize: 14 }}>Contacta al organizador para obtener el enlace correcto.</p>
+      </div>
     </div>
   )
 
   if (enviado) return (
-    <div style={{ minHeight: '100vh', background: '#EEF2F8', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ textAlign: 'center', padding: '2rem 1.5rem' }}>
         <div style={{
           width: 88, height: 88, borderRadius: '50%',
-          background: 'linear-gradient(135deg, #16A34A, #22C55E)',
+          background: 'linear-gradient(135deg, var(--green), var(--green-light))',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          margin: '0 auto 24px', fontSize: 44, color: '#fff',
+          margin: '0 auto 24px', fontSize: 44, color: '#07120A',
+          boxShadow: 'var(--shadow-green)',
         }}>✓</div>
-        <h2 style={{ fontSize: 26, fontWeight: 700, marginBottom: 10 }}>¡Listo, {nombre}!</h2>
-        <p style={{ color: '#6B7280', fontSize: 15, marginBottom: 6 }}>Tus predicciones fueron registradas.</p>
-        <p style={{ color: '#9CA3AF', fontSize: 13, marginBottom: 28 }}>Revisa el ranking cuando terminen los partidos.</p>
+        <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 700, marginBottom: 10, color: 'var(--text-strong)' }}>¡Listo, {nombre}!</h2>
+        <p style={{ color: 'var(--muted)', fontSize: 15, marginBottom: 6 }}>Tus predicciones fueron registradas.</p>
+        <p style={{ color: 'var(--muted-soft)', fontSize: 13, marginBottom: 28 }}>Revisa el ranking cuando terminen los partidos.</p>
         <a
           href={`/ranking?q=${quinielaId}`}
           style={{
-            display: 'inline-block', padding: '13px 28px', borderRadius: 12,
-            background: 'linear-gradient(135deg, #0F2942 0%, #1B5299 100%)',
-            color: '#fff', fontWeight: 700, fontSize: 14, textDecoration: 'none',
-            boxShadow: '0 4px 14px rgba(27,82,153,0.35)',
+            display: 'inline-block', padding: '13px 28px', borderRadius: 'var(--radius-md)',
+            background: 'linear-gradient(135deg, var(--green), var(--green-light))',
+            color: '#07120A', fontWeight: 800, fontSize: 14, textDecoration: 'none',
+            boxShadow: 'var(--shadow-green)',
           }}
         >
           Ver ranking →
@@ -183,21 +199,22 @@ export default function Predicciones() {
   const pct = partidos.length > 0 ? (progreso / partidos.length) * 100 : 0
 
   return (
-    <div style={{ minHeight: '100vh', background: '#EEF2F8' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
       {/* Hero */}
-      <div style={{ background: 'linear-gradient(150deg, #0F2942 0%, #1B5299 100%)', color: '#fff', padding: '2rem 1.25rem 1.75rem' }}>
+      <div className="hero-pad" style={{ background: 'var(--hero-gradient)', color: 'var(--text)', borderBottom: '1px solid var(--border)' }}>
         <div style={{ maxWidth: 560, margin: '0 auto' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-            <a href="/" style={{ fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', opacity: 0.55, fontWeight: 600, color: 'inherit', textDecoration: 'none' }}>⚽ QuinielApp</a>
-            <a href="/" style={{ background: 'rgba(255,255,255,0.15)', color: '#fff', padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 500, textDecoration: 'none' }}>← Inicio</a>
+            <a href="/" style={{ fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', color: 'var(--green-light)', fontWeight: 700, textDecoration: 'none' }}>⚽ QuinielApp</a>
+            <a href="/" style={{ background: 'var(--neutral-bg)', color: 'var(--text)', padding: '6px 12px', borderRadius: 'var(--radius-sm)', fontSize: 12, fontWeight: 600, textDecoration: 'none', border: '1px solid var(--border)' }}>← Inicio</a>
           </div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, lineHeight: 1.25, marginBottom: 10 }}>{quiniela.nombre}</h1>
+          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 700, lineHeight: 1.2, marginBottom: 10, letterSpacing: '-0.01em' }}>{quiniela.nombre}</h1>
           {quiniela.cierre && (
             <span style={{
-              display: 'inline-block', fontSize: 12, fontWeight: 500,
-              padding: '4px 12px', borderRadius: 99,
-              background: cerrada ? 'rgba(220,38,38,0.25)' : 'rgba(255,255,255,0.15)',
-              color: cerrada ? '#FCA5A5' : 'rgba(255,255,255,0.9)',
+              display: 'inline-block', fontSize: 12, fontWeight: 600,
+              padding: '4px 12px', borderRadius: 'var(--radius-full)',
+              background: cerrada ? 'var(--red-bg-strong)' : 'var(--neutral-bg)',
+              color: cerrada ? '#FCA5A5' : 'var(--text)',
+              border: `1px solid ${cerrada ? 'var(--red)' : 'var(--border)'}`,
             }}>
               {cerrada ? '🔒 Quiniela cerrada' : `⏳ Cierre: ${formatFecha(quiniela.cierre)}`}
             </span>
@@ -215,42 +232,42 @@ export default function Predicciones() {
           ].map(r => (
             <div key={r.desc} style={{
               display: 'flex', alignItems: 'center', gap: 6,
-              background: '#fff', borderRadius: 8, padding: '6px 12px',
-              boxShadow: '0 1px 3px rgba(0,0,0,0.07)', flex: '1 1 auto',
+              background: 'var(--card)', borderRadius: 'var(--radius-sm)', padding: '6px 12px',
+              border: '1px solid var(--border)', flex: '1 1 auto',
             }}>
-              <span style={{ fontSize: 13, fontWeight: 800, color: '#1B5299' }}>{r.pts}</span>
-              <span style={{ fontSize: 12, color: '#6B7280' }}>{r.desc}</span>
+              <span style={{ fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 700, color: 'var(--green)' }}>{r.pts}</span>
+              <span style={{ fontSize: 12, color: 'var(--muted)' }}>{r.desc}</span>
             </div>
           ))}
         </div>
 
-        {/* ── Quiniela cerrada ─────────────────────────────────────────────── */}
+        {/* ── Quiniela cerrada ─────────────────────────────────────────── */}
         {cerrada ? (
-          <div style={{ background: '#fff', borderRadius: 16, padding: '3rem 2rem', textAlign: 'center', boxShadow: '0 1px 4px rgba(0,0,0,0.08)' }}>
+          <div style={{ background: 'var(--card)', borderRadius: 'var(--radius-lg)', padding: '3rem 2rem', textAlign: 'center', border: '1px solid var(--border)' }}>
             <div style={{ fontSize: 52, marginBottom: 16 }}>🔒</div>
-            <p style={{ fontWeight: 700, fontSize: 17, color: '#111827', marginBottom: 8 }}>Plazo de registro cerrado</p>
-            <p style={{ fontSize: 14, color: '#6B7280', marginBottom: 24 }}>Ya no se pueden ingresar predicciones.</p>
+            <p style={{ fontWeight: 700, fontSize: 17, color: 'var(--text)', marginBottom: 8 }}>Plazo de registro cerrado</p>
+            <p style={{ fontSize: 14, color: 'var(--muted)', marginBottom: 24 }}>Ya no se pueden ingresar predicciones.</p>
             <a
               href={`/ranking?q=${quinielaId}`}
               style={{
-                display: 'inline-block', padding: '12px 28px', borderRadius: 12,
-                background: 'linear-gradient(135deg, #0F2942 0%, #1B5299 100%)',
-                color: '#fff', fontWeight: 700, fontSize: 14, textDecoration: 'none',
-                boxShadow: '0 4px 14px rgba(27,82,153,0.35)',
+                display: 'inline-block', padding: '12px 28px', borderRadius: 'var(--radius-md)',
+                background: 'linear-gradient(135deg, var(--green), var(--green-light))',
+                color: '#07120A', fontWeight: 800, fontSize: 14, textDecoration: 'none',
+                boxShadow: 'var(--shadow-green)',
               }}
             >
               Ver ranking →
             </a>
           </div>
 
-        /* ── Pantalla de resumen antes de enviar (item 11) ──────────────── */
+        /* ── Pantalla de resumen ───────────────────────────────────────── */
         ) : mostrarResumen ? (
           <div>
-            <div style={{ background: '#fff', borderRadius: 16, padding: '1.5rem', marginBottom: 10, boxShadow: '0 2px 8px rgba(27,82,153,0.10)', border: '2px solid #1B5299' }}>
-              <p style={{ fontSize: 13, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>
+            <div style={{ background: 'var(--card)', borderRadius: 'var(--radius-lg)', padding: '1.5rem', marginBottom: 10, border: '1px solid var(--green)', boxShadow: 'var(--shadow-md)' }}>
+              <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>
                 Revisa tus picks
               </p>
-              <p style={{ fontSize: 18, fontWeight: 700, color: '#0F2942', marginBottom: 16 }}>{nombre}</p>
+              <p style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-strong)', marginBottom: 16 }}>{nombre}</p>
 
               {partidos.map((p, i) => {
                 const pick = picks[i]
@@ -259,26 +276,26 @@ export default function Predicciones() {
                 return (
                   <div key={i} style={{
                     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '10px 0', borderBottom: i < partidos.length - 1 ? '1px solid #F3F4F6' : 'none',
+                    padding: '10px 0', borderBottom: i < partidos.length - 1 ? '1px solid var(--border)' : 'none',
                     gap: 8,
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 5, flex: 1, minWidth: 0 }}>
                       {p.escudoLocal && (
                         <img src={p.escudoLocal} alt="" style={{ width: 18, height: 18, objectFit: 'contain', flexShrink: 0 }} onError={e => { e.target.style.display = 'none' }} />
                       )}
-                      <span style={{ fontSize: 13, color: '#374151', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.local}</span>
+                      <span style={{ fontSize: 13, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.local}</span>
                     </div>
-                    <span style={{ fontSize: 20, fontWeight: 800, color: '#0F2942', padding: '2px 14px', background: '#EBF3FF', borderRadius: 8, flexShrink: 0 }}>
+                    <span style={{ fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 700, color: 'var(--text-strong)', padding: '2px 14px', background: 'var(--green-bg)', borderRadius: 'var(--radius-sm)', flexShrink: 0 }}>
                       {pick?.local ?? '?'} – {pick?.visitante ?? '?'}
                     </span>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 5, flex: 1, minWidth: 0 }}>
-                      <span style={{ fontSize: 13, color: '#374151', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'right' }}>{p.visitante}</span>
+                      <span style={{ fontSize: 13, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'right' }}>{p.visitante}</span>
                       {p.escudoVisitante && (
                         <img src={p.escudoVisitante} alt="" style={{ width: 18, height: 18, objectFit: 'contain', flexShrink: 0 }} onError={e => { e.target.style.display = 'none' }} />
                       )}
                     </div>
                     {info && (
-                      <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 99, background: info.bg, color: info.color, flexShrink: 0 }}>
+                      <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 'var(--radius-full)', background: info.bg, color: info.color, flexShrink: 0 }}>
                         {info.label}
                       </span>
                     )}
@@ -289,34 +306,23 @@ export default function Predicciones() {
 
             {nombreError && (
               <div style={{
-                marginBottom: 10, padding: '10px 14px', borderRadius: 10,
-                background: '#FEF2F2', border: '1px solid #FECACA',
-                fontSize: 13, color: '#DC2626', lineHeight: 1.5,
+                marginBottom: 10, padding: '10px 14px', borderRadius: 'var(--radius-md)',
+                background: 'var(--red-bg)', border: '1px solid var(--red)',
+                fontSize: 13, color: '#FCA5A5', lineHeight: 1.5,
               }}>
                 ⚠️ {nombreError}
               </div>
             )}
 
-            <button
-              onClick={enviar}
-              disabled={enviando}
-              style={{
-                width: '100%', padding: '15px', borderRadius: 12, border: 'none',
-                background: enviando ? '#D1D5DB' : 'linear-gradient(135deg, #0F2942 0%, #1B5299 100%)',
-                color: '#fff', fontSize: 15, fontWeight: 700, letterSpacing: 0.3,
-                cursor: enviando ? 'not-allowed' : 'pointer',
-                boxShadow: enviando ? 'none' : '0 4px 14px rgba(27,82,153,0.35)',
-                marginBottom: 10,
-              }}
-            >
+            <button onClick={enviar} disabled={enviando} style={{ ...ctaPrimary(enviando), marginBottom: 10 }}>
               {enviando ? 'Enviando…' : 'Confirmar y enviar →'}
             </button>
             <button
               onClick={() => setMostrarResumen(false)}
               disabled={enviando}
               style={{
-                width: '100%', padding: '12px', borderRadius: 12, border: '1px solid #D1D5DB',
-                background: 'transparent', color: '#6B7280', fontSize: 14, fontWeight: 500,
+                width: '100%', padding: '12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-strong)',
+                background: 'transparent', color: 'var(--muted)', fontSize: 14, fontWeight: 600,
                 cursor: 'pointer',
               }}
             >
@@ -324,23 +330,21 @@ export default function Predicciones() {
             </button>
           </div>
 
-        /* ── Formulario principal ────────────────────────────────────────── */
+        /* ── Formulario principal ───────────────────────────────────────── */
         ) : (
           <>
             {/* Nombre */}
-            <div style={{ background: '#fff', borderRadius: 14, padding: '1.1rem 1.25rem', marginBottom: 10, boxShadow: '0 1px 3px rgba(0,0,0,0.07)' }}>
-              <label style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 8 }}>
-                Tu nombre
-              </label>
+            <div style={card}>
+              <label style={lbl}>Tu nombre</label>
               <input
                 type="text"
                 placeholder="¿Cómo te llamas?"
                 value={nombre}
                 onChange={e => { setNombre(e.target.value); setNombreError('') }}
-                style={{ fontSize: 15, borderColor: nombreError ? '#EF4444' : undefined }}
+                style={{ fontSize: 15, borderColor: nombreError ? 'var(--red)' : undefined }}
               />
               {nombreError && (
-                <p style={{ fontSize: 12, color: '#EF4444', marginTop: 8 }}>{nombreError}</p>
+                <p style={{ fontSize: 12, color: 'var(--red)', marginTop: 8 }}>{nombreError}</p>
               )}
             </div>
 
@@ -351,12 +355,12 @@ export default function Predicciones() {
               const info = res ? resultadoInfo(res, p.local, p.visitante) : null
 
               return (
-                <div key={i} style={{ background: '#fff', borderRadius: 14, padding: '1.1rem 1.25rem', marginBottom: 10, boxShadow: '0 1px 3px rgba(0,0,0,0.07)' }}>
+                <div key={i} style={card}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                    <span style={{ fontSize: 10, fontWeight: 700, color: '#9CA3AF', letterSpacing: 1, textTransform: 'uppercase' }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', letterSpacing: 1, textTransform: 'uppercase' }}>
                       Partido {i + 1}
                     </span>
-                    {p.hora && <span style={{ fontSize: 11, color: '#9CA3AF' }}>{formatFecha(p.hora)}</span>}
+                    {p.hora && <span style={{ fontSize: 11, color: 'var(--muted)' }}>{formatFecha(p.hora)}</span>}
                   </div>
 
                   {/* Score inputs */}
@@ -366,7 +370,7 @@ export default function Predicciones() {
                       {p.escudoLocal && (
                         <img src={p.escudoLocal} alt="" style={{ width: 36, height: 36, objectFit: 'contain', display: 'block', margin: '0 auto 4px' }} onError={e => { e.target.style.display = 'none' }} />
                       )}
-                      <span style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#374151', marginBottom: 6, maxWidth: 80, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <span style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text)', marginBottom: 6, maxWidth: 80, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {p.local}
                       </span>
                       <input
@@ -376,27 +380,26 @@ export default function Predicciones() {
                           const v = e.target.value.replace(/[^0-9]/g, '').slice(0, 2)
                           const norm = v === '' ? '' : String(Number(v))
                           setPick(i, 'local', norm)
-                          if (norm.length >= 2) visitanteRefs.current[i]?.focus()
                         }}
                         placeholder="–"
                         style={{
-                          width: 68, textAlign: 'center', fontSize: 30, fontWeight: 800,
-                          padding: '10px 4px', borderRadius: 12,
-                          border: pickValido({ local: pick?.local, visitante: '0' }) ? '2px solid #1B5299' : '1.5px solid #E5E7EB',
-                          background: pick?.local !== undefined && pick?.local !== '' ? '#EBF3FF' : '#FAFAFA',
-                          color: '#0F2942',
+                          width: 68, textAlign: 'center', fontFamily: 'var(--font-display)', fontSize: 30, fontWeight: 700,
+                          padding: '10px 4px', borderRadius: 'var(--radius-md)',
+                          border: pickValido({ local: pick?.local, visitante: '0' }) ? '2px solid var(--green)' : '1.5px solid var(--border)',
+                          background: pick?.local !== undefined && pick?.local !== '' ? 'var(--green-bg)' : 'var(--card-light)',
+                          color: 'var(--text-strong)',
                         }}
                       />
                     </div>
 
-                    <span style={{ fontSize: 22, color: '#D1D5DB', fontWeight: 700, paddingBottom: 12 }}>–</span>
+                    <span style={{ fontSize: 22, color: 'var(--muted-dim)', fontWeight: 700, paddingBottom: 12 }}>–</span>
 
                     {/* Visitante */}
                     <div style={{ textAlign: 'center' }}>
                       {p.escudoVisitante && (
                         <img src={p.escudoVisitante} alt="" style={{ width: 36, height: 36, objectFit: 'contain', display: 'block', margin: '0 auto 4px' }} onError={e => { e.target.style.display = 'none' }} />
                       )}
-                      <span style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#374151', marginBottom: 6, maxWidth: 80, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <span style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text)', marginBottom: 6, maxWidth: 80, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {p.visitante}
                       </span>
                       <input
@@ -406,11 +409,11 @@ export default function Predicciones() {
                         onChange={e => { const v = e.target.value.replace(/[^0-9]/g, '').slice(0, 2); setPick(i, 'visitante', v === '' ? '' : String(Number(v))) }}
                         placeholder="–"
                         style={{
-                          width: 68, textAlign: 'center', fontSize: 30, fontWeight: 800,
-                          padding: '10px 4px', borderRadius: 12,
-                          border: pickValido({ local: '0', visitante: pick?.visitante }) ? '2px solid #1B5299' : '1.5px solid #E5E7EB',
-                          background: pick?.visitante !== undefined && pick?.visitante !== '' ? '#EBF3FF' : '#FAFAFA',
-                          color: '#0F2942',
+                          width: 68, textAlign: 'center', fontFamily: 'var(--font-display)', fontSize: 30, fontWeight: 700,
+                          padding: '10px 4px', borderRadius: 'var(--radius-md)',
+                          border: pickValido({ local: '0', visitante: pick?.visitante }) ? '2px solid var(--green)' : '1.5px solid var(--border)',
+                          background: pick?.visitante !== undefined && pick?.visitante !== '' ? 'var(--green-bg)' : 'var(--card-light)',
+                          color: 'var(--text-strong)',
                         }}
                       />
                     </div>
@@ -419,7 +422,7 @@ export default function Predicciones() {
                   {/* Resultado derivado */}
                   <div style={{ textAlign: 'center', marginTop: 12, minHeight: 24 }}>
                     {info && (
-                      <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 12px', borderRadius: 99, background: info.bg, color: info.color }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 12px', borderRadius: 'var(--radius-full)', background: info.bg, color: info.color }}>
                         {info.label}
                       </span>
                     )}
@@ -430,10 +433,10 @@ export default function Predicciones() {
 
             {/* Progreso */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '14px 0' }}>
-              <div style={{ flex: 1, height: 5, background: '#E5E7EB', borderRadius: 99, overflow: 'hidden' }}>
-                <div style={{ height: '100%', borderRadius: 99, background: 'linear-gradient(90deg, #0F2942, #1B5299)', width: `${pct}%`, transition: 'width 0.25s' }} />
+              <div style={{ flex: 1, height: 5, background: 'var(--card-light)', borderRadius: 'var(--radius-full)', overflow: 'hidden' }}>
+                <div style={{ height: '100%', borderRadius: 'var(--radius-full)', background: 'linear-gradient(90deg, var(--green), var(--green-light))', width: `${pct}%`, transition: 'width 0.25s' }} />
               </div>
-              <span style={{ fontSize: 12, color: '#6B7280', fontWeight: 500, whiteSpace: 'nowrap' }}>
+              <span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 600, whiteSpace: 'nowrap' }}>
                 {progreso}/{partidos.length} partidos
               </span>
             </div>
@@ -442,18 +445,12 @@ export default function Predicciones() {
             <button
               onClick={() => { if (completado) setMostrarResumen(true) }}
               disabled={!completado}
-              style={{
-                width: '100%', padding: '15px', borderRadius: 12, border: 'none',
-                background: completado ? 'linear-gradient(135deg, #0F2942 0%, #1B5299 100%)' : '#D1D5DB',
-                color: '#fff', fontSize: 15, fontWeight: 700, letterSpacing: 0.3,
-                cursor: completado ? 'pointer' : 'not-allowed',
-                boxShadow: completado ? '0 4px 14px rgba(27,82,153,0.35)' : 'none',
-              }}
+              style={ctaPrimary(!completado)}
             >
               Revisar predicciones →
             </button>
             {!completado && (
-              <p style={{ fontSize: 12, color: '#9CA3AF', textAlign: 'center', marginTop: 8 }}>
+              <p style={{ fontSize: 12, color: 'var(--muted)', textAlign: 'center', marginTop: 8 }}>
                 {!nombre.trim() && progreso < partidos.length
                   ? `Falta tu nombre y ${partidos.length - progreso} partido${partidos.length - progreso !== 1 ? 's' : ''}`
                   : !nombre.trim()
