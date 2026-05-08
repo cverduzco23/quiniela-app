@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { doc, onSnapshot, collection, query, where } from 'firebase/firestore'
+import { doc, onSnapshot, collection, query, where, updateDoc } from 'firebase/firestore'
 import { db } from '../firebase'
 import { getResultado } from '../utils/scoring'
 import { RankingTable } from '../components/RankingTable'
@@ -71,6 +71,15 @@ export default function Ranking() {
     }
     setLiveScores(nuevos)
     setUltimaAct(new Date())
+
+    if (
+      conEspn.length > 0 &&
+      !quinielaData.finalizada &&
+      conEspn.every(p => nuevos[p.espnId]?.state === 'post')
+    ) {
+      try { await updateDoc(doc(db, 'quinielas', quinielaData.id), { finalizada: true }) }
+      catch { /* silencioso */ }
+    }
   }
 
   useEffect(() => {

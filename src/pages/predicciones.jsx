@@ -143,41 +143,6 @@ export default function Predicciones() {
     return () => clearTimeout(t)
   }, [quiniela])
 
-  // Auto-cierre ESPN con intervalo cada 60s
-  useEffect(() => {
-    if (!quiniela || cerrada || !quinielaId) return
-    const conEspn = partidos.filter(p => p.espnId && p.ligaId)
-    if (conEspn.length === 0) return
-
-    const checkInicio = async () => {
-      const porLiga = {}
-      conEspn.forEach(p => {
-        if (!porLiga[p.ligaId]) porLiga[p.ligaId] = []
-        porLiga[p.ligaId].push(p)
-      })
-      for (const [liga, ps] of Object.entries(porLiga)) {
-        try {
-          const r = await fetch(`https://site.api.espn.com/apis/site/v2/sports/soccer/${liga}/scoreboard`)
-          const d = await r.json()
-          const events = d.events ?? []
-          for (const p of ps) {
-            const ev = events.find(e => e.id === p.espnId)
-            if (!ev) continue
-            const state = ev.status?.type?.state
-            if (state === 'in' || state === 'post') {
-              setQuiniela(prev => ({ ...prev, cerrada: true }))
-              return
-            }
-          }
-        } catch { /* silencioso */ }
-      }
-    }
-
-    checkInicio()
-    const interval = setInterval(checkInicio, 60000)
-    return () => clearInterval(interval)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [quiniela?.id])
 
   const setPick = (i, campo, valor) =>
     setPicks(prev => ({ ...prev, [i]: { ...(prev[i] ?? {}), [campo]: valor } }))
@@ -380,30 +345,10 @@ export default function Predicciones() {
 
       <div style={{ maxWidth: 560, margin: '0 auto', padding: '1.25rem 1rem 3rem' }}>
 
-        {/* Reglas de puntos */}
-        <div style={{ display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap' }}>
-          {[
-            { pts: '1 pt',   desc: 'Resultado correcto' },
-            { pts: '+2 pts', desc: 'Marcador exacto' },
-          ].map(r => (
-            <div key={r.desc} style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              background: 'var(--card)', borderRadius: 'var(--radius-sm)', padding: '6px 12px',
-              border: '1px solid var(--border)', flex: '1 1 auto',
-            }}>
-              <span style={{ fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 700, color: 'var(--green)' }}>{r.pts}</span>
-              <span style={{ fontSize: 12, color: 'var(--muted)' }}>{r.desc}</span>
-            </div>
-          ))}
-        </div>
-
         {/* ── Quiniela cerrada — ranking inline ───────────────────────── */}
         {cerrada ? (
           <>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, padding: '5px 12px', borderRadius: 'var(--radius-full)', background: 'var(--red-bg-strong)', color: '#FCA5A5', border: '1px solid var(--red)' }}>
-                🔒 Quiniela cerrada
-              </span>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
               <a href={`/ranking?q=${quinielaId}`} style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)', textDecoration: 'none' }}>
                 Ver ranking completo →
               </a>
@@ -411,8 +356,27 @@ export default function Predicciones() {
             <RankingTable quiniela={quiniela} predicciones={predsCerradas} liveScores={{}} />
           </>
 
-        /* ── Pantalla de resumen ───────────────────────────────────────── */
-        ) : mostrarResumen ? (
+        ) : (
+          <>
+            {/* Reglas de puntos */}
+            <div style={{ display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap' }}>
+              {[
+                { pts: '1 pt',   desc: 'Resultado correcto' },
+                { pts: '+2 pts', desc: 'Marcador exacto' },
+              ].map(r => (
+                <div key={r.desc} style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  background: 'var(--card)', borderRadius: 'var(--radius-sm)', padding: '6px 12px',
+                  border: '1px solid var(--border)', flex: '1 1 auto',
+                }}>
+                  <span style={{ fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 700, color: 'var(--green)' }}>{r.pts}</span>
+                  <span style={{ fontSize: 12, color: 'var(--muted)' }}>{r.desc}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* ── Pantalla de resumen ─────────────────────────────────── */}
+            {mostrarResumen ? (
           <div>
             <div style={{ background: 'var(--card)', borderRadius: 'var(--radius-lg)', padding: '1.5rem', marginBottom: 10, border: '1px solid var(--green)', boxShadow: 'var(--shadow-md)' }}>
               <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>
@@ -481,8 +445,8 @@ export default function Predicciones() {
             </button>
           </div>
 
-        /* ── Formulario principal ───────────────────────────────────────── */
-        ) : (
+            /* ── Formulario principal ─────────────────────────────── */
+            ) : (
           <>
             {/* Nombre */}
             <div style={card}>
@@ -610,6 +574,8 @@ export default function Predicciones() {
                     : `Falta${partidos.length - progreso !== 1 ? 'n' : ''} ${partidos.length - progreso} partido${partidos.length - progreso !== 1 ? 's' : ''} por completar`
                 }
               </p>
+            )}
+          </>
             )}
           </>
         )}

@@ -148,13 +148,20 @@ export default function Home() {
         {ultima && (
           <div>
             <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
-              {principal ? 'Última quiniela terminada' : 'Quiniela más reciente'}
+              {ultima.finalizada
+                ? (principal ? 'Última quiniela terminada' : 'Quiniela más reciente')
+                : 'Jugándose ahora'}
             </p>
-            <div style={{ background: 'var(--card)', borderRadius: 'var(--radius-lg)', padding: '1.25rem 1.5rem', border: '1px solid var(--border)' }}>
+            <div style={{ background: 'var(--card)', borderRadius: 'var(--radius-lg)', padding: '1.25rem 1.5rem', border: `1px solid ${ultima.finalizada ? 'var(--border)' : 'var(--yellow-soft)'}` }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
                 <p style={{ fontSize: 16, fontWeight: 600, color: 'var(--text)' }}>{ultima.nombre}</p>
-                <span style={{ fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 'var(--radius-full)', background: 'var(--neutral-bg)', color: 'var(--muted)', flexShrink: 0, marginLeft: 8 }}>
-                  Finalizada
+                <span style={{
+                  fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 'var(--radius-full)',
+                  flexShrink: 0, marginLeft: 8,
+                  background: ultima.finalizada ? 'var(--neutral-bg)' : 'var(--yellow-bg)',
+                  color: ultima.finalizada ? 'var(--muted)' : 'var(--yellow)',
+                }}>
+                  {ultima.finalizada ? 'Finalizada' : 'Jugándose'}
                 </span>
               </div>
               <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 14 }}>
