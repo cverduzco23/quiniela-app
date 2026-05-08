@@ -1,12 +1,9 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { doc, onSnapshot, collection, query, where } from 'firebase/firestore'
-import { toPng } from 'html-to-image'
 import { db } from '../firebase'
-import { getResultado, calcularPuntos } from '../utils/scoring'
+import { getResultado } from '../utils/scoring'
 import { RankingTable } from '../components/RankingTable'
-
-const medals = ['🥇', '🥈', '🥉']
 
 export default function Ranking() {
   const [searchParams] = useSearchParams()
@@ -19,9 +16,6 @@ export default function Ranking() {
   const [liveScores, setLiveScores]     = useState({})
   const [ultimaAct, setUltimaAct]       = useState(null)
   const [actualizando, setActualizando] = useState(false)
-  const [compartiendo, setCompartiendo] = useState(false)
-
-  const tarjetaRef = useRef(null)
 
   // ── Firebase ────────────────────────────────────────────────────
   useEffect(() => {
@@ -98,25 +92,6 @@ export default function Ranking() {
     finally { setActualizando(false) }
   }
 
-  const handleCompartir = async () => {
-    if (compartiendo || !tarjetaRef.current || !quiniela) return
-    setCompartiendo(true)
-    try {
-      const dataUrl = await toPng(tarjetaRef.current, { cacheBust: true })
-      const blob    = await (await fetch(dataUrl)).blob()
-      const file    = new File([blob], 'quiniela-top5.png', { type: 'image/png' })
-      if (navigator.canShare?.({ files: [file] })) {
-        await navigator.share({ title: quiniela.nombre, files: [file] })
-      } else {
-        const a = document.createElement('a')
-        a.href = dataUrl
-        a.download = 'quiniela-top5.png'
-        a.click()
-      }
-    } catch { /* silencioso si el usuario cancela */ }
-    finally { setCompartiendo(false) }
-  }
-
   // ── Render estados ────────────────────────────────────────────────
   if (cargando) return (
     <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', color: 'var(--muted)', fontSize: 14 }}>
@@ -140,11 +115,6 @@ export default function Ranking() {
     if (r?.cancelado) return false
     return getResultado(r) !== null
   }).length
-
-  // Para TarjetaCompartible
-  const jugadores = predicciones
-    .map(p => ({ ...p, ...calcularPuntos(p.picks, resultados, liveScores, partidos) }))
-    .sort((a, b) => b.puntos - a.puntos || b.exactos - a.exactos || b.aciertos - a.aciertos || (a.fecha ?? '￿').localeCompare(b.fecha ?? '￿'))
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
@@ -189,63 +159,8 @@ export default function Ranking() {
       </div>
 
       <div style={{ maxWidth: 560, margin: '0 auto', padding: '1.25rem 1rem 3rem' }}>
-        {/* Botón compartir tarjeta */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
-          <button
-            onClick={handleCompartir}
-            disabled={compartiendo || jugadores.length === 0}
-            aria-label="Compartir tarjeta del top 5 como imagen"
-            style={{
-              background: 'var(--card)', border: '1px solid var(--border-strong)',
-              color: compartiendo ? 'var(--muted)' : 'var(--text)',
-              padding: '7px 14px', borderRadius: 'var(--radius-sm)', fontSize: 12, fontWeight: 700,
-              cursor: (compartiendo || jugadores.length === 0) ? 'not-allowed' : 'pointer',
-              opacity: (compartiendo || jugadores.length === 0) ? 0.5 : 1,
-            }}
-          >
-            {compartiendo ? 'Generando…' : 'Compartir tarjeta 📤'}
-          </button>
-        </div>
-
         <RankingTable quiniela={quiniela} predicciones={predicciones} liveScores={liveScores} />
       </div>
-
-      {/* Tarjeta oculta para captura de imagen */}
-      <TarjetaCompartible ref={tarjetaRef} quiniela={quiniela} jugadores={jugadores} />
-    </div>
-  )
-}
-
-function TarjetaCompartible({ quiniela, jugadores, ref }) {
-  const top5 = jugadores.slice(0, 5)
-  return (
-    <div
-      ref={ref}
-      aria-hidden="true"
-      style={{
-        position: 'fixed', left: -1200, top: 0,
-        width: 400, background: 'linear-gradient(160deg, #0F2942 0%, #1B5299 100%)',
-        borderRadius: 16, padding: '24px 24px 20px',
-        fontFamily: "'Inter', -apple-system, sans-serif",
-        color: '#F9FAFB', zIndex: -1,
-      }}
-    >
-      <div style={{ fontSize: 12, color: '#86EFAC', fontWeight: 700, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 6 }}>
-        ⚽ QuinielApp
-      </div>
-      <div style={{ fontFamily: "'Rajdhani', 'Inter', sans-serif", fontSize: 22, fontWeight: 700, color: '#FFFFFF', marginBottom: 18, lineHeight: 1.2 }}>
-        {quiniela.nombre}
-      </div>
-      <div style={{ fontSize: 10, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
-        Top 5
-      </div>
-      {top5.map((j, i) => (
-        <div key={j.nombre} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: i < top5.length - 1 ? '1px solid rgba(255,255,255,0.1)' : 'none' }}>
-          <span style={{ fontSize: i < 3 ? 16 : 13, width: 28, flexShrink: 0 }}>{medals[i] ?? `${i + 1}.`}</span>
-          <span style={{ flex: 1, fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{j.nombre}</span>
-          <span style={{ fontFamily: "'Rajdhani', sans-serif", fontSize: 18, fontWeight: 700, color: '#FACC15' }}>{j.puntos} pts</span>
-        </div>
-      ))}
     </div>
   )
 }
