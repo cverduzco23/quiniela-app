@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { collection, addDoc, doc, updateDoc, getDocs, deleteDoc, query, orderBy, where } from 'firebase/firestore'
-import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth'
+import { signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged } from 'firebase/auth'
 import { db, auth, googleProvider } from '../firebase'
 
 const ADMIN_EMAILS = [
@@ -71,22 +71,22 @@ export default function Admin() {
     return unsub
   }, [])
 
-  const entrar = async () => {
-    setLoginLoading(true)
-    setLoginError('')
-    try {
-      const result = await signInWithPopup(auth, googleProvider)
+  useEffect(() => {
+    getRedirectResult(auth).then(async result => {
+      if (!result) return
       if (!ADMIN_EMAILS.includes(result.user.email)) {
         await signOut(auth)
         setLoginError('Esta cuenta de Google no tiene permiso de acceso. Contacta al administrador.')
       }
-    } catch (e) {
-      if (e.code !== 'auth/popup-closed-by-user') {
-        setLoginError(`Error: ${e.code}`)
-      }
-    } finally {
-      setLoginLoading(false)
-    }
+    }).catch(() => {
+      setLoginError('Error al iniciar sesión. Intenta de nuevo.')
+    })
+  }, [])
+
+  const entrar = () => {
+    setLoginLoading(true)
+    setLoginError('')
+    signInWithRedirect(auth, googleProvider)
   }
 
   const salir = () => signOut(auth)
