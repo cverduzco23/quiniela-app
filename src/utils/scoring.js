@@ -21,12 +21,14 @@ export function getPickResultado(pick) {
 
 // Devuelve el resultado efectivo del partido: live si está en curso/terminado, sino el guardado
 export function getEfectivo(partido, idx, resultados, liveScores) {
+  const stored = resultados?.[idx] ?? resultados?.[String(idx)] ?? null
+  if (stored?.cancelado) return stored
   const live = partido?.espnId ? liveScores?.[partido.espnId] : null
   if (live && (live.state === 'in' || live.state === 'post') &&
       live.local !== '' && live.visitante !== '') {
     return { local: live.local, visitante: live.visitante, resultado: goalsToResultado(live.local, live.visitante) }
   }
-  return resultados?.[idx] ?? resultados?.[String(idx)] ?? null
+  return stored
 }
 
 // Calcula puntos: 1 pt por resultado correcto, +2 pts por marcador exacto.

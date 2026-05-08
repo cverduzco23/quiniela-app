@@ -45,14 +45,6 @@ function formatFixtureDate(value) {
 // ─── Estilos compartidos ──────────────────────────────────────────────────────
 const card = { background: 'var(--card)', borderRadius: 'var(--radius-md)', padding: '1.1rem 1.25rem', marginBottom: 10, border: '1px solid var(--border)' }
 const lbl = { fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 8 }
-const btn = (bg, disabled) => ({
-  padding: '10px 20px', borderRadius: 'var(--radius-sm)', border: 'none',
-  background: disabled ? 'var(--card-light)' : bg,
-  color: disabled ? 'var(--muted)' : (bg === 'green-cta' ? '#07120A' : 'var(--text)'),
-  fontSize: 13, fontWeight: 700, cursor: disabled ? 'not-allowed' : 'pointer',
-  letterSpacing: 0.2,
-})
-
 const greenCta = 'linear-gradient(135deg, var(--green), var(--green-light))'
 const greenCtaStyle = (disabled) => ({
   padding: '10px 20px', borderRadius: 'var(--radius-sm)', border: 'none',
@@ -145,29 +137,7 @@ export default function Admin() {
   // ─── Compartir ───────────────────────────────────────────────────────────
   const [copiado, setCopiado] = useState(null)
 
-  useEffect(() => { if (autenticado && authListo) cargarQuinielas() }, [autenticado, authListo])
-
-  useEffect(() => {
-    if (tab !== 'participantes' || !quinielaActual) return
-    setLoadingPredicciones(true)
-    getDocs(query(collection(db, 'predicciones'), where('quinielaId', '==', quinielaActual.id)))
-      .then(snap => setListaPredicciones(snap.docs.map(d => ({ id: d.id, ...d.data() }))))
-      .catch(() => setListaPredicciones([]))
-      .finally(() => setLoadingPredicciones(false))
-  }, [tab, quinielaActual?.id])
-
-  useEffect(() => {
-    if (tab !== 'editar' || !quinielaActual) return
-    setEditNombre(quinielaActual.nombre ?? '')
-    setEditPartidos([...(quinielaActual.partidos ?? [])])
-    setEditCierre(cierreToInputValue(quinielaActual.cierre))
-    setFixtures([]); setSeleccionados([])
-    setConteoPredicciones(null)
-    getDocs(query(collection(db, 'predicciones'), where('quinielaId', '==', quinielaActual.id)))
-      .then(snap => setConteoPredicciones(snap.size))
-      .catch(() => setConteoPredicciones(0))
-  }, [tab, quinielaActual?.id])
-
+  // Declarado antes de los useEffects que lo usan para evitar la zona muerta temporal
   const cargarQuinielas = async () => {
     setLoadingLista(true)
     try {
@@ -185,6 +155,34 @@ export default function Admin() {
     } catch { /* silent */ }
     finally { setLoadingLista(false) }
   }
+
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { if (autenticado && authListo) cargarQuinielas() }, [autenticado, authListo])
+
+  useEffect(() => {
+    if (tab !== 'participantes' || !quinielaActual) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setLoadingPredicciones(true)
+    getDocs(query(collection(db, 'predicciones'), where('quinielaId', '==', quinielaActual.id)))
+      .then(snap => setListaPredicciones(snap.docs.map(d => ({ id: d.id, ...d.data() }))))
+      .catch(() => setListaPredicciones([]))
+      .finally(() => setLoadingPredicciones(false))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, quinielaActual?.id])
+
+  useEffect(() => {
+    if (tab !== 'editar' || !quinielaActual) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setEditNombre(quinielaActual.nombre ?? '')
+    setEditPartidos([...(quinielaActual.partidos ?? [])])
+    setEditCierre(cierreToInputValue(quinielaActual.cierre))
+    setFixtures([]); setSeleccionados([])
+    setConteoPredicciones(null)
+    getDocs(query(collection(db, 'predicciones'), where('quinielaId', '==', quinielaActual.id)))
+      .then(snap => setConteoPredicciones(snap.size))
+      .catch(() => setConteoPredicciones(0))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, quinielaActual?.id])
 
   // ─── CRUD partidos ────────────────────────────────────────────────────────
   const actualizarPartido = (i, campo, valor) =>
@@ -265,18 +263,69 @@ export default function Admin() {
     }
   }
 
+  const filtrarDuplicados = (existentes, nuevos) => {
+    const idsExistentes = new Set(existentes.map(p => p.espnId).filter(Boolean))
+    const claveManual   = (p) => `${(p.local ?? '').trim().toLowerCase()}|${(p.visitante ?? '').trim().toLowerCase()}|${p.hora ?? ''}`
+    const clavesManuales = new Set(existentes.filter(p => !p.espnId).map(claveManual))
+
+    const aceptados = []
+    const duplicadosId = []
+    const advertenciasManuales = []
+
+    for (const n of nuevos) {
+      if (n.espnId && idsExistentes.has(n.espnId)) {
+        duplicadosId.push(`${n.local} vs ${n.visitante}`)
+        continue
+      }
+      if (!n.espnId && clavesManuales.has(claveManual(n))) {
+        advertenciasManuales.push(`${n.local} vs ${n.visitante}`)
+      }
+      aceptados.push(n)
+      if (n.espnId) idsExistentes.add(n.espnId)
+      else clavesManuales.add(claveManual(n))
+    }
+
+    if (duplicadosId.length > 0) {
+      alert(`Estos partidos ya están agregados (mismo ID de ESPN) y se omitirán:\n\n• ${duplicadosId.join('\n• ')}`)
+    }
+    if (advertenciasManuales.length > 0) {
+      const ok = window.confirm(
+        `Advertencia: ya hay un partido con la misma combinación local + visitante + hora:\n\n• ${advertenciasManuales.join('\n• ')}\n\n¿Agregarlos de todos modos?`
+      )
+      if (!ok) {
+        return aceptados.filter(n =>
+          !advertenciasManuales.includes(`${n.local} vs ${n.visitante}`)
+        )
+      }
+    }
+    return aceptados
+  }
+
   const agregarSeleccionados = () => {
     const nuevos = seleccionados.map(fixtureAPartido)
-    setPartidos(prev => {
-      const base = prev.length === 1 && !prev[0].local && !prev[0].visitante ? [] : prev
-      return [...base, ...nuevos]
-    })
+    const baseExistente = (partidos.length === 1 && !partidos[0].local && !partidos[0].visitante)
+      ? []
+      : partidos
+    const aceptados = filtrarDuplicados(baseExistente, nuevos)
+    if (aceptados.length === 0) {
+      setSeleccionados([])
+      setFixtures([])
+      return
+    }
+    setPartidos([...baseExistente, ...aceptados])
     setSeleccionados([])
     setFixtures([])
   }
 
   const agregarSeleccionadosAEdicion = () => {
-    setEditPartidos(prev => [...prev, ...seleccionados.map(fixtureAPartido)])
+    const nuevos = seleccionados.map(fixtureAPartido)
+    const aceptados = filtrarDuplicados(editPartidos, nuevos)
+    if (aceptados.length === 0) {
+      setSeleccionados([])
+      setFixtures([])
+      return
+    }
+    setEditPartidos(prev => [...prev, ...aceptados])
     setSeleccionados([])
     setFixtures([])
   }
@@ -394,7 +443,9 @@ export default function Admin() {
     setQuinielaActual(q)
     const resInit = {}
     Object.entries(q.resultados ?? {}).forEach(([idx, r]) => {
-      resInit[idx] = { local: r.local ?? '', visitante: r.visitante ?? '' }
+      resInit[idx] = r?.cancelado
+        ? { cancelado: true }
+        : { local: r.local ?? '', visitante: r.visitante ?? '' }
     })
     setResultados(resInit)
     setTab('resultados')
@@ -408,7 +459,9 @@ export default function Admin() {
     try {
       const resGuardar = {}
       Object.entries(resultados).forEach(([idx, r]) => {
-        if (String(r.local).trim() !== '' && String(r.visitante).trim() !== '') {
+        if (r?.cancelado) {
+          resGuardar[idx] = { cancelado: true }
+        } else if (String(r.local).trim() !== '' && String(r.visitante).trim() !== '') {
           const resultado = goalsToResultado(r.local, r.visitante)
           resGuardar[idx] = { local: r.local, visitante: r.visitante, resultado }
         }
@@ -458,6 +511,7 @@ export default function Admin() {
         const events = d.events ?? []
 
         ps.forEach(p => {
+          if (resGuardar[p.idx]?.cancelado) return
           const ev = events.find(e => e.id === p.espnId)
           if (!ev) return
           const state = ev.status?.type?.state
@@ -520,15 +574,17 @@ export default function Admin() {
           <p style={{ fontSize: 13, color: 'var(--green-light)', marginTop: 4, fontWeight: 600 }}>⚽ QuinielApp</p>
         </div>
         <div style={card}>
-          <label style={lbl}>Correo electrónico</label>
+          <label htmlFor="admin-email" style={lbl}>Correo electrónico</label>
           <input
+            id="admin-email"
             type="email" placeholder="correo@ejemplo.com" value={email}
             onChange={e => { setEmail(e.target.value); setLoginError('') }}
             onKeyDown={e => e.key === 'Enter' && entrar()}
             style={{ marginBottom: 12, borderColor: loginError ? 'var(--red)' : undefined }}
           />
-          <label style={lbl}>Contraseña</label>
+          <label htmlFor="admin-password" style={lbl}>Contraseña</label>
           <input
+            id="admin-password"
             type="password" placeholder="Tu contraseña" value={password}
             onChange={e => { setPassword(e.target.value); setLoginError('') }}
             onKeyDown={e => e.key === 'Enter' && entrar()}
@@ -729,15 +785,15 @@ export default function Admin() {
             <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)', marginBottom: 14 }}>Nueva quiniela</p>
 
             <div style={card}>
-              <label style={lbl}>Nombre de la quiniela</label>
-              <input type="text" placeholder="Ej. Jornada 17 — Liga MX" value={nombre} onChange={e => setNombre(e.target.value)} style={{ marginBottom: 12 }} />
-              <label style={{ ...lbl, marginBottom: 4 }}>
+              <label htmlFor="quiniela-nombre" style={lbl}>Nombre de la quiniela</label>
+              <input id="quiniela-nombre" type="text" placeholder="Ej. Jornada 17 — Liga MX" value={nombre} onChange={e => setNombre(e.target.value)} style={{ marginBottom: 12 }} />
+              <label htmlFor="quiniela-cierre" style={{ ...lbl, marginBottom: 4 }}>
                 Fecha y hora de cierre <span style={{ color: 'var(--red)' }}>*</span>
               </label>
               <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>
                 Los jugadores no podrán registrar predicciones después de esta hora.
               </p>
-              <input type="datetime-local" value={cierre} onChange={e => setCierre(e.target.value)} style={{ borderColor: !cierre ? 'var(--red)' : undefined }} />
+              <input id="quiniela-cierre" type="datetime-local" value={cierre} onChange={e => setCierre(e.target.value)} style={{ borderColor: !cierre ? 'var(--red)' : undefined }} />
             </div>
 
             {renderBuscadorFixtures(agregarSeleccionados)}
@@ -801,6 +857,7 @@ export default function Admin() {
                 <button
                   onClick={toggleCerrar}
                   disabled={toggling}
+                  aria-label={toggling ? undefined : (estaCerrada ? 'Reabrir quiniela' : 'Cerrar quiniela')}
                   style={{
                     padding: '8px 14px', fontSize: 12, flexShrink: 0,
                     borderRadius: 'var(--radius-sm)', border: 'none', fontWeight: 700, cursor: toggling ? 'not-allowed' : 'pointer',
@@ -848,12 +905,23 @@ export default function Admin() {
                     <label style={{ ...lbl, marginBottom: 14 }}>Registrar marcadores</label>
                     {(quinielaActual.partidos ?? []).map((p, i) => {
                       const r = resultados[i] ?? { local: '', visitante: '' }
-                      const resultado  = goalsToResultado(r.local, r.visitante)
-                      const resColor   = resultado === 'home' ? { bg: 'var(--green-bg)',  color: 'var(--green)' }
+                      const cancelado  = !!r.cancelado
+                      const resultado  = cancelado ? null : goalsToResultado(r.local, r.visitante)
+                      const resColor   = cancelado ? { bg: 'var(--neutral-bg)', color: 'var(--muted)' }
+                        : resultado === 'home' ? { bg: 'var(--green-bg)',  color: 'var(--green)' }
                         : resultado === 'draw' ? { bg: 'var(--neutral-bg)', color: 'var(--muted)' }
                         : resultado === 'away' ? { bg: 'var(--yellow-bg)', color: 'var(--yellow)' }
                         : { bg: 'var(--neutral-bg)', color: 'var(--muted)' }
-                      const resLabel = resultado === 'home' ? 'Local' : resultado === 'draw' ? 'Empate' : resultado === 'away' ? 'Visitante' : 'Pendiente'
+                      const resLabel = cancelado ? 'Cancelado'
+                        : resultado === 'home' ? 'Local'
+                        : resultado === 'draw' ? 'Empate'
+                        : resultado === 'away' ? 'Visitante'
+                        : 'Pendiente'
+
+                      const toggleCancelado = () => setResultados(prev => {
+                        const cur = prev[i] ?? {}
+                        return { ...prev, [i]: cur.cancelado ? { local: '', visitante: '' } : { cancelado: true } }
+                      })
 
                       return (
                         <div key={i} style={{ padding: '12px 0', borderBottom: i < (quinielaActual.partidos?.length ?? 0) - 1 ? '1px solid var(--border)' : 'none' }}>
@@ -864,16 +932,18 @@ export default function Admin() {
                             <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                               <input
                                 type="number" min="0" max="99" placeholder="0"
-                                value={r.local}
-                                onChange={e => setResultados(prev => ({ ...prev, [i]: { ...(prev[i] ?? {}), local: e.target.value } }))}
-                                style={{ width: 44, textAlign: 'center', padding: '6px 4px', fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 700 }}
+                                value={cancelado ? '' : (r.local ?? '')}
+                                disabled={cancelado}
+                                onChange={e => setResultados(prev => ({ ...prev, [i]: { ...(prev[i] ?? {}), cancelado: false, local: e.target.value } }))}
+                                style={{ width: 44, textAlign: 'center', padding: '6px 4px', fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 700, opacity: cancelado ? 0.4 : 1 }}
                               />
                               <span style={{ color: 'var(--muted)', fontWeight: 700, fontSize: 13 }}>–</span>
                               <input
                                 type="number" min="0" max="99" placeholder="0"
-                                value={r.visitante}
-                                onChange={e => setResultados(prev => ({ ...prev, [i]: { ...(prev[i] ?? {}), visitante: e.target.value } }))}
-                                style={{ width: 44, textAlign: 'center', padding: '6px 4px', fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 700 }}
+                                value={cancelado ? '' : (r.visitante ?? '')}
+                                disabled={cancelado}
+                                onChange={e => setResultados(prev => ({ ...prev, [i]: { ...(prev[i] ?? {}), cancelado: false, visitante: e.target.value } }))}
+                                style={{ width: 44, textAlign: 'center', padding: '6px 4px', fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 700, opacity: cancelado ? 0.4 : 1 }}
                               />
                             </div>
                             <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', textAlign: 'right', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -882,6 +952,22 @@ export default function Admin() {
                             <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 'var(--radius-full)', background: resColor.bg, color: resColor.color, whiteSpace: 'nowrap', letterSpacing: 0.3 }}>
                               {resLabel}
                             </span>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 6 }}>
+                            <button
+                              type="button"
+                              onClick={toggleCancelado}
+                              aria-pressed={cancelado}
+                              style={{
+                                fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 'var(--radius-full)',
+                                border: `1px solid ${cancelado ? 'var(--red)' : 'var(--border-strong)'}`,
+                                background: cancelado ? 'var(--red-bg)' : 'transparent',
+                                color: cancelado ? '#FCA5A5' : 'var(--muted)',
+                                cursor: 'pointer',
+                              }}
+                            >
+                              {cancelado ? '✓ Cancelado' : 'Marcar cancelado'}
+                            </button>
                           </div>
                         </div>
                       )
@@ -895,6 +981,7 @@ export default function Admin() {
                     <div style={{ display: 'flex', gap: 8, marginLeft: 'auto' }}>
                       <button
                         onClick={sincronizarDesdeESPN} disabled={sincronizando}
+                        aria-label="Sincronizar resultados desde ESPN"
                         style={{ ...greenCtaStyle(sincronizando), display: 'flex', alignItems: 'center', gap: 5 }}
                       >
                         {sincronizando ? 'Sincronizando…' : '⚡ Sincronizar ESPN'}
@@ -979,18 +1066,18 @@ export default function Admin() {
               {tab === 'editar' && (
                 <>
                   <div style={card}>
-                    <label style={lbl}>Nombre de la quiniela</label>
-                    <input type="text" value={editNombre} onChange={e => setEditNombre(e.target.value)} placeholder="Nombre de la quiniela" />
+                    <label htmlFor="edit-nombre" style={lbl}>Nombre de la quiniela</label>
+                    <input id="edit-nombre" type="text" value={editNombre} onChange={e => setEditNombre(e.target.value)} placeholder="Nombre de la quiniela" />
                   </div>
 
                   <div style={card}>
-                    <label style={{ ...lbl, marginBottom: 4 }}>
+                    <label htmlFor="edit-cierre" style={{ ...lbl, marginBottom: 4 }}>
                       Fecha y hora de cierre <span style={{ color: 'var(--red)' }}>*</span>
                     </label>
                     <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>
                       Los jugadores no podrán registrar predicciones después de esta hora.
                     </p>
-                    <input type="datetime-local" value={editCierre} onChange={e => setEditCierre(e.target.value)} style={{ borderColor: !editCierre ? 'var(--red)' : undefined }} />
+                    <input id="edit-cierre" type="datetime-local" value={editCierre} onChange={e => setEditCierre(e.target.value)} style={{ borderColor: !editCierre ? 'var(--red)' : undefined }} />
                   </div>
 
                   <div style={card}>
@@ -1102,6 +1189,18 @@ export default function Admin() {
                         >
                           {copiado === key ? '✓ Copiado' : 'Copiar link'}
                         </button>
+                        {navigator.share && (
+                          <button
+                            onClick={() => navigator.share({ title: 'QuinielApp', text: desc, url: link }).catch(() => {})}
+                            style={{
+                              flex: 1, padding: '10px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-strong)',
+                              background: 'var(--card-light)', color: 'var(--text)',
+                              fontWeight: 700, fontSize: 13, cursor: 'pointer',
+                            }}
+                          >
+                            Compartir
+                          </button>
+                        )}
                       </div>
 
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--bg-soft)', borderRadius: 'var(--radius-sm)', padding: '9px 12px', border: '1px solid var(--border)' }}>
