@@ -78,6 +78,11 @@ describe('getEfectivo', () => {
   it('devuelve null si no hay nada', () => {
     expect(getEfectivo(partido, 0, {}, {})).toBeNull()
   })
+  it('respeta cancelado aunque haya live scores', () => {
+    const resultados = { 0: { cancelado: true } }
+    const live = { 123: { state: 'in', local: '2', visitante: '1' } }
+    expect(getEfectivo(partido, 0, resultados, live)).toEqual({ cancelado: true })
+  })
 })
 
 describe('calcularPuntos', () => {
@@ -133,6 +138,14 @@ describe('calcularPuntos', () => {
     const picks = { 0: { local: '2', visitante: '1' } }
     const resultados = { 0: { cancelado: true } }
     const r = calcularPuntos(picks, resultados, {}, partidos)
+    expect(r).toEqual({ puntos: 0, aciertos: 0, exactos: 0 })
+  })
+
+  it('cancelado prevalece sobre live scores en curso', () => {
+    const picks = { 0: { local: '1', visitante: '0' } }
+    const resultados = { 0: { cancelado: true } }
+    const liveScores = { a: { state: 'in', local: '1', visitante: '0' } }
+    const r = calcularPuntos(picks, resultados, liveScores, partidos)
     expect(r).toEqual({ puntos: 0, aciertos: 0, exactos: 0 })
   })
 

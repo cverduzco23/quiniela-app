@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { doc, getDoc, addDoc, collection, updateDoc, getDocs, query, where } from 'firebase/firestore'
 import { db } from '../firebase'
 import { cierreToDate, quinielaCerrada } from '../utils/cierre'
+import { RankingTable } from '../components/RankingTable'
 
 function formatFecha(value) {
   const d = cierreToDate(value)
@@ -61,10 +62,16 @@ export default function Predicciones() {
   const [enviando, setEnviando]           = useState(false)
   const [nombreError, setNombreError]     = useState('')
   const [mostrarResumen, setMostrarResumen] = useState(false)
+  const [celebrando, setCelebrando]       = useState(false)
+  const [predsCerradas, setPredsCerradas] = useState([])
 
   const visitanteRefs = useRef([])
+  const progresoPrevRef = useRef(0)
+  const restauradoRef = useRef(false)
+  const lsKey = quinielaId ? `quiniela-${quinielaId}-progreso` : null
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!quinielaId) { setCargando(false); setError('no-id'); return }
     getDoc(doc(db, 'quinielas', quinielaId))
       .then(snap => {
@@ -79,6 +86,51 @@ export default function Predicciones() {
   const cerrada    = quinielaCerrada(quiniela)
   const progreso   = partidos.filter((_, i) => pickValido(picks[i])).length
   const completado = nombre.trim().length > 0 && progreso === partidos.length
+
+  // Restaurar progreso desde localStorage cuando se carga la quiniela (si no está cerrada)
+  useEffect(() => {
+    if (!quiniela || cerrada || restauradoRef.current || !lsKey) return
+    restauradoRef.current = true
+    try {
+      const raw = localStorage.getItem(lsKey)
+      if (!raw) return
+      const data = JSON.parse(raw)
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      if (data?.nombre && typeof data.nombre === 'string') setNombre(data.nombre)
+      if (data?.picks && typeof data.picks === 'object') setPicks(data.picks)
+    } catch { /* corrupto, ignorar */ }
+  }, [quiniela, cerrada, lsKey])
+
+  // Persistir progreso en localStorage en cada cambio
+  useEffect(() => {
+    if (!lsKey || enviado || cerrada || !restauradoRef.current) return
+    if (!nombre.trim() && Object.keys(picks).length === 0) return
+    try {
+      localStorage.setItem(lsKey, JSON.stringify({ nombre, picks }))
+    } catch { /* sin espacio o deshabilitado */ }
+  }, [nombre, picks, lsKey, enviado, cerrada])
+
+  // Celebración al completar todos los picks (transición: < total → === total)
+  useEffect(() => {
+    const total = partidos.length
+    if (total === 0 || cerrada || enviado) return
+    const prev = progresoPrevRef.current
+    progresoPrevRef.current = progreso
+    if (progreso === total && prev < total) {
+      navigator.vibrate?.(200)
+      setCelebrando(true)
+      const t = setTimeout(() => setCelebrando(false), 1500)
+      return () => clearTimeout(t)
+    }
+  }, [progreso, partidos.length, cerrada, enviado])
+
+  // Cargar predicciones cuando la quiniela está cerrada (para ranking inline)
+  useEffect(() => {
+    if (!cerrada || !quiniela?.id) return
+    getDocs(query(collection(db, 'predicciones'), where('quinielaId', '==', quiniela.id)))
+      .then(snap => setPredsCerradas(snap.docs.map(d => d.data())))
+      .catch(() => {})
+  }, [cerrada, quiniela?.id])
 
   // Auto-cierre ESPN con intervalo cada 60s
   useEffect(() => {
@@ -114,6 +166,7 @@ export default function Predicciones() {
     checkInicio()
     const interval = setInterval(checkInicio, 60000)
     return () => clearInterval(interval)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [quiniela?.id])
 
   const setPick = (i, campo, valor) =>
@@ -141,6 +194,7 @@ export default function Predicciones() {
         picks,
         fecha: new Date().toISOString(),
       })
+      try { if (lsKey) localStorage.removeItem(lsKey) } catch { /* noop */ }
       setEnviado(true)
     } catch {
       alert('Error al guardar. Intenta de nuevo.')
@@ -169,25 +223,83 @@ export default function Predicciones() {
   )
 
   if (enviado) return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ textAlign: 'center', padding: '2rem 1.5rem' }}>
-        <div style={{
-          width: 88, height: 88, borderRadius: '50%',
-          background: 'linear-gradient(135deg, var(--green), var(--green-light))',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          margin: '0 auto 24px', fontSize: 44, color: '#07120A',
-          boxShadow: 'var(--shadow-green)',
-        }}>✓</div>
-        <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 700, marginBottom: 10, color: 'var(--text-strong)' }}>¡Listo, {nombre}!</h2>
-        <p style={{ color: 'var(--muted)', fontSize: 15, marginBottom: 6 }}>Tus predicciones fueron registradas.</p>
-        <p style={{ color: 'var(--muted-soft)', fontSize: 13, marginBottom: 28 }}>Revisa el ranking cuando terminen los partidos.</p>
+    <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
+      <div className="hero-pad" style={{ background: 'var(--hero-gradient)', color: 'var(--text)', borderBottom: '1px solid var(--border)' }}>
+        <div style={{ maxWidth: 560, margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <a href="/" style={{ fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', color: 'var(--green-light)', fontWeight: 700, textDecoration: 'none' }}>⚽ QuinielApp</a>
+          <a href="/" style={{ background: 'var(--neutral-bg)', color: 'var(--text)', padding: '6px 12px', borderRadius: 'var(--radius-sm)', fontSize: 12, fontWeight: 600, textDecoration: 'none', border: '1px solid var(--border)' }} aria-label="Volver a inicio">← Inicio</a>
+        </div>
+      </div>
+      <div style={{ maxWidth: 560, margin: '0 auto', padding: '1.5rem 1rem 3rem' }}>
+        <div style={{ textAlign: 'center', marginBottom: 24 }}>
+          <div style={{
+            width: 72, height: 72, borderRadius: '50%',
+            background: 'linear-gradient(135deg, var(--green), var(--green-light))',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            margin: '0 auto 16px', fontSize: 36, color: '#07120A',
+            boxShadow: 'var(--shadow-green)',
+          }}>✓</div>
+          <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 700, marginBottom: 8, color: 'var(--text-strong)' }}>¡Listo, {nombre}!</h2>
+          <p style={{ color: 'var(--muted)', fontSize: 14 }}>Tus predicciones fueron registradas.</p>
+        </div>
+
+        {/* Resumen de picks */}
+        <div style={{ background: 'var(--card)', borderRadius: 'var(--radius-lg)', padding: '1.25rem', marginBottom: 12, border: '1px solid var(--green)', boxShadow: 'var(--shadow-md)' }}>
+          <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 14 }}>
+            Tu quiniela · {quiniela.nombre}
+          </p>
+          {partidos.map((p, i) => {
+            const pick = picks[i]
+            const res  = getPickResultado(pick)
+            const info = res ? resultadoInfo(res, p.local, p.visitante) : null
+            return (
+              <div key={i} style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '8px 0', borderBottom: i < partidos.length - 1 ? '1px solid var(--border)' : 'none', gap: 8,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5, flex: 1, minWidth: 0 }}>
+                  {p.escudoLocal && <img src={p.escudoLocal} alt="" style={{ width: 18, height: 18, objectFit: 'contain', flexShrink: 0 }} onError={e => { e.target.style.display = 'none' }} />}
+                  <span style={{ fontSize: 13, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.local}</span>
+                </div>
+                <span style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 700, color: 'var(--text-strong)', padding: '2px 12px', background: 'var(--green-bg)', borderRadius: 'var(--radius-sm)', flexShrink: 0 }}>
+                  {pick?.local ?? '?'}–{pick?.visitante ?? '?'}
+                </span>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 5, flex: 1, minWidth: 0 }}>
+                  <span style={{ fontSize: 13, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'right' }}>{p.visitante}</span>
+                  {p.escudoVisitante && <img src={p.escudoVisitante} alt="" style={{ width: 18, height: 18, objectFit: 'contain', flexShrink: 0 }} onError={e => { e.target.style.display = 'none' }} />}
+                </div>
+                {info && <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 'var(--radius-full)', background: info.bg, color: info.color, flexShrink: 0 }}>{info.label}</span>}
+              </div>
+            )
+          })}
+        </div>
+
+        {navigator.share ? (
+          <button
+            onClick={() => navigator.share?.({
+              title: `Mi quiniela — ${quiniela.nombre}`,
+              text: `Acabo de hacer mis predicciones para ${quiniela.nombre}. Únete:`,
+              url: `${window.location.origin}/?q=${quinielaId}`,
+            }).catch(() => {})}
+            style={{ ...ctaPrimary(false), marginBottom: 10 }}
+          >
+            Compartir mi quiniela
+          </button>
+        ) : (
+          <button
+            onClick={() => navigator.clipboard?.writeText(`${window.location.origin}/?q=${quinielaId}`).catch(() => {})}
+            style={{ ...ctaPrimary(false), marginBottom: 10 }}
+          >
+            Copiar enlace de la quiniela
+          </button>
+        )}
+
         <a
           href={`/ranking?q=${quinielaId}`}
           style={{
-            display: 'inline-block', padding: '13px 28px', borderRadius: 'var(--radius-md)',
-            background: 'linear-gradient(135deg, var(--green), var(--green-light))',
-            color: '#07120A', fontWeight: 800, fontSize: 14, textDecoration: 'none',
-            boxShadow: 'var(--shadow-green)',
+            display: 'block', textAlign: 'center', padding: '12px 28px', borderRadius: 'var(--radius-md)',
+            background: 'var(--card-light)', color: 'var(--muted)',
+            fontWeight: 700, fontSize: 14, textDecoration: 'none', border: '1px solid var(--border-strong)',
           }}
         >
           Ver ranking →
@@ -199,7 +311,36 @@ export default function Predicciones() {
   const pct = partidos.length > 0 ? (progreso / partidos.length) * 100 : 0
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--bg)', position: 'relative', overflow: celebrando ? 'hidden' : 'visible' }}>
+      {celebrando && (
+        <div aria-hidden="true" style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 9999, overflow: 'hidden' }}>
+          <div style={{
+            position: 'absolute', top: '40%', left: '50%', transform: 'translate(-50%,-50%)',
+            background: 'var(--card)', border: '2px solid var(--green)', borderRadius: 'var(--radius-md)',
+            padding: '14px 22px', boxShadow: 'var(--shadow-green)',
+            fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 800, color: 'var(--green)',
+            animation: 'pop 0.5s ease-out',
+            display: 'flex', alignItems: 'center', gap: 8,
+          }}>
+            🎉 ¡Picks completos!
+          </div>
+          {Array.from({ length: 28 }).map((_, k) => {
+            const colors = ['var(--green)', 'var(--green-light)', 'var(--yellow)', '#FCA5A5']
+            const left = (k * 3.7) % 100
+            const delay = (k % 7) * 0.08
+            const size = 6 + (k % 5) * 2
+            return (
+              <span key={k} style={{
+                position: 'absolute', top: '-20px', left: `${left}%`,
+                width: size, height: size, background: colors[k % colors.length],
+                borderRadius: k % 2 === 0 ? '50%' : 2,
+                animation: `confetti 1.5s ease-in ${delay}s forwards`,
+              }} />
+            )
+          })}
+        </div>
+      )}
+
       {/* Hero */}
       <div className="hero-pad" style={{ background: 'var(--hero-gradient)', color: 'var(--text)', borderBottom: '1px solid var(--border)' }}>
         <div style={{ maxWidth: 560, margin: '0 auto' }}>
@@ -241,24 +382,19 @@ export default function Predicciones() {
           ))}
         </div>
 
-        {/* ── Quiniela cerrada ─────────────────────────────────────────── */}
+        {/* ── Quiniela cerrada — ranking inline ───────────────────────── */}
         {cerrada ? (
-          <div style={{ background: 'var(--card)', borderRadius: 'var(--radius-lg)', padding: '3rem 2rem', textAlign: 'center', border: '1px solid var(--border)' }}>
-            <div style={{ fontSize: 52, marginBottom: 16 }}>🔒</div>
-            <p style={{ fontWeight: 700, fontSize: 17, color: 'var(--text)', marginBottom: 8 }}>Plazo de registro cerrado</p>
-            <p style={{ fontSize: 14, color: 'var(--muted)', marginBottom: 24 }}>Ya no se pueden ingresar predicciones.</p>
-            <a
-              href={`/ranking?q=${quinielaId}`}
-              style={{
-                display: 'inline-block', padding: '12px 28px', borderRadius: 'var(--radius-md)',
-                background: 'linear-gradient(135deg, var(--green), var(--green-light))',
-                color: '#07120A', fontWeight: 800, fontSize: 14, textDecoration: 'none',
-                boxShadow: 'var(--shadow-green)',
-              }}
-            >
-              Ver ranking →
-            </a>
-          </div>
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, padding: '5px 12px', borderRadius: 'var(--radius-full)', background: 'var(--red-bg-strong)', color: '#FCA5A5', border: '1px solid var(--red)' }}>
+                🔒 Quiniela cerrada
+              </span>
+              <a href={`/ranking?q=${quinielaId}`} style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)', textDecoration: 'none' }}>
+                Ver ranking completo →
+              </a>
+            </div>
+            <RankingTable quiniela={quiniela} predicciones={predsCerradas} liveScores={{}} />
+          </>
 
         /* ── Pantalla de resumen ───────────────────────────────────────── */
         ) : mostrarResumen ? (
@@ -335,8 +471,9 @@ export default function Predicciones() {
           <>
             {/* Nombre */}
             <div style={card}>
-              <label style={lbl}>Tu nombre</label>
+              <label htmlFor="jugador-nombre" style={lbl}>Tu nombre</label>
               <input
+                id="jugador-nombre"
                 type="text"
                 placeholder="¿Cómo te llamas?"
                 value={nombre}
