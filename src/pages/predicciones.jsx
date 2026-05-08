@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { doc, getDoc, addDoc, collection, updateDoc, getDocs, query, where } from 'firebase/firestore'
 import { db } from '../firebase'
+import Home from './home'
 
 function formatFecha(iso) {
   if (!iso) return ''
@@ -27,8 +28,8 @@ function getPickResultado(pick) {
 }
 
 const resultadoInfo = (res, local, visitante) => ({
-  home:  { label: `${local} gana`,  bg: '#DCFCE7', color: '#15803D' },
-  draw:  { label: 'Empate',          bg: '#F3F4F6', color: '#4B5563' },
+  home:  { label: `${local} gana`,     bg: '#DCFCE7', color: '#15803D' },
+  draw:  { label: 'Empate',            bg: '#F3F4F6', color: '#4B5563' },
   away:  { label: `${visitante} gana`, bg: '#EBF3FF', color: '#1D4ED8' },
 }[res])
 
@@ -36,14 +37,17 @@ export default function Predicciones() {
   const [searchParams] = useSearchParams()
   const quinielaId = searchParams.get('q')
 
-  const [quiniela, setQuiniela]   = useState(null)
-  const [cargando, setCargando]   = useState(true)
-  const [error, setError]         = useState(null)
-  const [nombre, setNombre]       = useState('')
-  const [picks, setPicks]         = useState({})
-  const [enviado, setEnviado]     = useState(false)
-  const [enviando, setEnviando]   = useState(false)
-  const [nombreError, setNombreError] = useState('')
+  const [quiniela, setQuiniela]           = useState(null)
+  const [cargando, setCargando]           = useState(true)
+  const [error, setError]                 = useState(null)
+  const [nombre, setNombre]               = useState('')
+  const [picks, setPicks]                 = useState({})
+  const [enviado, setEnviado]             = useState(false)
+  const [enviando, setEnviando]           = useState(false)
+  const [nombreError, setNombreError]     = useState('')
+  const [mostrarResumen, setMostrarResumen] = useState(false)
+
+  const visitanteRefs = useRef([])
 
   useEffect(() => {
     if (!quinielaId) { setCargando(false); setError('no-id'); return }
@@ -61,7 +65,7 @@ export default function Predicciones() {
   const progreso   = partidos.filter((_, i) => pickValido(picks[i])).length
   const completado = nombre.trim().length > 0 && progreso === partidos.length
 
-  // Auto-cierre: si ESPN detecta que algún partido ya inició
+  // Auto-cierre ESPN con intervalo cada 60s (item 2)
   useEffect(() => {
     if (!quiniela || cerrada || !quinielaId) return
     const conEspn = partidos.filter(p => p.espnId && p.ligaId)
@@ -93,6 +97,8 @@ export default function Predicciones() {
     }
 
     checkInicio()
+    const interval = setInterval(checkInicio, 60000)
+    return () => clearInterval(interval)
   }, [quiniela?.id])
 
   const setPick = (i, campo, valor) =>
@@ -110,6 +116,7 @@ export default function Predicciones() {
       ))
       if (!snap.empty) {
         setNombreError(`Ya hay alguien registrado como "${nombre.trim()}". Usa un nombre diferente o añade tu apellido.`)
+        setMostrarResumen(false)
         setEnviando(false)
         return
       }
@@ -126,17 +133,21 @@ export default function Predicciones() {
     }
   }
 
+  // ── Estados de pantalla ────────────────────────────────────────────────────
+
   if (cargando) return (
     <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', color: '#6B7280', fontSize: 14 }}>
       Cargando quiniela…
     </div>
   )
 
+  if (error === 'no-id') return <Home />
+
   if (error) return (
     <div style={{ textAlign: 'center', padding: '5rem 1.5rem', color: '#6B7280' }}>
       <div style={{ fontSize: 52, marginBottom: 20 }}>⚠️</div>
       <p style={{ fontSize: 18, fontWeight: 600, color: '#111827', marginBottom: 8 }}>
-        {error === 'no-id' ? 'Enlace inválido' : error === 'not-found' ? 'Quiniela no encontrada' : 'Error de conexión'}
+        {error === 'not-found' ? 'Quiniela no encontrada' : 'Error de conexión'}
       </p>
       <p style={{ fontSize: 14 }}>Contacta al organizador para obtener el enlace correcto.</p>
     </div>
@@ -193,12 +204,10 @@ export default function Predicciones() {
 
       <div style={{ maxWidth: 560, margin: '0 auto', padding: '1.25rem 1rem 3rem' }}>
 
-        {/* Regla de puntos */}
-        <div style={{
-          display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap',
-        }}>
+        {/* Reglas de puntos */}
+        <div style={{ display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap' }}>
           {[
-            { pts: '1 pt',  desc: 'Resultado correcto' },
+            { pts: '1 pt',   desc: 'Resultado correcto' },
             { pts: '+2 pts', desc: 'Marcador exacto' },
           ].map(r => (
             <div key={r.desc} style={{
@@ -212,12 +221,96 @@ export default function Predicciones() {
           ))}
         </div>
 
+        {/* ── Quiniela cerrada ─────────────────────────────────────────────── */}
         {cerrada ? (
           <div style={{ background: '#fff', borderRadius: 16, padding: '3rem 2rem', textAlign: 'center', boxShadow: '0 1px 4px rgba(0,0,0,0.08)' }}>
             <div style={{ fontSize: 52, marginBottom: 16 }}>🔒</div>
             <p style={{ fontWeight: 700, fontSize: 17, color: '#111827', marginBottom: 8 }}>Plazo de registro cerrado</p>
             <p style={{ fontSize: 14, color: '#6B7280' }}>Ya no se pueden ingresar predicciones.</p>
           </div>
+
+        /* ── Pantalla de resumen antes de enviar (item 11) ──────────────── */
+        ) : mostrarResumen ? (
+          <div>
+            <div style={{ background: '#fff', borderRadius: 16, padding: '1.5rem', marginBottom: 10, boxShadow: '0 2px 8px rgba(27,82,153,0.10)', border: '2px solid #1B5299' }}>
+              <p style={{ fontSize: 13, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>
+                Revisa tus picks
+              </p>
+              <p style={{ fontSize: 18, fontWeight: 700, color: '#0F2942', marginBottom: 16 }}>{nombre}</p>
+
+              {partidos.map((p, i) => {
+                const pick = picks[i]
+                const res  = getPickResultado(pick)
+                const info = res ? resultadoInfo(res, p.local, p.visitante) : null
+                return (
+                  <div key={i} style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '10px 0', borderBottom: i < partidos.length - 1 ? '1px solid #F3F4F6' : 'none',
+                    gap: 8,
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, flex: 1, minWidth: 0 }}>
+                      {p.escudoLocal && (
+                        <img src={p.escudoLocal} alt="" style={{ width: 18, height: 18, objectFit: 'contain', flexShrink: 0 }} onError={e => { e.target.style.display = 'none' }} />
+                      )}
+                      <span style={{ fontSize: 13, color: '#374151', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.local}</span>
+                    </div>
+                    <span style={{ fontSize: 20, fontWeight: 800, color: '#0F2942', padding: '2px 14px', background: '#EBF3FF', borderRadius: 8, flexShrink: 0 }}>
+                      {pick?.local ?? '?'} – {pick?.visitante ?? '?'}
+                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 5, flex: 1, minWidth: 0 }}>
+                      <span style={{ fontSize: 13, color: '#374151', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'right' }}>{p.visitante}</span>
+                      {p.escudoVisitante && (
+                        <img src={p.escudoVisitante} alt="" style={{ width: 18, height: 18, objectFit: 'contain', flexShrink: 0 }} onError={e => { e.target.style.display = 'none' }} />
+                      )}
+                    </div>
+                    {info && (
+                      <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 99, background: info.bg, color: info.color, flexShrink: 0 }}>
+                        {info.label}
+                      </span>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+
+            {nombreError && (
+              <div style={{
+                marginBottom: 10, padding: '10px 14px', borderRadius: 10,
+                background: '#FEF2F2', border: '1px solid #FECACA',
+                fontSize: 13, color: '#DC2626', lineHeight: 1.5,
+              }}>
+                ⚠️ {nombreError}
+              </div>
+            )}
+
+            <button
+              onClick={enviar}
+              disabled={enviando}
+              style={{
+                width: '100%', padding: '15px', borderRadius: 12, border: 'none',
+                background: enviando ? '#D1D5DB' : 'linear-gradient(135deg, #0F2942 0%, #1B5299 100%)',
+                color: '#fff', fontSize: 15, fontWeight: 700, letterSpacing: 0.3,
+                cursor: enviando ? 'not-allowed' : 'pointer',
+                boxShadow: enviando ? 'none' : '0 4px 14px rgba(27,82,153,0.35)',
+                marginBottom: 10,
+              }}
+            >
+              {enviando ? 'Enviando…' : 'Confirmar y enviar →'}
+            </button>
+            <button
+              onClick={() => setMostrarResumen(false)}
+              disabled={enviando}
+              style={{
+                width: '100%', padding: '12px', borderRadius: 12, border: '1px solid #D1D5DB',
+                background: 'transparent', color: '#6B7280', fontSize: 14, fontWeight: 500,
+                cursor: 'pointer',
+              }}
+            >
+              ← Editar picks
+            </button>
+          </div>
+
+        /* ── Formulario principal ────────────────────────────────────────── */
         ) : (
           <>
             {/* Nombre */}
@@ -240,7 +333,7 @@ export default function Predicciones() {
             {/* Partidos */}
             {partidos.map((p, i) => {
               const pick = picks[i]
-              const res = getPickResultado(pick)
+              const res  = getPickResultado(pick)
               const info = res ? resultadoInfo(res, p.local, p.visitante) : null
 
               return (
@@ -265,7 +358,11 @@ export default function Predicciones() {
                       <input
                         type="text" inputMode="numeric" pattern="[0-9]*"
                         value={pick?.local ?? ''}
-                        onChange={e => { const v = e.target.value.replace(/[^0-9]/g, ''); setPick(i, 'local', v) }}
+                        onChange={e => {
+                          const v = e.target.value.replace(/[^0-9]/g, '').slice(0, 2)
+                          setPick(i, 'local', v)
+                          if (v.length >= 2) visitanteRefs.current[i]?.focus()
+                        }}
                         placeholder="–"
                         style={{
                           width: 68, textAlign: 'center', fontSize: 30, fontWeight: 800,
@@ -288,9 +385,10 @@ export default function Predicciones() {
                         {p.visitante}
                       </span>
                       <input
+                        ref={el => { visitanteRefs.current[i] = el }}
                         type="text" inputMode="numeric" pattern="[0-9]*"
                         value={pick?.visitante ?? ''}
-                        onChange={e => { const v = e.target.value.replace(/[^0-9]/g, ''); setPick(i, 'visitante', v) }}
+                        onChange={e => { const v = e.target.value.replace(/[^0-9]/g, '').slice(0, 2); setPick(i, 'visitante', v) }}
                         placeholder="–"
                         style={{
                           width: 68, textAlign: 'center', fontSize: 30, fontWeight: 800,
@@ -325,10 +423,10 @@ export default function Predicciones() {
               </span>
             </div>
 
-            {/* Botón enviar */}
+            {/* Botón revisar */}
             <button
-              onClick={enviar}
-              disabled={!completado || enviando}
+              onClick={() => { if (completado) setMostrarResumen(true) }}
+              disabled={!completado}
               style={{
                 width: '100%', padding: '15px', borderRadius: 12, border: 'none',
                 background: completado ? 'linear-gradient(135deg, #0F2942 0%, #1B5299 100%)' : '#D1D5DB',
@@ -337,17 +435,8 @@ export default function Predicciones() {
                 boxShadow: completado ? '0 4px 14px rgba(27,82,153,0.35)' : 'none',
               }}
             >
-              {enviando ? 'Enviando…' : 'Enviar predicciones →'}
+              Revisar predicciones →
             </button>
-            {nombreError && (
-              <div style={{
-                marginTop: 10, padding: '10px 14px', borderRadius: 10,
-                background: '#FEF2F2', border: '1px solid #FECACA',
-                fontSize: 13, color: '#DC2626', lineHeight: 1.5,
-              }}>
-                ⚠️ {nombreError}
-              </div>
-            )}
           </>
         )}
       </div>
