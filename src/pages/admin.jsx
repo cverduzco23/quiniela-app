@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react'
 import { collection, addDoc, doc, updateDoc, getDocs, deleteDoc, query, orderBy, where } from 'firebase/firestore'
-import { db } from '../firebase'
+import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth'
+import { db, auth, googleProvider } from '../firebase'
 
-const ADMIN_PASSWORD = '235689'
+const ADMIN_EMAILS = [
+  'cverduzco2008@gmail.com',
+]
 
 // Slugs de la API pública de ESPN (sin API key)
 const LIGAS = [
@@ -56,13 +59,37 @@ const btn = (bg, disabled) => ({
 export default function Admin() {
   // ─── Autenticación ────────────────────────────────────────────────────────
   const [autenticado, setAutenticado] = useState(false)
-  const [passInput, setPassInput]     = useState('')
-  const [passError, setPassError]     = useState(false)
+  const [authListo, setAuthListo]     = useState(false)
+  const [loginError, setLoginError]   = useState('')
+  const [loginLoading, setLoginLoading] = useState(false)
 
-  const entrar = () => {
-    if (passInput === ADMIN_PASSWORD) { setAutenticado(true); setPassError(false) }
-    else { setPassError(true); setPassInput('') }
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, user => {
+      setAutenticado(!!(user && ADMIN_EMAILS.includes(user.email)))
+      setAuthListo(true)
+    })
+    return unsub
+  }, [])
+
+  const entrar = async () => {
+    setLoginLoading(true)
+    setLoginError('')
+    try {
+      const result = await signInWithPopup(auth, googleProvider)
+      if (!ADMIN_EMAILS.includes(result.user.email)) {
+        await signOut(auth)
+        setLoginError('Esta cuenta de Google no tiene permiso de acceso. Contacta al administrador.')
+      }
+    } catch (e) {
+      if (e.code !== 'auth/popup-closed-by-user') {
+        setLoginError('Error al iniciar sesión. Intenta de nuevo.')
+      }
+    } finally {
+      setLoginLoading(false)
+    }
   }
+
+  const salir = () => signOut(auth)
 
   // ─── Estado principal ─────────────────────────────────────────────────────
   const [vista, setVista]                 = useState('lista')
@@ -100,7 +127,7 @@ export default function Admin() {
   const [deleteConfirm, setDeleteConfirm]       = useState('')
   const [eliminando, setEliminando]             = useState(false)
 
-  useEffect(() => { if (autenticado) cargarQuinielas() }, [autenticado])
+  useEffect(() => { if (autenticado && authListo) cargarQuinielas() }, [autenticado, authListo])
 
   useEffect(() => {
     if (tab !== 'editar' || !quinielaActual) return
@@ -416,28 +443,42 @@ export default function Admin() {
   const copiar = (txt) => navigator.clipboard.writeText(txt)
 
   // ─── Pantalla de login ────────────────────────────────────────────────────
+  if (!authListo) return (
+    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', color: '#6B7280', fontSize: 14 }}>
+      Cargando…
+    </div>
+  )
+
   if (!autenticado) return (
     <div style={{ minHeight: '100vh', background: '#EEF2F8', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ width: '100%', maxWidth: 360, padding: '0 1rem' }}>
         <div style={{ textAlign: 'center', marginBottom: 28 }}>
           <div style={{ fontSize: 40, marginBottom: 12 }}>🔐</div>
           <h2 style={{ fontSize: 20, fontWeight: 700, color: '#0F2942' }}>Panel de Administrador</h2>
-          <p style={{ fontSize: 13, color: '#6B7280', marginTop: 4 }}>QuinielaApp</p>
+          <p style={{ fontSize: 13, color: '#6B7280', marginTop: 4 }}>⚽ Quiniela APP</p>
         </div>
         <div style={card}>
-          <label style={lbl}>Contraseña</label>
-          <input
-            type="password"
-            placeholder="Ingresa la contraseña"
-            value={passInput}
-            onChange={e => { setPassInput(e.target.value); setPassError(false) }}
-            onKeyDown={e => e.key === 'Enter' && entrar()}
-            style={{ marginBottom: 10, borderColor: passError ? '#EF4444' : undefined }}
-          />
-          {passError && <p style={{ fontSize: 12, color: '#EF4444', marginBottom: 10 }}>Contraseña incorrecta</p>}
-          <button onClick={entrar} style={{ ...btn('linear-gradient(135deg, #0F2942, #1B5299)', false), width: '100%', padding: '12px' }}>
-            Entrar →
+          <button
+            onClick={entrar}
+            disabled={loginLoading}
+            style={{
+              width: '100%', padding: '12px 16px', borderRadius: 10, border: '1.5px solid #E5E7EB',
+              background: loginLoading ? '#F9FAFB' : '#fff', cursor: loginLoading ? 'not-allowed' : 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+              fontSize: 14, fontWeight: 600, color: '#374151',
+            }}
+          >
+            <svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
+              <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z" fill="#4285F4"/>
+              <path d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z" fill="#34A853"/>
+              <path d="M3.964 10.707A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.707V4.961H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.039l3.007-2.332z" fill="#FBBC05"/>
+              <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.96L3.964 7.293C4.672 5.163 6.656 3.58 9 3.58z" fill="#EA4335"/>
+            </svg>
+            {loginLoading ? 'Abriendo Google…' : 'Continuar con Google'}
           </button>
+          {loginError && (
+            <p style={{ fontSize: 12, color: '#EF4444', marginTop: 10, textAlign: 'center', lineHeight: 1.5 }}>{loginError}</p>
+          )}
         </div>
       </div>
     </div>
@@ -452,14 +493,22 @@ export default function Admin() {
             <p style={{ fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', opacity: 0.55, marginBottom: 6, fontWeight: 600 }}>⚽ Quiniela APP</p>
             <h1 style={{ fontSize: 22, fontWeight: 700 }}>Panel de Administrador</h1>
           </div>
-          {vista !== 'lista' && (
+          <div style={{ display: 'flex', gap: 8 }}>
+            {vista !== 'lista' && (
+              <button
+                onClick={() => { setVista('lista'); setQuinielaActual(null); setFixtures([]); setSeleccionados([]) }}
+                style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', padding: '7px 14px', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}
+              >
+                ← Lista
+              </button>
+            )}
             <button
-              onClick={() => { setVista('lista'); setQuinielaActual(null); setFixtures([]); setSeleccionados([]) }}
-              style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', padding: '7px 14px', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}
+              onClick={salir}
+              style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', color: 'rgba(255,255,255,0.8)', padding: '7px 14px', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}
             >
-              ← Lista
+              Salir
             </button>
-          )}
+          </div>
         </div>
       </div>
 
