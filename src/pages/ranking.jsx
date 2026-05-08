@@ -98,10 +98,10 @@ export default function Ranking() {
   const [expandido, setExpandido]         = useState(new Set())
   const [actualizando, setActualizando]   = useState(false)
 
-  const toggleExpandido = (i) => {
+  const toggleExpandido = (nombre) => {
     setExpandido(prev => {
       const s = new Set(prev)
-      s.has(i) ? s.delete(i) : s.add(i)
+      s.has(nombre) ? s.delete(nombre) : s.add(nombre)
       return s
     })
   }
@@ -212,7 +212,7 @@ export default function Ranking() {
       {/* Hero */}
       <div style={{ background: 'linear-gradient(150deg, #0F2942 0%, #1B5299 100%)', color: '#fff', padding: '2rem 1.25rem 1.75rem' }}>
         <div style={{ maxWidth: 560, margin: '0 auto' }}>
-          <p style={{ fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', opacity: 0.55, marginBottom: 8, fontWeight: 600 }}>⚽ QuinielApp · Ranking</p>
+          <a href="/" style={{ fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', opacity: 0.55, marginBottom: 8, fontWeight: 600, color: 'inherit', textDecoration: 'none', display: 'block' }}>⚽ QuinielApp · Ranking</a>
           <h1 style={{ fontSize: 22, fontWeight: 700, lineHeight: 1.25, marginBottom: 10 }}>{quiniela.nombre}</h1>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 500, padding: '4px 12px', borderRadius: 99, background: enVivo ? 'rgba(220,38,38,0.3)' : 'rgba(255,255,255,0.15)' }}>
@@ -356,14 +356,14 @@ export default function Ranking() {
               Nadie ha registrado predicciones todavía.
             </div>
           ) : jugadores.map((j, i) => {
-            const abierto = expandido.has(i)
+            const abierto = expandido.has(j.nombre)
             const esLider = i === 0 && hayResultados
 
             return (
-              <div key={i} style={{ borderBottom: i < jugadores.length - 1 ? '1px solid #F3F4F6' : 'none' }}>
+              <div key={j.nombre} style={{ borderBottom: i < jugadores.length - 1 ? '1px solid #F3F4F6' : 'none' }}>
                 {/* Fila principal */}
                 <div
-                  onClick={() => cerrada && toggleExpandido(i)}
+                  onClick={() => cerrada && toggleExpandido(j.nombre)}
                   style={{
                     display: 'grid', gridTemplateColumns: '44px 1fr 60px 60px 52px',
                     padding: '13px 16px', alignItems: 'center',
@@ -459,8 +459,9 @@ export default function Ranking() {
           )}
         </div>
 
-        <p style={{ fontSize: 11, color: '#9CA3AF', textAlign: 'center', marginTop: 14, lineHeight: 1.6 }}>
-          1 pt resultado · 3 pts marcador exacto · {enVivo ? '🔴 Actualizando cada 60 seg' : 'Actualización en tiempo real'}
+        <p style={{ fontSize: 11, color: '#9CA3AF', textAlign: 'center', marginTop: 14, lineHeight: 1.8 }}>
+          1 pt resultado correcto · +2 pts marcador exacto (máx. 3 pts por partido){'\n'}
+          Empate de puntos: gana quien tenga más marcadores exactos; si persiste, más resultados correctos · {enVivo ? '🔴 Actualizando cada 60 seg' : 'Actualización en tiempo real'}
         </p>
       </div>
     </div>
