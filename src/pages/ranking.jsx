@@ -96,6 +96,7 @@ export default function Ranking() {
   const [liveActivo, setLiveActivo]       = useState(false)
   const [ultimaAct, setUltimaAct]         = useState(null)
   const [expandido, setExpandido]         = useState(new Set())
+  const [actualizando, setActualizando]   = useState(false)
 
   const toggleExpandido = (i) => {
     setExpandido(prev => {
@@ -127,46 +128,59 @@ export default function Ranking() {
   }, [quinielaId])
 
   // ── Polling ESPN ────────────────────────────────────────────────────────────
-  useEffect(() => {
-    if (!quiniela) return
-    const partidos = quiniela.partidos ?? []
+  const fetchLiveData = async (quinielaData) => {
+    const partidos = quinielaData?.partidos ?? []
     const conEspn  = partidos.filter(p => p.espnId && p.ligaId)
     if (conEspn.length === 0) return
 
-    const fetchLive = async () => {
-      const porLiga = {}
-      conEspn.forEach(p => {
-        if (!porLiga[p.ligaId]) porLiga[p.ligaId] = []
-        porLiga[p.ligaId].push(p)
-      })
-      const nuevos = {}
-      let hayVivos = false
-      for (const [liga, ps] of Object.entries(porLiga)) {
-        try {
-          const r = await fetch(`https://site.api.espn.com/apis/site/v2/sports/soccer/${liga}/scoreboard`)
-          const d = await r.json()
-          const events = d.events ?? []
-          ps.forEach(p => {
-            const ev    = events.find(e => e.id === p.espnId)
-            if (!ev) return
-            const state = ev.status?.type?.state
-            const comps = ev.competitions?.[0]?.competitors ?? []
-            const home  = comps.find(c => c.homeAway === 'home')
-            const away  = comps.find(c => c.homeAway === 'away')
-            nuevos[p.espnId] = { state, clock: ev.status?.displayClock ?? '', local: home?.score ?? '', visitante: away?.score ?? '' }
-            if (state === 'in') hayVivos = true
-          })
-        } catch { /* silencioso */ }
-      }
-      setLiveScores(nuevos)
-      setLiveActivo(hayVivos)
-      setUltimaAct(new Date())
+    const porLiga = {}
+    conEspn.forEach(p => {
+      if (!porLiga[p.ligaId]) porLiga[p.ligaId] = []
+      porLiga[p.ligaId].push(p)
+    })
+    const nuevos = {}
+    let hayVivos = false
+    for (const [liga, ps] of Object.entries(porLiga)) {
+      try {
+        const r = await fetch(`https://site.api.espn.com/apis/site/v2/sports/soccer/${liga}/scoreboard`)
+        const d = await r.json()
+        const events = d.events ?? []
+        ps.forEach(p => {
+          const ev    = events.find(e => e.id === p.espnId)
+          if (!ev) return
+          const state = ev.status?.type?.state
+          const comps = ev.competitions?.[0]?.competitors ?? []
+          const home  = comps.find(c => c.homeAway === 'home')
+          const away  = comps.find(c => c.homeAway === 'away')
+          nuevos[p.espnId] = { state, clock: ev.status?.displayClock ?? '', local: home?.score ?? '', visitante: away?.score ?? '' }
+          if (state === 'in') hayVivos = true
+        })
+      } catch { /* silencioso */ }
     }
+    setLiveScores(nuevos)
+    setLiveActivo(hayVivos)
+    setUltimaAct(new Date())
+  }
 
-    fetchLive()
-    const interval = setInterval(fetchLive, 60000)
+  useEffect(() => {
+    if (!quiniela) return
+    const conEspn = (quiniela.partidos ?? []).filter(p => p.espnId && p.ligaId)
+    if (conEspn.length === 0) return
+
+    fetchLiveData(quiniela)
+    const interval = setInterval(() => fetchLiveData(quiniela), 60000)
     return () => clearInterval(interval)
   }, [quiniela?.id])
+
+  const handleRefresh = async () => {
+    if (actualizando || !quiniela) return
+    setActualizando(true)
+    try {
+      await fetchLiveData(quiniela)
+    } finally {
+      setActualizando(false)
+    }
+  }
 
   // ── Render estados ──────────────────────────────────────────────────────────
   if (cargando) return (
@@ -210,6 +224,19 @@ export default function Ranking() {
                 Actualizado {ultimaAct.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
               </span>
             )}
+            {/* Botón actualizar ahora (item 9) */}
+            <button
+              onClick={handleRefresh}
+              disabled={actualizando}
+              style={{
+                background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.25)',
+                color: '#fff', padding: '4px 12px', borderRadius: 99, fontSize: 11,
+                fontWeight: 600, cursor: actualizando ? 'not-allowed' : 'pointer',
+                opacity: actualizando ? 0.6 : 1,
+              }}
+            >
+              {actualizando ? '…' : '↻ Actualizar'}
+            </button>
           </div>
         </div>
       </div>
