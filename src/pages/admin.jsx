@@ -129,10 +129,24 @@ export default function Admin() {
   // ─── Cerrar / reabrir ─────────────────────────────────────────────────────
   const [toggling, setToggling] = useState(false)
 
+  // ─── Lista de predicciones individuales ──────────────────────────────────
+  const [listaPredicciones, setListaPredicciones]       = useState([])
+  const [loadingPredicciones, setLoadingPredicciones]   = useState(false)
+  const [eliminandoPred, setEliminandoPred]             = useState(null) // id del doc eliminándose
+
   // ─── Compartir ───────────────────────────────────────────────────────────
   const [copiado, setCopiado] = useState(null)
 
   useEffect(() => { if (autenticado && authListo) cargarQuinielas() }, [autenticado, authListo])
+
+  useEffect(() => {
+    if (tab !== 'participantes' || !quinielaActual) return
+    setLoadingPredicciones(true)
+    getDocs(query(collection(db, 'predicciones'), where('quinielaId', '==', quinielaActual.id)))
+      .then(snap => setListaPredicciones(snap.docs.map(d => ({ id: d.id, ...d.data() }))))
+      .catch(() => setListaPredicciones([]))
+      .finally(() => setLoadingPredicciones(false))
+  }, [tab, quinielaActual?.id])
 
   useEffect(() => {
     if (tab !== 'editar' || !quinielaActual) return
@@ -306,6 +320,21 @@ export default function Admin() {
       alert('Error al actualizar el estado.')
     } finally {
       setToggling(false)
+    }
+  }
+
+  // ─── Eliminar predicción individual ──────────────────────────────────────
+  const eliminarPrediccion = async (pred) => {
+    if (!window.confirm(`¿Eliminar la predicción de "${pred.nombre}"? El jugador podrá volver a registrarse.`)) return
+    setEliminandoPred(pred.id)
+    try {
+      await deleteDoc(doc(db, 'predicciones', pred.id))
+      setListaPredicciones(prev => prev.filter(p => p.id !== pred.id))
+      setConteos(prev => ({ ...prev, [quinielaActual.id]: Math.max(0, (prev[quinielaActual.id] ?? 1) - 1) }))
+    } catch {
+      alert('Error al eliminar. Intenta de nuevo.')
+    } finally {
+      setEliminandoPred(null)
     }
   }
 
@@ -784,9 +813,10 @@ export default function Admin() {
               {/* Tabs */}
               <div style={{ display: 'flex', gap: 4, background: '#E5E7EB', borderRadius: 10, padding: 4, marginBottom: 16 }}>
                 {[
-                  { key: 'resultados', label: '⚽ Resultados' },
-                  { key: 'editar',     label: '✏️ Editar' },
-                  { key: 'compartir',  label: '🔗 Compartir' },
+                  { key: 'resultados',   label: '⚽ Resultados' },
+                  { key: 'participantes', label: `👥 ${conteos[quinielaActual.id] ?? 0}` },
+                  { key: 'editar',       label: '✏️ Editar' },
+                  { key: 'compartir',    label: '🔗 Compartir' },
                 ].map(t => (
                   <button
                     key={t.key} onClick={() => setTab(t.key)}
@@ -868,6 +898,68 @@ export default function Admin() {
                     </div>
                   </div>
                 </>
+              )}
+
+              {/* Tab: Participantes */}
+              {tab === 'participantes' && (
+                <div style={card}>
+                  <label style={{ ...lbl, marginBottom: 14 }}>
+                    Predicciones registradas
+                  </label>
+
+                  {loadingPredicciones ? (
+                    <p style={{ fontSize: 13, color: '#9CA3AF', textAlign: 'center', padding: '1.5rem 0' }}>Cargando…</p>
+                  ) : listaPredicciones.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '2rem 1rem' }}>
+                      <p style={{ fontSize: 36, marginBottom: 12 }}>📭</p>
+                      <p style={{ fontSize: 14, color: '#9CA3AF' }}>Nadie ha registrado predicciones todavía.</p>
+                    </div>
+                  ) : (
+                    <>
+                      <p style={{ fontSize: 12, color: '#6B7280', marginBottom: 12 }}>
+                        Al eliminar una predicción el jugador podrá volver a registrarse con su nombre.
+                      </p>
+                      {listaPredicciones.map((pred, i) => {
+                        const fecha = pred.fecha
+                          ? new Date(pred.fecha).toLocaleString('es-MX', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+                          : '—'
+                        const nPicks = Object.keys(pred.picks ?? {}).length
+                        return (
+                          <div
+                            key={pred.id}
+                            style={{
+                              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+                              padding: '10px 0',
+                              borderBottom: i < listaPredicciones.length - 1 ? '1px solid #F3F4F6' : 'none',
+                            }}
+                          >
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <p style={{ fontSize: 14, fontWeight: 600, color: '#111827', marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {pred.nombre}
+                              </p>
+                              <p style={{ fontSize: 11, color: '#9CA3AF' }}>
+                                {nPicks} pick{nPicks !== 1 ? 's' : ''} · {fecha}
+                              </p>
+                            </div>
+                            <button
+                              onClick={() => eliminarPrediccion(pred)}
+                              disabled={eliminandoPred === pred.id}
+                              style={{
+                                background: 'none', border: '1px solid #FECACA', color: '#DC2626',
+                                fontSize: 12, fontWeight: 600, padding: '5px 12px',
+                                borderRadius: 8, cursor: eliminandoPred === pred.id ? 'not-allowed' : 'pointer',
+                                opacity: eliminandoPred === pred.id ? 0.5 : 1,
+                                flexShrink: 0,
+                              }}
+                            >
+                              {eliminandoPred === pred.id ? '…' : 'Eliminar'}
+                            </button>
+                          </div>
+                        )
+                      })}
+                    </>
+                  )}
+                </div>
               )}
 
               {/* Tab: Editar */}
