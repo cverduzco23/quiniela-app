@@ -13,6 +13,7 @@ body {
 }
 
 input[type="text"],
+input[type="email"],
 input[type="number"],
 input[type="password"],
 input[type="datetime-local"],
@@ -28,6 +29,14 @@ select {
   outline: none;
   transition: border-color 0.15s, box-shadow 0.15s;
   width: 100%;
+}
+
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 30px #fff inset !important;
+  -webkit-text-fill-color: #111827 !important;
+  transition: background-color 9999s ease-in-out 0s;
 }
 
 input:focus,
