@@ -263,16 +263,16 @@ export default function Ranking() {
               return (
                 <div key={i} style={{ borderBottom: i < partidos.length - 1 ? '1px solid #F3F4F6' : 'none', background: esVivo ? '#FFFBF0' : 'transparent' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: p.hora ? '9px 16px 2px' : '11px 16px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1 }}>
-                      {p.escudoLocal && <img src={p.escudoLocal} alt="" style={{ width: 22, height: 22, objectFit: 'contain', flexShrink: 0 }} onError={e => { e.target.style.display = 'none' }} />}
-                      <span style={{ fontSize: 13, fontWeight: 500, color: '#374151' }}>{p.local}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, flex: 1, minWidth: 0 }}>
+                      {p.escudoLocal && <img src={p.escudoLocal} alt="" style={{ width: 20, height: 20, objectFit: 'contain', flexShrink: 0 }} onError={e => { e.target.style.display = 'none' }} />}
+                      <span style={{ fontSize: 12, fontWeight: 500, color: '#374151', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.local}</span>
                     </div>
-                    <span style={{ fontSize: 14, fontWeight: 700, color: esVivo ? '#DC2626' : '#0F2942', padding: '3px 10px', background: esVivo ? '#FEE2E2' : '#F3F4F6', borderRadius: 6, margin: '0 8px', minWidth: 52, textAlign: 'center', flexShrink: 0 }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: esVivo ? '#DC2626' : '#0F2942', padding: '3px 8px', background: esVivo ? '#FEE2E2' : '#F3F4F6', borderRadius: 6, margin: '0 6px', minWidth: 46, textAlign: 'center', flexShrink: 0 }}>
                       {scoreLocal}–{scoreVisitante}
                     </span>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6, flex: 1 }}>
-                      <span style={{ fontSize: 13, fontWeight: 500, color: '#374151' }}>{p.visitante}</span>
-                      {p.escudoVisitante && <img src={p.escudoVisitante} alt="" style={{ width: 22, height: 22, objectFit: 'contain', flexShrink: 0 }} onError={e => { e.target.style.display = 'none' }} />}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 5, flex: 1, minWidth: 0 }}>
+                      <span style={{ fontSize: 12, fontWeight: 500, color: '#374151', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.visitante}</span>
+                      {p.escudoVisitante && <img src={p.escudoVisitante} alt="" style={{ width: 20, height: 20, objectFit: 'contain', flexShrink: 0 }} onError={e => { e.target.style.display = 'none' }} />}
                     </div>
                     <div style={{ marginLeft: 10, minWidth: 70, textAlign: 'right' }}>
                       {esVivo ? (
