@@ -132,6 +132,17 @@ export default function Predicciones() {
       .catch(() => {})
   }, [cerrada, quiniela?.id])
 
+  // Forzar re-render exactamente cuando pasa la hora de cierre
+  useEffect(() => {
+    if (!quiniela?.cierre || quinielaCerrada(quiniela)) return
+    const d = cierreToDate(quiniela.cierre)
+    if (!d) return
+    const ms = d.getTime() - Date.now()
+    if (ms <= 0) return
+    const t = setTimeout(() => setQuiniela(q => ({ ...q })), ms)
+    return () => clearTimeout(t)
+  }, [quiniela])
+
   // Auto-cierre ESPN con intervalo cada 60s
   useEffect(() => {
     if (!quiniela || cerrada || !quinielaId) return
@@ -172,7 +183,12 @@ export default function Predicciones() {
     setPicks(prev => ({ ...prev, [i]: { ...(prev[i] ?? {}), [campo]: valor } }))
 
   const enviar = async () => {
-    if (!completado || cerrada || enviando) return
+    if (enviando) return
+    if (!completado) return
+    if (quinielaCerrada(quiniela)) {
+      setQuiniela(q => ({ ...q }))
+      return
+    }
     setEnviando(true)
     setNombreError('')
     try {
