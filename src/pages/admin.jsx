@@ -82,7 +82,7 @@ export default function Admin() {
       }
     } catch (e) {
       if (e.code !== 'auth/popup-closed-by-user') {
-        setLoginError('Error al iniciar sesión. Intenta de nuevo.')
+        setLoginError(`Error: ${e.code}`)
       }
     } finally {
       setLoginLoading(false)
