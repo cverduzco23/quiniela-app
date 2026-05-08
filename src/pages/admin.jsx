@@ -78,8 +78,8 @@ export default function Admin() {
         await signOut(auth)
         setLoginError('Esta cuenta de Google no tiene permiso de acceso. Contacta al administrador.')
       }
-    }).catch(() => {
-      setLoginError('Error al iniciar sesión. Intenta de nuevo.')
+    }).catch((e) => {
+      setLoginError(`Error: ${e.code ?? e.message}`)
     })
   }, [])
 
