@@ -371,8 +371,9 @@ export default function Predicciones() {
                         value={pick?.local ?? ''}
                         onChange={e => {
                           const v = e.target.value.replace(/[^0-9]/g, '').slice(0, 2)
-                          setPick(i, 'local', v)
-                          if (v.length >= 2) visitanteRefs.current[i]?.focus()
+                          const norm = v === '' ? '' : String(Number(v))
+                          setPick(i, 'local', norm)
+                          if (norm.length >= 2) visitanteRefs.current[i]?.focus()
                         }}
                         placeholder="–"
                         style={{
@@ -399,7 +400,7 @@ export default function Predicciones() {
                         ref={el => { visitanteRefs.current[i] = el }}
                         type="text" inputMode="numeric" pattern="[0-9]*"
                         value={pick?.visitante ?? ''}
-                        onChange={e => { const v = e.target.value.replace(/[^0-9]/g, '').slice(0, 2); setPick(i, 'visitante', v) }}
+                        onChange={e => { const v = e.target.value.replace(/[^0-9]/g, '').slice(0, 2); setPick(i, 'visitante', v === '' ? '' : String(Number(v))) }}
                         placeholder="–"
                         style={{
                           width: 68, textAlign: 'center', fontSize: 30, fontWeight: 800,

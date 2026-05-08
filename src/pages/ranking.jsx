@@ -44,8 +44,8 @@ function calcularPuntos(picks, resultados, liveScores, partidos) {
     if (resR === pickR) {
       puntos += 1; aciertos++
       if (typeof pick === 'object' && pick !== null &&
-          String(res.local) === String(pick.local) &&
-          String(res.visitante) === String(pick.visitante)) {
+          Number(res.local) === Number(pick.local) &&
+          Number(res.visitante) === Number(pick.visitante)) {
         puntos += 2; exactos++
       }
     }
