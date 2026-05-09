@@ -129,6 +129,9 @@ export default function Admin() {
   // ─── Cerrar / reabrir ─────────────────────────────────────────────────────
   const [toggling, setToggling] = useState(false)
 
+  // ─── Marcar como principal ───────────────────────────────────────────────
+  const [destacando, setDestacando] = useState(false)
+
   // ─── Lista de predicciones individuales ──────────────────────────────────
   const [listaPredicciones, setListaPredicciones]       = useState([])
   const [loadingPredicciones, setLoadingPredicciones]   = useState(false)
@@ -372,6 +375,37 @@ export default function Admin() {
       alert('Error al actualizar el estado.')
     } finally {
       setToggling(false)
+    }
+  }
+
+  // ─── Marcar / desmarcar como principal ──────────────────────────────────
+  const toggleDestacada = async () => {
+    if (!quinielaActual || destacando) return
+    const yaDestacada = !!quinielaActual.destacada
+    setDestacando(true)
+    try {
+      if (yaDestacada) {
+        await updateDoc(doc(db, 'quinielas', quinielaActual.id), { destacada: false })
+        const actualizado = { ...quinielaActual, destacada: false }
+        setQuinielaActual(actualizado)
+        setQuinielas(prev => prev.map(q => q.id === quinielaActual.id ? actualizado : q))
+      } else {
+        const otrasDestacadas = quinielas.filter(q => q.id !== quinielaActual.id && q.destacada)
+        await Promise.all([
+          ...otrasDestacadas.map(q => updateDoc(doc(db, 'quinielas', q.id), { destacada: false })),
+          updateDoc(doc(db, 'quinielas', quinielaActual.id), { destacada: true }),
+        ])
+        const actualizado = { ...quinielaActual, destacada: true }
+        setQuinielaActual(actualizado)
+        setQuinielas(prev => prev.map(q =>
+          q.id === quinielaActual.id ? actualizado :
+          q.destacada ? { ...q, destacada: false } : q
+        ))
+      }
+    } catch {
+      alert('Error al actualizar el estado.')
+    } finally {
+      setDestacando(false)
     }
   }
 
@@ -875,6 +909,30 @@ export default function Admin() {
                 </div>
               )}
 
+              {!estaCerrada && (() => {
+                const esDestacada = !!quinielaActual.destacada
+                return (
+                  <button
+                    onClick={toggleDestacada}
+                    disabled={destacando}
+                    style={{
+                      width: '100%', padding: '10px 12px', marginBottom: 12,
+                      borderRadius: 'var(--radius-sm)', cursor: destacando ? 'not-allowed' : 'pointer',
+                      fontSize: 13, fontWeight: 700, textAlign: 'left',
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+                      background: esDestacada ? 'var(--yellow-bg)' : 'var(--bg-soft)',
+                      border: `1px solid ${esDestacada ? 'var(--yellow)' : 'var(--border)'}`,
+                      color: esDestacada ? 'var(--yellow)' : 'var(--text)',
+                    }}
+                  >
+                    <span>{esDestacada ? '⭐ Principal en inicio' : '☆ Marcar como principal'}</span>
+                    <span style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600 }}>
+                      {destacando ? '…' : esDestacada ? 'Quitar' : 'Activar'}
+                    </span>
+                  </button>
+                )
+              })()}
+
               {/* Tabs */}
               <div style={{ display: 'flex', gap: 4, background: 'var(--bg-soft)', borderRadius: 'var(--radius-sm)', padding: 4, marginBottom: 16, border: '1px solid var(--border)' }}>
                 {[
@@ -1243,6 +1301,14 @@ function QuinielaCard({ q, conteos, onGestionar }) {
           }}>
             {cerrada ? 'Cerrada' : 'Activa'}
           </span>
+          {q.destacada && !cerrada && (
+            <span style={{
+              fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 'var(--radius-full)', flexShrink: 0,
+              background: 'var(--yellow-bg)', color: 'var(--yellow)',
+            }}>
+              ⭐ Principal
+            </span>
+          )}
         </div>
         <p style={{ fontSize: 12, color: 'var(--muted)' }}>
           {q.partidos?.length ?? 0} partidos · {n} {n === 1 ? 'participante' : 'participantes'}

@@ -57,7 +57,8 @@ export default function Home() {
 
   const activas   = quinielas.filter(q => !esCerrada(q))
   const cerradas  = quinielas.filter(q => esCerrada(q))
-  const principal = activas[0] ?? null
+  const principal = activas.find(q => q.destacada) ?? activas[0] ?? null
+  const otrasActivas = activas.filter(q => q.id !== principal?.id)
   const ultima    = cerradas[0] ?? null
 
   return (
@@ -119,12 +120,12 @@ export default function Home() {
         )}
 
         {/* Otras activas */}
-        {activas.length > 1 && (
+        {otrasActivas.length > 0 && (
           <div style={{ marginBottom: 20 }}>
             <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
               Otras quinielas activas
             </p>
-            {activas.slice(1).map(q => (
+            {otrasActivas.map(q => (
               <div key={q.id} style={{
                 background: 'var(--card)', borderRadius: 'var(--radius-md)', padding: '1rem 1.25rem', marginBottom: 10,
                 border: '1px solid var(--border)',
@@ -136,9 +137,14 @@ export default function Home() {
                     ⚽ {q.partidos?.length ?? 0} · 👥 {conteos[q.id] ?? 0}
                   </span>
                 </div>
-                <a href={`/?q=${q.id}`} style={{ fontSize: 13, color: 'var(--green)', fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap' }}>
-                  Predecir →
-                </a>
+                <div style={{ display: 'flex', gap: 14, flexShrink: 0 }}>
+                  <a href={`/?q=${q.id}`} style={{ fontSize: 13, color: 'var(--green)', fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap' }}>
+                    Predecir →
+                  </a>
+                  <a href={`/ranking?q=${q.id}`} style={{ fontSize: 13, color: 'var(--muted)', fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap' }}>
+                    Ranking →
+                  </a>
+                </div>
               </div>
             ))}
           </div>
