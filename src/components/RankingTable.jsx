@@ -189,10 +189,17 @@ export function RankingTable({ quiniela, predicciones, liveScores = {} }) {
                 <span style={{ fontSize: i < 3 ? 18 : 14, fontWeight: 700, color: i < 3 ? 'var(--yellow)' : 'var(--muted)' }}>
                   {i < 3 ? medals[i] : `${i + 1}`}
                 </span>
-                <span style={{ fontSize: 14, fontWeight: i === 0 ? 700 : 500, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  {j.nombre}
-                  {cerrada && <span style={{ fontSize: 11, color: 'var(--muted)' }}>{abierto ? '▲' : '▼'}</span>}
-                </span>
+                <div style={{ minWidth: 0, overflow: 'hidden' }}>
+                  <span style={{ fontSize: 14, fontWeight: i === 0 ? 700 : 500, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {j.nombre}
+                    {cerrada && <span style={{ fontSize: 11, color: 'var(--muted)' }}>{abierto ? '▲' : '▼'}</span>}
+                  </span>
+                  {j.fecha && (
+                    <span style={{ display: 'block', fontSize: 10, color: 'var(--muted)', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      Enviado: {formatFecha(j.fecha)}
+                    </span>
+                  )}
+                </div>
                 <span style={{ fontSize: 13, color: 'var(--muted)', textAlign: 'center' }}>{j.aciertos}</span>
                 <span style={{ fontFamily: 'var(--font-display)', fontSize: 13, textAlign: 'center', color: j.exactos > 0 ? 'var(--yellow)' : 'var(--muted)', fontWeight: j.exactos > 0 ? 700 : 600 }}>{j.exactos}</span>
                 <span style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 700, textAlign: 'center', color: esLider ? 'var(--yellow)' : 'var(--green)' }}>{j.puntos}</span>
