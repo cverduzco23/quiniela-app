@@ -589,8 +589,10 @@ export default function Admin() {
   }
 
   // ─── Lista helpers ────────────────────────────────────────────────────────
-  const quinielasActivas  = quinielas.filter(q => !esCerradaQ(q))
-  const quinielasCerradas = quinielas.filter(q => esCerradaQ(q))
+  const quinielasActivas     = quinielas.filter(q => !esCerradaQ(q))
+  const quinielasCerradas    = quinielas.filter(q => esCerradaQ(q))
+  const quinielasEnJuego     = quinielasCerradas.filter(q => !q.finalizada)
+  const quinielasFinalizadas = quinielasCerradas.filter(q => q.finalizada)
 
   // ─── Login ────────────────────────────────────────────────────────────────
   if (!authListo) return (
@@ -798,12 +800,23 @@ export default function Admin() {
                   </>
                 )}
 
-                {quinielasCerradas.length > 0 && (
+                {quinielasEnJuego.length > 0 && (
                   <>
                     <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8, marginTop: quinielasActivas.length > 0 ? 16 : 0 }}>
-                      Cerradas
+                      Jugándose
                     </p>
-                    {quinielasCerradas.map(q => (
+                    {quinielasEnJuego.map(q => (
+                      <QuinielaCard key={q.id} q={q} conteos={conteos} onGestionar={gestionarQuiniela} />
+                    ))}
+                  </>
+                )}
+
+                {quinielasFinalizadas.length > 0 && (
+                  <>
+                    <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8, marginTop: (quinielasActivas.length > 0 || quinielasEnJuego.length > 0) ? 16 : 0 }}>
+                      Finalizadas
+                    </p>
+                    {quinielasFinalizadas.map(q => (
                       <QuinielaCard key={q.id} q={q} conteos={conteos} onGestionar={gestionarQuiniela} />
                     ))}
                   </>
@@ -1281,7 +1294,14 @@ export default function Admin() {
 // ─── Componente de card de quiniela en la lista ───────────────────────────────
 function QuinielaCard({ q, conteos, onGestionar }) {
   const cerrada = esCerradaQ(q)
+  const enJuego = cerrada && !q.finalizada
   const n = conteos[q.id] ?? 0
+
+  const badge = enJuego
+    ? { label: 'Jugándose', bg: 'var(--yellow-bg)', color: 'var(--yellow)' }
+    : cerrada
+      ? { label: 'Finalizada', bg: 'var(--neutral-bg)', color: 'var(--muted)' }
+      : { label: 'Activa', bg: 'var(--green-bg)', color: 'var(--green)' }
 
   return (
     <div style={{
@@ -1296,10 +1316,9 @@ function QuinielaCard({ q, conteos, onGestionar }) {
           </p>
           <span style={{
             fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 'var(--radius-full)', flexShrink: 0,
-            background: cerrada ? 'var(--neutral-bg)' : 'var(--green-bg)',
-            color: cerrada ? 'var(--muted)' : 'var(--green)',
+            background: badge.bg, color: badge.color,
           }}>
-            {cerrada ? 'Cerrada' : 'Activa'}
+            {badge.label}
           </span>
           {q.destacada && !cerrada && (
             <span style={{
