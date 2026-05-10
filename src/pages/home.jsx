@@ -55,11 +55,12 @@ export default function Home() {
     </div>
   )
 
-  const activas   = quinielas.filter(q => !esCerrada(q))
-  const cerradas  = quinielas.filter(q => esCerrada(q))
-  const principal = activas.find(q => q.destacada) ?? activas[0] ?? null
-  const otrasActivas = activas.filter(q => q.id !== principal?.id)
-  const ultima    = cerradas[0] ?? null
+  const activas       = quinielas.filter(q => !esCerrada(q))
+  const cerradas      = quinielas.filter(q => esCerrada(q))
+  const enJuego       = cerradas.filter(q => !q.finalizada)
+  const ultimaFinal   = cerradas.find(q => q.finalizada) ?? null
+  const principal     = activas.find(q => q.destacada) ?? activas[0] ?? null
+  const otrasActivas  = activas.filter(q => q.id !== principal?.id)
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
@@ -76,7 +77,7 @@ export default function Home() {
 
       <div style={{ maxWidth: 560, margin: '0 auto', padding: '1.5rem 1rem 3rem' }}>
 
-        {!principal && !ultima && (
+        {!principal && enJuego.length === 0 && !ultimaFinal && (
           <div style={{ background: 'var(--card)', borderRadius: 'var(--radius-lg)', padding: '3rem 2rem', textAlign: 'center', boxShadow: 'var(--shadow-sm)', border: '1px solid var(--border)' }}>
             <div style={{ fontSize: 52, marginBottom: 16 }}>⚽</div>
             <p style={{ fontWeight: 700, fontSize: 17, color: 'var(--text)', marginBottom: 8 }}>Próximamente la siguiente jornada</p>
@@ -150,30 +151,56 @@ export default function Home() {
           </div>
         )}
 
-        {/* Última cerrada */}
-        {ultima && (
+        {/* Jugándose ahora (todas) */}
+        {enJuego.length > 0 && (
+          <div style={{ marginBottom: 20 }}>
+            <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
+              Jugándose ahora
+            </p>
+            {enJuego.map(q => (
+              <div key={q.id} style={{ background: 'var(--card)', borderRadius: 'var(--radius-lg)', padding: '1.25rem 1.5rem', border: '1px solid var(--yellow-soft)', marginBottom: 10 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                  <p style={{ fontSize: 16, fontWeight: 600, color: 'var(--text)' }}>{q.nombre}</p>
+                  <span style={{
+                    fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 'var(--radius-full)',
+                    flexShrink: 0, marginLeft: 8,
+                    background: 'var(--yellow-bg)', color: 'var(--yellow)',
+                  }}>
+                    Jugándose
+                  </span>
+                </div>
+                <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 14 }}>
+                  ⚽ {q.partidos?.length ?? 0} partidos · 👥 {conteos[q.id] ?? 0} {(conteos[q.id] ?? 0) === 1 ? 'participante' : 'participantes'}
+                </p>
+                <a href={`/ranking?q=${q.id}`} style={ctaSecondary}>
+                  Ver ranking completo →
+                </a>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Última finalizada */}
+        {ultimaFinal && (
           <div>
             <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
-              {ultima.finalizada
-                ? (principal ? 'Última quiniela terminada' : 'Quiniela más reciente')
-                : 'Jugándose ahora'}
+              {principal || enJuego.length > 0 ? 'Última quiniela terminada' : 'Quiniela más reciente'}
             </p>
-            <div style={{ background: 'var(--card)', borderRadius: 'var(--radius-lg)', padding: '1.25rem 1.5rem', border: `1px solid ${ultima.finalizada ? 'var(--border)' : 'var(--yellow-soft)'}` }}>
+            <div style={{ background: 'var(--card)', borderRadius: 'var(--radius-lg)', padding: '1.25rem 1.5rem', border: '1px solid var(--border)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
-                <p style={{ fontSize: 16, fontWeight: 600, color: 'var(--text)' }}>{ultima.nombre}</p>
+                <p style={{ fontSize: 16, fontWeight: 600, color: 'var(--text)' }}>{ultimaFinal.nombre}</p>
                 <span style={{
                   fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 'var(--radius-full)',
                   flexShrink: 0, marginLeft: 8,
-                  background: ultima.finalizada ? 'var(--neutral-bg)' : 'var(--yellow-bg)',
-                  color: ultima.finalizada ? 'var(--muted)' : 'var(--yellow)',
+                  background: 'var(--neutral-bg)', color: 'var(--muted)',
                 }}>
-                  {ultima.finalizada ? 'Finalizada' : 'Jugándose'}
+                  Finalizada
                 </span>
               </div>
               <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 14 }}>
-                ⚽ {ultima.partidos?.length ?? 0} partidos · 👥 {conteos[ultima.id] ?? 0} {(conteos[ultima.id] ?? 0) === 1 ? 'participante' : 'participantes'}
+                ⚽ {ultimaFinal.partidos?.length ?? 0} partidos · 👥 {conteos[ultimaFinal.id] ?? 0} {(conteos[ultimaFinal.id] ?? 0) === 1 ? 'participante' : 'participantes'}
               </p>
-              <a href={`/ranking?q=${ultima.id}`} style={ctaSecondary}>
+              <a href={`/ranking?q=${ultimaFinal.id}`} style={ctaSecondary}>
                 Ver ranking completo →
               </a>
             </div>
