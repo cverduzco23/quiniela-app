@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { collection, addDoc, doc, updateDoc, getDocs, deleteDoc, query, orderBy, where } from 'firebase/firestore'
 import { signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth'
 import { db, auth } from '../firebase'
-import { cierreToDate, cierreToInputValue, inputValueACierre, quinielaCerrada } from '../utils/cierre'
+import { cierreToDate, cierreToInputValue, inputValueACierre, quinielaCerrada, quinielaFinalizada, resultadosCompletos } from '../utils/cierre'
 
 const LIGAS = [
   { id: 'mex.1',              nombre: '🇲🇽 Liga MX' },
@@ -23,6 +23,7 @@ function goalsToResultado(local, visitante) {
 }
 
 const esCerradaQ = quinielaCerrada
+const esFinalizadaQ = quinielaFinalizada
 
 function formatFecha(value) {
   const d = cierreToDate(value)
@@ -500,11 +501,13 @@ export default function Admin() {
           resGuardar[idx] = { local: r.local, visitante: r.visitante, resultado }
         }
       })
-      await updateDoc(doc(db, 'quinielas', quinielaActual.id), { resultados: resGuardar })
+      const completos = resultadosCompletos({ partidos: quinielaActual.partidos, resultados: resGuardar })
+      const patch = completos ? { resultados: resGuardar, finalizada: true } : { resultados: resGuardar }
+      await updateDoc(doc(db, 'quinielas', quinielaActual.id), patch)
       setGuardadoRes(true)
       setTimeout(() => setGuardadoRes(false), 3000)
-      setQuinielaActual(prev => ({ ...prev, resultados: resGuardar }))
-      setQuinielas(prev => prev.map(q => q.id === quinielaActual.id ? { ...q, resultados: resGuardar } : q))
+      setQuinielaActual(prev => ({ ...prev, ...patch }))
+      setQuinielas(prev => prev.map(q => q.id === quinielaActual.id ? { ...q, ...patch } : q))
     } catch { alert('Error al guardar resultados.') }
     finally { setGuardandoRes(false) }
   }
@@ -563,10 +566,12 @@ export default function Admin() {
 
     if (actualizados > 0) {
       try {
-        await updateDoc(doc(db, 'quinielas', quinielaActual.id), { resultados: resGuardar })
+        const completos = resultadosCompletos({ partidos: quinielaActual.partidos, resultados: resGuardar })
+        const patch = completos ? { resultados: resGuardar, finalizada: true } : { resultados: resGuardar }
+        await updateDoc(doc(db, 'quinielas', quinielaActual.id), patch)
         setResultados(resGuardar)
-        setQuinielaActual(prev => ({ ...prev, resultados: resGuardar }))
-        setQuinielas(prev => prev.map(q => q.id === quinielaActual.id ? { ...q, resultados: resGuardar } : q))
+        setQuinielaActual(prev => ({ ...prev, ...patch }))
+        setQuinielas(prev => prev.map(q => q.id === quinielaActual.id ? { ...q, ...patch } : q))
         setSincrMsg(`✓ ${actualizados} partido${actualizados !== 1 ? 's' : ''} sincronizado${actualizados !== 1 ? 's' : ''}`)
         setTimeout(() => setSincrMsg(''), 4000)
       } catch { setSincrMsg('⚠ Error al guardar. Intenta de nuevo.') }
@@ -591,8 +596,8 @@ export default function Admin() {
   // ─── Lista helpers ────────────────────────────────────────────────────────
   const quinielasActivas     = quinielas.filter(q => !esCerradaQ(q))
   const quinielasCerradas    = quinielas.filter(q => esCerradaQ(q))
-  const quinielasEnJuego     = quinielasCerradas.filter(q => !q.finalizada)
-  const quinielasFinalizadas = quinielasCerradas.filter(q => q.finalizada)
+  const quinielasEnJuego     = quinielasCerradas.filter(q => !esFinalizadaQ(q))
+  const quinielasFinalizadas = quinielasCerradas.filter(q => esFinalizadaQ(q))
 
   // ─── Login ────────────────────────────────────────────────────────────────
   if (!authListo) return (
@@ -1294,7 +1299,7 @@ export default function Admin() {
 // ─── Componente de card de quiniela en la lista ───────────────────────────────
 function QuinielaCard({ q, conteos, onGestionar }) {
   const cerrada = esCerradaQ(q)
-  const enJuego = cerrada && !q.finalizada
+  const enJuego = cerrada && !esFinalizadaQ(q)
   const n = conteos[q.id] ?? 0
 
   const badge = enJuego

@@ -31,3 +31,23 @@ export function quinielaCerrada(q) {
   const d = cierreToDate(q.cierre)
   return d ? new Date() > d : false
 }
+
+// ¿Todos los partidos tienen resultado o están cancelados?
+export function resultadosCompletos(q) {
+  const partidos = q?.partidos ?? []
+  if (partidos.length === 0) return false
+  const resultados = q?.resultados ?? {}
+  return partidos.every((_, i) => {
+    const r = resultados[i]
+    if (!r) return false
+    if (r.cancelado) return true
+    return String(r.local ?? '').trim() !== '' && String(r.visitante ?? '').trim() !== ''
+  })
+}
+
+// ¿La quiniela ya terminó? (flag manual o todos los partidos con resultado/cancelado)
+export function quinielaFinalizada(q) {
+  if (!q) return false
+  if (q.finalizada) return true
+  return resultadosCompletos(q)
+}

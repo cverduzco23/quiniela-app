@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
 import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore'
 import { db } from '../firebase'
-import { cierreToDate, quinielaCerrada } from '../utils/cierre'
+import { cierreToDate, quinielaCerrada, quinielaFinalizada } from '../utils/cierre'
 
 const esCerrada = quinielaCerrada
+const esFinalizada = quinielaFinalizada
 
 function formatFecha(value) {
   const d = cierreToDate(value)
@@ -57,8 +58,8 @@ export default function Home() {
 
   const activas       = quinielas.filter(q => !esCerrada(q))
   const cerradas      = quinielas.filter(q => esCerrada(q))
-  const enJuego       = cerradas.filter(q => !q.finalizada)
-  const ultimaFinal   = cerradas.find(q => q.finalizada) ?? null
+  const enJuego       = cerradas.filter(q => !esFinalizada(q))
+  const ultimaFinal   = cerradas.find(q => esFinalizada(q)) ?? null
   const principal     = activas.find(q => q.destacada) ?? activas[0] ?? null
   const otrasActivas  = activas.filter(q => q.id !== principal?.id)
 
