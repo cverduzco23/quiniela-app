@@ -59,7 +59,9 @@ export default function Home() {
   const activas       = quinielas.filter(q => !esCerrada(q))
   const cerradas      = quinielas.filter(q => esCerrada(q))
   const enJuego       = cerradas.filter(q => !esFinalizada(q))
-  const ultimaFinal   = cerradas.find(q => esFinalizada(q)) ?? null
+  const ultimaFinal   = cerradas
+    .filter(q => esFinalizada(q))
+    .sort((a, b) => (cierreToDate(b.cierre)?.getTime() ?? 0) - (cierreToDate(a.cierre)?.getTime() ?? 0))[0] ?? null
   const principal     = activas.find(q => q.destacada) ?? activas[0] ?? null
   const otrasActivas  = activas.filter(q => q.id !== principal?.id)
 
