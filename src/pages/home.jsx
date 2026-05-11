@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore'
 import { db } from '../firebase'
 import { cierreToDate, quinielaCerrada, quinielaFinalizada } from '../utils/cierre'
+import { WhatsAppCTA } from '../components/WhatsAppCTA'
 
 const esCerrada = quinielaCerrada
 const esFinalizada = quinielaFinalizada
@@ -209,6 +210,27 @@ export default function Home() {
             </div>
           </div>
         )}
+
+        {/* Imagen decorativa */}
+        <div style={{ marginTop: 24, textAlign: 'center' }}>
+          <img
+            src="/jugador-verde.png"
+            alt=""
+            style={{ width: '100%', maxWidth: 360, height: 'auto', display: 'block', margin: '0 auto' }}
+          />
+        </div>
+
+        {/* CTA WhatsApp */}
+        <WhatsAppCTA />
+
+        {/* Disclaimer al fondo */}
+        <p style={{
+          fontSize: 11, color: 'var(--muted)', textAlign: 'center',
+          marginTop: 16, padding: '0 1rem', lineHeight: 1.6, fontStyle: 'italic',
+        }}>
+          App de uso recreativo para quinielas entre familia y amigos cercanos.
+          <br />No es una plataforma de apuestas comerciales.
+        </p>
 
       </div>
     </div>

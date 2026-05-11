@@ -3,6 +3,7 @@ import { collection, addDoc, doc, updateDoc, getDocs, deleteDoc, query, orderBy,
 import { signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth'
 import { db, auth } from '../firebase'
 import { cierreToDate, cierreToInputValue, inputValueACierre, quinielaCerrada, quinielaFinalizada, resultadosCompletos } from '../utils/cierre'
+import { TIPO_PREMIO, MODELO_PREMIO, calcularBote, tienePremio, formatearMXN } from '../utils/premios'
 
 const LIGAS = [
   { id: 'mex.1',              nombre: '🇲🇽 Liga MX' },
@@ -102,6 +103,10 @@ export default function Admin() {
   const [cierre, setCierre]     = useState('')
   const [partidos, setPartidos] = useState([{ local: '', visitante: '', hora: '' }])
   const [guardando, setGuardando] = useState(false)
+  const [tipoPremio, setTipoPremio]     = useState(TIPO_PREMIO.SIN_PREMIO)
+  const [premioFijo, setPremioFijo]     = useState('')
+  const [cuota, setCuota]               = useState('')
+  const [modeloPremio, setModeloPremio] = useState(MODELO_PREMIO.GANADOR_UNICO)
 
   // ─── Resultados ───────────────────────────────────────────────────────────
   const [resultados, setResultados]       = useState({})
@@ -109,6 +114,8 @@ export default function Admin() {
   const [guardadoRes, setGuardadoRes]     = useState(false)
   const [sincronizando, setSincronizando] = useState(false)
   const [sincrMsg, setSincrMsg]           = useState('')
+  const [confirmacionRes, setConfirmacionRes] = useState(null)
+  const [validandoEspn, setValidandoEspn] = useState(false)
 
   // ─── Buscador de partidos ESPN ────────────────────────────────────────────
   const [ligaId, setLigaId]               = useState('')
@@ -121,7 +128,12 @@ export default function Admin() {
   // ─── Edición de quiniela existente ───────────────────────────────────────
   const [editNombre, setEditNombre]             = useState('')
   const [editPartidos, setEditPartidos]         = useState([])
+  const [editPartidosOriginales, setEditPartidosOriginales] = useState(0)
   const [editCierre, setEditCierre]             = useState('')
+  const [editTipoPremio, setEditTipoPremio]     = useState(TIPO_PREMIO.SIN_PREMIO)
+  const [editPremioFijo, setEditPremioFijo]     = useState('')
+  const [editCuota, setEditCuota]               = useState('')
+  const [editModeloPremio, setEditModeloPremio] = useState(MODELO_PREMIO.GANADOR_UNICO)
   const [conteoPredicciones, setConteoPredicciones] = useState(null)
   const [guardandoEdicion, setGuardandoEdicion] = useState(false)
   const [deleteConfirm, setDeleteConfirm]       = useState('')
@@ -137,6 +149,7 @@ export default function Admin() {
   const [listaPredicciones, setListaPredicciones]       = useState([])
   const [loadingPredicciones, setLoadingPredicciones]   = useState(false)
   const [eliminandoPred, setEliminandoPred]             = useState(null)
+  const [togglingPago, setTogglingPago]                 = useState(null)
 
   // ─── Compartir ───────────────────────────────────────────────────────────
   const [copiado, setCopiado] = useState(null)
@@ -179,7 +192,12 @@ export default function Admin() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setEditNombre(quinielaActual.nombre ?? '')
     setEditPartidos([...(quinielaActual.partidos ?? [])])
+    setEditPartidosOriginales((quinielaActual.partidos ?? []).length)
     setEditCierre(cierreToInputValue(quinielaActual.cierre))
+    setEditTipoPremio(quinielaActual.tipoPremio ?? TIPO_PREMIO.SIN_PREMIO)
+    setEditPremioFijo(quinielaActual.premioFijo != null ? String(quinielaActual.premioFijo) : '')
+    setEditCuota(quinielaActual.cuota != null ? String(quinielaActual.cuota) : '')
+    setEditModeloPremio(quinielaActual.modeloPremio ?? MODELO_PREMIO.GANADOR_UNICO)
     setFixtures([]); setSeleccionados([])
     setConteoPredicciones(null)
     getDocs(query(collection(db, 'predicciones'), where('quinielaId', '==', quinielaActual.id)))
@@ -340,15 +358,22 @@ export default function Admin() {
     if (editPartidos.length === 0) return alert('La quiniela debe tener al menos un partido.')
     if (!editNombre.trim()) return alert('El nombre no puede estar vacío.')
     if (!editCierre) return alert('La fecha y hora de cierre es obligatoria.')
+    if ((conteoPredicciones ?? 0) > 0 && editPartidos.length < editPartidosOriginales) {
+      return alert('No puedes quitar partidos existentes cuando ya hay predicciones registradas. Solo puedes agregar nuevos al final.')
+    }
+    const { campos: premioFields, error } = camposPremio(editTipoPremio, editPremioFijo, editCuota, editModeloPremio)
+    if (error) return alert(error)
     setGuardandoEdicion(true)
     try {
       const cierreTs = inputValueACierre(editCierre)
-      await updateDoc(doc(db, 'quinielas', quinielaActual.id), {
+      const patch = {
         nombre:   editNombre.trim(),
         partidos: editPartidos,
         cierre:   cierreTs,
-      })
-      const actualizado = { ...quinielaActual, nombre: editNombre.trim(), partidos: editPartidos, cierre: cierreTs }
+        ...premioFields,
+      }
+      await updateDoc(doc(db, 'quinielas', quinielaActual.id), patch)
+      const actualizado = { ...quinielaActual, ...patch }
       setQuinielaActual(actualizado)
       setQuinielas(prev => prev.map(q => q.id === quinielaActual.id ? actualizado : q))
       setTab('resultados')
@@ -410,6 +435,49 @@ export default function Admin() {
     }
   }
 
+  // ─── Devolver / reactivar bote ──────────────────────────────────────────
+  const [toggleBote, setToggleBote] = useState(false)
+  const toggleBoteDevuelto = async () => {
+    if (!quinielaActual || toggleBote) return
+    const nuevo = !quinielaActual.boteDevuelto
+    const mensaje = nuevo
+      ? '¿Marcar el bote como devuelto? Los premios dejarán de mostrarse en el ranking.'
+      : '¿Reactivar el premio? Se volverán a mostrar los ganadores y sus premios.'
+    if (!window.confirm(mensaje)) return
+    setToggleBote(true)
+    try {
+      await updateDoc(doc(db, 'quinielas', quinielaActual.id), { boteDevuelto: nuevo })
+      const actualizado = { ...quinielaActual, boteDevuelto: nuevo }
+      setQuinielaActual(actualizado)
+      setQuinielas(prev => prev.map(q => q.id === quinielaActual.id ? actualizado : q))
+    } catch {
+      alert('Error al actualizar el estado del bote.')
+    } finally {
+      setToggleBote(false)
+    }
+  }
+
+  // ─── Marcar/desmarcar pago de una predicción ────────────────────────────
+  const togglePago = async (predId) => {
+    if (!quinielaActual || togglingPago) return
+    setTogglingPago(predId)
+    try {
+      const pagadosActuales = quinielaActual.pagados ?? []
+      const yaPagado = pagadosActuales.includes(predId)
+      const nuevosPagados = yaPagado
+        ? pagadosActuales.filter(id => id !== predId)
+        : [...pagadosActuales, predId]
+      await updateDoc(doc(db, 'quinielas', quinielaActual.id), { pagados: nuevosPagados })
+      const actualizado = { ...quinielaActual, pagados: nuevosPagados }
+      setQuinielaActual(actualizado)
+      setQuinielas(prev => prev.map(q => q.id === quinielaActual.id ? actualizado : q))
+    } catch {
+      alert('Error al actualizar el estado de pago.')
+    } finally {
+      setTogglingPago(null)
+    }
+  }
+
   // ─── Eliminar predicción individual ──────────────────────────────────────
   const eliminarPrediccion = async (pred) => {
     if (!window.confirm(`¿Eliminar la predicción de "${pred.nombre}"? El jugador podrá volver a registrarse.`)) return
@@ -448,26 +516,45 @@ export default function Admin() {
   }
 
   // ─── Guardar nueva quiniela ───────────────────────────────────────────────
+  const camposPremio = (tipo, fijoStr, cuotaStr, modelo) => {
+    if (tipo === TIPO_PREMIO.FIJO) {
+      const n = Number(fijoStr)
+      if (!(n > 0)) return { error: 'El monto del premio fijo debe ser mayor a 0.' }
+      return { campos: { tipoPremio: tipo, premioFijo: n, cuota: null, modeloPremio: modelo } }
+    }
+    if (tipo === TIPO_PREMIO.BOTE) {
+      const n = Number(cuotaStr)
+      if (!(n > 0)) return { error: 'La cuota por participante debe ser mayor a 0.' }
+      return { campos: { tipoPremio: tipo, cuota: n, premioFijo: null, modeloPremio: modelo } }
+    }
+    return { campos: { tipoPremio: TIPO_PREMIO.SIN_PREMIO, premioFijo: null, cuota: null, modeloPremio: null } }
+  }
+
   const guardarNuevaQuiniela = async () => {
     if (!nombre.trim()) return alert('Ponle un nombre a la quiniela')
     if (!cierre) return alert('La fecha y hora de cierre es obligatoria')
     if (partidos.length === 0) return alert('Agrega al menos un partido')
     if (partidos.some(p => !p.local.trim() || !p.visitante.trim())) return alert('Completa nombre de equipos en todos los partidos')
+    const { campos: premioFields, error } = camposPremio(tipoPremio, premioFijo, cuota, modeloPremio)
+    if (error) return alert(error)
     setGuardando(true)
     try {
       const cierreTs = inputValueACierre(cierre)
       const creada   = new Date().toISOString()
-      const ref = await addDoc(collection(db, 'quinielas'), {
+      const base = {
         nombre: nombre.trim(), cierre: cierreTs, partidos,
         resultados: {}, creada, cerrada: false,
-      })
-      const nueva = { id: ref.id, nombre: nombre.trim(), cierre: cierreTs, partidos, resultados: {}, creada, cerrada: false }
+        ...premioFields,
+      }
+      const ref = await addDoc(collection(db, 'quinielas'), base)
+      const nueva = { id: ref.id, ...base }
       setQuinielaActual(nueva)
       setResultados({})
       setVista('gestionar')
       setTab('compartir')
       cargarQuinielas()
       setNombre(''); setCierre(''); setPartidos([{ local: '', visitante: '', hora: '' }])
+      setTipoPremio(TIPO_PREMIO.SIN_PREMIO); setPremioFijo(''); setCuota(''); setModeloPremio(MODELO_PREMIO.GANADOR_UNICO)
       setFixtures([]); setSeleccionados([])
     } catch { alert('Error al guardar. Intenta de nuevo.') }
     finally { setGuardando(false) }
@@ -485,6 +572,75 @@ export default function Admin() {
     setResultados(resInit)
     setTab('resultados')
     setVista('gestionar')
+  }
+
+  // ─── Validar contra ESPN antes de mostrar la confirmación ──────────────
+  const iniciarGuardarResultados = async () => {
+    if (!quinielaActual || guardandoRes) return
+    const partidos = quinielaActual.partidos ?? []
+    const items = partidos.map((p, i) => {
+      const r = resultados[i] ?? {}
+      const cancelado = !!r.cancelado
+      const tiene = !cancelado && String(r.local ?? '').trim() !== '' && String(r.visitante ?? '').trim() !== ''
+      if (!cancelado && !tiene) return null
+      return {
+        idx: i, partido: p,
+        local: cancelado ? '' : String(r.local),
+        visitante: cancelado ? '' : String(r.visitante),
+        cancelado,
+        espnLocal: undefined, espnVisitante: undefined, espnEstado: undefined,
+      }
+    }).filter(Boolean)
+
+    if (items.length === 0) {
+      return alert('No hay resultados que guardar.')
+    }
+
+    setConfirmacionRes({ items })
+
+    // Validar contra ESPN en background
+    const conEspn = items.filter(it => it.partido.espnId && it.partido.ligaId && !it.cancelado)
+    if (conEspn.length === 0) return
+
+    setValidandoEspn(true)
+    const porLiga = {}
+    conEspn.forEach(it => {
+      if (!porLiga[it.partido.ligaId]) porLiga[it.partido.ligaId] = []
+      porLiga[it.partido.ligaId].push(it)
+    })
+    const actualizadas = [...items]
+    for (const [liga, its] of Object.entries(porLiga)) {
+      try {
+        const fechas = its.map(it => it.partido.hora).filter(Boolean).sort()
+        const inicio = fechas[0] ? fechas[0].slice(0, 10).replace(/-/g, '') : ''
+        const hoy = new Date().toISOString().slice(0, 10).replace(/-/g, '')
+        const url = inicio
+          ? `https://site.api.espn.com/apis/site/v2/sports/soccer/${liga}/scoreboard?dates=${inicio}-${hoy}`
+          : `https://site.api.espn.com/apis/site/v2/sports/soccer/${liga}/scoreboard`
+        const r = await fetch(url)
+        const d = await r.json()
+        const events = d.events ?? []
+        its.forEach(it => {
+          const ev = events.find(e => e.id === it.partido.espnId)
+          if (!ev) return
+          const state = ev.status?.type?.state
+          const comps = ev.competitions?.[0]?.competitors ?? []
+          const home = comps.find(c => c.homeAway === 'home')
+          const away = comps.find(c => c.homeAway === 'away')
+          const i = actualizadas.findIndex(x => x.idx === it.idx)
+          if (i >= 0) {
+            actualizadas[i] = {
+              ...actualizadas[i],
+              espnLocal: home?.score,
+              espnVisitante: away?.score,
+              espnEstado: state,
+            }
+          }
+        })
+      } catch { /* silencioso */ }
+    }
+    setConfirmacionRes({ items: actualizadas })
+    setValidandoEspn(false)
   }
 
   // ─── Guardar resultados ───────────────────────────────────────────────────
@@ -508,6 +664,7 @@ export default function Admin() {
       setTimeout(() => setGuardadoRes(false), 3000)
       setQuinielaActual(prev => ({ ...prev, ...patch }))
       setQuinielas(prev => prev.map(q => q.id === quinielaActual.id ? { ...q, ...patch } : q))
+      setConfirmacionRes(null)
     } catch { alert('Error al guardar resultados.') }
     finally { setGuardandoRes(false) }
   }
@@ -639,6 +796,113 @@ export default function Admin() {
       </div>
     </div>
   )
+
+  // ─── Formulario de premio (reutilizable) ──────────────────────────────────
+  const renderFormularioPremio = (tipo, setTipo, fijo, setFijo, cuotaVal, setCuotaVal, modelo, setModelo) => {
+    const opcionesTipo = [
+      { val: TIPO_PREMIO.SIN_PREMIO, label: 'Sin premio',   desc: 'Quiniela gratis, solo por diversión' },
+      { val: TIPO_PREMIO.FIJO,       label: 'Premio fijo',  desc: 'Tú defines el monto del premio' },
+      { val: TIPO_PREMIO.BOTE,       label: 'Bote por cuota', desc: 'Cuota × número de participantes' },
+    ]
+    const opcionesModelo = [
+      { val: MODELO_PREMIO.GANADOR_UNICO, label: 'Ganador único',    desc: 'Gana el 1° lugar. Si empatan, se reparten.' },
+      { val: MODELO_PREMIO.PODIO,         label: 'Podio 70/20/10',  desc: '1° lugar 70%, 2° lugar 20%, 3° lugar 10%.' },
+    ]
+    return (
+      <div style={card}>
+        <label style={lbl}>Premio</label>
+        <div style={{ display: 'grid', gap: 8, marginBottom: tipo !== TIPO_PREMIO.SIN_PREMIO ? 14 : 0 }}>
+          {opcionesTipo.map(op => {
+            const activa = tipo === op.val
+            return (
+              <button
+                key={op.val}
+                type="button"
+                onClick={() => setTipo(op.val)}
+                style={{
+                  textAlign: 'left', padding: '10px 12px', borderRadius: 'var(--radius-sm)', cursor: 'pointer',
+                  background: activa ? 'var(--green-bg)' : 'var(--bg-soft)',
+                  border: `1.5px solid ${activa ? 'var(--green)' : 'var(--border)'}`,
+                  color: 'var(--text)',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 13, fontWeight: 700 }}>{op.label}</span>
+                  <span style={{
+                    width: 16, height: 16, borderRadius: '50%', flexShrink: 0,
+                    border: `2px solid ${activa ? 'var(--green)' : 'var(--border-strong)'}`,
+                    background: activa ? 'var(--green)' : 'transparent',
+                  }} />
+                </div>
+                <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>{op.desc}</p>
+              </button>
+            )
+          })}
+        </div>
+
+        {tipo === TIPO_PREMIO.FIJO && (
+          <div style={{ marginBottom: 14 }}>
+            <label htmlFor="input-premio-fijo" style={{ ...lbl, marginBottom: 6 }}>Monto del premio (MXN)</label>
+            <input
+              id="input-premio-fijo"
+              type="number" min="0" step="1" placeholder="Ej. 100"
+              value={fijo}
+              onChange={e => setFijo(e.target.value)}
+            />
+          </div>
+        )}
+
+        {tipo === TIPO_PREMIO.BOTE && (
+          <div style={{ marginBottom: 14 }}>
+            <label htmlFor="input-cuota" style={{ ...lbl, marginBottom: 6 }}>Cuota por participante (MXN)</label>
+            <input
+              id="input-cuota"
+              type="number" min="0" step="1" placeholder="Ej. 50"
+              value={cuotaVal}
+              onChange={e => setCuotaVal(e.target.value)}
+            />
+            <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 6 }}>
+              El bote total se calcula automáticamente como cuota × número de participantes.
+            </p>
+          </div>
+        )}
+
+        {tipo !== TIPO_PREMIO.SIN_PREMIO && (
+          <>
+            <label style={lbl}>Cómo se reparte</label>
+            <div style={{ display: 'grid', gap: 8 }}>
+              {opcionesModelo.map(op => {
+                const activa = modelo === op.val
+                return (
+                  <button
+                    key={op.val}
+                    type="button"
+                    onClick={() => setModelo(op.val)}
+                    style={{
+                      textAlign: 'left', padding: '10px 12px', borderRadius: 'var(--radius-sm)', cursor: 'pointer',
+                      background: activa ? 'var(--green-bg)' : 'var(--bg-soft)',
+                      border: `1.5px solid ${activa ? 'var(--green)' : 'var(--border)'}`,
+                      color: 'var(--text)',
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 13, fontWeight: 700 }}>{op.label}</span>
+                      <span style={{
+                        width: 16, height: 16, borderRadius: '50%', flexShrink: 0,
+                        border: `2px solid ${activa ? 'var(--green)' : 'var(--border-strong)'}`,
+                        background: activa ? 'var(--green)' : 'transparent',
+                      }} />
+                    </div>
+                    <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>{op.desc}</p>
+                  </button>
+                )
+              })}
+            </div>
+          </>
+        )}
+      </div>
+    )
+  }
 
   // ─── Buscador de fixtures (reutilizable) ──────────────────────────────────
   const renderBuscadorFixtures = (onAgregar) => (
@@ -847,6 +1111,8 @@ export default function Admin() {
               </p>
               <input id="quiniela-cierre" type="datetime-local" value={cierre} onChange={e => setCierre(e.target.value)} style={{ borderColor: !cierre ? 'var(--red)' : undefined }} />
             </div>
+
+            {renderFormularioPremio(tipoPremio, setTipoPremio, premioFijo, setPremioFijo, cuota, setCuota, modeloPremio, setModeloPremio)}
 
             {renderBuscadorFixtures(agregarSeleccionados)}
 
@@ -1063,7 +1329,7 @@ export default function Admin() {
                         {sincronizando ? 'Sincronizando…' : '⚡ Sincronizar ESPN'}
                       </button>
                       <button
-                        onClick={guardarResultados} disabled={guardandoRes}
+                        onClick={iniciarGuardarResultados} disabled={guardandoRes}
                         style={{
                           padding: '10px 20px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-strong)',
                           background: 'var(--card-light)', color: 'var(--text)',
@@ -1075,6 +1341,37 @@ export default function Admin() {
                       </button>
                     </div>
                   </div>
+
+                  {tienePremio(quinielaActual) && esFinalizadaQ(quinielaActual) && (
+                    <div style={{
+                      marginTop: 16, padding: '14px 16px',
+                      background: 'var(--bg-soft)', borderRadius: 'var(--radius-md)',
+                      border: '1px solid var(--border)',
+                    }}>
+                      <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-strong)', marginBottom: 4 }}>
+                        {quinielaActual.boteDevuelto ? '💸 Bote marcado como devuelto' : 'Bote del premio'}
+                      </p>
+                      <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 12, lineHeight: 1.5 }}>
+                        {quinielaActual.boteDevuelto
+                          ? 'El ranking muestra el premio como devuelto. Puedes reactivar el premio si fue un error.'
+                          : 'Si nadie ganó o decides no repartir, marca el bote como devuelto. Los premios dejarán de mostrarse.'}
+                      </p>
+                      <button
+                        onClick={toggleBoteDevuelto}
+                        disabled={toggleBote}
+                        style={{
+                          padding: '9px 16px', borderRadius: 'var(--radius-sm)',
+                          border: `1px solid ${quinielaActual.boteDevuelto ? 'var(--green)' : 'var(--yellow)'}`,
+                          background: 'transparent',
+                          color: quinielaActual.boteDevuelto ? 'var(--green)' : 'var(--yellow)',
+                          fontSize: 13, fontWeight: 700, cursor: toggleBote ? 'not-allowed' : 'pointer',
+                          opacity: toggleBote ? 0.5 : 1,
+                        }}
+                      >
+                        {toggleBote ? '…' : quinielaActual.boteDevuelto ? '↩ Reactivar premio' : '💸 Devolver bote'}
+                      </button>
+                    </div>
+                  )}
                 </>
               )}
 
@@ -1090,16 +1387,36 @@ export default function Admin() {
                       <p style={{ fontSize: 36, marginBottom: 12 }}>📭</p>
                       <p style={{ fontSize: 14, color: 'var(--muted)' }}>Nadie ha registrado predicciones todavía.</p>
                     </div>
-                  ) : (
+                  ) : (() => {
+                    const esTipoBote = quinielaActual.tipoPremio === TIPO_PREMIO.BOTE
+                    const pagados = quinielaActual.pagados ?? []
+                    const pendientes = esTipoBote ? listaPredicciones.filter(p => !pagados.includes(p.id)).length : 0
+                    return (
                     <>
+                      {esTipoBote && (
+                        <div style={{
+                          background: pendientes > 0 ? 'var(--yellow-bg)' : 'var(--green-bg)',
+                          border: `1px solid ${pendientes > 0 ? 'var(--yellow)' : 'var(--green)'}`,
+                          borderRadius: 'var(--radius-sm)', padding: '8px 12px', marginBottom: 12,
+                          fontSize: 12, color: pendientes > 0 ? 'var(--yellow-soft)' : 'var(--green-light)',
+                        }}>
+                          {pendientes > 0
+                            ? `⏳ ${pendientes} pago${pendientes !== 1 ? 's' : ''} pendiente${pendientes !== 1 ? 's' : ''} de validar`
+                            : '✓ Todos los pagos confirmados'}
+                        </div>
+                      )}
                       <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 12 }}>
-                        Al eliminar una predicción el jugador podrá volver a registrarse con su nombre.
+                        {esTipoBote
+                          ? 'Marca ✓ cuando recibas el comprobante. Eliminar quita al jugador del ranking.'
+                          : 'Al eliminar una predicción el jugador podrá volver a registrarse con su nombre.'}
                       </p>
                       {listaPredicciones.map((pred, i) => {
                         const fecha = pred.fecha
                           ? new Date(pred.fecha).toLocaleString('es-MX', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
                           : '—'
                         const nPicks = Object.keys(pred.picks ?? {}).length
+                        const yaPagado = pagados.includes(pred.id)
+                        const togglingEste = togglingPago === pred.id
                         return (
                           <div
                             key={pred.id}
@@ -1117,24 +1434,43 @@ export default function Admin() {
                                 {nPicks} pick{nPicks !== 1 ? 's' : ''} · {fecha}
                               </p>
                             </div>
-                            <button
-                              onClick={() => eliminarPrediccion(pred)}
-                              disabled={eliminandoPred === pred.id}
-                              style={{
-                                background: 'transparent', border: '1px solid var(--red)', color: 'var(--red)',
-                                fontSize: 12, fontWeight: 600, padding: '5px 12px',
-                                borderRadius: 'var(--radius-sm)', cursor: eliminandoPred === pred.id ? 'not-allowed' : 'pointer',
-                                opacity: eliminandoPred === pred.id ? 0.5 : 1,
-                                flexShrink: 0,
-                              }}
-                            >
-                              {eliminandoPred === pred.id ? '…' : 'Eliminar'}
-                            </button>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                              {esTipoBote && (
+                                <button
+                                  onClick={() => togglePago(pred.id)}
+                                  disabled={togglingEste}
+                                  aria-label={yaPagado ? 'Marcar como no pagado' : 'Marcar como pagado'}
+                                  style={{
+                                    background: yaPagado ? 'var(--green-bg)' : 'var(--yellow-bg)',
+                                    border: `1px solid ${yaPagado ? 'var(--green)' : 'var(--yellow)'}`,
+                                    color: yaPagado ? 'var(--green)' : 'var(--yellow)',
+                                    fontSize: 12, fontWeight: 700, padding: '5px 10px',
+                                    borderRadius: 'var(--radius-sm)', cursor: togglingEste ? 'not-allowed' : 'pointer',
+                                    opacity: togglingEste ? 0.5 : 1,
+                                  }}
+                                >
+                                  {togglingEste ? '…' : yaPagado ? '✓ Pagado' : '⏳ Pendiente'}
+                                </button>
+                              )}
+                              <button
+                                onClick={() => eliminarPrediccion(pred)}
+                                disabled={eliminandoPred === pred.id}
+                                style={{
+                                  background: 'transparent', border: '1px solid var(--red)', color: 'var(--red)',
+                                  fontSize: 12, fontWeight: 600, padding: '5px 12px',
+                                  borderRadius: 'var(--radius-sm)', cursor: eliminandoPred === pred.id ? 'not-allowed' : 'pointer',
+                                  opacity: eliminandoPred === pred.id ? 0.5 : 1,
+                                }}
+                              >
+                                {eliminandoPred === pred.id ? '…' : 'Eliminar'}
+                              </button>
+                            </div>
                           </div>
                         )
                       })}
                     </>
-                  )}
+                    )
+                  })()}
                 </div>
               )}
 
@@ -1156,25 +1492,43 @@ export default function Admin() {
                     <input id="edit-cierre" type="datetime-local" value={editCierre} onChange={e => setEditCierre(e.target.value)} style={{ borderColor: !editCierre ? 'var(--red)' : undefined }} />
                   </div>
 
+                  {renderFormularioPremio(editTipoPremio, setEditTipoPremio, editPremioFijo, setEditPremioFijo, editCuota, setEditCuota, editModeloPremio, setEditModeloPremio)}
+
                   <div style={card}>
                     <label style={{ ...lbl, marginBottom: 14 }}>Partidos</label>
                     {conteoPredicciones > 0 && (
                       <div style={{ background: 'var(--yellow-bg)', border: '1px solid var(--yellow)', borderRadius: 'var(--radius-sm)', padding: '8px 12px', marginBottom: 12, fontSize: 12, color: 'var(--yellow-soft)' }}>
-                        ⚠️ Hay {conteoPredicciones} predicción(es) registrada(s). Solo agregues partidos al final, no reordenes ni elimines.
+                        ⚠️ Hay {conteoPredicciones} predicción(es) registrada(s). Los partidos existentes 🔒 no se pueden modificar — solo puedes agregar nuevos al final.
                       </div>
                     )}
-                    {editPartidos.map((p, i) => (
-                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: i < editPartidos.length - 1 ? '1px solid var(--border)' : 'none' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
-                          {p.escudoLocal && <img src={p.escudoLocal} alt="" style={{ width: 18, height: 18, objectFit: 'contain', flexShrink: 0 }} onError={e => { e.target.style.display = 'none' }} />}
-                          <span style={{ fontSize: 13, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.local}</span>
-                          <span style={{ fontSize: 11, color: 'var(--muted)', flexShrink: 0 }}>vs</span>
-                          {p.escudoVisitante && <img src={p.escudoVisitante} alt="" style={{ width: 18, height: 18, objectFit: 'contain', flexShrink: 0 }} onError={e => { e.target.style.display = 'none' }} />}
-                          <span style={{ fontSize: 13, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.visitante}</span>
+                    {editPartidos.map((p, i) => {
+                      const esOriginal = i < editPartidosOriginales
+                      const bloqueado = esOriginal && conteoPredicciones > 0
+                      return (
+                        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: i < editPartidos.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                          {bloqueado && (
+                            <span aria-label="Partido fijo" title="No editable: ya hay predicciones" style={{ fontSize: 12, opacity: 0.7, flexShrink: 0 }}>🔒</span>
+                          )}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
+                            {p.escudoLocal && <img src={p.escudoLocal} alt="" style={{ width: 18, height: 18, objectFit: 'contain', flexShrink: 0 }} onError={e => { e.target.style.display = 'none' }} />}
+                            <span style={{ fontSize: 13, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.local}</span>
+                            <span style={{ fontSize: 11, color: 'var(--muted)', flexShrink: 0 }}>vs</span>
+                            {p.escudoVisitante && <img src={p.escudoVisitante} alt="" style={{ width: 18, height: 18, objectFit: 'contain', flexShrink: 0 }} onError={e => { e.target.style.display = 'none' }} />}
+                            <span style={{ fontSize: 13, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.visitante}</span>
+                          </div>
+                          {p.hora && <span style={{ fontSize: 11, color: 'var(--muted)', flexShrink: 0 }}>{formatFixtureDate(p.hora)}</span>}
+                          {!bloqueado && !esOriginal && (
+                            <button
+                              onClick={() => setEditPartidos(prev => prev.filter((_, idx) => idx !== i))}
+                              aria-label="Quitar partido nuevo"
+                              style={{ background: 'none', border: 'none', color: 'var(--red)', fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: '2px 6px', borderRadius: 6, flexShrink: 0 }}
+                            >
+                              Quitar ✕
+                            </button>
+                          )}
                         </div>
-                        {p.hora && <span style={{ fontSize: 11, color: 'var(--muted)', flexShrink: 0 }}>{formatFixtureDate(p.hora)}</span>}
-                      </div>
-                    ))}
+                      )
+                    })}
                     {editPartidos.length === 0 && (
                       <p style={{ fontSize: 13, color: 'var(--muted)', textAlign: 'center', padding: '1rem 0' }}>Sin partidos. Agrega desde el buscador o manualmente.</p>
                     )}
@@ -1292,6 +1646,95 @@ export default function Admin() {
           )
         })()}
       </div>
+
+      {/* Modal de confirmación de guardado de resultados */}
+      {confirmacionRes && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          onClick={() => !guardandoRes && setConfirmacionRes(null)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 1000,
+            background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(3px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem',
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: 'var(--card)', borderRadius: 'var(--radius-lg)',
+              border: '1px solid var(--border-strong)', boxShadow: 'var(--shadow-lg)',
+              maxWidth: 520, width: '100%', maxHeight: '85vh', overflowY: 'auto',
+              padding: '1.5rem',
+            }}
+          >
+            <p style={{ fontSize: 17, fontWeight: 700, color: 'var(--text-strong)', marginBottom: 4 }}>
+              Confirmar resultados
+            </p>
+            <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 16 }}>
+              Vas a guardar {confirmacionRes.items.length} resultado{confirmacionRes.items.length !== 1 ? 's' : ''}.
+              {validandoEspn ? ' Validando con ESPN…' : ''}
+            </p>
+            <div style={{ display: 'grid', gap: 8, marginBottom: 16 }}>
+              {confirmacionRes.items.map(it => {
+                const espnTexto = (it.espnLocal != null && it.espnVisitante != null)
+                  ? `${it.espnLocal}-${it.espnVisitante}`
+                  : null
+                const tuValor = it.cancelado ? 'Cancelado' : `${it.local}-${it.visitante}`
+                const divergente = !it.cancelado && espnTexto && espnTexto !== tuValor && it.espnEstado === 'post'
+                return (
+                  <div
+                    key={it.idx}
+                    style={{
+                      background: divergente ? 'var(--yellow-bg)' : 'var(--bg-soft)',
+                      border: `1px solid ${divergente ? 'var(--yellow)' : 'var(--border)'}`,
+                      borderRadius: 'var(--radius-sm)', padding: '10px 12px',
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {it.partido.local} vs {it.partido.visitante}
+                      </span>
+                      <span style={{
+                        fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 800,
+                        color: it.cancelado ? 'var(--muted)' : 'var(--green)', flexShrink: 0,
+                      }}>
+                        {tuValor}
+                      </span>
+                    </div>
+                    {divergente && (
+                      <p style={{ fontSize: 11, color: 'var(--yellow-soft)', marginTop: 6, fontWeight: 600 }}>
+                        ⚠️ ESPN reporta <strong>{espnTexto}</strong>. ¿Es correcto tu valor?
+                      </p>
+                    )}
+                    {!divergente && espnTexto && espnTexto === tuValor && (
+                      <p style={{ fontSize: 11, color: 'var(--green)', marginTop: 6 }}>
+                        ✓ Coincide con ESPN
+                      </p>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setConfirmacionRes(null)}
+                disabled={guardandoRes}
+                style={{
+                  padding: '10px 18px', borderRadius: 'var(--radius-sm)',
+                  border: '1px solid var(--border-strong)', background: 'transparent',
+                  color: 'var(--muted)', fontSize: 13, fontWeight: 600, cursor: guardandoRes ? 'not-allowed' : 'pointer',
+                }}
+              >
+                Cancelar
+              </button>
+              <button onClick={guardarResultados} disabled={guardandoRes} style={greenCtaStyle(guardandoRes)}>
+                {guardandoRes ? 'Guardando…' : 'Confirmar y guardar →'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -1301,6 +1744,8 @@ function QuinielaCard({ q, conteos, onGestionar }) {
   const cerrada = esCerradaQ(q)
   const enJuego = cerrada && !esFinalizadaQ(q)
   const n = conteos[q.id] ?? 0
+  const esTipoBote = q.tipoPremio === TIPO_PREMIO.BOTE
+  const pagosPendientes = esTipoBote ? Math.max(0, n - (q.pagados ?? []).length) : 0
 
   const badge = enJuego
     ? { label: 'Jugándose', bg: 'var(--yellow-bg)', color: 'var(--yellow)' }
@@ -1333,9 +1778,25 @@ function QuinielaCard({ q, conteos, onGestionar }) {
               ⭐ Principal
             </span>
           )}
+          {pagosPendientes > 0 && (
+            <span style={{
+              fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 'var(--radius-full)', flexShrink: 0,
+              background: 'var(--yellow-bg)', color: 'var(--yellow)',
+            }}>
+              ⏳ {pagosPendientes} pago{pagosPendientes !== 1 ? 's' : ''}
+            </span>
+          )}
         </div>
         <p style={{ fontSize: 12, color: 'var(--muted)' }}>
           {q.partidos?.length ?? 0} partidos · {n} {n === 1 ? 'participante' : 'participantes'}
+          {tienePremio(q) && (
+            <>
+              {' · '}
+              <span style={{ color: 'var(--green)', fontWeight: 700 }}>
+                💰 {formatearMXN(calcularBote(q, n))}
+              </span>
+            </>
+          )}
         </p>
       </div>
       <button onClick={() => onGestionar(q)} style={{ ...greenCtaStyle(false), whiteSpace: 'nowrap', flexShrink: 0 }}>

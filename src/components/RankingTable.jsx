@@ -1,6 +1,9 @@
 import { useState } from 'react'
-import { cierreToDate, quinielaCerrada } from '../utils/cierre'
+import { cierreToDate, quinielaCerrada, quinielaFinalizada } from '../utils/cierre'
 import { goalsToResultado, getResultado, getPickResultado, getEfectivo, calcularPuntos } from '../utils/scoring'
+import { tienePremio, calcularGanadores, formatearMXN, descripcionRegla } from '../utils/premios'
+import { normalizarNombre } from '../utils/nombres'
+import { compartirRanking } from '../utils/shareRanking'
 
 function formatFecha(value) {
   const d = cierreToDate(value)
@@ -29,6 +32,8 @@ const PAGE_SIZE = 50
 export function RankingTable({ quiniela, predicciones, liveScores = {} }) {
   const [expandido, setExpandido] = useState(new Set())
   const [visibles, setVisibles]   = useState(PAGE_SIZE)
+  const [compartiendo, setCompartiendo] = useState(false)
+  const [feedbackShare, setFeedbackShare] = useState('')
 
   const toggleExpandido = (nombre) => {
     setExpandido(prev => {
@@ -41,6 +46,7 @@ export function RankingTable({ quiniela, predicciones, liveScores = {} }) {
   const partidos   = quiniela.partidos ?? []
   const resultados = quiniela.resultados ?? {}
   const cerrada    = quinielaCerrada(quiniela)
+  const finalizada = quinielaFinalizada(quiniela)
   const enVivo     = Object.values(liveScores).some(l => l.state === 'in')
   const terminados = partidos.filter((_, i) => {
     const r = resultados[i] ?? resultados[String(i)]
@@ -50,7 +56,7 @@ export function RankingTable({ quiniela, predicciones, liveScores = {} }) {
   const hayResultados = terminados > 0 || enVivo
 
   const jugadores = predicciones
-    .map(p => ({ nombre: p.nombre, picks: p.picks, fecha: p.fecha, ...calcularPuntos(p.picks, resultados, liveScores, partidos) }))
+    .map(p => ({ nombre: normalizarNombre(p.nombre), picks: p.picks, fecha: p.fecha, ...calcularPuntos(p.picks, resultados, liveScores, partidos) }))
     .sort((a, b) =>
       b.puntos - a.puntos ||
       b.exactos - a.exactos ||
@@ -58,8 +64,19 @@ export function RankingTable({ quiniela, predicciones, liveScores = {} }) {
       (a.fecha ?? '￿').localeCompare(b.fecha ?? '￿')
     )
 
+  // Ranking olímpico: jugadores con los mismos puntos comparten posición
+  const posiciones = []
+  jugadores.forEach((j, i) => {
+    if (i === 0) { posiciones.push(1); return }
+    const prev = jugadores[i - 1]
+    posiciones.push(prev.puntos === j.puntos ? posiciones[i - 1] : i + 1)
+  })
+
   const shown     = jugadores.slice(0, visibles)
   const restantes = jugadores.length - shown.length
+
+  const conPremio = tienePremio(quiniela)
+  const { ganadores, premioPorNombre, bote } = calcularGanadores(jugadores, quiniela, jugadores.length)
 
   return (
     <>
@@ -73,6 +90,9 @@ export function RankingTable({ quiniela, predicciones, liveScores = {} }) {
           </div>
         ))}
       </div>
+
+      {/* Banner de premio */}
+      {conPremio && <PremioBanner quiniela={quiniela} bote={bote} ganadores={ganadores} finalizada={finalizada} hayResultados={hayResultados} />}
 
       {/* Stats */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, marginBottom: 16 }}>
@@ -172,7 +192,9 @@ export function RankingTable({ quiniela, predicciones, liveScores = {} }) {
           </div>
         ) : shown.map((j, i) => {
           const abierto = expandido.has(j.nombre)
-          const esLider = i === 0 && hayResultados
+          const pos = posiciones[i]
+          const esLider = pos === 1 && hayResultados
+          const medalla = pos <= 3 ? medals[pos - 1] : null
 
           return (
             <div key={j.nombre} style={{ borderBottom: i < shown.length - 1 ? '1px solid var(--border)' : 'none' }}>
@@ -186,11 +208,11 @@ export function RankingTable({ quiniela, predicciones, liveScores = {} }) {
                   transition: 'background 0.1s',
                 }}
               >
-                <span style={{ fontSize: i < 3 ? 18 : 14, fontWeight: 700, color: i < 3 ? 'var(--yellow)' : 'var(--muted)' }}>
-                  {i < 3 ? medals[i] : `${i + 1}`}
+                <span style={{ fontSize: medalla ? 18 : 14, fontWeight: 700, color: medalla ? 'var(--yellow)' : 'var(--muted)' }}>
+                  {medalla ?? `${pos}`}
                 </span>
                 <div style={{ minWidth: 0, overflow: 'hidden' }}>
-                  <span style={{ fontSize: 14, fontWeight: i === 0 ? 700 : 500, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 14, fontWeight: esLider ? 700 : 500, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 6 }}>
                     {j.nombre}
                     {cerrada && <span style={{ fontSize: 11, color: 'var(--muted)' }}>{abierto ? '▲' : '▼'}</span>}
                   </span>
@@ -202,7 +224,14 @@ export function RankingTable({ quiniela, predicciones, liveScores = {} }) {
                 </div>
                 <span style={{ fontSize: 13, color: 'var(--muted)', textAlign: 'center' }}>{j.aciertos}</span>
                 <span style={{ fontFamily: 'var(--font-display)', fontSize: 13, textAlign: 'center', color: j.exactos > 0 ? 'var(--yellow)' : 'var(--muted)', fontWeight: j.exactos > 0 ? 700 : 600 }}>{j.exactos}</span>
-                <span style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 700, textAlign: 'center', color: esLider ? 'var(--yellow)' : 'var(--green)' }}>{j.puntos}</span>
+                <div style={{ textAlign: 'center' }}>
+                  <span style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 700, color: esLider ? 'var(--yellow)' : 'var(--green)' }}>{j.puntos}</span>
+                  {premioPorNombre[j.nombre] !== undefined && (
+                    <span style={{ display: 'block', fontSize: 10, fontWeight: 800, color: 'var(--green)', marginTop: 2, whiteSpace: 'nowrap' }}>
+                      {formatearMXN(premioPorNombre[j.nombre])}
+                    </span>
+                  )}
+                </div>
               </div>
 
               {abierto && cerrada && (
@@ -275,10 +304,160 @@ export function RankingTable({ quiniela, predicciones, liveScores = {} }) {
         )}
       </div>
 
+      {jugadores.length > 0 && (
+        <>
+          <button
+            onClick={async () => {
+              if (compartiendo) return
+              setCompartiendo(true)
+              setFeedbackShare('')
+              try {
+                const res = await compartirRanking({
+                  quiniela,
+                  jugadores,
+                  premioPorNombre,
+                  bote,
+                  finalizada,
+                  enVivo,
+                  terminados,
+                  totalPartidos: partidos.length,
+                  conPremio,
+                })
+                if (res?.copiado) {
+                  setFeedbackShare('✓ Imagen copiada — pégala en WhatsApp')
+                  setTimeout(() => setFeedbackShare(''), 4000)
+                } else if (res?.descargado) {
+                  setFeedbackShare('✓ Imagen descargada — súbela a WhatsApp')
+                  setTimeout(() => setFeedbackShare(''), 4000)
+                }
+              } catch (err) {
+                console.error('Error compartiendo:', err)
+                alert('No se pudo generar la imagen. Intenta de nuevo.')
+              } finally {
+                setCompartiendo(false)
+              }
+            }}
+            disabled={compartiendo}
+            style={{
+              width: '100%', marginTop: 14, padding: '13px 16px',
+              borderRadius: 'var(--radius-md)', border: 'none',
+              background: compartiendo ? 'var(--card-light)' : '#25D366',
+              color: compartiendo ? 'var(--muted)' : '#FFFFFF',
+              fontSize: 14, fontWeight: 800, letterSpacing: 0.2,
+              cursor: compartiendo ? 'not-allowed' : 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+            }}
+          >
+            {compartiendo ? 'Generando imagen…' : '📷 Compartir ranking como imagen'}
+          </button>
+          {feedbackShare && (
+            <p style={{ fontSize: 12, color: 'var(--green)', textAlign: 'center', marginTop: 8, fontWeight: 600 }}>
+              {feedbackShare}
+            </p>
+          )}
+        </>
+      )}
+
       <p style={{ fontSize: 11, color: 'var(--muted)', textAlign: 'center', marginTop: 14, lineHeight: 1.8 }}>
         1 pt resultado correcto · +2 pts marcador exacto (máx. 3 pts por partido){'\n'}
         Empate: más exactos → más aciertos → si todo empata, gana quien envió primero · {enVivo ? '🔴 Actualizando cada 60 seg' : 'Actualización en tiempo real'}
       </p>
     </>
+  )
+}
+
+function PremioBanner({ quiniela, bote, ganadores, finalizada, hayResultados }) {
+  const medalla = (pos) => pos === 1 ? '🥇' : pos === 2 ? '🥈' : pos === 3 ? '🥉' : ''
+  const grupos = ganadores.reduce((acc, g) => {
+    (acc[g.posicion] ??= []).push(g)
+    return acc
+  }, {})
+
+  if (quiniela.boteDevuelto) {
+    return (
+      <div style={{
+        background: 'var(--neutral-bg)', border: '1px solid var(--border-strong)',
+        borderRadius: 'var(--radius-md)', padding: '14px 16px', marginBottom: 16,
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--muted)', letterSpacing: 0.4 }}>
+            💸 Bote devuelto
+          </span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
+            {formatearMXN(bote)}
+          </span>
+        </div>
+        <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6, lineHeight: 1.5 }}>
+          El organizador decidió devolver el bote a los participantes. No se reparten premios.
+        </p>
+      </div>
+    )
+  }
+
+  if (!hayResultados || ganadores.length === 0) {
+    const mensaje = !hayResultados
+      ? descripcionRegla(quiniela)
+      : finalizada
+        ? 'Sin ganadores: nadie acertó ningún partido.'
+        : 'Aún no hay puntos para definir ganadores.'
+    return (
+      <div style={{
+        background: 'linear-gradient(135deg, rgba(34,197,94,0.10), rgba(34,197,94,0.04))',
+        border: '1px solid var(--green)', borderRadius: 'var(--radius-md)',
+        padding: '14px 16px', marginBottom: 16,
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, marginBottom: 4 }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1 }}>Premio</span>
+          <span style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 800, color: 'var(--green)', letterSpacing: '-0.01em' }}>
+            {formatearMXN(bote)}
+          </span>
+        </div>
+        <p style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.5 }}>{mensaje}</p>
+      </div>
+    )
+  }
+
+  const titulo = finalizada ? '🏆 Ganadores' : '📊 Si terminara ahora'
+  return (
+    <div style={{
+      background: finalizada
+        ? 'linear-gradient(135deg, rgba(250,204,21,0.14), rgba(250,204,21,0.04))'
+        : 'linear-gradient(135deg, rgba(34,197,94,0.12), rgba(34,197,94,0.04))',
+      border: `1px solid ${finalizada ? 'var(--yellow)' : 'var(--green)'}`,
+      borderRadius: 'var(--radius-md)', padding: '14px 16px', marginBottom: 16,
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, marginBottom: 10 }}>
+        <span style={{ fontSize: 12, fontWeight: 800, color: finalizada ? 'var(--yellow)' : 'var(--green)', letterSpacing: 0.4 }}>
+          {titulo}
+        </span>
+        <span style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600 }}>
+          Bote: <span style={{ color: 'var(--text)', fontWeight: 700 }}>{formatearMXN(bote)}</span>
+        </span>
+      </div>
+      <div style={{ display: 'grid', gap: 8 }}>
+        {Object.entries(grupos).map(([pos, gs]) => (
+          <div key={pos} style={{
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10,
+            background: 'var(--card)', borderRadius: 'var(--radius-sm)', padding: '8px 12px',
+            border: '1px solid var(--border)',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
+              <span style={{ fontSize: 18, flexShrink: 0 }}>{medalla(Number(pos))}</span>
+              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {gs.map(g => g.nombre).join(', ')}
+              </span>
+            </div>
+            <span style={{ fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 800, color: 'var(--green)', whiteSpace: 'nowrap', flexShrink: 0 }}>
+              {formatearMXN(gs[0].premio)}{gs.length > 1 ? ' c/u' : ''}
+            </span>
+          </div>
+        ))}
+      </div>
+      {!finalizada && (
+        <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 8, lineHeight: 1.5 }}>
+          Premios provisionales. Pueden cambiar mientras la quiniela siga en juego.
+        </p>
+      )}
+    </div>
   )
 }

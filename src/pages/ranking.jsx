@@ -69,7 +69,7 @@ export default function Ranking() {
         })
       } catch { /* silencioso */ }
     }
-    setLiveScores(nuevos)
+    setLiveScores(prev => ({ ...prev, ...nuevos }))
     setUltimaAct(new Date())
 
     if (
@@ -109,9 +109,17 @@ export default function Ranking() {
   )
   if (error || !quiniela) return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '5rem 1.5rem', color: 'var(--muted)' }}>
-      <div>
+      <div style={{ maxWidth: 360 }}>
         <div style={{ fontSize: 52, marginBottom: 20 }}>⚠️</div>
-        <p style={{ fontSize: 18, fontWeight: 600, color: 'var(--text)' }}>No se pudo cargar el ranking</p>
+        <p style={{ fontSize: 18, fontWeight: 600, color: 'var(--text)', marginBottom: 24 }}>No se pudo cargar el ranking</p>
+        <a href="/" style={{
+          display: 'inline-block', padding: '11px 24px', borderRadius: 'var(--radius-md)',
+          background: 'linear-gradient(135deg, var(--green), var(--green-light))',
+          color: '#07120A', fontWeight: 800, fontSize: 14, textDecoration: 'none',
+          boxShadow: 'var(--shadow-green)', letterSpacing: 0.2,
+        }}>
+          ← Ver quinielas activas
+        </a>
       </div>
     </div>
   )

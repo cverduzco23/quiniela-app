@@ -3,6 +3,9 @@ import { useSearchParams } from 'react-router-dom'
 import { doc, getDoc, addDoc, collection, getDocs, query, where } from 'firebase/firestore'
 import { db } from '../firebase'
 import { cierreToDate, quinielaCerrada } from '../utils/cierre'
+import { tienePremio, descripcionRegla, calcularBote, TIPO_PREMIO, formatearMXN } from '../utils/premios'
+import { normalizarNombre } from '../utils/nombres'
+import { WhatsAppCTA } from '../components/WhatsAppCTA'
 
 function formatFecha(value) {
   const d = cierreToDate(value)
@@ -62,6 +65,8 @@ export default function Predicciones() {
   const [nombreError, setNombreError]     = useState('')
   const [mostrarResumen, setMostrarResumen] = useState(false)
   const [celebrando, setCelebrando]       = useState(false)
+  const [confirmadoRegla, setConfirmadoRegla] = useState(false)
+  const [conteoParticipantes, setConteoParticipantes] = useState(0)
 
   const visitanteRefs = useRef([])
   const progresoPrevRef = useRef(0)
@@ -78,6 +83,9 @@ export default function Predicciones() {
       })
       .catch(() => setError('error'))
       .finally(() => setCargando(false))
+    getDocs(query(collection(db, 'predicciones'), where('quinielaId', '==', quinielaId)))
+      .then(snap => setConteoParticipantes(snap.size))
+      .catch(() => {})
   }, [quinielaId])
 
   const partidos   = quiniela?.partidos ?? []
@@ -86,6 +94,7 @@ export default function Predicciones() {
   const completado = nombre.trim().length > 0 && progreso === partidos.length
 
   // Restaurar progreso desde localStorage cuando se carga la quiniela (si no está cerrada)
+  // En quinielas tipo "bote" NO restauramos confirmadoRegla — forzamos reconfirmación cada vez
   useEffect(() => {
     if (!quiniela || cerrada || restauradoRef.current || !lsKey) return
     restauradoRef.current = true
@@ -96,17 +105,20 @@ export default function Predicciones() {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       if (data?.nombre && typeof data.nombre === 'string') setNombre(data.nombre)
       if (data?.picks && typeof data.picks === 'object') setPicks(data.picks)
+      if (data?.confirmadoRegla === true && quiniela.tipoPremio !== TIPO_PREMIO.BOTE) setConfirmadoRegla(true)
     } catch { /* corrupto, ignorar */ }
   }, [quiniela, cerrada, lsKey])
 
   // Persistir progreso en localStorage en cada cambio
+  // En quinielas tipo "bote" NO persistimos confirmadoRegla
   useEffect(() => {
     if (!lsKey || enviado || cerrada || !restauradoRef.current) return
-    if (!nombre.trim() && Object.keys(picks).length === 0) return
+    if (!nombre.trim() && Object.keys(picks).length === 0 && !confirmadoRegla) return
     try {
-      localStorage.setItem(lsKey, JSON.stringify({ nombre, picks }))
+      const persistirConfirmacion = quiniela?.tipoPremio !== TIPO_PREMIO.BOTE && confirmadoRegla
+      localStorage.setItem(lsKey, JSON.stringify({ nombre, picks, confirmadoRegla: persistirConfirmacion }))
     } catch { /* sin espacio o deshabilitado */ }
-  }, [nombre, picks, lsKey, enviado, cerrada])
+  }, [nombre, picks, confirmadoRegla, lsKey, enviado, cerrada, quiniela])
 
   // Celebración al completar todos los picks (transición: < total → === total)
   useEffect(() => {
@@ -147,19 +159,21 @@ export default function Predicciones() {
     setEnviando(true)
     setNombreError('')
     try {
+      const nombreNormalizado = normalizarNombre(nombre)
       const snap = await getDocs(query(
         collection(db, 'predicciones'),
         where('quinielaId', '==', quinielaId)
       ))
-      if (snap.docs.some(d => d.data().nombre === nombre.trim())) {
-        setNombreError(`Ya hay alguien registrado como "${nombre.trim()}". Usa un nombre diferente o añade tu apellido.`)
+      const existe = snap.docs.some(d => normalizarNombre(d.data().nombre) === nombreNormalizado)
+      if (existe) {
+        setNombreError(`Ya hay alguien registrado como "${nombreNormalizado}". Usa un nombre diferente o añade tu apellido.`)
         setMostrarResumen(false)
         setEnviando(false)
         return
       }
       await addDoc(collection(db, 'predicciones'), {
         quinielaId,
-        nombre: nombre.trim(),
+        nombre: nombreNormalizado,
         picks,
         fecha: new Date().toISOString(),
       })
@@ -182,12 +196,20 @@ export default function Predicciones() {
 
   if (error) return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '5rem 1.5rem', color: 'var(--muted)' }}>
-      <div style={{ textAlign: 'center' }}>
+      <div style={{ textAlign: 'center', maxWidth: 360 }}>
         <div style={{ fontSize: 52, marginBottom: 20 }}>⚠️</div>
         <p style={{ fontSize: 18, fontWeight: 600, color: 'var(--text)', marginBottom: 8 }}>
           {error === 'not-found' ? 'Quiniela no encontrada' : 'Error de conexión'}
         </p>
-        <p style={{ fontSize: 14 }}>Contacta al organizador para obtener el enlace correcto.</p>
+        <p style={{ fontSize: 14, marginBottom: 24 }}>Contacta al organizador para obtener el enlace correcto.</p>
+        <a href="/" style={{
+          display: 'inline-block', padding: '11px 24px', borderRadius: 'var(--radius-md)',
+          background: 'linear-gradient(135deg, var(--green), var(--green-light))',
+          color: '#07120A', fontWeight: 800, fontSize: 14, textDecoration: 'none',
+          boxShadow: 'var(--shadow-green)', letterSpacing: 0.2,
+        }}>
+          ← Ver quinielas activas
+        </a>
       </div>
     </div>
   )
@@ -274,6 +296,8 @@ export default function Predicciones() {
         >
           Ver ranking →
         </a>
+
+        <WhatsAppCTA titulo="¿Quieres seguir participando?" subtitulo="Únete al grupo de WhatsApp para enterarte cuando haya nueva quiniela." />
       </div>
     </div>
   )
@@ -356,6 +380,72 @@ export default function Predicciones() {
             </a>
           </div>
 
+        ) : (tienePremio(quiniela) && !confirmadoRegla) ? (
+          /* ── Banner de premio + confirmación ─────────────────────────── */
+          <div>
+            <div style={{
+              background: 'var(--card)', borderRadius: 'var(--radius-lg)',
+              padding: '1.75rem 1.5rem', marginBottom: 14,
+              border: '1.5px solid var(--green)', boxShadow: 'var(--shadow-md)', textAlign: 'center',
+            }}>
+              <div style={{ fontSize: 40, marginBottom: 8 }}>💰</div>
+              {quiniela.tipoPremio === TIPO_PREMIO.BOTE ? (
+                <>
+                  <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1.2, marginBottom: 6 }}>
+                    Cuota para participar
+                  </p>
+                  <p style={{ fontFamily: 'var(--font-display)', fontSize: 34, fontWeight: 800, color: 'var(--green)', marginBottom: 6, letterSpacing: '-0.01em' }}>
+                    {formatearMXN(Number(quiniela.cuota) || 0)}
+                  </p>
+                  <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 4, lineHeight: 1.5 }}>
+                    Bote actual: <strong style={{ color: 'var(--text)' }}>{formatearMXN(calcularBote(quiniela, conteoParticipantes))}</strong> ({conteoParticipantes} {conteoParticipantes === 1 ? 'participante' : 'participantes'})
+                  </p>
+                  <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8, fontStyle: 'italic' }}>
+                    El bote crece {formatearMXN(Number(quiniela.cuota) || 0)} por cada nuevo participante.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1.2, marginBottom: 6 }}>
+                    Premio de esta quiniela
+                  </p>
+                  <p style={{ fontFamily: 'var(--font-display)', fontSize: 34, fontWeight: 800, color: 'var(--green)', marginBottom: 4, letterSpacing: '-0.01em' }}>
+                    {formatearMXN(calcularBote(quiniela, conteoParticipantes))}
+                  </p>
+                  <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 8 }}>
+                    Premio fijo otorgado por el organizador
+                  </p>
+                </>
+              )}
+              <div style={{
+                background: 'var(--bg-soft)', borderRadius: 'var(--radius-sm)',
+                padding: '12px 14px', marginTop: 14, marginBottom: 4,
+                border: '1px solid var(--border)', textAlign: 'left',
+              }}>
+                <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>
+                  Cómo se reparte
+                </p>
+                <p style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.5 }}>
+                  {descripcionRegla(quiniela)}
+                </p>
+              </div>
+            </div>
+            {quiniela.tipoPremio === TIPO_PREMIO.BOTE && (
+              <p style={{
+                fontSize: 12, color: 'var(--yellow-soft)', lineHeight: 1.5,
+                background: 'var(--yellow-bg)', border: '1px solid var(--yellow-soft)',
+                borderRadius: 'var(--radius-sm)', padding: '10px 12px', marginBottom: 12,
+              }}>
+                ⚠️ <strong>Realiza tu transferencia primero.</strong> Al continuar confirmas que ya transferiste — el organizador validará tu pago antes del cierre.
+              </p>
+            )}
+            <button
+              onClick={() => setConfirmadoRegla(true)}
+              style={ctaPrimary(false)}
+            >
+              {quiniela.tipoPremio === TIPO_PREMIO.BOTE ? 'Ya transferí, continuar →' : 'Entendido, continuar →'}
+            </button>
+          </div>
         ) : (
           <>
             {/* Reglas de puntos */}
