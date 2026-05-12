@@ -93,6 +93,7 @@ export function RankingTable({ quiniela, predicciones, liveScores = {} }) {
 
       {/* Banner de premio */}
       {conPremio && <PremioBanner quiniela={quiniela} bote={bote} ganadores={ganadores} finalizada={finalizada} hayResultados={hayResultados} />}
+      {!conPremio && <SinPremioBanner />}
 
       {/* Stats */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, marginBottom: 16 }}>
@@ -363,6 +364,26 @@ export function RankingTable({ quiniela, predicciones, liveScores = {} }) {
         Empate: más exactos → más aciertos → si todo empata, gana quien envió primero · {enVivo ? '🔴 Actualizando cada 60 seg' : 'Actualización en tiempo real'}
       </p>
     </>
+  )
+}
+
+function SinPremioBanner() {
+  return (
+    <div style={{
+      background: 'var(--card)', border: '1px dashed var(--border-strong)',
+      borderRadius: 'var(--radius-md)', padding: '12px 14px', marginBottom: 16,
+      display: 'flex', alignItems: 'center', gap: 12,
+    }}>
+      <span style={{ fontSize: 22, lineHeight: 1 }} aria-hidden="true">🎉</span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <p style={{ fontSize: 12, fontWeight: 800, color: 'var(--text)', letterSpacing: 0.3, marginBottom: 2 }}>
+          SOLO POR DIVERSIÓN
+        </p>
+        <p style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.5 }}>
+          Quiniela sin premio en dinero. Compite por la cima del ranking.
+        </p>
+      </div>
+    </div>
   )
 }
 

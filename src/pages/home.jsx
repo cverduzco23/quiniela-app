@@ -2,7 +2,19 @@ import { useState, useEffect } from 'react'
 import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore'
 import { db } from '../firebase'
 import { cierreToDate, quinielaCerrada, quinielaFinalizada } from '../utils/cierre'
+import { tienePremio } from '../utils/premios'
 import { WhatsAppCTA } from '../components/WhatsAppCTA'
+
+const sinPremioBadgeStyle = {
+  display: 'inline-flex', alignItems: 'center', gap: 4,
+  fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 'var(--radius-full)',
+  background: 'var(--neutral-bg)', color: 'var(--muted)', border: '1px dashed var(--border-strong)',
+  whiteSpace: 'nowrap',
+}
+
+function SinPremioBadge() {
+  return <span style={sinPremioBadgeStyle}>🎉 Solo por diversión</span>
+}
 
 const esCerrada = quinielaCerrada
 const esFinalizada = quinielaFinalizada
@@ -100,7 +112,10 @@ export default function Home() {
               boxShadow: 'var(--shadow-md)',
               border: '1px solid var(--green)',
             }}>
-              <p style={{ fontSize: 19, fontWeight: 700, color: 'var(--text-strong)', marginBottom: 10 }}>{principal.nombre}</p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+                <p style={{ fontSize: 19, fontWeight: 700, color: 'var(--text-strong)' }}>{principal.nombre}</p>
+                {!tienePremio(principal) && <SinPremioBadge />}
+              </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 20 }}>
                 <span style={{ fontSize: 13, color: 'var(--muted)' }}>
                   ⚽ {principal.partidos?.length ?? 0} partidos
@@ -138,9 +153,12 @@ export default function Home() {
               }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{q.nombre}</p>
-                  <span style={{ fontSize: 12, color: 'var(--muted)' }}>
-                    ⚽ {q.partidos?.length ?? 0} · 👥 {conteos[q.id] ?? 0}
-                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 12, color: 'var(--muted)' }}>
+                      ⚽ {q.partidos?.length ?? 0} · 👥 {conteos[q.id] ?? 0}
+                    </span>
+                    {!tienePremio(q) && <SinPremioBadge />}
+                  </div>
                 </div>
                 <div style={{ display: 'flex', gap: 14, flexShrink: 0 }}>
                   <a href={`/?q=${q.id}`} style={{ fontSize: 13, color: 'var(--green)', fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap' }}>
@@ -173,9 +191,12 @@ export default function Home() {
                     Jugándose
                   </span>
                 </div>
-                <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 14 }}>
-                  ⚽ {q.partidos?.length ?? 0} partidos · 👥 {conteos[q.id] ?? 0} {(conteos[q.id] ?? 0) === 1 ? 'participante' : 'participantes'}
-                </p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
+                  <p style={{ fontSize: 12, color: 'var(--muted)' }}>
+                    ⚽ {q.partidos?.length ?? 0} partidos · 👥 {conteos[q.id] ?? 0} {(conteos[q.id] ?? 0) === 1 ? 'participante' : 'participantes'}
+                  </p>
+                  {!tienePremio(q) && <SinPremioBadge />}
+                </div>
                 <a href={`/ranking?q=${q.id}`} style={ctaSecondary}>
                   Ver ranking completo →
                 </a>
@@ -201,9 +222,12 @@ export default function Home() {
                   Finalizada
                 </span>
               </div>
-              <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 14 }}>
-                ⚽ {ultimaFinal.partidos?.length ?? 0} partidos · 👥 {conteos[ultimaFinal.id] ?? 0} {(conteos[ultimaFinal.id] ?? 0) === 1 ? 'participante' : 'participantes'}
-              </p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
+                <p style={{ fontSize: 12, color: 'var(--muted)' }}>
+                  ⚽ {ultimaFinal.partidos?.length ?? 0} partidos · 👥 {conteos[ultimaFinal.id] ?? 0} {(conteos[ultimaFinal.id] ?? 0) === 1 ? 'participante' : 'participantes'}
+                </p>
+                {!tienePremio(ultimaFinal) && <SinPremioBadge />}
+              </div>
               <a href={`/ranking?q=${ultimaFinal.id}`} style={ctaSecondary}>
                 Ver ranking completo →
               </a>

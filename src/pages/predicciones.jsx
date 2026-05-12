@@ -448,6 +448,26 @@ export default function Predicciones() {
           </div>
         ) : (
           <>
+            {/* Banner "Solo por diversión" para quinielas sin premio */}
+            {!tienePremio(quiniela) && (
+              <div style={{
+                background: 'var(--card)', borderRadius: 'var(--radius-md)',
+                padding: '12px 14px', marginBottom: 12,
+                border: '1px dashed var(--border-strong)',
+                display: 'flex', alignItems: 'center', gap: 12,
+              }}>
+                <span style={{ fontSize: 24, lineHeight: 1 }} aria-hidden="true">🎉</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 2 }}>
+                    Solo por diversión
+                  </p>
+                  <p style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.45 }}>
+                    Esta quiniela no tiene premio en dinero ni cuota. ¡Juega por la gloria y el ranking!
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* Reglas de puntos */}
             <div style={{ display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap' }}>
               {[

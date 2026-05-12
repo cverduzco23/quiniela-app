@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { doc, onSnapshot, collection, query, where, updateDoc } from 'firebase/firestore'
 import { db } from '../firebase'
 import { getResultado } from '../utils/scoring'
+import { tienePremio } from '../utils/premios'
 import { RankingTable } from '../components/RankingTable'
 
 export default function Ranking() {
@@ -156,6 +157,16 @@ export default function Ranking() {
             {ultimaAct && Object.keys(liveScores).length > 0 && (
               <span style={{ fontSize: 11, color: 'var(--muted)' }}>
                 Actualizado {ultimaAct.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
+              </span>
+            )}
+            {!tienePremio(quiniela) && (
+              <span style={{
+                display: 'inline-flex', alignItems: 'center', gap: 4,
+                fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 'var(--radius-full)',
+                background: 'var(--neutral-bg)', color: 'var(--muted)',
+                border: '1px dashed var(--border-strong)',
+              }}>
+                🎉 Solo por diversión
               </span>
             )}
             <button
