@@ -288,8 +288,13 @@ export function RankingTable({ quiniela, predicciones, liveScores = {} }) {
         })}
 
         {!cerrada && jugadores.length > 0 && (
-          <div style={{ padding: '10px 16px', background: 'var(--yellow-bg)', borderTop: '1px solid var(--yellow-soft)', display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ fontSize: 12, color: 'var(--yellow-soft)' }}>🔒 Las predicciones de cada jugador se revelan al cierre de la quiniela</span>
+          <div style={{ padding: '10px 16px', background: 'var(--yellow-bg)', borderTop: '1px solid var(--yellow-soft)', textAlign: 'center' }}>
+            <div style={{ fontSize: 12, color: 'var(--yellow-soft)' }}>🔒 Las predicciones de cada jugador se revelan al cierre de la quiniela</div>
+            {quiniela.cierre && (
+              <div style={{ fontSize: 12, color: 'var(--yellow-soft)', fontWeight: 700, marginTop: 4 }}>
+                {formatFecha(quiniela.cierre)}
+              </div>
+            )}
           </div>
         )}
 
@@ -361,7 +366,7 @@ export function RankingTable({ quiniela, predicciones, liveScores = {} }) {
 
       <p style={{ fontSize: 11, color: 'var(--muted)', textAlign: 'center', marginTop: 14, lineHeight: 1.8 }}>
         1 pt resultado correcto · +2 pts marcador exacto (máx. 3 pts por partido){'\n'}
-        Empate: más exactos → más aciertos → si persiste, comparten posición {conPremio ? 'y se reparte el premio en partes iguales' : ''} · {enVivo ? '🔴 Actualizando cada 60 seg' : 'Actualización en tiempo real'}
+        Empate en puntos: comparten posición{conPremio ? ' y reparten el premio en partes iguales' : ''} · {enVivo ? '🔴 Actualizando cada 60 seg' : 'Actualización en tiempo real'}
       </p>
     </>
   )
