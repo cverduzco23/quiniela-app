@@ -361,7 +361,7 @@ export function RankingTable({ quiniela, predicciones, liveScores = {} }) {
 
       <p style={{ fontSize: 11, color: 'var(--muted)', textAlign: 'center', marginTop: 14, lineHeight: 1.8 }}>
         1 pt resultado correcto · +2 pts marcador exacto (máx. 3 pts por partido){'\n'}
-        Empate: más exactos → más aciertos → si todo empata, gana quien envió primero · {enVivo ? '🔴 Actualizando cada 60 seg' : 'Actualización en tiempo real'}
+        Empate: más exactos → más aciertos → si persiste, comparten posición {conPremio ? 'y se reparte el premio en partes iguales' : ''} · {enVivo ? '🔴 Actualizando cada 60 seg' : 'Actualización en tiempo real'}
       </p>
     </>
   )

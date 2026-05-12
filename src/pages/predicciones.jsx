@@ -269,20 +269,20 @@ export default function Predicciones() {
         {navigator.share ? (
           <button
             onClick={() => navigator.share?.({
-              title: `Mi quiniela — ${quiniela.nombre}`,
-              text: `Acabo de hacer mis predicciones para ${quiniela.nombre}. Únete:`,
+              title: `Quiniela ${quiniela.nombre}`,
+              text: `Te invito a participar en la quiniela "${quiniela.nombre}". Haz tus predicciones aquí:`,
               url: `${window.location.origin}/?q=${quinielaId}`,
             }).catch(() => {})}
             style={{ ...ctaPrimary(false), marginBottom: 10 }}
           >
-            Compartir mi quiniela
+            Invitar amigos a la quiniela
           </button>
         ) : (
           <button
             onClick={() => navigator.clipboard?.writeText(`${window.location.origin}/?q=${quinielaId}`).catch(() => {})}
             style={{ ...ctaPrimary(false), marginBottom: 10 }}
           >
-            Copiar enlace de la quiniela
+            Copiar enlace de invitación
           </button>
         )}
 
