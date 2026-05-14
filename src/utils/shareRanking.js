@@ -267,6 +267,7 @@ export async function generarImagenRanking({
     // Posición / medalla
     ctx.textBaseline = 'middle'
     if (medalla) {
+      ctx.fillStyle = COLORS.textStrong  // resetear tras el gradiente para que el emoji renderice en color
       ctx.font = '700 28px Inter'
       ctx.textAlign = 'center'
       ctx.fillText(medalla, colNum + 4, y + 30)
