@@ -66,7 +66,9 @@ export default function Ranking() {
           const comps = ev.competitions?.[0]?.competitors ?? []
           const home  = comps.find(c => c.homeAway === 'home')
           const away  = comps.find(c => c.homeAway === 'away')
-          nuevos[p.espnId] = { state, clock: ev.status?.displayClock ?? '', local: home?.score ?? '', visitante: away?.score ?? '' }
+          const statusName = ev.status?.type?.name ?? ''
+          const esHalftime = statusName === 'STATUS_HALFTIME'
+          nuevos[p.espnId] = { state, clock: ev.status?.displayClock ?? '', halftime: esHalftime, local: home?.score ?? '', visitante: away?.score ?? '' }
         })
       } catch { /* silencioso */ }
     }
