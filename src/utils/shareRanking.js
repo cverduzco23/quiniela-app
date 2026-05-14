@@ -215,7 +215,8 @@ export async function generarImagenRanking({
 
   const colNum = PAD + 18
   const colNom = PAD + 70
-  const colAci = W - PAD - 200
+  const colAci = W - PAD - 260
+  const colEx  = W - PAD - 180
   const colPts = W - PAD - 100
   const colPre = W - PAD - 18
 
@@ -223,6 +224,7 @@ export async function generarImagenRanking({
   ctx.fillText('JUGADOR', colNom, y + 20)
   ctx.textAlign = 'center'
   ctx.fillText('RES.', colAci, y + 20)
+  ctx.fillText('EX.', colEx, y + 20)
   ctx.fillText('PTS', colPts, y + 20)
   if (conPremio) {
     ctx.textAlign = 'right'
@@ -265,7 +267,7 @@ export async function generarImagenRanking({
     // Posición / medalla
     ctx.textBaseline = 'middle'
     if (medalla) {
-      ctx.font = '700 22px Inter'
+      ctx.font = '700 28px Inter'
       ctx.textAlign = 'center'
       ctx.fillText(medalla, colNum + 4, y + 30)
     } else {
@@ -282,11 +284,14 @@ export async function generarImagenRanking({
     const maxNombreW = (colAci - 40) - colNom
     ctx.fillText(truncate(ctx, j.nombre, maxNombreW), colNom, y + 30)
 
-    // Aciertos
+    // Aciertos (resultados correctos)
     ctx.fillStyle = COLORS.muted
     ctx.font = '600 15px Inter'
     ctx.textAlign = 'center'
     ctx.fillText(String(j.aciertos ?? 0), colAci, y + 30)
+
+    // Exactos
+    ctx.fillText(String(j.exactos ?? 0), colEx, y + 30)
 
     // Puntos
     ctx.fillStyle = esLider ? COLORS.yellow : COLORS.green
