@@ -103,7 +103,6 @@ export default function Admin() {
   const [cierre, setCierre]     = useState('')
   const [partidos, setPartidos] = useState([{ local: '', visitante: '', hora: '' }])
   const [guardando, setGuardando] = useState(false)
-  const [tipoPremio, setTipoPremio]     = useState(TIPO_PREMIO.SIN_PREMIO)
   const [premioFijo, setPremioFijo]     = useState('')
   const [cuota, setCuota]               = useState('')
   const [modeloPremio, setModeloPremio] = useState(MODELO_PREMIO.GANADOR_UNICO)
@@ -130,7 +129,6 @@ export default function Admin() {
   const [editPartidos, setEditPartidos]         = useState([])
   const [editPartidosOriginales, setEditPartidosOriginales] = useState(0)
   const [editCierre, setEditCierre]             = useState('')
-  const [editTipoPremio, setEditTipoPremio]     = useState(TIPO_PREMIO.SIN_PREMIO)
   const [editPremioFijo, setEditPremioFijo]     = useState('')
   const [editCuota, setEditCuota]               = useState('')
   const [editModeloPremio, setEditModeloPremio] = useState(MODELO_PREMIO.GANADOR_UNICO)
@@ -194,7 +192,6 @@ export default function Admin() {
     setEditPartidos([...(quinielaActual.partidos ?? [])])
     setEditPartidosOriginales((quinielaActual.partidos ?? []).length)
     setEditCierre(cierreToInputValue(quinielaActual.cierre))
-    setEditTipoPremio(quinielaActual.tipoPremio ?? TIPO_PREMIO.SIN_PREMIO)
     setEditPremioFijo(quinielaActual.premioFijo != null ? String(quinielaActual.premioFijo) : '')
     setEditCuota(quinielaActual.cuota != null ? String(quinielaActual.cuota) : '')
     setEditModeloPremio(quinielaActual.modeloPremio ?? MODELO_PREMIO.GANADOR_UNICO)
@@ -361,8 +358,7 @@ export default function Admin() {
     if ((conteoPredicciones ?? 0) > 0 && editPartidos.length < editPartidosOriginales) {
       return alert('No puedes quitar partidos existentes cuando ya hay predicciones registradas. Solo puedes agregar nuevos al final.')
     }
-    const { campos: premioFields, error } = camposPremio(editTipoPremio, editPremioFijo, editCuota, editModeloPremio)
-    if (error) return alert(error)
+    const { campos: premioFields } = camposPremio(editPremioFijo, editCuota, editModeloPremio)
     setGuardandoEdicion(true)
     try {
       const cierreTs = inputValueACierre(editCierre)
@@ -516,18 +512,18 @@ export default function Admin() {
   }
 
   // ─── Guardar nueva quiniela ───────────────────────────────────────────────
-  const camposPremio = (tipo, fijoStr, cuotaStr, modelo) => {
-    if (tipo === TIPO_PREMIO.FIJO) {
-      const n = Number(fijoStr)
-      if (!(n > 0)) return { error: 'El monto del premio fijo debe ser mayor a 0.' }
-      return { campos: { tipoPremio: tipo, premioFijo: n, cuota: null, modeloPremio: modelo } }
+  const camposPremio = (fijoStr, cuotaStr, modelo) => {
+    const fijo = Number(fijoStr) || 0
+    const cuotaNum = Number(cuotaStr) || 0
+    const tienePremio = fijo > 0 || cuotaNum > 0
+    return {
+      campos: {
+        tipoPremio: null,
+        premioFijo: fijo > 0 ? fijo : null,
+        cuota: cuotaNum > 0 ? cuotaNum : null,
+        modeloPremio: tienePremio ? modelo : null,
+      },
     }
-    if (tipo === TIPO_PREMIO.BOTE) {
-      const n = Number(cuotaStr)
-      if (!(n > 0)) return { error: 'La cuota por participante debe ser mayor a 0.' }
-      return { campos: { tipoPremio: tipo, cuota: n, premioFijo: null, modeloPremio: modelo } }
-    }
-    return { campos: { tipoPremio: TIPO_PREMIO.SIN_PREMIO, premioFijo: null, cuota: null, modeloPremio: null } }
   }
 
   const guardarNuevaQuiniela = async () => {
@@ -535,8 +531,7 @@ export default function Admin() {
     if (!cierre) return alert('La fecha y hora de cierre es obligatoria')
     if (partidos.length === 0) return alert('Agrega al menos un partido')
     if (partidos.some(p => !p.local.trim() || !p.visitante.trim())) return alert('Completa nombre de equipos en todos los partidos')
-    const { campos: premioFields, error } = camposPremio(tipoPremio, premioFijo, cuota, modeloPremio)
-    if (error) return alert(error)
+    const { campos: premioFields } = camposPremio(premioFijo, cuota, modeloPremio)
     setGuardando(true)
     try {
       const cierreTs = inputValueACierre(cierre)
@@ -554,7 +549,7 @@ export default function Admin() {
       setTab('compartir')
       cargarQuinielas()
       setNombre(''); setCierre(''); setPartidos([{ local: '', visitante: '', hora: '' }])
-      setTipoPremio(TIPO_PREMIO.SIN_PREMIO); setPremioFijo(''); setCuota(''); setModeloPremio(MODELO_PREMIO.GANADOR_UNICO)
+      setPremioFijo(''); setCuota(''); setModeloPremio(MODELO_PREMIO.GANADOR_UNICO)
       setFixtures([]); setSeleccionados([])
     } catch { alert('Error al guardar. Intenta de nuevo.') }
     finally { setGuardando(false) }
@@ -798,76 +793,40 @@ export default function Admin() {
   )
 
   // ─── Formulario de premio (reutilizable) ──────────────────────────────────
-  const renderFormularioPremio = (tipo, setTipo, fijo, setFijo, cuotaVal, setCuotaVal, modelo, setModelo) => {
-    const opcionesTipo = [
-      { val: TIPO_PREMIO.SIN_PREMIO, label: 'Sin premio',   desc: 'Quiniela gratis, solo por diversión' },
-      { val: TIPO_PREMIO.FIJO,       label: 'Premio fijo',  desc: 'Tú defines el monto del premio' },
-      { val: TIPO_PREMIO.BOTE,       label: 'Bote por cuota', desc: 'Cuota × número de participantes' },
-    ]
+  const renderFormularioPremio = (fijo, setFijo, cuotaVal, setCuotaVal, modelo, setModelo) => {
+    const tienePremioLocal = (Number(fijo) || 0) > 0 || (Number(cuotaVal) || 0) > 0
     const opcionesModelo = [
-      { val: MODELO_PREMIO.GANADOR_UNICO, label: 'Ganador único',    desc: 'Gana el 1° lugar. Si empatan, se reparten.' },
-      { val: MODELO_PREMIO.PODIO,         label: 'Podio 70/20/10',  desc: '1° lugar 70%, 2° lugar 20%, 3° lugar 10%.' },
+      { val: MODELO_PREMIO.GANADOR_UNICO, label: 'Ganador único',   desc: 'Gana el 1° lugar. Si empatan, se reparten.' },
+      { val: MODELO_PREMIO.PODIO,         label: 'Podio 70/20/10', desc: '1° lugar 70%, 2° lugar 20%, 3° lugar 10%.' },
     ]
     return (
       <div style={card}>
         <label style={lbl}>Premio</label>
-        <div style={{ display: 'grid', gap: 8, marginBottom: tipo !== TIPO_PREMIO.SIN_PREMIO ? 14 : 0 }}>
-          {opcionesTipo.map(op => {
-            const activa = tipo === op.val
-            return (
-              <button
-                key={op.val}
-                type="button"
-                onClick={() => setTipo(op.val)}
-                style={{
-                  textAlign: 'left', padding: '10px 12px', borderRadius: 'var(--radius-sm)', cursor: 'pointer',
-                  background: activa ? 'var(--green-bg)' : 'var(--bg-soft)',
-                  border: `1.5px solid ${activa ? 'var(--green)' : 'var(--border)'}`,
-                  color: 'var(--text)',
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-                  <span style={{ fontSize: 13, fontWeight: 700 }}>{op.label}</span>
-                  <span style={{
-                    width: 16, height: 16, borderRadius: '50%', flexShrink: 0,
-                    border: `2px solid ${activa ? 'var(--green)' : 'var(--border-strong)'}`,
-                    background: activa ? 'var(--green)' : 'transparent',
-                  }} />
-                </div>
-                <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>{op.desc}</p>
-              </button>
-            )
-          })}
-        </div>
-
-        {tipo === TIPO_PREMIO.FIJO && (
-          <div style={{ marginBottom: 14 }}>
-            <label htmlFor="input-premio-fijo" style={{ ...lbl, marginBottom: 6 }}>Monto del premio (MXN)</label>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: tienePremioLocal ? 14 : 0 }}>
+          <div>
+            <label style={{ ...lbl, marginBottom: 6 }}>Premio fijo (MXN)</label>
             <input
-              id="input-premio-fijo"
-              type="number" min="0" step="1" placeholder="Ej. 100"
+              type="number" min="0" step="1" placeholder="Ej. 500"
               value={fijo}
               onChange={e => setFijo(e.target.value)}
             />
+            <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>Monto garantizado, independiente de participantes.</p>
           </div>
-        )}
-
-        {tipo === TIPO_PREMIO.BOTE && (
-          <div style={{ marginBottom: 14 }}>
-            <label htmlFor="input-cuota" style={{ ...lbl, marginBottom: 6 }}>Cuota por participante (MXN)</label>
+          <div>
+            <label style={{ ...lbl, marginBottom: 6 }}>Cuota por participante (MXN)</label>
             <input
-              id="input-cuota"
               type="number" min="0" step="1" placeholder="Ej. 50"
               value={cuotaVal}
               onChange={e => setCuotaVal(e.target.value)}
             />
-            <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 6 }}>
-              El bote total se calcula automáticamente como cuota × número de participantes.
-            </p>
+            <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>Se suma al bote por cada participante que pague.</p>
           </div>
+        </div>
+        {!tienePremioLocal && (
+          <p style={{ fontSize: 11, color: 'var(--muted)' }}>Deja ambos en 0 para una quiniela gratis sin premio.</p>
         )}
 
-        {tipo !== TIPO_PREMIO.SIN_PREMIO && (
+        {tienePremioLocal && (
           <>
             <label style={lbl}>Cómo se reparte</label>
             <div style={{ display: 'grid', gap: 8 }}>
@@ -1112,7 +1071,7 @@ export default function Admin() {
               <input id="quiniela-cierre" type="datetime-local" value={cierre} onChange={e => setCierre(e.target.value)} style={{ borderColor: !cierre ? 'var(--red)' : undefined }} />
             </div>
 
-            {renderFormularioPremio(tipoPremio, setTipoPremio, premioFijo, setPremioFijo, cuota, setCuota, modeloPremio, setModeloPremio)}
+            {renderFormularioPremio(premioFijo, setPremioFijo, cuota, setCuota, modeloPremio, setModeloPremio)}
 
             {renderBuscadorFixtures(agregarSeleccionados)}
 
@@ -1388,7 +1347,7 @@ export default function Admin() {
                       <p style={{ fontSize: 14, color: 'var(--muted)' }}>Nadie ha registrado predicciones todavía.</p>
                     </div>
                   ) : (() => {
-                    const esTipoBote = quinielaActual.tipoPremio === TIPO_PREMIO.BOTE
+                    const esTipoBote = (Number(quinielaActual.cuota) > 0) || quinielaActual.tipoPremio === TIPO_PREMIO.BOTE
                     const pagados = quinielaActual.pagados ?? []
                     const pendientes = esTipoBote ? listaPredicciones.filter(p => !pagados.includes(p.id)).length : 0
                     return (
@@ -1492,7 +1451,7 @@ export default function Admin() {
                     <input id="edit-cierre" type="datetime-local" value={editCierre} onChange={e => setEditCierre(e.target.value)} style={{ borderColor: !editCierre ? 'var(--red)' : undefined }} />
                   </div>
 
-                  {renderFormularioPremio(editTipoPremio, setEditTipoPremio, editPremioFijo, setEditPremioFijo, editCuota, setEditCuota, editModeloPremio, setEditModeloPremio)}
+                  {renderFormularioPremio(editPremioFijo, setEditPremioFijo, editCuota, setEditCuota, editModeloPremio, setEditModeloPremio)}
 
                   <div style={card}>
                     <label style={{ ...lbl, marginBottom: 14 }}>Partidos</label>
@@ -1744,7 +1703,7 @@ function QuinielaCard({ q, conteos, onGestionar }) {
   const cerrada = esCerradaQ(q)
   const enJuego = cerrada && !esFinalizadaQ(q)
   const n = conteos[q.id] ?? 0
-  const esTipoBote = q.tipoPremio === TIPO_PREMIO.BOTE
+  const esTipoBote = (Number(q.cuota) > 0) || q.tipoPremio === TIPO_PREMIO.BOTE
   const pagosPendientes = esTipoBote ? Math.max(0, n - (q.pagados ?? []).length) : 0
 
   const badge = enJuego

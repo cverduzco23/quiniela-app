@@ -9,13 +9,30 @@ export const MODELO_PREMIO = {
   PODIO: 'podio',
 }
 
+function _esModeloNuevo(quiniela) {
+  // Modelo nuevo: no tiene tipoPremio (o es null/undefined)
+  return !quiniela.tipoPremio
+}
+
 export function tienePremio(quiniela) {
   if (!quiniela) return false
+  if (_esModeloNuevo(quiniela)) {
+    return (Number(quiniela.premioFijo) || 0) > 0 || (Number(quiniela.cuota) || 0) > 0
+  }
   return quiniela.tipoPremio === TIPO_PREMIO.FIJO || quiniela.tipoPremio === TIPO_PREMIO.BOTE
+}
+
+export function tieneCuota(quiniela) {
+  if (!quiniela) return false
+  if (_esModeloNuevo(quiniela)) return (Number(quiniela.cuota) || 0) > 0
+  return quiniela.tipoPremio === TIPO_PREMIO.BOTE
 }
 
 export function calcularBote(quiniela, numParticipantes) {
   if (!quiniela) return 0
+  if (_esModeloNuevo(quiniela)) {
+    return (Number(quiniela.premioFijo) || 0) + (Number(quiniela.cuota) || 0) * numParticipantes
+  }
   if (quiniela.tipoPremio === TIPO_PREMIO.FIJO) return Number(quiniela.premioFijo) || 0
   if (quiniela.tipoPremio === TIPO_PREMIO.BOTE) {
     const cuota = Number(quiniela.cuota) || 0
@@ -87,4 +104,12 @@ export function descripcionRegla(quiniela) {
   return podio
     ? 'Premio para 1°, 2° y 3° lugar (70% / 20% / 10%). Si hay empates en un nivel, se reparten esa parte.'
     : 'Gana el 1° lugar. Si hay empates en puntos, se reparten el premio en partes iguales.'
+}
+
+export function desglosePremio(quiniela, numParticipantes) {
+  if (!quiniela || !_esModeloNuevo(quiniela)) return null
+  const fijo = Number(quiniela.premioFijo) || 0
+  const cuota = Number(quiniela.cuota) || 0
+  const deCuotas = cuota * numParticipantes
+  return { fijo, cuota, deCuotas, total: fijo + deCuotas }
 }

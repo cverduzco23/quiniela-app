@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { doc, getDoc, addDoc, collection, getDocs, query, where } from 'firebase/firestore'
 import { db } from '../firebase'
 import { cierreToDate, quinielaCerrada } from '../utils/cierre'
-import { tienePremio, descripcionRegla, calcularBote, TIPO_PREMIO, formatearMXN } from '../utils/premios'
+import { tienePremio, tieneCuota, descripcionRegla, calcularBote, desglosePremio, TIPO_PREMIO, formatearMXN } from '../utils/premios'
 import { normalizarNombre } from '../utils/nombres'
 import { WhatsAppCTA } from '../components/WhatsAppCTA'
 
@@ -105,7 +105,7 @@ export default function Predicciones() {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       if (data?.nombre && typeof data.nombre === 'string') setNombre(data.nombre)
       if (data?.picks && typeof data.picks === 'object') setPicks(data.picks)
-      if (data?.confirmadoRegla === true && quiniela.tipoPremio !== TIPO_PREMIO.BOTE) setConfirmadoRegla(true)
+      if (data?.confirmadoRegla === true && !tieneCuota(quiniela)) setConfirmadoRegla(true)
     } catch { /* corrupto, ignorar */ }
   }, [quiniela, cerrada, lsKey])
 
@@ -115,7 +115,7 @@ export default function Predicciones() {
     if (!lsKey || enviado || cerrada || !restauradoRef.current) return
     if (!nombre.trim() && Object.keys(picks).length === 0 && !confirmadoRegla) return
     try {
-      const persistirConfirmacion = quiniela?.tipoPremio !== TIPO_PREMIO.BOTE && confirmadoRegla
+      const persistirConfirmacion = !tieneCuota(quiniela) && confirmadoRegla
       localStorage.setItem(lsKey, JSON.stringify({ nombre, picks, confirmadoRegla: persistirConfirmacion }))
     } catch { /* sin espacio o deshabilitado */ }
   }, [nombre, picks, confirmadoRegla, lsKey, enviado, cerrada, quiniela])
@@ -389,34 +389,58 @@ export default function Predicciones() {
               border: '1.5px solid var(--green)', boxShadow: 'var(--shadow-md)', textAlign: 'center',
             }}>
               <div style={{ fontSize: 40, marginBottom: 8 }}>💰</div>
-              {quiniela.tipoPremio === TIPO_PREMIO.BOTE ? (
-                <>
-                  <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1.2, marginBottom: 6 }}>
-                    Cuota para participar
-                  </p>
-                  <p style={{ fontFamily: 'var(--font-display)', fontSize: 34, fontWeight: 800, color: 'var(--green)', marginBottom: 6, letterSpacing: '-0.01em' }}>
-                    {formatearMXN(Number(quiniela.cuota) || 0)}
-                  </p>
-                  <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 4, lineHeight: 1.5 }}>
-                    Bote actual: <strong style={{ color: 'var(--text)' }}>{formatearMXN(calcularBote(quiniela, conteoParticipantes))}</strong> ({conteoParticipantes} {conteoParticipantes === 1 ? 'participante' : 'participantes'})
-                  </p>
-                  <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8, fontStyle: 'italic' }}>
-                    El bote crece {formatearMXN(Number(quiniela.cuota) || 0)} por cada nuevo participante.
-                  </p>
-                </>
-              ) : (
-                <>
-                  <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1.2, marginBottom: 6 }}>
-                    Premio de esta quiniela
-                  </p>
-                  <p style={{ fontFamily: 'var(--font-display)', fontSize: 34, fontWeight: 800, color: 'var(--green)', marginBottom: 4, letterSpacing: '-0.01em' }}>
-                    {formatearMXN(calcularBote(quiniela, conteoParticipantes))}
-                  </p>
-                  <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 8 }}>
-                    Premio fijo otorgado por el organizador
-                  </p>
-                </>
-              )}
+              {(() => {
+                const desglose = desglosePremio(quiniela, conteoParticipantes)
+                const boteTotal = calcularBote(quiniela, conteoParticipantes)
+                const cuotaNum = Number(quiniela.cuota) || 0
+                if (desglose) {
+                  return (
+                    <>
+                      <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1.2, marginBottom: 6 }}>
+                        {cuotaNum > 0 ? 'Cuota para participar' : 'Premio de esta quiniela'}
+                      </p>
+                      {cuotaNum > 0 && (
+                        <p style={{ fontFamily: 'var(--font-display)', fontSize: 34, fontWeight: 800, color: 'var(--green)', marginBottom: 6, letterSpacing: '-0.01em' }}>
+                          {formatearMXN(cuotaNum)}
+                        </p>
+                      )}
+                      <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 4, lineHeight: 1.5 }}>
+                        Premio total: <strong style={{ color: 'var(--text)' }}>{formatearMXN(boteTotal)}</strong> ({conteoParticipantes} {conteoParticipantes === 1 ? 'participante' : 'participantes'})
+                      </p>
+                      {desglose.fijo > 0 && desglose.cuota > 0 && (
+                        <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4, fontStyle: 'italic' }}>
+                          {formatearMXN(desglose.fijo)} fijo + {formatearMXN(desglose.deCuotas)} de cuotas
+                        </p>
+                      )}
+                      {cuotaNum > 0 && (
+                        <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8, fontStyle: 'italic' }}>
+                          El bote crece {formatearMXN(cuotaNum)} por cada nuevo participante.
+                        </p>
+                      )}
+                    </>
+                  )
+                }
+                return (
+                  <>
+                    <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1.2, marginBottom: 6 }}>
+                      {quiniela.tipoPremio === TIPO_PREMIO.BOTE ? 'Cuota para participar' : 'Premio de esta quiniela'}
+                    </p>
+                    {quiniela.tipoPremio === TIPO_PREMIO.BOTE && (
+                      <p style={{ fontFamily: 'var(--font-display)', fontSize: 34, fontWeight: 800, color: 'var(--green)', marginBottom: 6, letterSpacing: '-0.01em' }}>
+                        {formatearMXN(Number(quiniela.cuota) || 0)}
+                      </p>
+                    )}
+                    <p style={{ fontFamily: 'var(--font-display)', fontSize: quiniela.tipoPremio === TIPO_PREMIO.BOTE ? 20 : 34, fontWeight: 800, color: 'var(--green)', marginBottom: 4, letterSpacing: '-0.01em' }}>
+                      {formatearMXN(boteTotal)}
+                    </p>
+                    <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 8 }}>
+                      {quiniela.tipoPremio === TIPO_PREMIO.BOTE
+                        ? `Bote actual (${conteoParticipantes} ${conteoParticipantes === 1 ? 'participante' : 'participantes'})`
+                        : 'Premio fijo otorgado por el organizador'}
+                    </p>
+                  </>
+                )
+              })()}
               <div style={{
                 background: 'var(--bg-soft)', borderRadius: 'var(--radius-sm)',
                 padding: '12px 14px', marginTop: 14, marginBottom: 4,
@@ -430,7 +454,7 @@ export default function Predicciones() {
                 </p>
               </div>
             </div>
-            {quiniela.tipoPremio === TIPO_PREMIO.BOTE && (
+            {tieneCuota(quiniela) && (
               <p style={{
                 fontSize: 12, color: 'var(--yellow-soft)', lineHeight: 1.5,
                 background: 'var(--yellow-bg)', border: '1px solid var(--yellow-soft)',
@@ -443,7 +467,7 @@ export default function Predicciones() {
               onClick={() => setConfirmadoRegla(true)}
               style={ctaPrimary(false)}
             >
-              {quiniela.tipoPremio === TIPO_PREMIO.BOTE ? 'Ya transferí, continuar →' : 'Entendido, continuar →'}
+              {tieneCuota(quiniela) ? 'Ya transferí, continuar →' : 'Entendido, continuar →'}
             </button>
           </div>
         ) : (
