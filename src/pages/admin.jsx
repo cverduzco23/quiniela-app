@@ -4,6 +4,7 @@ import { signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebas
 import { db, auth } from '../firebase'
 import { cierreToDate, cierreToInputValue, inputValueACierre, quinielaCerrada, quinielaFinalizada, resultadosCompletos } from '../utils/cierre'
 import { TIPO_PREMIO, MODELO_PREMIO, calcularBote, tienePremio, formatearMXN } from '../utils/premios'
+import { normalizarNombre } from '../utils/nombres'
 
 const LIGAS = [
   { id: 'mex.1',              nombre: '🇲🇽 Liga MX' },
@@ -15,6 +16,7 @@ const LIGAS = [
   { id: 'ita.1',              nombre: '🇮🇹 Serie A' },
   { id: 'ger.1',              nombre: '🇩🇪 Bundesliga' },
   { id: 'usa.1',              nombre: '🇺🇸 MLS' },
+  { id: 'fifa.friendly',     nombre: '🌐 Amistosos Internacionales' },
 ]
 
 function goalsToResultado(local, visitante) {
@@ -88,7 +90,9 @@ export default function Admin() {
     }
   }
 
-  const salir = () => signOut(auth)
+  const salir = () => {
+    if (window.confirm('¿Seguro que quieres cerrar sesión?')) signOut(auth)
+  }
 
   // ─── Estado principal ─────────────────────────────────────────────────────
   const [vista, setVista]                 = useState('lista')
@@ -152,6 +156,16 @@ export default function Admin() {
   // ─── Compartir ───────────────────────────────────────────────────────────
   const [copiado, setCopiado] = useState(null)
 
+  // ─── Caja ─────────────────────────────────────────────────────────────────
+  const [cajaNombre, setCajaNombre]                 = useState(null)
+  const [movimientos, setMovimientos]               = useState([])
+  const [loadingMovimientos, setLoadingMovimientos] = useState(false)
+  const [nuevoTipo, setNuevoTipo]                   = useState('premio')
+  const [nuevoMonto, setNuevoMonto]                 = useState('')
+  const [nuevaNota, setNuevaNota]                   = useState('')
+  const [guardandoMov, setGuardandoMov]             = useState(false)
+  const [buscarNombreCaja, setBuscarNombreCaja]     = useState('')
+
   // Declarado antes de los useEffects que lo usan para evitar la zona muerta temporal
   const cargarQuinielas = async () => {
     setLoadingLista(true)
@@ -202,6 +216,19 @@ export default function Admin() {
       .catch(() => setConteoPredicciones(0))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, quinielaActual?.id])
+
+  // ─── Caja: carga ─────────────────────────────────────────────────────────
+  const cargarMovimientos = async () => {
+    setLoadingMovimientos(true)
+    try {
+      const snap = await getDocs(query(collection(db, 'movimientos'), orderBy('fecha', 'desc')))
+      setMovimientos(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+    } catch { /* silent */ }
+    finally { setLoadingMovimientos(false) }
+  }
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { if (autenticado && authListo && vista === 'caja') cargarMovimientos() }, [autenticado, authListo, vista])
 
   // ─── CRUD partidos ────────────────────────────────────────────────────────
   const actualizarPartido = (i, campo, valor) =>
@@ -735,6 +762,39 @@ export default function Admin() {
     setSincronizando(false)
   }
 
+  // ─── Caja: guardar / eliminar ─────────────────────────────────────────────
+  const guardarMovimiento = async () => {
+    if (!cajaNombre || !nuevoMonto || Number(nuevoMonto) <= 0) return
+    setGuardandoMov(true)
+    try {
+      const datos = {
+        nombre: cajaNombre,
+        tipo: nuevoTipo,
+        monto: Number(nuevoMonto),
+        nota: nuevaNota.trim(),
+        fecha: new Date().toISOString(),
+      }
+      const ref = await addDoc(collection(db, 'movimientos'), datos)
+      setMovimientos(prev => [{ id: ref.id, ...datos }, ...prev])
+      setNuevoMonto('')
+      setNuevaNota('')
+    } catch {
+      alert('Error al guardar. Intenta de nuevo.')
+    } finally {
+      setGuardandoMov(false)
+    }
+  }
+
+  const eliminarMovimiento = async (mov) => {
+    if (!window.confirm('¿Eliminar este movimiento?')) return
+    try {
+      await deleteDoc(doc(db, 'movimientos', mov.id))
+      setMovimientos(prev => prev.filter(m => m.id !== mov.id))
+    } catch {
+      alert('Error al eliminar.')
+    }
+  }
+
   // ─── Compartir ────────────────────────────────────────────────────────────
   const linkJugadores = quinielaActual ? `${window.location.origin}/?q=${quinielaActual.id}` : ''
   const linkRanking   = quinielaActual ? `${window.location.origin}/ranking?q=${quinielaActual.id}` : ''
@@ -750,6 +810,24 @@ export default function Admin() {
   const quinielasCerradas    = quinielas.filter(q => esCerradaQ(q))
   const quinielasEnJuego     = quinielasCerradas.filter(q => !esFinalizadaQ(q))
   const quinielasFinalizadas = quinielasCerradas.filter(q => esFinalizadaQ(q))
+
+  // ─── Caja helpers ────────────────────────────────────────────────────────
+  const movimientosPorNombre = {}
+  movimientos.forEach(m => {
+    if (!movimientosPorNombre[m.nombre]) movimientosPorNombre[m.nombre] = []
+    movimientosPorNombre[m.nombre].push(m)
+  })
+  const saldos = Object.entries(movimientosPorNombre)
+    .map(([nombre, movs]) => ({
+      nombre,
+      saldo: movs.reduce((acc, m) => acc + ((m.tipo === 'premio' || m.tipo === 'deposito') ? m.monto : -m.monto), 0),
+    }))
+    .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es-MX'))
+  const movimientosParticipante = cajaNombre ? movimientos.filter(m => m.nombre === cajaNombre) : []
+  const saldoParticipante = movimientosParticipante.reduce(
+    (acc, m) => acc + ((m.tipo === 'premio' || m.tipo === 'deposito') ? m.monto : -m.monto),
+    0
+  )
 
   // ─── Login ────────────────────────────────────────────────────────────────
   if (!authListo) return (
@@ -976,10 +1054,20 @@ export default function Admin() {
           <div style={{ display: 'flex', gap: 8 }}>
             {vista !== 'lista' && (
               <button
-                onClick={() => { setVista('lista'); setQuinielaActual(null); setFixtures([]); setSeleccionados([]) }}
+                onClick={() => {
+                  if (vista === 'caja' && cajaNombre !== null) {
+                    setCajaNombre(null)
+                  } else {
+                    setVista('lista')
+                    setQuinielaActual(null)
+                    setFixtures([])
+                    setSeleccionados([])
+                    setCajaNombre(null)
+                  }
+                }}
                 style={{ background: 'var(--neutral-bg)', border: '1px solid var(--border)', color: 'var(--text)', padding: '7px 14px', borderRadius: 'var(--radius-sm)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
               >
-                ← Lista
+                {vista === 'caja' && cajaNombre !== null ? '← Caja' : '← Lista'}
               </button>
             )}
             <button
@@ -999,9 +1087,17 @@ export default function Admin() {
           <>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
               <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)' }}>Tus quinielas</span>
-              <button onClick={() => setVista('nueva')} style={{ ...greenCtaStyle(false), padding: '9px 18px' }}>
-                + Nueva quiniela
-              </button>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  onClick={() => setVista('caja')}
+                  style={{ background: 'var(--neutral-bg)', border: '1px solid var(--border)', color: 'var(--text)', padding: '7px 14px', borderRadius: 'var(--radius-sm)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+                >
+                  💰 Caja
+                </button>
+                <button onClick={() => setVista('nueva')} style={{ ...greenCtaStyle(false), padding: '9px 18px' }}>
+                  + Nueva quiniela
+                </button>
+              </div>
             </div>
 
             {loadingLista ? (
@@ -1048,6 +1144,193 @@ export default function Admin() {
                       <QuinielaCard key={q.id} q={q} conteos={conteos} onGestionar={gestionarQuiniela} />
                     ))}
                   </>
+                )}
+              </>
+            )}
+          </>
+        )}
+
+        {/* ── Vista: Caja ─────────────────────────────────────────────────── */}
+        {vista === 'caja' && (
+          <>
+            {cajaNombre === null ? (
+              // ── Lista de saldos ──────────────────────────────────────────
+              <>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                  <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)' }}>Caja</span>
+                </div>
+
+                <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+                  <input
+                    type="text"
+                    placeholder="Nombre del participante…"
+                    value={buscarNombreCaja}
+                    onChange={e => setBuscarNombreCaja(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' && buscarNombreCaja.trim()) {
+                        setCajaNombre(normalizarNombre(buscarNombreCaja.trim()))
+                        setBuscarNombreCaja('')
+                      }
+                    }}
+                    style={{ flex: 1 }}
+                  />
+                  <button
+                    onClick={() => {
+                      if (buscarNombreCaja.trim()) {
+                        setCajaNombre(normalizarNombre(buscarNombreCaja.trim()))
+                        setBuscarNombreCaja('')
+                      }
+                    }}
+                    disabled={!buscarNombreCaja.trim()}
+                    style={{ ...greenCtaStyle(!buscarNombreCaja.trim()), padding: '9px 16px', whiteSpace: 'nowrap' }}
+                  >
+                    Ver →
+                  </button>
+                </div>
+
+                {loadingMovimientos ? (
+                  <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--muted)', fontSize: 14 }}>Cargando…</div>
+                ) : saldos.length === 0 ? (
+                  <div style={{ ...card, textAlign: 'center', padding: '3rem 2rem' }}>
+                    <div style={{ fontSize: 48, marginBottom: 16 }}>💰</div>
+                    <p style={{ fontWeight: 600, fontSize: 16, color: 'var(--text)', marginBottom: 8 }}>Sin movimientos todavía</p>
+                    <p style={{ fontSize: 13, color: 'var(--muted)' }}>Busca un participante arriba para registrar su primer movimiento.</p>
+                  </div>
+                ) : (
+                  saldos.map(({ nombre, saldo }) => (
+                    <div
+                      key={nombre}
+                      onClick={() => setCajaNombre(nombre)}
+                      style={{
+                        ...card, cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+                      }}
+                    >
+                      <span style={{ fontWeight: 600, fontSize: 14, color: 'var(--text)' }}>{nombre}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <span style={{
+                          fontSize: 14, fontWeight: 700,
+                          color: saldo > 0 ? 'var(--green)' : saldo === 0 ? 'var(--muted)' : 'var(--red)',
+                        }}>
+                          {saldo >= 0 ? '+' : ''}{formatearMXN(saldo)}
+                        </span>
+                        <span style={{ fontSize: 12, color: 'var(--muted)' }}>→</span>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </>
+            ) : (
+              // ── Detalle de participante ──────────────────────────────────
+              <>
+                <div style={{ marginBottom: 16 }}>
+                  <p style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>{cajaNombre}</p>
+                  <p style={{
+                    fontSize: 13, fontWeight: 700, marginTop: 2,
+                    color: saldoParticipante > 0 ? 'var(--green)' : saldoParticipante === 0 ? 'var(--muted)' : 'var(--red)',
+                  }}>
+                    Saldo: {saldoParticipante >= 0 ? '+' : ''}{formatearMXN(saldoParticipante)}
+                  </p>
+                </div>
+
+                <div style={card}>
+                  <label style={lbl}>Registrar movimiento</label>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 12 }}>
+                    {[
+                      { val: 'premio',      label: 'Premio',      signo: '+' },
+                      { val: 'deposito',    label: 'Depósito',    signo: '+' },
+                      { val: 'inscripcion', label: 'Inscripción', signo: '-' },
+                      { val: 'retiro',      label: 'Retiro',      signo: '-' },
+                    ].map(op => {
+                      const activo = nuevoTipo === op.val
+                      const esPos = op.signo === '+'
+                      return (
+                        <button
+                          key={op.val}
+                          onClick={() => setNuevoTipo(op.val)}
+                          style={{
+                            padding: '8px', borderRadius: 'var(--radius-sm)', cursor: 'pointer',
+                            background: activo ? (esPos ? 'var(--green-bg)' : 'var(--red-bg)') : 'var(--bg-soft)',
+                            border: `1.5px solid ${activo ? (esPos ? 'var(--green)' : 'var(--red)') : 'var(--border)'}`,
+                            color: activo ? (esPos ? 'var(--green)' : 'var(--red)') : 'var(--muted)',
+                            fontSize: 13, fontWeight: 700,
+                          }}
+                        >
+                          {op.signo} {op.label}
+                        </button>
+                      )
+                    })}
+                  </div>
+
+                  <label style={{ ...lbl, marginBottom: 6 }}>Monto (MXN)</label>
+                  <input
+                    type="number" min="1" step="1" placeholder="Ej. 100"
+                    value={nuevoMonto}
+                    onChange={e => setNuevoMonto(e.target.value)}
+                    style={{ marginBottom: 10 }}
+                  />
+
+                  <label style={{ ...lbl, marginBottom: 6 }}>Nota (opcional)</label>
+                  <input
+                    type="text" placeholder="Ej. Quiniela Semis"
+                    value={nuevaNota}
+                    onChange={e => setNuevaNota(e.target.value)}
+                    style={{ marginBottom: 14 }}
+                  />
+
+                  <button
+                    onClick={guardarMovimiento}
+                    disabled={guardandoMov || !nuevoMonto || Number(nuevoMonto) <= 0}
+                    style={greenCtaStyle(guardandoMov || !nuevoMonto || Number(nuevoMonto) <= 0)}
+                  >
+                    {guardandoMov ? 'Guardando…' : 'Guardar movimiento →'}
+                  </button>
+                </div>
+
+                {movimientosParticipante.length === 0 ? (
+                  <p style={{ textAlign: 'center', color: 'var(--muted)', fontSize: 13, padding: '1.5rem' }}>
+                    Sin movimientos registrados todavía.
+                  </p>
+                ) : (
+                  <div style={card}>
+                    <label style={lbl}>Historial</label>
+                    {movimientosParticipante.map((m, i) => {
+                      const esPos = m.tipo === 'premio' || m.tipo === 'deposito'
+                      const tipoLabel = { premio: 'Premio', deposito: 'Depósito', inscripcion: 'Inscripción', retiro: 'Retiro' }[m.tipo] ?? m.tipo
+                      return (
+                        <div key={m.id} style={{
+                          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+                          paddingTop: i === 0 ? 0 : 10, paddingBottom: 10,
+                          borderBottom: i < movimientosParticipante.length - 1 ? '1px solid var(--border)' : 'none',
+                        }}>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
+                              {tipoLabel}{m.nota ? ` · ${m.nota}` : ''}
+                            </p>
+                            <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
+                              {new Date(m.fecha).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' })}
+                            </p>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: esPos ? 'var(--green)' : 'var(--red)' }}>
+                              {esPos ? '+' : '-'}{formatearMXN(m.monto)}
+                            </span>
+                            <button
+                              onClick={() => eliminarMovimiento(m)}
+                              style={{
+                                background: 'transparent', border: 'none', cursor: 'pointer',
+                                fontSize: 16, color: 'var(--muted)', padding: '2px 4px', borderRadius: 4, lineHeight: 1,
+                              }}
+                              title="Eliminar"
+                            >
+                              ×
+                            </button>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
                 )}
               </>
             )}
