@@ -142,13 +142,15 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
             const tieneStats = !!p.espnId
             const partidoAbierto = expandidoPartido.has(i)
             const st = liveStats[p.espnId]
-            const sinStats = !st || st.state === 'pre'
-            const posH = sinStats ? 50 : parseFloat(st.home.posesion) || 50
+            const hayStats = !!st && st.state !== 'pre'
+            const hayResumen = tieneStats && (esFinish || !!stored) && !cancelado
+            const tieneAlgo = hayStats || hayResumen
+            const posH = hayStats ? parseFloat(st.home.posesion) || 50 : 50
             return (
               <div
                 key={i}
-                onClick={tieneStats ? () => togglePartido(i) : undefined}
-                style={{ borderBottom: i < partidos.length - 1 ? '1px solid var(--border)' : 'none', background: esVivo ? 'rgba(250,204,21,0.06)' : 'transparent', cursor: tieneStats ? 'pointer' : 'default' }}
+                onClick={tieneAlgo ? () => togglePartido(i) : undefined}
+                style={{ borderBottom: i < partidos.length - 1 ? '1px solid var(--border)' : 'none', background: esVivo ? 'rgba(250,204,21,0.06)' : 'transparent', cursor: tieneAlgo ? 'pointer' : 'default' }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: p.hora ? '9px 16px 2px' : '11px 16px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 5, flex: 1, minWidth: 0 }}>
@@ -176,7 +178,7 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                     ) : (
                       <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 'var(--radius-full)', background: 'var(--neutral-bg)', color: 'var(--muted)' }}>Pendiente</span>
                     )}
-                    {tieneStats && (
+                    {tieneAlgo && (
                       <span style={{ display: 'block', fontSize: 10, color: 'var(--muted)', marginTop: 4 }}>
                         📊 {partidoAbierto ? '▲' : '▼'}
                       </span>
@@ -186,13 +188,10 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                 {p.hora && <p style={{ fontSize: 10, color: 'var(--muted)', padding: '0 16px 8px', margin: 0 }}>{formatFecha(p.hora)}</p>}
 
                 {/* Panel de estadísticas */}
-                {tieneStats && partidoAbierto && (
+                {tieneAlgo && partidoAbierto && (
                   <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg-soft)', borderTop: '1px solid var(--border)', padding: '12px 16px' }}>
-                    {sinStats ? (
-                      <p style={{ fontSize: 12, color: 'var(--muted)', textAlign: 'center', margin: 0 }}>Sin estadísticas aún</p>
-                    ) : (
+                    {hayStats && (
                       <>
-                        {/* Posesión */}
                         <div style={{ marginBottom: 10 }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
                             <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--green)' }}>{st.home.posesion}%</span>
@@ -216,12 +215,16 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                             <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', width: 36 }}>{a}</span>
                           </div>
                         ))}
-                        {(esFinish || stored) && !esVivo && !cancelado && (
-                          <a href={`https://www.espn.com/soccer/match/_/gameId/${p.espnId}`} target="_blank" rel="noreferrer" style={{ display: 'block', fontSize: 11, color: 'var(--muted)', textDecoration: 'none', textAlign: 'center', marginTop: 10 }}>
-                            Ver resumen completo en ESPN →
-                          </a>
-                        )}
                       </>
+                    )}
+                    {hayResumen && (
+                      <a
+                        href={`https://www.espn.com/soccer/match/_/gameId/${p.espnId}`}
+                        target="_blank" rel="noreferrer"
+                        style={{ display: 'block', fontSize: 11, color: 'var(--muted)', textDecoration: 'none', textAlign: 'center', marginTop: hayStats ? 10 : 0 }}
+                      >
+                        Ver resumen completo en ESPN →
+                      </a>
                     )}
                   </div>
                 )}
