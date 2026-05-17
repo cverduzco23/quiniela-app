@@ -15,6 +15,7 @@ export default function Ranking() {
   const [cargando, setCargando]         = useState(true)
   const [error, setError]               = useState(null)
   const [liveScores, setLiveScores]     = useState({})
+  const [liveStats, setLiveStats]       = useState({})
   const [ultimaAct, setUltimaAct]       = useState(null)
   const [actualizando, setActualizando] = useState(false)
 
@@ -53,7 +54,9 @@ export default function Ranking() {
       if (!porLiga[p.ligaId]) porLiga[p.ligaId] = []
       porLiga[p.ligaId].push(p)
     })
+    const getStat = (stats, name) => stats?.find(s => s.name === name)?.displayValue ?? '—'
     const nuevos = {}
+    const nuevosStats = {}
     for (const [liga, ps] of Object.entries(porLiga)) {
       try {
         const r = await fetch(`https://site.api.espn.com/apis/site/v2/sports/soccer/${liga}/scoreboard`)
@@ -69,10 +72,32 @@ export default function Ranking() {
           const statusName = ev.status?.type?.name ?? ''
           const esHalftime = statusName === 'STATUS_HALFTIME'
           nuevos[p.espnId] = { state, clock: ev.status?.displayClock ?? '', halftime: esHalftime, local: home?.score ?? '', visitante: away?.score ?? '' }
+          nuevosStats[p.espnId] = {
+            state,
+            home: {
+              nombre:       home?.team?.displayName ?? p.local,
+              logo:         home?.team?.logo ?? '',
+              posesion:     getStat(home?.statistics, 'possessionPct'),
+              tirosArco:    getStat(home?.statistics, 'shotsOnTarget'),
+              tirosTotales: getStat(home?.statistics, 'totalShots'),
+              corners:      getStat(home?.statistics, 'wonCorners'),
+              faltas:       getStat(home?.statistics, 'foulsCommitted'),
+            },
+            away: {
+              nombre:       away?.team?.displayName ?? p.visitante,
+              logo:         away?.team?.logo ?? '',
+              posesion:     getStat(away?.statistics, 'possessionPct'),
+              tirosArco:    getStat(away?.statistics, 'shotsOnTarget'),
+              tirosTotales: getStat(away?.statistics, 'totalShots'),
+              corners:      getStat(away?.statistics, 'wonCorners'),
+              faltas:       getStat(away?.statistics, 'foulsCommitted'),
+            },
+          }
         })
       } catch { /* silencioso */ }
     }
     setLiveScores(prev => ({ ...prev, ...nuevos }))
+    setLiveStats(prev => ({ ...prev, ...nuevosStats }))
     setUltimaAct(new Date())
 
     if (
@@ -189,7 +214,7 @@ export default function Ranking() {
       </div>
 
       <div style={{ maxWidth: 560, margin: '0 auto', padding: '1.25rem 1rem 3rem' }}>
-        <RankingTable quiniela={quiniela} predicciones={predicciones} liveScores={liveScores} />
+        <RankingTable quiniela={quiniela} predicciones={predicciones} liveScores={liveScores} liveStats={liveStats} />
       </div>
     </div>
   )

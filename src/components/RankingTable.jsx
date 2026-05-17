@@ -29,9 +29,10 @@ const resultColor = {
 const resultLabel = { home: 'Local', draw: 'Empate', away: 'Visitante' }
 const PAGE_SIZE = 50
 
-export function RankingTable({ quiniela, predicciones, liveScores = {} }) {
-  const [expandido, setExpandido] = useState(new Set())
-  const [visibles, setVisibles]   = useState(PAGE_SIZE)
+export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStats = {} }) {
+  const [expandido, setExpandido]               = useState(new Set())
+  const [expandidoPartido, setExpandidoPartido] = useState(new Set())
+  const [visibles, setVisibles]                 = useState(PAGE_SIZE)
   const [compartiendo, setCompartiendo] = useState(false)
   const [feedbackShare, setFeedbackShare] = useState('')
 
@@ -39,6 +40,14 @@ export function RankingTable({ quiniela, predicciones, liveScores = {} }) {
     setExpandido(prev => {
       const s = new Set(prev)
       s.has(nombre) ? s.delete(nombre) : s.add(nombre)
+      return s
+    })
+  }
+
+  const togglePartido = (idx) => {
+    setExpandidoPartido(prev => {
+      const s = new Set(prev)
+      s.has(idx) ? s.delete(idx) : s.add(idx)
       return s
     })
   }
@@ -130,8 +139,17 @@ export function RankingTable({ quiniela, predicciones, liveScores = {} }) {
               scoreLocal = stored.local ?? '–'; scoreVisitante = stored.visitante ?? '–'
               resDisplay = getResultado(stored)
             }
+            const tieneStats = !!p.espnId
+            const partidoAbierto = expandidoPartido.has(i)
+            const st = liveStats[p.espnId]
+            const sinStats = !st || st.state === 'pre'
+            const posH = sinStats ? 50 : parseFloat(st.home.posesion) || 50
             return (
-              <div key={i} style={{ borderBottom: i < partidos.length - 1 ? '1px solid var(--border)' : 'none', background: esVivo ? 'rgba(250,204,21,0.06)' : 'transparent' }}>
+              <div
+                key={i}
+                onClick={tieneStats ? () => togglePartido(i) : undefined}
+                style={{ borderBottom: i < partidos.length - 1 ? '1px solid var(--border)' : 'none', background: esVivo ? 'rgba(250,204,21,0.06)' : 'transparent', cursor: tieneStats ? 'pointer' : 'default' }}
+              >
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: p.hora ? '9px 16px 2px' : '11px 16px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 5, flex: 1, minWidth: 0 }}>
                     {p.escudoLocal && <img src={p.escudoLocal} alt="" style={{ width: 20, height: 20, objectFit: 'contain', flexShrink: 0 }} onError={e => { e.target.style.display = 'none' }} />}
@@ -158,14 +176,55 @@ export function RankingTable({ quiniela, predicciones, liveScores = {} }) {
                     ) : (
                       <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 'var(--radius-full)', background: 'var(--neutral-bg)', color: 'var(--muted)' }}>Pendiente</span>
                     )}
-                    {(esFinish || stored) && !esVivo && !cancelado && p.espnId && (
-                      <a href={`https://www.espn.com/soccer/match/_/gameId/${p.espnId}`} target="_blank" rel="noreferrer" style={{ display: 'block', fontSize: 10, color: 'var(--muted)', textDecoration: 'none', marginTop: 4 }}>
-                        Ver resumen →
-                      </a>
+                    {tieneStats && (
+                      <span style={{ display: 'block', fontSize: 10, color: 'var(--muted)', marginTop: 4 }}>
+                        📊 {partidoAbierto ? '▲' : '▼'}
+                      </span>
                     )}
                   </div>
                 </div>
                 {p.hora && <p style={{ fontSize: 10, color: 'var(--muted)', padding: '0 16px 8px', margin: 0 }}>{formatFecha(p.hora)}</p>}
+
+                {/* Panel de estadísticas */}
+                {tieneStats && partidoAbierto && (
+                  <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg-soft)', borderTop: '1px solid var(--border)', padding: '12px 16px' }}>
+                    {sinStats ? (
+                      <p style={{ fontSize: 12, color: 'var(--muted)', textAlign: 'center', margin: 0 }}>Sin estadísticas aún</p>
+                    ) : (
+                      <>
+                        {/* Posesión */}
+                        <div style={{ marginBottom: 10 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
+                            <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--green)' }}>{st.home.posesion}%</span>
+                            <span style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Posesión</span>
+                            <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--yellow)' }}>{st.away.posesion}%</span>
+                          </div>
+                          <div style={{ display: 'flex', height: 6, borderRadius: 3, overflow: 'hidden' }}>
+                            <div style={{ width: `${posH}%`, background: 'var(--green)', transition: 'width 0.4s' }} />
+                            <div style={{ flex: 1, background: 'var(--yellow-soft)' }} />
+                          </div>
+                        </div>
+                        {[
+                          { label: 'Tiros al arco',  h: st.home.tirosArco,    a: st.away.tirosArco    },
+                          { label: 'Tiros totales',  h: st.home.tirosTotales, a: st.away.tirosTotales },
+                          { label: 'Corners',        h: st.home.corners,      a: st.away.corners      },
+                          { label: 'Faltas',         h: st.home.faltas,       a: st.away.faltas       },
+                        ].map(({ label, h, a }) => (
+                          <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0', borderTop: '1px solid var(--border)' }}>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', width: 36, textAlign: 'right' }}>{h}</span>
+                            <span style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.5, flex: 1, textAlign: 'center' }}>{label}</span>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', width: 36 }}>{a}</span>
+                          </div>
+                        ))}
+                        {(esFinish || stored) && !esVivo && !cancelado && (
+                          <a href={`https://www.espn.com/soccer/match/_/gameId/${p.espnId}`} target="_blank" rel="noreferrer" style={{ display: 'block', fontSize: 11, color: 'var(--muted)', textDecoration: 'none', textAlign: 'center', marginTop: 10 }}>
+                            Ver resumen completo en ESPN →
+                          </a>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
             )
           })}
