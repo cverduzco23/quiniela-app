@@ -75,8 +75,8 @@ export default function Home() {
   const ultimaFinal   = cerradas
     .filter(q => esFinalizada(q))
     .sort((a, b) => {
-      const tB = cierreToDate(b.cierre)?.getTime() ?? new Date(b.creada).getTime() ?? 0
-      const tA = cierreToDate(a.cierre)?.getTime() ?? new Date(a.creada).getTime() ?? 0
+      const tB = (b.finalizadaEn ? new Date(b.finalizadaEn).getTime() : null) ?? cierreToDate(b.cierre)?.getTime() ?? 0
+      const tA = (a.finalizadaEn ? new Date(a.finalizadaEn).getTime() : null) ?? cierreToDate(a.cierre)?.getTime() ?? 0
       return tB - tA
     })[0] ?? null
   const principal     = activas.find(q => q.destacada) ?? activas[0] ?? null

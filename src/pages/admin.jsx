@@ -680,7 +680,7 @@ export default function Admin() {
         }
       })
       const completos = resultadosCompletos({ partidos: quinielaActual.partidos, resultados: resGuardar })
-      const patch = completos ? { resultados: resGuardar, finalizada: true } : { resultados: resGuardar }
+      const patch = completos ? { resultados: resGuardar, finalizada: true, finalizadaEn: new Date().toISOString() } : { resultados: resGuardar }
       await updateDoc(doc(db, 'quinielas', quinielaActual.id), patch)
       setGuardadoRes(true)
       setTimeout(() => setGuardadoRes(false), 3000)
@@ -746,7 +746,7 @@ export default function Admin() {
     if (actualizados > 0) {
       try {
         const completos = resultadosCompletos({ partidos: quinielaActual.partidos, resultados: resGuardar })
-        const patch = completos ? { resultados: resGuardar, finalizada: true } : { resultados: resGuardar }
+        const patch = completos ? { resultados: resGuardar, finalizada: true, finalizadaEn: new Date().toISOString() } : { resultados: resGuardar }
         await updateDoc(doc(db, 'quinielas', quinielaActual.id), patch)
         setResultados(resGuardar)
         setQuinielaActual(prev => ({ ...prev, ...patch }))
