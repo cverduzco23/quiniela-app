@@ -24,10 +24,10 @@ export function inputValueACierre(value) {
   return Timestamp.fromDate(d)
 }
 
-// ¿La quiniela ya cerró? (por flag manual o porque pasó la hora de cierre)
+// ¿La quiniela ya cerró? (por flag manual, porque pasó la hora de cierre, o porque ya fue finalizada)
 export function quinielaCerrada(q) {
   if (!q) return false
-  if (q.cerrada) return true
+  if (q.cerrada || q.finalizada) return true
   const d = cierreToDate(q.cierre)
   return d ? new Date() > d : false
 }
