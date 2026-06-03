@@ -68,11 +68,19 @@ export default function Ranking() {
           const ev    = events.find(e => e.id === p.espnId)
           if (!ev) return
           const state = ev.status?.type?.state
+          const completed = ev.status?.type?.completed
           const comps = ev.competitions?.[0]?.competitors ?? []
           const home  = comps.find(c => c.homeAway === 'home')
           const away  = comps.find(c => c.homeAway === 'away')
           const statusName = ev.status?.type?.name ?? ''
           const esHalftime = statusName === 'STATUS_HALFTIME'
+          // ESPN reporta cancelados/pospuestos/forfeits con state="post" pero completed=false.
+          // No los tratamos como resultado válido — marcamos cancelado para que el scoring los skip.
+          const esCancelado = state === 'post' && completed === false
+          if (esCancelado) {
+            nuevos[p.espnId] = { state, cancelado: true, halftime: false, local: '', visitante: '' }
+            return
+          }
           nuevos[p.espnId] = { state, clock: ev.status?.displayClock ?? '', halftime: esHalftime, local: home?.score ?? '', visitante: away?.score ?? '' }
           nuevosStats[p.espnId] = {
             state,

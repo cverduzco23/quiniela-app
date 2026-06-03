@@ -83,6 +83,10 @@ describe('getEfectivo', () => {
     const live = { 123: { state: 'in', local: '2', visitante: '1' } }
     expect(getEfectivo(partido, 0, resultados, live)).toEqual({ cancelado: true })
   })
+  it('respeta live.cancelado aunque no haya cancelado en stored (cubre partidos cancelados detectados por polling)', () => {
+    const live = { 123: { state: 'post', cancelado: true, local: '', visitante: '' } }
+    expect(getEfectivo(partido, 0, {}, live)).toEqual({ cancelado: true })
+  })
 })
 
 describe('calcularPuntos', () => {
@@ -146,6 +150,15 @@ describe('calcularPuntos', () => {
     const resultados = { 0: { cancelado: true } }
     const liveScores = { a: { state: 'in', local: '1', visitante: '0' } }
     const r = calcularPuntos(picks, resultados, liveScores, partidos)
+    expect(r).toEqual({ puntos: 0, aciertos: 0, exactos: 0 })
+  })
+
+  it('ignora partidos donde el polling reportó cancelado (ESPN STATUS_CANCELED)', () => {
+    // ESPN reporta cancelados con state=post y score 0-0. El polling debe marcarlo
+    // como cancelado para que NO se cuente como empate 0-0 contra los picks.
+    const picks = { 0: { local: '0', visitante: '0' } } // habría sido empate exacto
+    const liveScores = { a: { state: 'post', cancelado: true, local: '', visitante: '' } }
+    const r = calcularPuntos(picks, {}, liveScores, partidos)
     expect(r).toEqual({ puntos: 0, aciertos: 0, exactos: 0 })
   })
 

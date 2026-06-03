@@ -818,6 +818,14 @@ export default function Admin() {
           if (!ev) return
           const state = ev.status?.type?.state
           if (state !== 'post') return
+          // ESPN reporta cancelados/pospuestos/forfeits con state="post" y completed=false,
+          // típicamente con score 0-0. NO debemos guardarlo como empate — lo marcamos cancelado.
+          const completed = ev.status?.type?.completed
+          if (completed === false) {
+            resGuardar[p.idx] = { cancelado: true }
+            actualizados++
+            return
+          }
           const comps = ev.competitions?.[0]?.competitors ?? []
           const home  = comps.find(c => c.homeAway === 'home')
           const away  = comps.find(c => c.homeAway === 'away')

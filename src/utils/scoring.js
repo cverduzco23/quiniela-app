@@ -24,6 +24,9 @@ export function getEfectivo(partido, idx, resultados, liveScores) {
   const stored = resultados?.[idx] ?? resultados?.[String(idx)] ?? null
   if (stored?.cancelado) return stored
   const live = partido?.espnId ? liveScores?.[partido.espnId] : null
+  // ESPN puede reportar partidos cancelados / pospuestos con state="post" y score 0-0.
+  // Si el polling lo marcó como cancelado, propagamos esa señal para que el scoring lo skip.
+  if (live?.cancelado) return { cancelado: true }
   if (live && (live.state === 'in' || live.state === 'post') &&
       live.local !== '' && live.visitante !== '') {
     return { local: live.local, visitante: live.visitante, resultado: goalsToResultado(live.local, live.visitante) }
