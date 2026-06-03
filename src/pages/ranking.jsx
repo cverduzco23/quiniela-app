@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { doc, onSnapshot, collection, query, where, updateDoc } from 'firebase/firestore'
-import { db } from '../firebase'
+import { db, track } from '../firebase'
 import { getResultado } from '../utils/scoring'
 import { tienePremio } from '../utils/premios'
+import { quinielaCerrada, cierreToDate, tiempoRestante } from '../utils/cierre'
 import { RankingTable } from '../components/RankingTable'
+import { Footer } from '../components/Footer'
 
 export default function Ranking() {
   const [searchParams] = useSearchParams()
@@ -115,12 +117,62 @@ export default function Ranking() {
     const conEspn = (quiniela.partidos ?? []).filter(p => p.espnId && p.ligaId)
     if (conEspn.length === 0) return
 
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    fetchLiveData(quiniela)
-    const interval = setInterval(() => fetchLiveData(quiniela), 60000)
-    return () => clearInterval(interval)
+    // Polling 90s, pausa cuando la pestaña no está visible
+    // (ahorro de ancho de banda + cuota ESPN cuando hay muchos clientes abiertos)
+    let interval = null
+    const tick = () => fetchLiveData(quiniela)
+    const start = () => {
+      if (interval) return
+      tick()
+      interval = setInterval(tick, 90000)
+    }
+    const stop = () => {
+      if (!interval) return
+      clearInterval(interval)
+      interval = null
+    }
+    const onVisibility = () => {
+      if (document.hidden) stop()
+      else start()
+    }
+
+    if (!document.hidden) start()
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => {
+      stop()
+      document.removeEventListener('visibilitychange', onVisibility)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [quiniela?.id])
+
+  // ── Tracking: ranking visto ─────────────────────────────────────
+  useEffect(() => {
+    if (quinielaId) track('ranking_visto', { quinielaId })
+  }, [quinielaId])
+
+  // ── Detectar si este dispositivo ya envió predicción ─────────────
+  // (para esconder el CTA de "Hacer mi predicción")
+  const [yaEnvió, setYaEnvió] = useState(false)
+  useEffect(() => {
+    if (!quinielaId) return
+    try {
+      const flag = localStorage.getItem(`quiniela-${quinielaId}-enviada`)
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setYaEnvió(!!flag)
+    } catch { /* localStorage no disponible */ }
+  }, [quinielaId])
+
+  // ── Refrescar el banner de "Cierra en X min" cada minuto cerca del cierre
+  const [, setTickCierre] = useState(0)
+  useEffect(() => {
+    if (!quiniela?.cierre || quinielaCerrada(quiniela)) return
+    const d = cierreToDate(quiniela.cierre)
+    if (!d) return
+    const ms = d.getTime() - Date.now()
+    if (ms <= 0 || ms > 24 * 60 * 60 * 1000) return
+    const i = setInterval(() => setTickCierre(t => t + 1), 60 * 1000)
+    return () => clearInterval(i)
+  }, [quiniela])
 
   const handleRefresh = async () => {
     if (actualizando || !quiniela) return
@@ -172,6 +224,16 @@ export default function Ranking() {
           </div>
           <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 700, lineHeight: 1.2, marginBottom: 10, letterSpacing: '-0.01em' }}>{quiniela.nombre}</h1>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            {quiniela.empresa && (
+              <span style={{
+                display: 'inline-flex', alignItems: 'center', gap: 4,
+                fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 'var(--radius-full)',
+                background: 'var(--neutral-bg)', color: 'var(--green-light)',
+                border: '1px solid var(--green)', letterSpacing: 0.2,
+              }}>
+                🏢 {quiniela.empresa}
+              </span>
+            )}
             <span style={{
               display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600,
               padding: '4px 12px', borderRadius: 'var(--radius-full)',
@@ -214,7 +276,54 @@ export default function Ranking() {
       </div>
 
       <div style={{ maxWidth: 560, margin: '0 auto', padding: '1.25rem 1rem 3rem' }}>
+        {/* CTA para registrar predicción — solo si la quiniela sigue abierta y este dispositivo aún no envió */}
+        {!quinielaCerrada(quiniela) && !yaEnvió && (() => {
+          const tr = tiempoRestante(quiniela.cierre)
+          // Tono del banner según urgencia
+          const border = tr?.nivel === 'critico' ? 'var(--red)' : tr?.nivel === 'urgente' ? 'var(--yellow)' : 'var(--green)'
+          const titulo = tr?.nivel === 'critico'
+            ? `⏰ ¡Último momento! ${tr.texto.replace('⏰ ', '')}`
+            : tr?.nivel === 'urgente'
+              ? `⏳ Cierra pronto — registra tu predicción`
+              : '¿Aún no haces tu predicción?'
+          const subtitulo = tr?.nivel === 'critico'
+            ? 'No te quedes fuera, regístrate ahora.'
+            : tr?.nivel === 'urgente'
+              ? tr.texto.replace('⏳ ', '')
+              : 'Regístrate antes del cierre para aparecer en este ranking.'
+          const cta = tr?.nivel === 'critico' ? 'Registrar ahora →' : 'Hacer mi predicción →'
+          return (
+            <div style={{
+              background: 'var(--card)', borderRadius: 'var(--radius-lg)',
+              padding: '1rem 1.25rem', marginBottom: 14,
+              border: `1.5px solid ${border}`, boxShadow: 'var(--shadow-md)',
+              display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+            }}>
+              <div style={{ flex: '1 1 200px', minWidth: 0 }}>
+                <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-strong)', marginBottom: 2 }}>
+                  {titulo}
+                </p>
+                <p style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.4 }}>
+                  {subtitulo}
+                </p>
+              </div>
+              <a
+                href={`/?q=${quinielaId}`}
+                style={{
+                  padding: '11px 20px', borderRadius: 'var(--radius-md)',
+                  background: 'linear-gradient(135deg, var(--green), var(--green-light))',
+                  color: '#07120A', fontWeight: 800, fontSize: 14, textDecoration: 'none',
+                  boxShadow: 'var(--shadow-green)', letterSpacing: 0.2,
+                  whiteSpace: 'nowrap', flexShrink: 0,
+                }}
+              >
+                {cta}
+              </a>
+            </div>
+          )
+        })()}
         <RankingTable quiniela={quiniela} predicciones={predicciones} liveScores={liveScores} liveStats={liveStats} />
+        <Footer />
       </div>
     </div>
   )

@@ -51,3 +51,27 @@ export function quinielaFinalizada(q) {
   if (q.finalizada) return true
   return resultadosCompletos(q)
 }
+
+// Tiempo restante hasta el cierre, con nivel de urgencia para badges UI.
+// Devuelve null si no aplica (sin cierre, ya pasó, falta más de 24h).
+// Niveles:
+//   'urgente'  → quedan entre 1h y 24h (badge amarillo, "Cierra en menos de Xh")
+//   'critico'  → quedan ≤ 1h (badge rojo, "Cierra en X min")
+// El caller decide qué hacer cuando devuelve null (mostrar el badge normal).
+export function tiempoRestante(cierre, ahora = Date.now()) {
+  const d = cierreToDate(cierre)
+  if (!d) return null
+  const ms = d.getTime() - ahora
+  if (ms <= 0) return null
+  const MIN  = 60 * 1000
+  const HORA = 60 * MIN
+  if (ms < HORA) {
+    const mins = Math.max(1, Math.ceil(ms / MIN))
+    return { nivel: 'critico', texto: `⏰ Cierra en ${mins} min`, ms }
+  }
+  if (ms < 24 * HORA) {
+    const horas = Math.ceil(ms / HORA)
+    return { nivel: 'urgente', texto: `⏳ Cierra en menos de ${horas}h`, ms }
+  }
+  return null
+}

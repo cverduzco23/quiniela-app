@@ -1,10 +1,22 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { collection, addDoc, doc, updateDoc, getDocs, deleteDoc, query, orderBy, where } from 'firebase/firestore'
 import { signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth'
 import { db, auth } from '../firebase'
 import { cierreToDate, cierreToInputValue, inputValueACierre, quinielaCerrada, quinielaFinalizada, resultadosCompletos } from '../utils/cierre'
 import { TIPO_PREMIO, MODELO_PREMIO, calcularBote, tienePremio, formatearMXN } from '../utils/premios'
 import { normalizarNombre } from '../utils/nombres'
+import { detectarSimilares } from '../utils/duplicados'
+
+// UIDs con privilegios globales (ver/editar todas las quinielas).
+// Mantener sincronizado con `isSuperAdmin()` en firestore.rules.
+const SUPER_ADMIN_UIDS = ['w6uc7cHowgM4Pmsya4bUHt1G3Pu2']
+
+// Mostrar el buscador en lista de participantes solo cuando hay suficientes.
+// Por debajo, scrollear es más rápido que escribir.
+const UMBRAL_BUSQUEDA_PARTICIPANTES = 20
+function esSuperAdminUid(uid) {
+  return !!uid && SUPER_ADMIN_UIDS.includes(uid)
+}
 
 const LIGAS = [
   { id: 'mex.1',              nombre: '🇲🇽 Liga MX' },
@@ -68,13 +80,16 @@ export default function Admin() {
   const [loginError, setLoginError]   = useState('')
   const [loginLoading, setLoginLoading] = useState(false)
 
+  const [miUid, setMiUid] = useState(null)
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, user => {
       setAutenticado(!!user)
+      setMiUid(user?.uid ?? null)
       setAuthListo(true)
     })
     return unsub
   }, [])
+  const soySuper = esSuperAdminUid(miUid)
 
   const entrar = async () => {
     if (!email.trim() || !password) return
@@ -110,6 +125,10 @@ export default function Admin() {
   const [premioFijo, setPremioFijo]     = useState('')
   const [cuota, setCuota]               = useState('')
   const [modeloPremio, setModeloPremio] = useState(MODELO_PREMIO.GANADOR_UNICO)
+  const [codigoAcceso, setCodigoAcceso] = useState('')
+  const [privada, setPrivada]           = useState(false)
+  const [empresa, setEmpresa]           = useState('')
+  const [requiereApellido, setRequiereApellido] = useState(false)
 
   // ─── Resultados ───────────────────────────────────────────────────────────
   const [resultados, setResultados]       = useState({})
@@ -136,6 +155,10 @@ export default function Admin() {
   const [editPremioFijo, setEditPremioFijo]     = useState('')
   const [editCuota, setEditCuota]               = useState('')
   const [editModeloPremio, setEditModeloPremio] = useState(MODELO_PREMIO.GANADOR_UNICO)
+  const [editCodigoAcceso, setEditCodigoAcceso] = useState('')
+  const [editPrivada, setEditPrivada]           = useState(false)
+  const [editEmpresa, setEditEmpresa]           = useState('')
+  const [editRequiereApellido, setEditRequiereApellido] = useState(false)
   const [conteoPredicciones, setConteoPredicciones] = useState(null)
   const [guardandoEdicion, setGuardandoEdicion] = useState(false)
   const [deleteConfirm, setDeleteConfirm]       = useState('')
@@ -152,6 +175,7 @@ export default function Admin() {
   const [loadingPredicciones, setLoadingPredicciones]   = useState(false)
   const [eliminandoPred, setEliminandoPred]             = useState(null)
   const [togglingPago, setTogglingPago]                 = useState(null)
+  const [busquedaParticipante, setBusquedaParticipante] = useState('')
 
   // ─── Compartir ───────────────────────────────────────────────────────────
   const [copiado, setCopiado] = useState(null)
@@ -209,6 +233,10 @@ export default function Admin() {
     setEditPremioFijo(quinielaActual.premioFijo != null ? String(quinielaActual.premioFijo) : '')
     setEditCuota(quinielaActual.cuota != null ? String(quinielaActual.cuota) : '')
     setEditModeloPremio(quinielaActual.modeloPremio ?? MODELO_PREMIO.GANADOR_UNICO)
+    setEditCodigoAcceso(quinielaActual.codigoAcceso ?? '')
+    setEditPrivada(!!quinielaActual.privada)
+    setEditEmpresa(quinielaActual.empresa ?? '')
+    setEditRequiereApellido(!!quinielaActual.requiereApellido)
     setFixtures([]); setSeleccionados([])
     setConteoPredicciones(null)
     getDocs(query(collection(db, 'predicciones'), where('quinielaId', '==', quinielaActual.id)))
@@ -389,10 +417,27 @@ export default function Admin() {
     setGuardandoEdicion(true)
     try {
       const cierreTs = inputValueACierre(editCierre)
+      const codigoLimpio = editCodigoAcceso.trim()
+      const empresaLimpia = editEmpresa.trim()
+      // Validar unicidad del código de acceso (excluyendo esta misma quiniela).
+      // Mensaje neutro: no revelamos info de quinielas ajenas.
+      if (codigoLimpio) {
+        const yaExiste = await codigoYaUsado(codigoLimpio.toLowerCase(), quinielaActual.id)
+        if (yaExiste) {
+          alert(`El código "${codigoLimpio}" no está disponible. Prueba con otro (puedes agregar el año, iniciales o un número).`)
+          setGuardandoEdicion(false)
+          return
+        }
+      }
       const patch = {
         nombre:   editNombre.trim(),
         partidos: editPartidos,
         cierre:   cierreTs,
+        codigoAcceso: codigoLimpio || null,
+        codigoAccesoLower: codigoLimpio ? codigoLimpio.toLowerCase() : null,
+        privada: !!editPrivada,
+        empresa: empresaLimpia || null,
+        requiereApellido: !!editRequiereApellido,
         ...premioFields,
       }
       await updateDoc(doc(db, 'quinielas', quinielaActual.id), patch)
@@ -538,6 +583,27 @@ export default function Admin() {
     }
   }
 
+  // ─── Validación de unicidad del código de acceso ────────────────────────
+  // Evita que dos admins (o el mismo) usen el mismo código en quinielas
+  // distintas — porque el buscador en home buscaría por codigoAccesoLower
+  // y no sabría cuál retornar.
+  const codigoYaUsado = async (codigoLower, excluirId = null) => {
+    if (!codigoLower) return false
+    try {
+      const snap = await getDocs(query(
+        collection(db, 'quinielas'),
+        where('codigoAccesoLower', '==', codigoLower)
+      ))
+      return snap.docs.some(d => d.id !== excluirId)
+    } catch (err) {
+      // Si falla la consulta (red, permisos), NO bloqueamos al admin —
+      // mejor permitir guardar y dejar que el conflicto se detecte después
+      // que perder su trabajo por un error de red.
+      console.error('Error validando código de acceso:', err)
+      return false
+    }
+  }
+
   // ─── Guardar nueva quiniela ───────────────────────────────────────────────
   const camposPremio = (fijoStr, cuotaStr, modelo) => {
     const fijo = Number(fijoStr) || 0
@@ -563,9 +629,28 @@ export default function Admin() {
     try {
       const cierreTs = inputValueACierre(cierre)
       const creada   = new Date().toISOString()
+      const codigoLimpio = codigoAcceso.trim()
+      const empresaLimpia = empresa.trim()
+      // Validar unicidad del código de acceso antes de crear.
+      // Mensaje neutro a propósito: no revelamos si el código es de otro admin
+      // (sería un information leak hacia quinielas privadas ajenas).
+      if (codigoLimpio) {
+        const yaExiste = await codigoYaUsado(codigoLimpio.toLowerCase())
+        if (yaExiste) {
+          alert(`El código "${codigoLimpio}" no está disponible. Prueba con otro (puedes agregar el año, iniciales o un número).`)
+          setGuardando(false)
+          return
+        }
+      }
       const base = {
         nombre: nombre.trim(), cierre: cierreTs, partidos,
         resultados: {}, creada, cerrada: false,
+        ownerUid: auth.currentUser?.uid ?? null,
+        codigoAcceso: codigoLimpio || null,
+        codigoAccesoLower: codigoLimpio ? codigoLimpio.toLowerCase() : null,
+        privada: !!privada,
+        empresa: empresaLimpia || null,
+        requiereApellido: !!requiereApellido,
         ...premioFields,
       }
       const ref = await addDoc(collection(db, 'quinielas'), base)
@@ -577,6 +662,7 @@ export default function Admin() {
       cargarQuinielas()
       setNombre(''); setCierre(''); setPartidos([{ local: '', visitante: '', hora: '' }])
       setPremioFijo(''); setCuota(''); setModeloPremio(MODELO_PREMIO.GANADOR_UNICO)
+      setCodigoAcceso(''); setPrivada(false); setEmpresa(''); setRequiereApellido(false)
       setFixtures([]); setSeleccionados([])
     } catch { alert('Error al guardar. Intenta de nuevo.') }
     finally { setGuardando(false) }
@@ -806,10 +892,27 @@ export default function Admin() {
   }
 
   // ─── Lista helpers ────────────────────────────────────────────────────────
-  const quinielasActivas     = quinielas.filter(q => !esCerradaQ(q))
-  const quinielasCerradas    = quinielas.filter(q => esCerradaQ(q))
-  const quinielasEnJuego     = quinielasCerradas.filter(q => !esFinalizadaQ(q))
-  const quinielasFinalizadas = quinielasCerradas.filter(q => esFinalizadaQ(q))
+  // Las quinielas se filtran por dueño:
+  //   - Super admin: ve todas, agrupadas en "Tuyas" + "De otros admins"
+  //   - Admin normal: solo ve las que él creó (ownerUid == su uid)
+  //   - Quinielas legacy (sin ownerUid) se consideran del super admin
+  const esMia = (q) => (!q.ownerUid && soySuper) || q.ownerUid === miUid
+  const subdividirPorEstado = (arr) => ({
+    activas:     arr.filter(q => !esCerradaQ(q)),
+    enJuego:     arr.filter(q => esCerradaQ(q) && !esFinalizadaQ(q)),
+    finalizadas: arr.filter(q => esCerradaQ(q) && esFinalizadaQ(q)),
+  })
+  const quinielasMias     = quinielas.filter(esMia)
+  const quinielasOtras    = soySuper ? quinielas.filter(q => !esMia(q)) : []
+  const mias  = subdividirPorEstado(quinielasMias)
+  const otras = subdividirPorEstado(quinielasOtras)
+
+  // ─── Detección de posibles nombres duplicados (tab Participantes) ────────
+  // Heurística estricta — solo marca casos con alta probabilidad real.
+  const mapaSimilaresPorNombre = useMemo(
+    () => detectarSimilares(listaPredicciones.map(p => p.nombre)),
+    [listaPredicciones]
+  )
 
   // ─── Caja helpers ────────────────────────────────────────────────────────
   const movimientosPorNombre = {}
@@ -1102,7 +1205,7 @@ export default function Admin() {
 
             {loadingLista ? (
               <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--muted)', fontSize: 14 }}>Cargando…</div>
-            ) : quinielas.length === 0 ? (
+            ) : quinielasMias.length === 0 && quinielasOtras.length === 0 ? (
               <div style={{ ...card, textAlign: 'center', padding: '3rem 2rem' }}>
                 <div style={{ fontSize: 48, marginBottom: 16 }}>📋</div>
                 <p style={{ fontWeight: 600, fontSize: 16, color: 'var(--text)', marginBottom: 8 }}>Sin quinielas todavía</p>
@@ -1111,42 +1214,62 @@ export default function Admin() {
                   Crear ahora →
                 </button>
               </div>
-            ) : (
-              <>
-                {quinielasActivas.length > 0 && (
-                  <>
-                    <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
-                      Activas
-                    </p>
-                    {quinielasActivas.map(q => (
-                      <QuinielaCard key={q.id} q={q} conteos={conteos} onGestionar={gestionarQuiniela} />
-                    ))}
-                  </>
-                )}
-
-                {quinielasEnJuego.length > 0 && (
-                  <>
-                    <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8, marginTop: quinielasActivas.length > 0 ? 16 : 0 }}>
-                      Jugándose
-                    </p>
-                    {quinielasEnJuego.map(q => (
-                      <QuinielaCard key={q.id} q={q} conteos={conteos} onGestionar={gestionarQuiniela} />
-                    ))}
-                  </>
-                )}
-
-                {quinielasFinalizadas.length > 0 && (
-                  <>
-                    <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8, marginTop: (quinielasActivas.length > 0 || quinielasEnJuego.length > 0) ? 16 : 0 }}>
-                      Finalizadas
-                    </p>
-                    {quinielasFinalizadas.map(q => (
-                      <QuinielaCard key={q.id} q={q} conteos={conteos} onGestionar={gestionarQuiniela} />
-                    ))}
-                  </>
-                )}
-              </>
-            )}
+            ) : (() => {
+              const renderBloque = (sec) => (
+                <>
+                  {sec.activas.length > 0 && (
+                    <>
+                      <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
+                        Activas
+                      </p>
+                      {sec.activas.map(q => (
+                        <QuinielaCard key={q.id} q={q} conteos={conteos} onGestionar={gestionarQuiniela} />
+                      ))}
+                    </>
+                  )}
+                  {sec.enJuego.length > 0 && (
+                    <>
+                      <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8, marginTop: sec.activas.length > 0 ? 16 : 0 }}>
+                        Jugándose
+                      </p>
+                      {sec.enJuego.map(q => (
+                        <QuinielaCard key={q.id} q={q} conteos={conteos} onGestionar={gestionarQuiniela} />
+                      ))}
+                    </>
+                  )}
+                  {sec.finalizadas.length > 0 && (
+                    <>
+                      <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8, marginTop: (sec.activas.length > 0 || sec.enJuego.length > 0) ? 16 : 0 }}>
+                        Finalizadas
+                      </p>
+                      {sec.finalizadas.map(q => (
+                        <QuinielaCard key={q.id} q={q} conteos={conteos} onGestionar={gestionarQuiniela} />
+                      ))}
+                    </>
+                  )}
+                </>
+              )
+              return (
+                <>
+                  {soySuper && quinielasOtras.length > 0 ? (
+                    <>
+                      <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--green-light)', marginBottom: 10, letterSpacing: 0.2 }}>
+                        ★ Tuyas
+                      </p>
+                      {quinielasMias.length > 0
+                        ? renderBloque(mias)
+                        : <p style={{ fontSize: 12, color: 'var(--muted)', fontStyle: 'italic', marginBottom: 12 }}>Aún no has creado quinielas.</p>}
+                      <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginTop: 28, marginBottom: 10, letterSpacing: 0.2 }}>
+                        De otros admins
+                      </p>
+                      {renderBloque(otras)}
+                    </>
+                  ) : (
+                    renderBloque(mias)
+                  )}
+                </>
+              )
+            })()}
           </>
         )}
 
@@ -1352,6 +1475,38 @@ export default function Admin() {
                 Los jugadores no podrán registrar predicciones después de esta hora.
               </p>
               <input id="quiniela-cierre" type="datetime-local" value={cierre} onChange={e => setCierre(e.target.value)} style={{ borderColor: !cierre ? 'var(--red)' : undefined }} />
+            </div>
+
+            <div style={card}>
+              <p style={{ ...lbl, marginBottom: 10 }}>Acceso y empresa</p>
+
+              <label htmlFor="quiniela-empresa" style={{ ...lbl, marginBottom: 4 }}>Empresa u organización <span style={{ color: 'var(--muted)', fontWeight: 500, textTransform: 'none', letterSpacing: 0 }}>(opcional)</span></label>
+              <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>
+                Si la quiniela es para una empresa o equipo, ponlo aquí.
+              </p>
+              <input id="quiniela-empresa" type="text" placeholder="Ej. Construcciones ACME" value={empresa} onChange={e => setEmpresa(e.target.value)} style={{ marginBottom: 14 }} />
+
+              <label htmlFor="quiniela-codigo" style={{ ...lbl, marginBottom: 4 }}>Código de acceso <span style={{ color: 'var(--muted)', fontWeight: 500, textTransform: 'none', letterSpacing: 0 }}>(opcional)</span></label>
+              <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>
+                Si pones un código, solo quien lo sepa podrá registrar predicciones. Compártelo por tu canal interno.
+              </p>
+              <input id="quiniela-codigo" type="text" placeholder="Ej. ACME2026" value={codigoAcceso} onChange={e => setCodigoAcceso(e.target.value)} style={{ marginBottom: 14 }} />
+
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', marginBottom: 12 }}>
+                <input type="checkbox" checked={privada} onChange={e => setPrivada(e.target.checked)} style={{ marginTop: 3, width: 16, height: 16, accentColor: 'var(--green)' }} />
+                <span style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.5 }}>
+                  <strong style={{ fontWeight: 700, color: 'var(--text-strong)' }}>Quiniela privada</strong><br />
+                  <span style={{ fontSize: 12, color: 'var(--muted)' }}>No aparece en la página principal, solo se accede con el enlace directo.</span>
+                </span>
+              </label>
+
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer' }}>
+                <input type="checkbox" checked={requiereApellido} onChange={e => setRequiereApellido(e.target.checked)} style={{ marginTop: 3, width: 16, height: 16, accentColor: 'var(--green)' }} />
+                <span style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.5 }}>
+                  <strong style={{ fontWeight: 700, color: 'var(--text-strong)' }}>Requerir nombre y apellido</strong><br />
+                  <span style={{ fontSize: 12, color: 'var(--muted)' }}>El participante debe registrar nombre + al menos un apellido. Recomendado para empresas con muchos participantes.</span>
+                </span>
+              </label>
             </div>
 
             {renderFormularioPremio(premioFijo, setPremioFijo, cuota, setCuota, modeloPremio, setModeloPremio)}
@@ -1633,6 +1788,9 @@ export default function Admin() {
                     const esTipoBote = (Number(quinielaActual.cuota) > 0) || quinielaActual.tipoPremio === TIPO_PREMIO.BOTE
                     const pagados = quinielaActual.pagados ?? []
                     const pendientes = esTipoBote ? listaPredicciones.filter(p => !pagados.includes(p.id)).length : 0
+                    // Detectar nombres potencialmente duplicados (heurística estricta)
+                    const mapaSimilares = mapaSimilaresPorNombre
+                    const nSospechosos = [...mapaSimilares.values()].filter(arr => arr.length > 0).length
                     return (
                     <>
                       {esTipoBote && (
@@ -1647,12 +1805,46 @@ export default function Admin() {
                             : '✓ Todos los pagos confirmados'}
                         </div>
                       )}
+                      {nSospechosos > 0 && (
+                        <div style={{
+                          background: 'var(--yellow-bg)',
+                          border: '1px solid var(--yellow)',
+                          borderRadius: 'var(--radius-sm)', padding: '8px 12px', marginBottom: 12,
+                          fontSize: 12, color: 'var(--yellow-soft)', lineHeight: 1.5,
+                        }}>
+                          ⚠️ {nSospechosos} posible{nSospechosos !== 1 ? 's' : ''} duplicado{nSospechosos !== 1 ? 's' : ''} detectado{nSospechosos !== 1 ? 's' : ''}.
+                          Revisa los nombres marcados con ⚠️ y elimina los que sean repetidos.
+                        </div>
+                      )}
                       <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 12 }}>
                         {esTipoBote
                           ? 'Marca ✓ cuando recibas el comprobante. Eliminar quita al jugador del ranking.'
                           : 'Al eliminar una predicción el jugador podrá volver a registrarse con su nombre.'}
                       </p>
-                      {listaPredicciones.map((pred, i) => {
+                      {/* Buscador — solo cuando hay suficientes participantes */}
+                      {listaPredicciones.length > UMBRAL_BUSQUEDA_PARTICIPANTES && (
+                        <input
+                          type="text"
+                          placeholder={`🔍 Buscar entre ${listaPredicciones.length} participantes…`}
+                          value={busquedaParticipante}
+                          onChange={e => setBusquedaParticipante(e.target.value)}
+                          style={{ width: '100%', fontSize: 13, padding: '8px 12px', marginBottom: 10 }}
+                          aria-label="Buscar participante por nombre"
+                        />
+                      )}
+                      {(() => {
+                        const filtro = busquedaParticipante.trim().toLowerCase()
+                        const listaFiltrada = filtro
+                          ? listaPredicciones.filter(p => (p.nombre ?? '').toLowerCase().includes(filtro))
+                          : listaPredicciones
+                        if (filtro && listaFiltrada.length === 0) {
+                          return (
+                            <p style={{ fontSize: 13, color: 'var(--muted)', textAlign: 'center', padding: '1.5rem 0', fontStyle: 'italic' }}>
+                              Sin resultados para "{busquedaParticipante}".
+                            </p>
+                          )
+                        }
+                        return listaFiltrada.map((pred, i) => {
                         const fecha = pred.fecha
                           ? new Date(pred.fecha).toLocaleString('es-MX', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
                           : '—'
@@ -1665,13 +1857,33 @@ export default function Admin() {
                             style={{
                               display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
                               padding: '10px 0',
-                              borderBottom: i < listaPredicciones.length - 1 ? '1px solid var(--border)' : 'none',
+                              borderBottom: i < listaFiltrada.length - 1 ? '1px solid var(--border)' : 'none',
                             }}
                           >
                             <div style={{ flex: 1, minWidth: 0 }}>
-                              <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                {pred.nombre}
-                              </p>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                                <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
+                                  {pred.nombre}
+                                </p>
+                                {(mapaSimilares.get(pred.nombre) ?? []).length > 0 && (
+                                  <span
+                                    title={`Posible duplicado con: ${(mapaSimilares.get(pred.nombre) ?? []).join(', ')}`}
+                                    aria-label="Posible nombre duplicado"
+                                    style={{
+                                      fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 'var(--radius-full)',
+                                      background: 'var(--yellow-bg)', color: 'var(--yellow)', flexShrink: 0,
+                                      border: '1px solid var(--yellow)', cursor: 'help',
+                                    }}
+                                  >
+                                    ⚠️ Similar
+                                  </span>
+                                )}
+                              </div>
+                              {(mapaSimilares.get(pred.nombre) ?? []).length > 0 && (
+                                <p style={{ fontSize: 10, color: 'var(--yellow-soft)', marginBottom: 2, fontStyle: 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  Parecido a: {(mapaSimilares.get(pred.nombre) ?? []).join(', ')}
+                                </p>
+                              )}
                               <p style={{ fontSize: 11, color: 'var(--muted)' }}>
                                 {nPicks} pick{nPicks !== 1 ? 's' : ''} · {fecha}
                               </p>
@@ -1709,7 +1921,8 @@ export default function Admin() {
                             </div>
                           </div>
                         )
-                      })}
+                      })
+                      })()}
                     </>
                     )
                   })()}
@@ -1732,6 +1945,35 @@ export default function Admin() {
                       Los jugadores no podrán registrar predicciones después de esta hora.
                     </p>
                     <input id="edit-cierre" type="datetime-local" value={editCierre} onChange={e => setEditCierre(e.target.value)} style={{ borderColor: !editCierre ? 'var(--red)' : undefined }} />
+                  </div>
+
+                  <div style={card}>
+                    <p style={{ ...lbl, marginBottom: 10 }}>Acceso y empresa</p>
+
+                    <label htmlFor="edit-empresa" style={{ ...lbl, marginBottom: 4 }}>Empresa u organización <span style={{ color: 'var(--muted)', fontWeight: 500, textTransform: 'none', letterSpacing: 0 }}>(opcional)</span></label>
+                    <input id="edit-empresa" type="text" placeholder="Ej. Construcciones ACME" value={editEmpresa} onChange={e => setEditEmpresa(e.target.value)} style={{ marginBottom: 14 }} />
+
+                    <label htmlFor="edit-codigo" style={{ ...lbl, marginBottom: 4 }}>Código de acceso <span style={{ color: 'var(--muted)', fontWeight: 500, textTransform: 'none', letterSpacing: 0 }}>(opcional)</span></label>
+                    <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>
+                      Si pones un código, solo quien lo sepa podrá registrar predicciones.
+                    </p>
+                    <input id="edit-codigo" type="text" placeholder="Ej. ACME2026" value={editCodigoAcceso} onChange={e => setEditCodigoAcceso(e.target.value)} style={{ marginBottom: 14 }} />
+
+                    <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', marginBottom: 12 }}>
+                      <input type="checkbox" checked={editPrivada} onChange={e => setEditPrivada(e.target.checked)} style={{ marginTop: 3, width: 16, height: 16, accentColor: 'var(--green)' }} />
+                      <span style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.5 }}>
+                        <strong style={{ fontWeight: 700, color: 'var(--text-strong)' }}>Quiniela privada</strong><br />
+                        <span style={{ fontSize: 12, color: 'var(--muted)' }}>No aparece en la página principal, solo se accede con el enlace directo.</span>
+                      </span>
+                    </label>
+
+                    <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer' }}>
+                      <input type="checkbox" checked={editRequiereApellido} onChange={e => setEditRequiereApellido(e.target.checked)} style={{ marginTop: 3, width: 16, height: 16, accentColor: 'var(--green)' }} />
+                      <span style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.5 }}>
+                        <strong style={{ fontWeight: 700, color: 'var(--text-strong)' }}>Requerir nombre y apellido</strong><br />
+                        <span style={{ fontSize: 12, color: 'var(--muted)' }}>El participante debe registrar nombre + al menos un apellido.</span>
+                      </span>
+                    </label>
                   </div>
 
                   {renderFormularioPremio(editPremioFijo, setEditPremioFijo, editCuota, setEditCuota, editModeloPremio, setEditModeloPremio)}
@@ -1882,6 +2124,64 @@ export default function Admin() {
                       </div>
                     </div>
                   ))}
+
+                  {/* Mensaje listo para compartir (texto pre-armado) */}
+                  {(() => {
+                    const lineas = []
+                    if (quinielaActual.empresa) {
+                      lineas.push(`📋 Quiniela "${quinielaActual.nombre}" — ${quinielaActual.empresa}`)
+                    } else {
+                      lineas.push(`📋 Quiniela: ${quinielaActual.nombre}`)
+                    }
+                    lineas.push('')
+                    if (quinielaActual.codigoAcceso) {
+                      lineas.push(`🔑 Entra a quinielapp.fun y mete el código:`)
+                      lineas.push(`   ${quinielaActual.codigoAcceso}`)
+                    } else {
+                      lineas.push(`🔗 ${linkJugadores}`)
+                    }
+                    if (quinielaActual.cierre) {
+                      const d = cierreToDate(quinielaActual.cierre)
+                      if (d) {
+                        lineas.push('')
+                        lineas.push(`⏳ Cierra: ${d.toLocaleString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}`)
+                      }
+                    }
+                    lineas.push('')
+                    lineas.push('¡Suerte! ⚽')
+                    const mensaje = lineas.join('\n')
+                    return (
+                      <div style={card}>
+                        <p style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-strong)', marginBottom: 4 }}>
+                          📣 Mensaje listo para compartir
+                        </p>
+                        <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 12 }}>
+                          Copia y pega este mensaje en WhatsApp, Slack o correo para invitar a los participantes.
+                        </p>
+                        <pre style={{
+                          background: 'var(--bg-soft)', borderRadius: 'var(--radius-sm)',
+                          padding: '12px 14px', border: '1px solid var(--border)',
+                          fontSize: 12, color: 'var(--text)', lineHeight: 1.6,
+                          fontFamily: 'inherit', whiteSpace: 'pre-wrap', margin: 0, marginBottom: 10,
+                          overflowX: 'auto',
+                        }}>
+                          {mensaje}
+                        </pre>
+                        <button
+                          onClick={() => copiar(mensaje, 'mensaje')}
+                          style={{
+                            width: '100%', padding: '10px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-strong)',
+                            background: copiado === 'mensaje' ? 'var(--green-bg)' : 'var(--card-light)',
+                            color: copiado === 'mensaje' ? 'var(--green)' : 'var(--text)',
+                            fontWeight: 700, fontSize: 13, cursor: 'pointer',
+                            transition: 'all 0.2s',
+                          }}
+                        >
+                          {copiado === 'mensaje' ? '✓ Copiado al portapapeles' : '📋 Copiar mensaje'}
+                        </button>
+                      </div>
+                    )
+                  })()}
                 </>
               )}
             </>
@@ -2028,7 +2328,20 @@ function QuinielaCard({ q, conteos, onGestionar }) {
               ⏳ {pagosPendientes} pago{pagosPendientes !== 1 ? 's' : ''}
             </span>
           )}
+          {(q.privada || q.codigoAcceso) && (
+            <span style={{
+              fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 'var(--radius-full)', flexShrink: 0,
+              background: 'var(--neutral-bg)', color: 'var(--text)', border: '1px solid var(--border-strong)',
+            }}>
+              🔒 Privada
+            </span>
+          )}
         </div>
+        {q.empresa && (
+          <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4, fontWeight: 600 }}>
+            🏢 {q.empresa}
+          </p>
+        )}
         <p style={{ fontSize: 12, color: 'var(--muted)' }}>
           {q.partidos?.length ?? 0} partidos · {n} {n === 1 ? 'participante' : 'participantes'}
           {tienePremio(q) && (

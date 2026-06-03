@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { cierreToDate, quinielaCerrada, quinielaFinalizada } from '../utils/cierre'
 import { goalsToResultado, getResultado, getPickResultado, getEfectivo, calcularPuntos } from '../utils/scoring'
 import { tienePremio, calcularGanadores, formatearMXN, descripcionRegla } from '../utils/premios'
@@ -28,6 +28,9 @@ const resultColor = {
 }
 const resultLabel = { home: 'Local', draw: 'Empate', away: 'Visitante' }
 const PAGE_SIZE = 50
+// Mostrar el buscador solo cuando hay suficientes participantes para que valga la pena.
+// Por debajo de este umbral, scrollear es más rápido.
+const UMBRAL_BUSQUEDA = 20
 
 export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStats = {} }) {
   const [expandido, setExpandido]               = useState(new Set())
@@ -35,6 +38,11 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
   const [visibles, setVisibles]                 = useState(PAGE_SIZE)
   const [compartiendo, setCompartiendo] = useState(false)
   const [feedbackShare, setFeedbackShare] = useState('')
+  const [busqueda, setBusqueda]                 = useState('')
+
+  // Detección de cambios de posición para animar las filas afectadas
+  const prevPosicionesRef = useRef(null)
+  const [cambios, setCambios] = useState(new Map())
 
   const toggleExpandido = (nombre) => {
     setExpandido(prev => {
@@ -81,8 +89,39 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
     posiciones.push(prev.puntos === j.puntos ? posiciones[i - 1] : i + 1)
   })
 
-  const shown     = jugadores.slice(0, visibles)
-  const restantes = jugadores.length - shown.length
+  // Atamos la posición al jugador para que el filtro preserve la posición real
+  const jugadoresConPos = jugadores.map((j, i) => ({ ...j, _pos: posiciones[i] }))
+  const filtroBusqueda  = busqueda.trim().toLowerCase()
+  const filtrados       = filtroBusqueda
+    ? jugadoresConPos.filter(j => j.nombre.toLowerCase().includes(filtroBusqueda))
+    : jugadoresConPos
+  const shown     = filtrados.slice(0, visibles)
+  const restantes = filtrados.length - shown.length
+  const mostrarBuscador = jugadores.length > UMBRAL_BUSQUEDA
+
+  // Detectar cambios de posición entre renders (típicamente al llegar nuevos scores)
+  // y disparar animación de 1.8s. No animamos en el primer render.
+  useEffect(() => {
+    if (jugadores.length === 0) return
+    const nueva = new Map()
+    jugadores.forEach((j, i) => nueva.set(j.nombre, posiciones[i]))
+    const prev = prevPosicionesRef.current
+    prevPosicionesRef.current = nueva
+    if (!prev) return // primer render: solo guardamos snapshot, no animamos
+    const detectados = new Map()
+    nueva.forEach((pos, nombre) => {
+      const posAnt = prev.get(nombre)
+      if (posAnt !== undefined && posAnt !== pos) {
+        detectados.set(nombre, pos < posAnt ? 'subio' : 'bajo')
+      }
+    })
+    if (detectados.size > 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setCambios(detectados)
+      const t = setTimeout(() => setCambios(new Map()), 1800)
+      return () => clearTimeout(t)
+    }
+  })
 
   const conPremio = tienePremio(quiniela)
   const { ganadores, premioPorNombre, bote } = calcularGanadores(jugadores, quiniela, jugadores.length)
@@ -243,6 +282,20 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
           </div>
         )}
 
+        {/* Buscador — solo cuando hay suficientes participantes */}
+        {mostrarBuscador && (
+          <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)', background: 'var(--card)' }}>
+            <input
+              type="text"
+              placeholder={`🔍 Buscar entre ${jugadores.length} participantes…`}
+              value={busqueda}
+              onChange={e => { setBusqueda(e.target.value); setVisibles(PAGE_SIZE) }}
+              style={{ width: '100%', fontSize: 13, padding: '8px 12px' }}
+              aria-label="Buscar nombre en el ranking"
+            />
+          </div>
+        )}
+
         <div style={{ display: 'grid', gridTemplateColumns: '44px 1fr 60px 60px 52px', padding: '10px 16px', background: 'var(--card-light)', borderBottom: '1px solid var(--border)' }}>
           {['#', 'Jugador', 'Result.', 'Exactos', 'Pts'].map((h, idx) => (
             <span key={h} style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.8, textAlign: idx >= 2 ? 'center' : 'left' }}>{h}</span>
@@ -253,11 +306,16 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
           <div style={{ padding: '2.5rem', textAlign: 'center', color: 'var(--muted)', fontSize: 14 }}>
             Nadie ha registrado predicciones todavía.
           </div>
+        ) : filtrados.length === 0 ? (
+          <div style={{ padding: '2.5rem', textAlign: 'center', color: 'var(--muted)', fontSize: 14 }}>
+            Sin resultados para "<strong style={{ color: 'var(--text)' }}>{busqueda}</strong>". Verifica el nombre o limpia la búsqueda.
+          </div>
         ) : shown.map((j, i) => {
           const abierto = expandido.has(j.nombre)
-          const pos = posiciones[i]
+          const pos = j._pos
           const esLider = pos === 1 && hayResultados
           const medalla = pos <= 3 ? medals[pos - 1] : null
+          const cambio = cambios.get(j.nombre)
 
           return (
             <div key={j.nombre} style={{ borderBottom: i < shown.length - 1 ? '1px solid var(--border)' : 'none' }}>
@@ -266,13 +324,21 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                 style={{
                   display: 'grid', gridTemplateColumns: '44px 1fr 60px 60px 52px',
                   padding: '13px 16px', alignItems: 'center',
-                  background: esLider ? 'linear-gradient(90deg, var(--yellow-bg), transparent 60%)' : 'transparent',
+                  background: cambio === 'subio'
+                    ? 'rgba(16,185,129,0.18)'
+                    : cambio === 'bajo'
+                      ? 'rgba(239,68,68,0.12)'
+                      : esLider
+                        ? 'linear-gradient(90deg, var(--yellow-bg), transparent 60%)'
+                        : 'transparent',
                   cursor: cerrada ? 'pointer' : 'default',
-                  transition: 'background 0.1s',
+                  transition: 'background 1s ease',
                 }}
               >
-                <span style={{ fontSize: medalla ? 18 : 14, fontWeight: 700, color: medalla ? 'var(--yellow)' : 'var(--muted)' }}>
+                <span style={{ fontSize: medalla ? 18 : 14, fontWeight: 700, color: medalla ? 'var(--yellow)' : 'var(--muted)', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
                   {medalla ?? `${pos}`}
+                  {cambio === 'subio' && <span style={{ fontSize: 11, color: 'var(--green)', fontWeight: 800 }} aria-label="Subió de posición">▲</span>}
+                  {cambio === 'bajo'  && <span style={{ fontSize: 11, color: 'var(--red)',   fontWeight: 800 }} aria-label="Bajó de posición">▼</span>}
                 </span>
                 <div style={{ minWidth: 0, overflow: 'hidden' }}>
                   <span style={{ fontSize: 14, fontWeight: esLider ? 700 : 500, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -380,6 +446,16 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
               setCompartiendo(true)
               setFeedbackShare('')
               try {
+                // Detectar el nombre del usuario actual (si ya envió desde este dispositivo)
+                // para que la imagen incluya su fila + vecinos cuando esté fuera del Top.
+                let miNombre = null
+                try {
+                  const raw = quiniela?.id ? localStorage.getItem(`quiniela-${quiniela.id}-enviada`) : null
+                  if (raw) {
+                    const data = JSON.parse(raw)
+                    if (data?.nombre) miNombre = data.nombre
+                  }
+                } catch { /* localStorage no disponible — imagen genérica */ }
                 const res = await compartirRanking({
                   quiniela,
                   jugadores,
@@ -390,12 +466,13 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                   terminados,
                   totalPartidos: partidos.length,
                   conPremio,
+                  miNombre,
                 })
                 if (res?.copiado) {
-                  setFeedbackShare('✓ Imagen copiada — pégala en WhatsApp')
+                  setFeedbackShare('✓ Imagen copiada — pégala donde quieras')
                   setTimeout(() => setFeedbackShare(''), 4000)
                 } else if (res?.descargado) {
-                  setFeedbackShare('✓ Imagen descargada — súbela a WhatsApp')
+                  setFeedbackShare('✓ Imagen descargada — compártela donde quieras')
                   setTimeout(() => setFeedbackShare(''), 4000)
                 }
               } catch (err) {

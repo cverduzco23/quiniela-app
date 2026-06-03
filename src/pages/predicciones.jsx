@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { doc, getDoc, addDoc, collection, getDocs, query, where } from 'firebase/firestore'
-import { db } from '../firebase'
-import { cierreToDate, quinielaCerrada } from '../utils/cierre'
+import { db, track } from '../firebase'
+import { cierreToDate, quinielaCerrada, tiempoRestante } from '../utils/cierre'
 import { tienePremio, tieneCuota, descripcionRegla, calcularBote, desglosePremio, TIPO_PREMIO, formatearMXN } from '../utils/premios'
-import { normalizarNombre } from '../utils/nombres'
-import { WhatsAppCTA } from '../components/WhatsAppCTA'
+import { normalizarNombre, tieneNombreYApellido } from '../utils/nombres'
+import { PromoCTA } from '../components/PromoCTA'
+import { Footer } from '../components/Footer'
 
 function formatFecha(value) {
   const d = cierreToDate(value)
@@ -68,10 +69,21 @@ export default function Predicciones() {
   const [confirmadoRegla, setConfirmadoRegla] = useState(false)
   const [conteoParticipantes, setConteoParticipantes] = useState(0)
 
+  // Gate de código de acceso (quinielas privadas)
+  const [accesoOk, setAccesoOk]         = useState(false)
+  const [codigoInput, setCodigoInput]   = useState('')
+  const [codigoError, setCodigoError]   = useState('')
+  const [validandoCodigo, setValidandoCodigo] = useState(false)
+
+  // Evitar reenvío desde el mismo dispositivo (mitigación anti-duplicado)
+  const [yaEnviadoAntes, setYaEnviadoAntes] = useState(null)
+
   const visitanteRefs = useRef([])
   const progresoPrevRef = useRef(0)
   const restauradoRef = useRef(false)
   const lsKey = quinielaId ? `quiniela-${quinielaId}-progreso` : null
+  const lsAccesoKey = quinielaId ? `quiniela-${quinielaId}-acceso` : null
+  const lsEnviadoKey = quinielaId ? `quiniela-${quinielaId}-enviada` : null
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -92,6 +104,65 @@ export default function Predicciones() {
   const cerrada    = quinielaCerrada(quiniela)
   const progreso   = partidos.filter((_, i) => pickValido(picks[i])).length
   const completado = nombre.trim().length > 0 && progreso === partidos.length
+
+  // Acceso: si la quiniela no requiere código, accesoOk inmediato.
+  // Si requiere código, checar si ya está guardado en localStorage de un acceso previo.
+  useEffect(() => {
+    if (!quiniela) return
+    const codigoReq = (quiniela.codigoAcceso ?? '').trim()
+    if (!codigoReq) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setAccesoOk(true)
+      return
+    }
+    try {
+      const guardado = lsAccesoKey ? localStorage.getItem(lsAccesoKey) : null
+      if (guardado && guardado === codigoReq) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setAccesoOk(true)
+      }
+    } catch { /* localStorage no disponible */ }
+  }, [quiniela, lsAccesoKey])
+
+  const validarCodigo = () => {
+    if (validandoCodigo) return
+    const codigoReq = (quiniela?.codigoAcceso ?? '').trim()
+    const ingresado = codigoInput.trim()
+    if (!ingresado) {
+      setCodigoError('Ingresa el código que te compartió el organizador.')
+      return
+    }
+    setValidandoCodigo(true)
+    // Pequeño delay cosmético + comparación case-insensitive
+    setTimeout(() => {
+      if (ingresado.toLowerCase() === codigoReq.toLowerCase()) {
+        try { if (lsAccesoKey) localStorage.setItem(lsAccesoKey, codigoReq) } catch { /* noop */ }
+        track('codigo_correcto', { quinielaId })
+        setAccesoOk(true)
+        setCodigoError('')
+      } else {
+        track('codigo_incorrecto', { quinielaId })
+        setCodigoError('Código incorrecto. Verifica con quien te invitó.')
+      }
+      setValidandoCodigo(false)
+    }, 200)
+  }
+
+  // Detectar si ya se envió una predicción para esta quiniela desde este dispositivo.
+  // (Mitigación anti-duplicado — bypaseable con incógnito/otro navegador, pero cubre
+  // el caso honesto de gente que reabre el link sin querer.)
+  useEffect(() => {
+    if (!quiniela || cerrada || !lsEnviadoKey) return
+    try {
+      const raw = localStorage.getItem(lsEnviadoKey)
+      if (!raw) return
+      const data = JSON.parse(raw)
+      if (data?.nombre) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setYaEnviadoAntes(data.nombre)
+      }
+    } catch { /* corrupto, ignorar */ }
+  }, [quiniela, cerrada, lsEnviadoKey])
 
   // Restaurar progreso desde localStorage cuando se carga la quiniela (si no está cerrada)
   // En quinielas tipo "bote" NO restauramos confirmadoRegla — forzamos reconfirmación cada vez
@@ -134,15 +205,21 @@ export default function Predicciones() {
     }
   }, [progreso, partidos.length, cerrada, enviado])
 
-  // Forzar re-render exactamente cuando pasa la hora de cierre
+  // Mantener el badge de cierre actualizado.
+  // - Si faltan >24h: solo programa un timeout al momento exacto del cierre.
+  // - Si faltan ≤24h: refresca cada minuto para que el contador "Cierra en X" baje.
   useEffect(() => {
     if (!quiniela?.cierre || quinielaCerrada(quiniela)) return
     const d = cierreToDate(quiniela.cierre)
     if (!d) return
     const ms = d.getTime() - Date.now()
     if (ms <= 0) return
-    const t = setTimeout(() => setQuiniela(q => ({ ...q })), ms)
-    return () => clearTimeout(t)
+    if (ms > 24 * 60 * 60 * 1000) {
+      const t = setTimeout(() => setQuiniela(q => ({ ...q })), ms)
+      return () => clearTimeout(t)
+    }
+    const i = setInterval(() => setQuiniela(q => ({ ...q })), 60 * 1000)
+    return () => clearInterval(i)
   }, [quiniela])
 
 
@@ -160,6 +237,13 @@ export default function Predicciones() {
     setNombreError('')
     try {
       const nombreNormalizado = normalizarNombre(nombre)
+      // Si la quiniela requiere nombre completo, validar antes de tocar Firestore
+      if (quiniela?.requiereApellido && !tieneNombreYApellido(nombreNormalizado)) {
+        setNombreError('Pon tu nombre completo: nombre y al menos un apellido (ej. María González).')
+        setMostrarResumen(false)
+        setEnviando(false)
+        return
+      }
       const snap = await getDocs(query(
         collection(db, 'predicciones'),
         where('quinielaId', '==', quinielaId)
@@ -171,13 +255,25 @@ export default function Predicciones() {
         setEnviando(false)
         return
       }
-      await addDoc(collection(db, 'predicciones'), {
+      const docPred = {
         quinielaId,
         nombre: nombreNormalizado,
         picks,
         fecha: new Date().toISOString(),
-      })
+      }
+      // Si la quiniela requiere código, incluirlo para que las reglas lo validen
+      const codigoReq = (quiniela?.codigoAcceso ?? '').trim()
+      if (codigoReq) docPred.codigoAcceso = codigoReq
+      await addDoc(collection(db, 'predicciones'), docPred)
       try { if (lsKey) localStorage.removeItem(lsKey) } catch { /* noop */ }
+      // Marcar este dispositivo como "ya envió" para mitigar duplicados accidentales.
+      try {
+        if (lsEnviadoKey) localStorage.setItem(lsEnviadoKey, JSON.stringify({
+          nombre: nombreNormalizado,
+          fecha: new Date().toISOString(),
+        }))
+      } catch { /* noop */ }
+      track('prediccion_enviada', { quinielaId })
       setEnviado(true)
     } catch (err) {
       console.error('Firestore error:', err)
@@ -270,12 +366,12 @@ export default function Predicciones() {
           <button
             onClick={() => navigator.share?.({
               title: `Quiniela ${quiniela.nombre}`,
-              text: `Te invito a participar en la quiniela "${quiniela.nombre}". Haz tus predicciones aquí:`,
+              text: `Te invito a participar en la quiniela "${quiniela.nombre}". Registra tus predicciones aquí:`,
               url: `${window.location.origin}/?q=${quinielaId}`,
             }).catch(() => {})}
             style={{ ...ctaPrimary(false), marginBottom: 10 }}
           >
-            Invitar amigos a la quiniela
+            Compartir quiniela
           </button>
         ) : (
           <button
@@ -297,7 +393,8 @@ export default function Predicciones() {
           Ver ranking →
         </a>
 
-        <WhatsAppCTA titulo="¿Quieres seguir participando?" subtitulo="Únete al grupo de WhatsApp para enterarte cuando haya nueva quiniela." />
+        <PromoCTA />
+        <Footer />
       </div>
     </div>
   )
@@ -343,17 +440,39 @@ export default function Predicciones() {
             <a href="/" style={{ background: 'var(--neutral-bg)', color: 'var(--text)', padding: '6px 12px', borderRadius: 'var(--radius-sm)', fontSize: 12, fontWeight: 600, textDecoration: 'none', border: '1px solid var(--border)' }}>← Inicio</a>
           </div>
           <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 700, lineHeight: 1.2, marginBottom: 10, letterSpacing: '-0.01em' }}>{quiniela.nombre}</h1>
-          {quiniela.cierre && (
-            <span style={{
-              display: 'inline-block', fontSize: 12, fontWeight: 600,
-              padding: '4px 12px', borderRadius: 'var(--radius-full)',
-              background: cerrada ? 'var(--red-bg-strong)' : 'var(--neutral-bg)',
-              color: cerrada ? '#FCA5A5' : 'var(--text)',
-              border: `1px solid ${cerrada ? 'var(--red)' : 'var(--border)'}`,
-            }}>
-              {cerrada ? '🔒 Quiniela cerrada' : `⏳ Cierre: ${formatFecha(quiniela.cierre)}`}
-            </span>
-          )}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+            {quiniela.empresa && (
+              <span style={{
+                display: 'inline-flex', alignItems: 'center', gap: 4,
+                fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 'var(--radius-full)',
+                background: 'var(--neutral-bg)', color: 'var(--green-light)',
+                border: '1px solid var(--green)', letterSpacing: 0.2,
+              }}>
+                🏢 {quiniela.empresa}
+              </span>
+            )}
+            {quiniela.cierre && (() => {
+              const tr = !cerrada ? tiempoRestante(quiniela.cierre) : null
+              const cfg = (cerrada || tr?.nivel === 'critico')
+                ? { bg: 'var(--red-bg-strong)', color: '#FCA5A5', border: 'var(--red)', weight: 700 }
+                : tr?.nivel === 'urgente'
+                  ? { bg: 'var(--yellow-bg)', color: 'var(--yellow)', border: 'var(--yellow)', weight: 700 }
+                  : { bg: 'var(--neutral-bg)', color: 'var(--text)', border: 'var(--border)', weight: 600 }
+              const texto = cerrada
+                ? '🔒 Quiniela cerrada'
+                : tr ? tr.texto : `⏳ Cierre: ${formatFecha(quiniela.cierre)}`
+              return (
+                <span style={{
+                  display: 'inline-block', fontSize: 12, fontWeight: cfg.weight,
+                  padding: '4px 12px', borderRadius: 'var(--radius-full)',
+                  background: cfg.bg, color: cfg.color,
+                  border: `1px solid ${cfg.border}`,
+                }}>
+                  {texto}
+                </span>
+              )
+            })()}
+          </div>
         </div>
       </div>
 
@@ -378,6 +497,108 @@ export default function Predicciones() {
             }}>
               Ver ranking →
             </a>
+          </div>
+
+        ) : !accesoOk ? (
+          /* ── Gate: código de acceso (quinielas privadas) ─────────────── */
+          <div>
+            <div style={{
+              background: 'var(--card)', borderRadius: 'var(--radius-lg)',
+              padding: '1.75rem 1.5rem', marginBottom: 14,
+              border: '1.5px solid var(--border)', boxShadow: 'var(--shadow-md)', textAlign: 'center',
+            }}>
+              <div style={{ fontSize: 40, marginBottom: 8 }}>🔒</div>
+              <p style={{ fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 700, color: 'var(--text-strong)', marginBottom: 6 }}>
+                Quiniela privada
+              </p>
+              <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 18, lineHeight: 1.5 }}>
+                {quiniela?.empresa
+                  ? <>Esta quiniela es exclusiva de <strong style={{ color: 'var(--text)' }}>{quiniela.empresa}</strong>. Ingresa el código que te compartieron.</>
+                  : 'Ingresa el código de acceso que te compartió el organizador.'}
+              </p>
+              <label htmlFor="codigo-acceso" style={{ ...lbl, textAlign: 'left', display: 'block' }}>Código de acceso</label>
+              <input
+                id="codigo-acceso"
+                type="text"
+                placeholder="Ej. ACME2026"
+                value={codigoInput}
+                onChange={e => { setCodigoInput(e.target.value); setCodigoError('') }}
+                onKeyDown={e => e.key === 'Enter' && validarCodigo()}
+                autoFocus
+                style={{
+                  fontSize: 15, marginBottom: codigoError ? 8 : 14,
+                  textAlign: 'center', letterSpacing: 2, fontWeight: 700,
+                  borderColor: codigoError ? 'var(--red)' : undefined,
+                }}
+              />
+              {codigoError && (
+                <p style={{ fontSize: 12, color: '#FCA5A5', marginBottom: 12, textAlign: 'left' }}>
+                  ⚠️ {codigoError}
+                </p>
+              )}
+              <button
+                onClick={validarCodigo}
+                disabled={validandoCodigo}
+                style={ctaPrimary(validandoCodigo)}
+              >
+                {validandoCodigo ? 'Validando…' : 'Entrar →'}
+              </button>
+            </div>
+            <p style={{ fontSize: 11, color: 'var(--muted)', textAlign: 'center', lineHeight: 1.6 }}>
+              ¿No tienes el código? Pídelo al organizador de la quiniela.
+            </p>
+          </div>
+
+        ) : yaEnviadoAntes ? (
+          /* ── Ya envió desde este dispositivo (mitigación duplicados) ─── */
+          <div>
+            <div style={{
+              background: 'var(--card)', borderRadius: 'var(--radius-lg)',
+              padding: '1.75rem 1.5rem', marginBottom: 14,
+              border: '1.5px solid var(--green)', boxShadow: 'var(--shadow-md)', textAlign: 'center',
+            }}>
+              <div style={{
+                width: 64, height: 64, borderRadius: '50%',
+                background: 'linear-gradient(135deg, var(--green), var(--green-light))',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                margin: '0 auto 14px', fontSize: 30, color: '#07120A',
+                boxShadow: 'var(--shadow-green)',
+              }}>✓</div>
+              <p style={{ fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 700, color: 'var(--text-strong)', marginBottom: 6 }}>
+                Ya enviaste tu predicción
+              </p>
+              <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 18, lineHeight: 1.5 }}>
+                Quedó registrada como <strong style={{ color: 'var(--text)' }}>{yaEnviadoAntes}</strong>.<br />
+                Si necesitas cambiar algo, contacta al organizador.
+              </p>
+              <a
+                href={`/ranking?q=${quinielaId}`}
+                style={{
+                  display: 'block', textAlign: 'center', padding: '12px 28px', borderRadius: 'var(--radius-md)',
+                  background: 'linear-gradient(135deg, var(--green), var(--green-light))',
+                  color: '#07120A', fontWeight: 800, fontSize: 15, textDecoration: 'none',
+                  boxShadow: 'var(--shadow-green)', letterSpacing: 0.2,
+                }}
+              >
+                Ver ranking →
+              </a>
+            </div>
+            <p style={{ fontSize: 11, color: 'var(--muted)', textAlign: 'center', lineHeight: 1.6 }}>
+              ¿No eres tú?{' '}
+              <button
+                onClick={() => {
+                  try { if (lsEnviadoKey) localStorage.removeItem(lsEnviadoKey) } catch { /* noop */ }
+                  setYaEnviadoAntes(null)
+                }}
+                style={{
+                  background: 'none', border: 'none', color: 'var(--green-light)',
+                  fontSize: 11, fontWeight: 600, cursor: 'pointer', padding: 0,
+                  textDecoration: 'underline',
+                }}
+              >
+                Registrar a otra persona
+              </button>
+            </p>
           </div>
 
         ) : (tienePremio(quiniela) && !confirmadoRegla) ? (
@@ -584,11 +805,18 @@ export default function Predicciones() {
           <>
             {/* Nombre */}
             <div style={card}>
-              <label htmlFor="jugador-nombre" style={lbl}>Tu nombre</label>
+              <label htmlFor="jugador-nombre" style={lbl}>
+                {quiniela?.requiereApellido ? 'Tu nombre completo' : 'Tu nombre'}
+              </label>
+              {quiniela?.requiereApellido && (
+                <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>
+                  Nombre y al menos un apellido (ej. María González).
+                </p>
+              )}
               <input
                 id="jugador-nombre"
                 type="text"
-                placeholder="¿Cómo te llamas?"
+                placeholder={quiniela?.requiereApellido ? 'Ej. María González' : '¿Cómo te llamas?'}
                 value={nombre}
                 onChange={e => { setNombre(e.target.value); setNombreError('') }}
                 style={{ fontSize: 15, borderColor: nombreError ? 'var(--red)' : undefined }}
@@ -713,6 +941,7 @@ export default function Predicciones() {
             )}
           </>
         )}
+        <Footer />
       </div>
     </div>
   )

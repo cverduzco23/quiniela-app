@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react'
-import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore'
-import { db } from '../firebase'
+import { useNavigate } from 'react-router-dom'
+import { collection, getDocs, query, orderBy, limit, where } from 'firebase/firestore'
+import { db, track } from '../firebase'
 import { cierreToDate, quinielaCerrada, quinielaFinalizada } from '../utils/cierre'
 import { tienePremio } from '../utils/premios'
-import { WhatsAppCTA } from '../components/WhatsAppCTA'
+import { PromoCTA } from '../components/PromoCTA'
+import { Footer } from '../components/Footer'
 
 const sinPremioBadgeStyle = {
   display: 'inline-flex', alignItems: 'center', gap: 4,
@@ -46,6 +48,47 @@ export default function Home() {
   const [conteos, setConteos]     = useState({})
   const [cargando, setCargando]   = useState(true)
 
+  // Buscador por código de acceso
+  const navigate = useNavigate()
+  const [codigoBusqueda, setCodigoBusqueda] = useState('')
+  const [buscando, setBuscando]             = useState(false)
+  const [errorBusqueda, setErrorBusqueda]   = useState('')
+
+  const buscarPorCodigo = async () => {
+    const limpio = codigoBusqueda.trim()
+    if (!limpio) {
+      setErrorBusqueda('Ingresa el código que te compartió el organizador.')
+      return
+    }
+    setBuscando(true)
+    setErrorBusqueda('')
+    try {
+      const snap = await getDocs(query(
+        collection(db, 'quinielas'),
+        where('codigoAccesoLower', '==', limpio.toLowerCase())
+      ))
+      if (snap.empty) {
+        setErrorBusqueda('Código no encontrado. Verifica con quien te invitó.')
+        track('codigo_busqueda_fallo')
+        return
+      }
+      const docSnap = snap.docs[0]
+      const data = docSnap.data()
+      // Pre-autorizar el acceso para que la pantalla de predicción no pida el código de nuevo
+      try {
+        if (data.codigoAcceso) {
+          localStorage.setItem(`quiniela-${docSnap.id}-acceso`, data.codigoAcceso)
+        }
+      } catch { /* noop */ }
+      track('codigo_busqueda_exito', { quinielaId: docSnap.id })
+      navigate(`/?q=${docSnap.id}`)
+    } catch {
+      setErrorBusqueda('Error de conexión. Intenta de nuevo.')
+    } finally {
+      setBuscando(false)
+    }
+  }
+
   useEffect(() => {
     Promise.all([
       getDocs(query(collection(db, 'quinielas'), orderBy('creada', 'desc'), limit(10))),
@@ -57,7 +100,11 @@ export default function Home() {
         conteoMap[qId] = (conteoMap[qId] ?? 0) + 1
       })
       setConteos(conteoMap)
-      setQuinielas(qSnap.docs.map(d => ({ id: d.id, ...d.data() })))
+      // Excluir quinielas privadas: solo se acceden con el enlace directo.
+      setQuinielas(
+        qSnap.docs.map(d => ({ id: d.id, ...d.data() }))
+          .filter(q => !q.privada)
+      )
     })
     .catch(() => {})
     .finally(() => setCargando(false))
@@ -91,17 +138,69 @@ export default function Home() {
           <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(28px, 7vw, 40px)', fontWeight: 700, lineHeight: 1.05, marginBottom: 12, letterSpacing: '-0.02em' }}>
             Predice. Compite. <span style={{ color: 'var(--green)' }}>Gana.</span>
           </h1>
-          <p style={{ fontSize: 14, color: 'var(--muted)', lineHeight: 1.6 }}>La quiniela deportiva de tu grupo.</p>
+          <p style={{ fontSize: 14, color: 'var(--muted)', lineHeight: 1.6 }}>Quinielas privadas para tu equipo o empresa.</p>
         </div>
       </div>
 
       <div style={{ maxWidth: 560, margin: '0 auto', padding: '1.5rem 1rem 3rem' }}>
 
+        {/* ── Buscador por código de acceso (CTA principal) ──────────── */}
+        <div style={{
+          background: 'var(--card)', borderRadius: 'var(--radius-lg)',
+          padding: '1.25rem 1.5rem', marginBottom: 24,
+          border: '1.5px solid var(--green)', boxShadow: 'var(--shadow-md)',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+            <span style={{ fontSize: 22, lineHeight: 1 }} aria-hidden="true">🔑</span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-strong)' }}>
+                ¿Tienes un código de acceso?
+              </p>
+              <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>
+                Ingresa el código que te compartió el organizador para entrar a tu quiniela.
+              </p>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <input
+              type="text"
+              placeholder="Ej. ACME2026"
+              value={codigoBusqueda}
+              onChange={e => { setCodigoBusqueda(e.target.value); setErrorBusqueda('') }}
+              onKeyDown={e => e.key === 'Enter' && buscarPorCodigo()}
+              style={{
+                flex: '1 1 180px', fontSize: 15, letterSpacing: 1.5, fontWeight: 700,
+                borderColor: errorBusqueda ? 'var(--red)' : undefined,
+              }}
+            />
+            <button
+              onClick={buscarPorCodigo}
+              disabled={buscando}
+              style={{
+                padding: '12px 22px', borderRadius: 'var(--radius-md)', border: 'none',
+                background: buscando ? 'var(--card-light)' : 'linear-gradient(135deg, var(--green), var(--green-light))',
+                color: buscando ? 'var(--muted)' : '#07120A',
+                fontSize: 14, fontWeight: 800, letterSpacing: 0.2,
+                cursor: buscando ? 'not-allowed' : 'pointer',
+                boxShadow: buscando ? 'none' : 'var(--shadow-green)',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {buscando ? 'Buscando…' : 'Entrar →'}
+            </button>
+          </div>
+          {errorBusqueda && (
+            <p style={{ fontSize: 12, color: '#FCA5A5', marginTop: 10 }}>
+              ⚠️ {errorBusqueda}
+            </p>
+          )}
+        </div>
+
         {!principal && enJuego.length === 0 && !ultimaFinal && (
-          <div style={{ background: 'var(--card)', borderRadius: 'var(--radius-lg)', padding: '3rem 2rem', textAlign: 'center', boxShadow: 'var(--shadow-sm)', border: '1px solid var(--border)' }}>
-            <div style={{ fontSize: 52, marginBottom: 16 }}>⚽</div>
-            <p style={{ fontWeight: 700, fontSize: 17, color: 'var(--text)', marginBottom: 8 }}>Próximamente la siguiente jornada</p>
-            <p style={{ fontSize: 14, color: 'var(--muted)', lineHeight: 1.5 }}>Estamos preparando la próxima quiniela. Vuelve pronto para registrar tus predicciones.</p>
+          <div style={{ background: 'var(--card)', borderRadius: 'var(--radius-lg)', padding: '2.5rem 2rem', textAlign: 'center', boxShadow: 'var(--shadow-sm)', border: '1px solid var(--border)' }}>
+            <div style={{ fontSize: 48, marginBottom: 14 }}>⚽</div>
+            <p style={{ fontWeight: 700, fontSize: 16, color: 'var(--text)', marginBottom: 6 }}>No hay quinielas públicas activas</p>
+            <p style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.5 }}>Si te invitaron a una quiniela privada, ingresa el código arriba para entrar.</p>
           </div>
         )}
 
@@ -248,18 +347,19 @@ export default function Home() {
           />
         </div>
 
-        {/* CTA WhatsApp */}
-        <WhatsAppCTA />
+        {/* CTA comercial discreto */}
+        <PromoCTA />
 
         {/* Disclaimer al fondo */}
         <p style={{
           fontSize: 11, color: 'var(--muted)', textAlign: 'center',
           marginTop: 16, padding: '0 1rem', lineHeight: 1.6, fontStyle: 'italic',
         }}>
-          App de uso recreativo para quinielas entre familia y amigos cercanos.
+          Plataforma para crear quinielas privadas entre grupos cerrados.
           <br />No es una plataforma de apuestas comerciales.
         </p>
 
+        <Footer />
       </div>
     </div>
   )

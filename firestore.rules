@@ -1,0 +1,104 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ──────────────────────────────────────────────────────────────
+    // Helpers
+    // ──────────────────────────────────────────────────────────────
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Super admin: dueño del producto. Ve y edita todo.
+    // Agrega aquí los UIDs que deben tener acceso global.
+    function isSuperAdmin() {
+      return isSignedIn() && request.auth.uid in [
+        'w6uc7cHowgM4Pmsya4bUHt1G3Pu2'  // César
+        // 'UID_DEL_PRIMO_AQUI'         // Agregar cuando se cree su cuenta — si quieres que sea super admin también
+      ];
+    }
+
+    // Dueño de una quiniela: solo ve/edita las suyas.
+    function esDuenoDeQuiniela(quinielaId) {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/quinielas/$(quinielaId)) &&
+        get(/databases/$(database)/documents/quinielas/$(quinielaId)).data.ownerUid == request.auth.uid;
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // quinielas/
+    // ──────────────────────────────────────────────────────────────
+    match /quinielas/{quinielaId} {
+
+      // Lectura pública — necesaria para que el home, predicciones y ranking
+      // funcionen sin login para participantes.
+      allow read: if true;
+
+      // Crear: cualquier admin autenticado. El ownerUid del doc debe ser su propio UID
+      // (super admin puede crear con cualquier ownerUid, útil para asignar quinielas).
+      allow create: if isSignedIn() &&
+        (
+          isSuperAdmin() ||
+          request.resource.data.ownerUid == request.auth.uid
+        );
+
+      // Editar/borrar: super admin o el dueño.
+      allow update, delete: if isSuperAdmin() ||
+        (isSignedIn() && resource.data.ownerUid == request.auth.uid);
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // predicciones/
+    // ──────────────────────────────────────────────────────────────
+    match /predicciones/{prediccionId} {
+
+      // Lectura pública — el ranking las muestra a todos.
+      allow read: if true;
+
+      // Crear: validaciones estrictas + quiniela existe + dentro del plazo.
+      // (El código de acceso se valida client-side. Las rules no lo enforce porque
+      // codigoAcceso vive en el doc público de la quiniela; el código es protección
+      // cosmética contra accesos casuales, no contra atacantes.)
+      allow create: if
+        // Estructura del doc: solo estas keys, ninguna extra
+        request.resource.data.keys().hasOnly(
+          ['quinielaId', 'nombre', 'picks', 'fecha', 'codigoAcceso']
+        ) &&
+        // Tipos básicos
+        request.resource.data.quinielaId is string &&
+        request.resource.data.nombre is string &&
+        request.resource.data.picks is map &&
+        request.resource.data.fecha is string &&
+        // Tamaños razonables
+        request.resource.data.nombre.size() >= 2 &&
+        request.resource.data.nombre.size() <= 60 &&
+        request.resource.data.nombre.trim() == request.resource.data.nombre &&
+        request.resource.data.picks.size() <= 30 &&
+        // La quiniela debe existir
+        exists(/databases/$(database)/documents/quinielas/$(request.resource.data.quinielaId)) &&
+        // Dentro del plazo de cierre (si la quiniela define `cierre`)
+        (
+          !('cierre' in get(/databases/$(database)/documents/quinielas/$(request.resource.data.quinielaId)).data) ||
+          get(/databases/$(database)/documents/quinielas/$(request.resource.data.quinielaId)).data.cierre == null ||
+          request.time < get(/databases/$(database)/documents/quinielas/$(request.resource.data.quinielaId)).data.cierre
+        );
+
+      // Las predicciones no se editan una vez enviadas.
+      allow update: if false;
+
+      // Borrar: super admin o dueño de la quiniela.
+      allow delete: if isSuperAdmin() ||
+        esDuenoDeQuiniela(resource.data.quinielaId);
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // movimientos/  (caja interna del admin)
+    // ──────────────────────────────────────────────────────────────
+    // Solo super admin. Esta colección es contabilidad interna del producto
+    // global — no escala por owner por ahora.
+    match /movimientos/{movimientoId} {
+      allow read, write: if isSuperAdmin();
+    }
+  }
+}

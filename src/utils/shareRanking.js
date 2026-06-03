@@ -1,4 +1,5 @@
 import { formatearMXN } from './premios'
+import { normalizarNombre } from './nombres'
 
 const COLORS = {
   bg: '#0B1220',
@@ -21,8 +22,15 @@ const PAD = 40
 const ROW_H = 68
 const SCALE = 2
 
+// Umbrales de layout:
+// - Si hay ≤ MAX_FILAS_DETALLE jugadores → muestra a todos
+// - Si hay más → muestra Top MAX_FILAS_TOP
+// - Si además se pasa `miNombre` y está fuera del top → agrega separador
+//   "…" + ventana de ±VECINOS_RADIO filas alrededor del user
 const MAX_FILAS_DETALLE = 15
-const MAX_FILAS_TOP = 10
+const MAX_FILAS_TOP     = 15
+const VECINOS_RADIO     = 2  // 2 arriba + 2 abajo + tú = 5 filas
+const SEP_H             = 36 // alto del separador "···"
 
 function roundRect(ctx, x, y, w, h, r) {
   const radius = Math.min(r, w / 2, h / 2)
@@ -54,20 +62,61 @@ function formatearFechaCorta() {
   })
 }
 
-function calcularLayout(jugadores) {
-  const filas = jugadores.length <= MAX_FILAS_DETALLE
-    ? jugadores
-    : jugadores.slice(0, MAX_FILAS_TOP)
-  const mostradosExtra = jugadores.length - filas.length
-  return { filas, mostradosExtra }
+// Devuelve la estructura de layout para el renderizado:
+//   top:           filas principales (Top N), cada una con su _pos calculada
+//   vecinos:       filas de la ventana alrededor del user (vacío si no aplica)
+//   separadorN:    cantidad de jugadores entre el final del top y el primer vecino (0 si no aplica)
+//   restoFinal:    cantidad de jugadores después del último vecino o del top (para "+N más")
+//   miNombreNorm:  nombre normalizado del user (para resaltar su fila), o null
+function calcularLayout(jugadores, miNombre) {
+  // Calculamos posiciones del ranking completo para que la "ventana del user"
+  // muestre las posiciones reales (#67, no #1).
+  const posiciones = []
+  jugadores.forEach((j, i) => {
+    if (i === 0) { posiciones.push(1); return }
+    const prev = jugadores[i - 1]
+    posiciones.push(prev.puntos === j.puntos ? posiciones[i - 1] : i + 1)
+  })
+  const conPos = jugadores.map((j, i) => ({ ...j, _pos: posiciones[i] }))
+
+  // Pocos jugadores → mostramos a todos sin ventana ni separador
+  if (conPos.length <= MAX_FILAS_DETALLE) {
+    return { top: conPos, vecinos: [], separadorN: 0, restoFinal: 0, miNombreNorm: null }
+  }
+
+  const top = conPos.slice(0, MAX_FILAS_TOP)
+  const restoBase = conPos.length - top.length
+
+  // Sin nombre de user → comportamiento clásico: solo top + "+N más"
+  const miNombreNorm = miNombre ? normalizarNombre(miNombre) : null
+  if (!miNombreNorm) {
+    return { top, vecinos: [], separadorN: 0, restoFinal: restoBase, miNombreNorm: null }
+  }
+
+  // Buscar al user. Si no aparece o está en el top, no hay ventana.
+  const miIdx = conPos.findIndex(j => j.nombre === miNombreNorm)
+  if (miIdx < 0 || miIdx < MAX_FILAS_TOP) {
+    return { top, vecinos: [], separadorN: 0, restoFinal: restoBase, miNombreNorm }
+  }
+
+  // Ventana de ±VECINOS_RADIO alrededor del user, sin pisarse con el top
+  const start = Math.max(MAX_FILAS_TOP, miIdx - VECINOS_RADIO)
+  const end   = Math.min(conPos.length, miIdx + VECINOS_RADIO + 1)
+  const vecinos = conPos.slice(start, end)
+  const separadorN = start - MAX_FILAS_TOP
+  const restoFinal = conPos.length - end
+
+  return { top, vecinos, separadorN, restoFinal, miNombreNorm }
 }
 
-function calcularAltura({ filas, mostradosExtra, banner }) {
+function calcularAltura({ top, vecinos, separadorN, restoFinal, banner }) {
   let h = PAD + 110 // título + estado
   if (banner) h += 96
   h += 50 // header tabla
-  h += filas.length * ROW_H + 12
-  if (mostradosExtra > 0) h += 36
+  h += top.length * ROW_H + 12
+  if (separadorN > 0) h += SEP_H
+  h += vecinos.length * ROW_H
+  if (restoFinal > 0) h += 36
   h += 50 + PAD // footer
   return h
 }
@@ -94,20 +143,21 @@ export async function generarImagenRanking({
   terminados = 0,
   totalPartidos = 0,
   conPremio = false,
+  miNombre = null,
 }) {
   // Asegurar que las fonts estén cargadas para no obtener fallback
   if (document.fonts?.ready) {
     try { await document.fonts.ready } catch { /* noop */ }
   }
 
-  const { filas, mostradosExtra } = calcularLayout(jugadores)
+  const { top, vecinos, separadorN, restoFinal, miNombreNorm } = calcularLayout(jugadores, miNombre)
   const boteDevuelto = !!quiniela?.boteDevuelto
   const ganadoresNombres = conPremio && !boteDevuelto
     ? jugadores.filter(j => premioPorNombre[j.nombre] !== undefined).map(j => j.nombre)
     : []
   const banner = conPremio && (finalizada || ganadoresNombres.length > 0 || bote > 0 || boteDevuelto)
 
-  const H = calcularAltura({ filas, mostradosExtra, banner })
+  const H = calcularAltura({ top, vecinos, separadorN, restoFinal, banner })
 
   const canvas = document.createElement('canvas')
   canvas.width  = W * SCALE
@@ -233,20 +283,25 @@ export async function generarImagenRanking({
   ctx.textAlign = 'left'
   y += 50
 
-  // ── Filas — ranking olímpico (empates comparten posición)
+  // ── Filas — dibujo común aplicado a top y vecinos
   const medals = ['🥇', '🥈', '🥉']
-  const posiciones = []
-  filas.forEach((j, i) => {
-    if (i === 0) { posiciones.push(1); return }
-    const prev = filas[i - 1]
-    posiciones.push(prev.puntos === j.puntos ? posiciones[i - 1] : i + 1)
-  })
 
-  filas.forEach((j, i) => {
-    const pos = posiciones[i]
+  const dibujarFila = (j) => {
+    const pos     = j._pos
     const esLider = pos === 1 && (terminados > 0 || enVivo)
     const medalla = pos <= 3 ? medals[pos - 1] : null
-    if (esLider) {
+    const esTu    = !!miNombreNorm && j.nombre === miNombreNorm
+
+    // Fondo: si es la fila del user, banda verde más visible que la del líder
+    if (esTu) {
+      ctx.fillStyle = 'rgba(34,197,94,0.22)'
+      roundRect(ctx, PAD, y, W - PAD * 2, ROW_H - 8, 10)
+      ctx.fill()
+      ctx.strokeStyle = COLORS.green
+      ctx.lineWidth = 1.5
+      roundRect(ctx, PAD, y, W - PAD * 2, ROW_H - 8, 10)
+      ctx.stroke()
+    } else if (esLider) {
       const ling = ctx.createLinearGradient(PAD, 0, W - PAD, 0)
       ling.addColorStop(0, 'rgba(34,197,94,0.16)')
       ling.addColorStop(0.6, 'rgba(34,197,94,0.03)')
@@ -267,25 +322,33 @@ export async function generarImagenRanking({
     // Posición / medalla
     ctx.textBaseline = 'middle'
     if (medalla) {
-      ctx.fillStyle = COLORS.textStrong  // resetear tras el gradiente para que el emoji renderice en color
+      ctx.fillStyle = COLORS.textStrong
       ctx.font = '700 28px Inter'
       ctx.textAlign = 'center'
       ctx.fillText(medalla, colNum + 4, y + 30)
     } else {
-      ctx.fillStyle = COLORS.muted
+      ctx.fillStyle = esTu ? COLORS.green : COLORS.muted
       ctx.font = '700 17px Inter'
       ctx.textAlign = 'center'
       ctx.fillText(`${pos}`, colNum + 4, y + 30)
     }
 
-    // Nombre
+    // Nombre (con "TÚ" si aplica)
     ctx.textAlign = 'left'
     ctx.fillStyle = COLORS.textStrong
-    ctx.font = esLider ? '700 17px Inter' : '600 16px Inter'
-    const maxNombreW = (colAci - 40) - colNom
+    ctx.font = (esLider || esTu) ? '700 17px Inter' : '600 16px Inter'
+    const sufijoTu = esTu ? '  TÚ' : ''
+    const anchoTu  = esTu ? ctx.measureText(sufijoTu).width + 4 : 0
+    const maxNombreW = (colAci - 40) - colNom - anchoTu
     ctx.fillText(truncate(ctx, j.nombre, maxNombreW), colNom, y + 30)
+    if (esTu) {
+      const wn = ctx.measureText(truncate(ctx, j.nombre, maxNombreW)).width
+      ctx.fillStyle = COLORS.green
+      ctx.font = '800 12px Inter'
+      ctx.fillText('TÚ', colNom + wn + 8, y + 30)
+    }
 
-    // Aciertos (resultados correctos)
+    // Aciertos
     ctx.fillStyle = COLORS.muted
     ctx.font = '600 15px Inter'
     ctx.textAlign = 'center'
@@ -315,15 +378,37 @@ export async function generarImagenRanking({
 
     ctx.textAlign = 'left'
     y += ROW_H
-  })
+  }
 
-  // ── Texto "+N más" si se truncó
-  if (mostradosExtra > 0) {
+  // Render del top
+  top.forEach(dibujarFila)
+
+  // Separador "···" entre top y vecinos (si hay gap)
+  if (separadorN > 0) {
+    ctx.fillStyle = COLORS.muted
+    ctx.font = '700 15px Inter'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(
+      `· · ·   ${separadorN} jugador${separadorN !== 1 ? 'es' : ''} más   · · ·`,
+      W / 2, y + SEP_H / 2
+    )
+    y += SEP_H
+  }
+
+  // Render de la ventana del user
+  vecinos.forEach(dibujarFila)
+
+  // Texto "+N más" al final si la imagen no abarca todo el ranking
+  if (restoFinal > 0) {
     ctx.fillStyle = COLORS.muted
     ctx.font = '600 13px Inter'
     ctx.textAlign = 'center'
     ctx.textBaseline = 'top'
-    ctx.fillText(`+ ${mostradosExtra} jugador${mostradosExtra !== 1 ? 'es' : ''} más en quinielapp.fun`, W / 2, y + 4)
+    ctx.fillText(
+      `+ ${restoFinal} jugador${restoFinal !== 1 ? 'es' : ''} más en quinielapp.fun`,
+      W / 2, y + 4
+    )
     y += 28
   }
 

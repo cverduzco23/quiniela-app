@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { normalizarNombre } from './nombres'
+import { normalizarNombre, tieneNombreYApellido } from './nombres'
 
 describe('normalizarNombre', () => {
   it('capitaliza cada palabra', () => {
@@ -37,5 +37,41 @@ describe('normalizarNombre', () => {
   it('palabra de una letra', () => {
     expect(normalizarNombre('Omar V')).toBe('Omar V')
     expect(normalizarNombre('omar v')).toBe('Omar V')
+  })
+})
+
+describe('tieneNombreYApellido', () => {
+  it('acepta nombre + apellido típicos', () => {
+    expect(tieneNombreYApellido('Juan Pérez')).toBe(true)
+    expect(tieneNombreYApellido('María González')).toBe(true)
+    expect(tieneNombreYApellido('María José García')).toBe(true)
+    expect(tieneNombreYApellido('Carlos González López')).toBe(true)
+  })
+
+  it('rechaza solo nombre', () => {
+    expect(tieneNombreYApellido('Juan')).toBe(false)
+    expect(tieneNombreYApellido('María')).toBe(false)
+    expect(tieneNombreYApellido('Ana')).toBe(false)
+  })
+
+  it('rechaza apellido abreviado (token de 1 char)', () => {
+    expect(tieneNombreYApellido('Juan P')).toBe(false)
+    expect(tieneNombreYApellido('Ana K')).toBe(false)
+    expect(tieneNombreYApellido('M G')).toBe(false)
+  })
+
+  it('acepta abreviatura con punto como 2 chars', () => {
+    expect(tieneNombreYApellido('Carlos G. López')).toBe(true)
+  })
+
+  it('maneja espacios extras', () => {
+    expect(tieneNombreYApellido('  Juan   Pérez  ')).toBe(true)
+  })
+
+  it('rechaza entrada vacía o nula', () => {
+    expect(tieneNombreYApellido('')).toBe(false)
+    expect(tieneNombreYApellido(null)).toBe(false)
+    expect(tieneNombreYApellido(undefined)).toBe(false)
+    expect(tieneNombreYApellido('   ')).toBe(false)
   })
 })
