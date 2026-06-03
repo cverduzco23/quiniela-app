@@ -54,7 +54,14 @@ export default function Home() {
   const [buscando, setBuscando]             = useState(false)
   const [errorBusqueda, setErrorBusqueda]   = useState('')
 
-  const buscarPorCodigo = async () => {
+  /**
+   * Valida el código de acceso y redirige al destino indicado.
+   * destino = 'predicciones' → /?q=<id> (form para hacer predicción)
+   * destino = 'ranking'      → /ranking?q=<id> (solo ver el ranking)
+   * En ambos casos guardamos el código en localStorage para que la pantalla
+   * de predicción no pida el código de nuevo si después decide registrarse.
+   */
+  const buscarPorCodigo = async (destino = 'predicciones') => {
     const limpio = codigoBusqueda.trim()
     if (!limpio) {
       setErrorBusqueda('Ingresa el código que te compartió el organizador.')
@@ -74,14 +81,14 @@ export default function Home() {
       }
       const docSnap = snap.docs[0]
       const data = docSnap.data()
-      // Pre-autorizar el acceso para que la pantalla de predicción no pida el código de nuevo
       try {
         if (data.codigoAcceso) {
           localStorage.setItem(`quiniela-${docSnap.id}-acceso`, data.codigoAcceso)
         }
       } catch { /* noop */ }
-      track('codigo_busqueda_exito', { quinielaId: docSnap.id })
-      navigate(`/?q=${docSnap.id}`)
+      track('codigo_busqueda_exito', { quinielaId: docSnap.id, destino })
+      const ruta = destino === 'ranking' ? `/ranking?q=${docSnap.id}` : `/?q=${docSnap.id}`
+      navigate(ruta)
     } catch {
       setErrorBusqueda('Error de conexión. Intenta de nuevo.')
     } finally {
@@ -167,14 +174,14 @@ export default function Home() {
               placeholder="Ej. ACME2026"
               value={codigoBusqueda}
               onChange={e => { setCodigoBusqueda(e.target.value); setErrorBusqueda('') }}
-              onKeyDown={e => e.key === 'Enter' && buscarPorCodigo()}
+              onKeyDown={e => e.key === 'Enter' && buscarPorCodigo('predicciones')}
               style={{
-                flex: '1 1 180px', fontSize: 15, letterSpacing: 1.5, fontWeight: 700,
+                flex: '1 1 180px', fontSize: 16, letterSpacing: 1.5, fontWeight: 700,
                 borderColor: errorBusqueda ? 'var(--red)' : undefined,
               }}
             />
             <button
-              onClick={buscarPorCodigo}
+              onClick={() => buscarPorCodigo('predicciones')}
               disabled={buscando}
               style={{
                 padding: '12px 22px', borderRadius: 'var(--radius-md)', border: 'none',
@@ -186,7 +193,7 @@ export default function Home() {
                 whiteSpace: 'nowrap',
               }}
             >
-              {buscando ? 'Buscando…' : 'Entrar →'}
+              {buscando ? 'Buscando…' : 'Hacer predicción →'}
             </button>
           </div>
           {errorBusqueda && (
@@ -194,6 +201,20 @@ export default function Home() {
               ⚠️ {errorBusqueda}
             </p>
           )}
+          <p style={{ fontSize: 12, color: 'var(--muted)', textAlign: 'center', marginTop: 12, lineHeight: 1.5 }}>
+            ¿Solo quieres ver el ranking?{' '}
+            <button
+              onClick={() => buscarPorCodigo('ranking')}
+              disabled={buscando}
+              style={{
+                background: 'none', border: 'none', padding: 0,
+                color: 'var(--green-light)', fontWeight: 700, fontSize: 12,
+                textDecoration: 'underline', cursor: buscando ? 'not-allowed' : 'pointer',
+              }}
+            >
+              Entrar al ranking
+            </button>
+          </p>
         </div>
 
         {!principal && enJuego.length === 0 && !ultimaFinal && (

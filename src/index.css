@@ -94,6 +94,25 @@ select {
   width: 100%;
 }
 
+/* Evita el zoom automático de iOS Safari y Chrome móvil al enfocar un input.
+   El zoom se dispara cuando el font-size es menor a 16px. Aplica solo en
+   pantallas pequeñas para no agrandar los inputs de desktop.
+   Usamos !important para sobrescribir los inline styles que rondan en 14-15px. */
+@media (max-width: 768px) {
+  input[type="text"],
+  input[type="email"],
+  input[type="number"],
+  input[type="password"],
+  input[type="datetime-local"],
+  input[type="search"],
+  input[type="tel"],
+  input[type="url"],
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
 input::placeholder, textarea::placeholder {
   color: var(--muted-soft);
 }
