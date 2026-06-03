@@ -6,6 +6,7 @@ import { cierreToDate, cierreToInputValue, inputValueACierre, quinielaCerrada, q
 import { TIPO_PREMIO, MODELO_PREMIO, calcularBote, tienePremio, formatearMXN } from '../utils/premios'
 import { normalizarNombre } from '../utils/nombres'
 import { detectarSimilares } from '../utils/duplicados'
+import { findEventByTeamsAndDate } from '../utils/espn'
 
 // UIDs con privilegios globales (ver/editar todas las quinielas).
 // Mantener sincronizado con `isSuperAdmin()` en firestore.rules.
@@ -138,6 +139,10 @@ export default function Admin() {
   const [sincrMsg, setSincrMsg]           = useState('')
   const [confirmacionRes, setConfirmacionRes] = useState(null)
   const [validandoEspn, setValidandoEspn] = useState(false)
+  // Cuando ESPN reasigna el ID de un partido, lo buscamos por nombres + día.
+  // Si encontramos un único candidato, lo proponemos al admin para confirmar.
+  const [sugerenciasIdMismatch, setSugerenciasIdMismatch] = useState([])
+  const [aplicandoSugerencia, setAplicandoSugerencia]     = useState(null)
 
   // ─── Buscador de partidos ESPN ────────────────────────────────────────────
   const [ligaId, setLigaId]               = useState('')
@@ -798,6 +803,7 @@ export default function Admin() {
 
     const resGuardar = { ...resultados }
     let actualizados = 0
+    const nuevasSugerencias = []
 
     for (const [liga, ps] of Object.entries(porLiga)) {
       try {
@@ -815,7 +821,16 @@ export default function Admin() {
         ps.forEach(p => {
           if (resGuardar[p.idx]?.cancelado) return
           const ev = events.find(e => e.id === p.espnId)
-          if (!ev) return
+          if (!ev) {
+            // Fallback: el ID no coincide. Buscar por nombres + día.
+            // Si encuentra exactamente 1 candidato, pedimos confirmación al admin
+            // (no actualizamos automáticamente para evitar usar un partido equivocado).
+            const candidato = findEventByTeamsAndDate(events, p.local, p.visitante, p.hora)
+            if (candidato) {
+              nuevasSugerencias.push({ idx: p.idx, partidoOriginal: p, eventoSugerido: candidato, ligaId: liga })
+            }
+            return
+          }
           const state = ev.status?.type?.state
           if (state !== 'post') return
           // ESPN reporta cancelados/pospuestos/forfeits con state="post" y completed=false,
@@ -837,6 +852,9 @@ export default function Admin() {
       } catch { /* silencioso */ }
     }
 
+    // Mostrar/actualizar las sugerencias (reemplazan a las anteriores en cada run)
+    setSugerenciasIdMismatch(nuevasSugerencias)
+
     if (actualizados > 0) {
       try {
         const completos = resultadosCompletos({ partidos: quinielaActual.partidos, resultados: resGuardar })
@@ -845,15 +863,75 @@ export default function Admin() {
         setResultados(resGuardar)
         setQuinielaActual(prev => ({ ...prev, ...patch }))
         setQuinielas(prev => prev.map(q => q.id === quinielaActual.id ? { ...q, ...patch } : q))
-        setSincrMsg(`✓ ${actualizados} partido${actualizados !== 1 ? 's' : ''} sincronizado${actualizados !== 1 ? 's' : ''}`)
-        setTimeout(() => setSincrMsg(''), 4000)
+        const sugMsg = nuevasSugerencias.length > 0
+          ? ` · ${nuevasSugerencias.length} con ID cambiado (revisa arriba)`
+          : ''
+        setSincrMsg(`✓ ${actualizados} partido${actualizados !== 1 ? 's' : ''} sincronizado${actualizados !== 1 ? 's' : ''}${sugMsg}`)
+        setTimeout(() => setSincrMsg(''), 6000)
       } catch { setSincrMsg('⚠ Error al guardar. Intenta de nuevo.') }
+    } else if (nuevasSugerencias.length > 0) {
+      setSincrMsg(`${nuevasSugerencias.length} partido${nuevasSugerencias.length !== 1 ? 's' : ''} con ID cambiado en ESPN — revisa arriba para confirmar.`)
+      setTimeout(() => setSincrMsg(''), 8000)
     } else {
       setSincrMsg('Sin partidos terminados para sincronizar.')
       setTimeout(() => setSincrMsg(''), 4000)
     }
 
     setSincronizando(false)
+  }
+
+  // ─── Aplicar / ignorar una sugerencia de ID cambiado en ESPN ──────────────
+  const aplicarSugerencia = async (s) => {
+    if (!quinielaActual || aplicandoSugerencia) return
+    setAplicandoSugerencia(s.idx)
+    try {
+      const ev = s.eventoSugerido
+      const state     = ev.status?.type?.state
+      const completed = ev.status?.type?.completed
+      const comps = ev.competitions?.[0]?.competitors ?? []
+      const home  = comps.find(c => c.homeAway === 'home')
+      const away  = comps.find(c => c.homeAway === 'away')
+
+      // Calcular el nuevo resultado según el estado actual del evento
+      let nuevoResultado = null
+      if (state === 'post' && completed === false) {
+        nuevoResultado = { cancelado: true }
+      } else if (state === 'post' && home?.score !== undefined && away?.score !== undefined) {
+        const resultado = goalsToResultado(home.score, away.score)
+        nuevoResultado = { local: home.score, visitante: away.score, resultado }
+      }
+      // Si aún no terminó, no actualizamos resultado — solo el espnId
+
+      const nuevosPartidos = (quinielaActual.partidos ?? []).map((p, i) =>
+        i === s.idx ? { ...p, espnId: ev.id } : p
+      )
+      const nuevasResultados = { ...(quinielaActual.resultados ?? {}) }
+      if (nuevoResultado) nuevasResultados[s.idx] = nuevoResultado
+
+      const completos = nuevoResultado
+        ? resultadosCompletos({ partidos: nuevosPartidos, resultados: nuevasResultados })
+        : false
+      const patch = {
+        partidos: nuevosPartidos,
+        resultados: nuevasResultados,
+        ...(completos ? { finalizada: true, finalizadaEn: new Date().toISOString() } : {}),
+      }
+
+      await updateDoc(doc(db, 'quinielas', quinielaActual.id), patch)
+      setQuinielaActual(prev => ({ ...prev, ...patch }))
+      setQuinielas(prev => prev.map(q => q.id === quinielaActual.id ? { ...q, ...patch } : q))
+      setResultados(nuevasResultados)
+      setSugerenciasIdMismatch(prev => prev.filter(x => x.idx !== s.idx))
+    } catch (err) {
+      console.error('Error aplicando sugerencia ESPN:', err)
+      alert('Error al aplicar la sugerencia. Intenta de nuevo.')
+    } finally {
+      setAplicandoSugerencia(null)
+    }
+  }
+
+  const ignorarSugerencia = (idx) => {
+    setSugerenciasIdMismatch(prev => prev.filter(x => x.idx !== idx))
   }
 
   // ─── Caja: guardar / eliminar ─────────────────────────────────────────────
@@ -1648,6 +1726,81 @@ export default function Admin() {
               {/* Tab: Resultados */}
               {tab === 'resultados' && (
                 <>
+                  {/* Sugerencias de IDs cambiados en ESPN — pedimos confirmación */}
+                  {sugerenciasIdMismatch.length > 0 && (
+                    <div style={{
+                      background: 'var(--yellow-bg)', border: '1.5px solid var(--yellow)',
+                      borderRadius: 'var(--radius-md)', padding: '14px 16px', marginBottom: 12,
+                    }}>
+                      <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--yellow-soft)', marginBottom: 4 }}>
+                        ⚠️ {sugerenciasIdMismatch.length} partido{sugerenciasIdMismatch.length !== 1 ? 's' : ''} con ID cambiado en ESPN
+                      </p>
+                      <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 12, lineHeight: 1.5 }}>
+                        Encontramos en ESPN un partido que parece ser el mismo pero con ID distinto. Verifica que sea correcto antes de aplicar.
+                      </p>
+                      {sugerenciasIdMismatch.map(s => {
+                        const ev = s.eventoSugerido
+                        const state = ev.status?.type?.state
+                        const completed = ev.status?.type?.completed
+                        const esCancelado = state === 'post' && completed === false
+                        const comps = ev.competitions?.[0]?.competitors ?? []
+                        const home = comps.find(c => c.homeAway === 'home')
+                        const away = comps.find(c => c.homeAway === 'away')
+                        const scoreTxt = esCancelado
+                          ? 'Cancelado'
+                          : state === 'post'
+                            ? `${home?.score ?? '?'} – ${away?.score ?? '?'} (Final)`
+                            : state === 'in'
+                              ? `${home?.score ?? '?'} – ${away?.score ?? '?'} (En vivo)`
+                              : 'Aún no inicia'
+                        const aplicando = aplicandoSugerencia === s.idx
+                        return (
+                          <div key={s.idx} style={{
+                            background: 'var(--card)', borderRadius: 'var(--radius-sm)',
+                            padding: '10px 12px', marginBottom: 8, border: '1px solid var(--border)',
+                          }}>
+                            <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-strong)', marginBottom: 4 }}>
+                              {s.partidoOriginal.local} vs {s.partidoOriginal.visitante}
+                            </p>
+                            <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 2, lineHeight: 1.5 }}>
+                              ID original: <code style={{ fontFamily: 'monospace' }}>{s.partidoOriginal.espnId}</code> (ya no existe en ESPN)
+                            </p>
+                            <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8, lineHeight: 1.5 }}>
+                              ID encontrado: <code style={{ fontFamily: 'monospace', color: 'var(--green-light)' }}>{ev.id}</code> · {scoreTxt}
+                            </p>
+                            <div style={{ display: 'flex', gap: 8 }}>
+                              <button
+                                onClick={() => aplicarSugerencia(s)}
+                                disabled={aplicando}
+                                style={{
+                                  flex: 1, padding: '8px 12px', borderRadius: 'var(--radius-sm)',
+                                  border: 'none',
+                                  background: aplicando ? 'var(--card-light)' : 'linear-gradient(135deg, var(--green), var(--green-light))',
+                                  color: aplicando ? 'var(--muted)' : '#07120A',
+                                  fontWeight: 800, fontSize: 12, cursor: aplicando ? 'not-allowed' : 'pointer',
+                                }}
+                              >
+                                {aplicando ? 'Aplicando…' : '✓ Confirmar y aplicar'}
+                              </button>
+                              <button
+                                onClick={() => ignorarSugerencia(s.idx)}
+                                disabled={aplicando}
+                                style={{
+                                  padding: '8px 14px', borderRadius: 'var(--radius-sm)',
+                                  border: '1px solid var(--border-strong)',
+                                  background: 'transparent', color: 'var(--muted)',
+                                  fontWeight: 700, fontSize: 12, cursor: aplicando ? 'not-allowed' : 'pointer',
+                                }}
+                              >
+                                Ignorar
+                              </button>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+
                   <div style={card}>
                     <label style={{ ...lbl, marginBottom: 14 }}>Registrar marcadores</label>
                     {(quinielaActual.partidos ?? []).map((p, i) => {
