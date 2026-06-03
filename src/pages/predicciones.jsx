@@ -544,6 +544,15 @@ export default function Predicciones() {
                 {validandoCodigo ? 'Validando…' : 'Entrar →'}
               </button>
             </div>
+            <p style={{ fontSize: 12, color: 'var(--muted)', textAlign: 'center', marginBottom: 6 }}>
+              ¿Solo quieres ver el ranking?{' '}
+              <a
+                href={`/ranking?q=${quinielaId}`}
+                style={{ color: 'var(--green-light)', fontWeight: 700, textDecoration: 'underline' }}
+              >
+                Entrar al ranking
+              </a>
+            </p>
             <p style={{ fontSize: 11, color: 'var(--muted)', textAlign: 'center', lineHeight: 1.6 }}>
               ¿No tienes el código? Pídelo al organizador de la quiniela.
             </p>
@@ -937,6 +946,15 @@ export default function Predicciones() {
                 }
               </p>
             )}
+            <p style={{ fontSize: 12, color: 'var(--muted)', textAlign: 'center', marginTop: 14 }}>
+              ¿Solo quieres ver el ranking?{' '}
+              <a
+                href={`/ranking?q=${quinielaId}`}
+                style={{ color: 'var(--green-light)', fontWeight: 700, textDecoration: 'underline' }}
+              >
+                Entrar al ranking
+              </a>
+            </p>
           </>
             )}
           </>

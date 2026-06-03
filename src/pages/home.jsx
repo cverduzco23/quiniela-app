@@ -193,7 +193,7 @@ export default function Home() {
                 whiteSpace: 'nowrap',
               }}
             >
-              {buscando ? 'Buscando…' : 'Hacer predicción →'}
+              {buscando ? 'Buscando…' : 'Entrar →'}
             </button>
           </div>
           {errorBusqueda && (
@@ -201,20 +201,6 @@ export default function Home() {
               ⚠️ {errorBusqueda}
             </p>
           )}
-          <p style={{ fontSize: 12, color: 'var(--muted)', textAlign: 'center', marginTop: 12, lineHeight: 1.5 }}>
-            ¿Solo quieres ver el ranking?{' '}
-            <button
-              onClick={() => buscarPorCodigo('ranking')}
-              disabled={buscando}
-              style={{
-                background: 'none', border: 'none', padding: 0,
-                color: 'var(--green-light)', fontWeight: 700, fontSize: 12,
-                textDecoration: 'underline', cursor: buscando ? 'not-allowed' : 'pointer',
-              }}
-            >
-              Entrar al ranking
-            </button>
-          </p>
         </div>
 
         {!principal && enJuego.length === 0 && !ultimaFinal && (
