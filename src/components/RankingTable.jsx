@@ -324,15 +324,10 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                 style={{
                   display: 'grid', gridTemplateColumns: '44px 1fr 60px 60px 52px',
                   padding: '13px 16px', alignItems: 'center',
-                  background: cambio === 'subio'
-                    ? 'rgba(16,185,129,0.18)'
-                    : cambio === 'bajo'
-                      ? 'rgba(239,68,68,0.12)'
-                      : esLider
-                        ? 'linear-gradient(90deg, var(--yellow-bg), transparent 60%)'
-                        : 'transparent',
+                  background: esLider
+                    ? 'linear-gradient(90deg, var(--yellow-bg), transparent 60%)'
+                    : 'transparent',
                   cursor: cerrada ? 'pointer' : 'default',
-                  transition: 'background 1s ease',
                 }}
               >
                 <span style={{ fontSize: medalla ? 18 : 14, fontWeight: 700, color: medalla ? 'var(--yellow)' : 'var(--muted)', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
