@@ -1,9 +1,19 @@
 # Plan de onboarding de clientes (admins) — QuinielApp
 
-> Estado: **PROPUESTA — pendiente de confirmar antes de tocar código.**
+> Estado: **IMPLEMENTADO y en producción (2026-06-05).** Fases A+B+C pusheadas a `main`
+> (deploy automático a Vercel). Pendiente: Fase D (ver §12).
 > Objetivo: permitir que empresas/usuarios soliciten una cuenta de admin por WhatsApp,
 > paguen, y operen su propia quiniela. Listo para clientes reales: **seguro y escalable**.
 > Fecha de redacción: 2026-06-05.
+
+## ⏳ Pendiente (Fase D — post-lanzamiento, opcional)
+- **Automatizar sincronización de resultados ESPN** (Cloud Function programada, plan Blaze).
+  Hoy es manual: el admin da "⚡ Sincronizar ESPN" al terminar los partidos.
+- **App Check (reCAPTCHA v3)** para endurecer seguridad antes de abrir a público amplio.
+- **Cloud Function para cuota dura** (hoy el conteo "1 gratis" es client-side / suave).
+- Sistema de **pagos en-app** completo (ver [[project_pending_payments]]): hoy el cobro es
+  100% manual (link MercadoPago + validación + marcar pagado en el panel).
+- Opcional: mini-tour de bienvenida con pasos; script Admin SDK para altas masivas.
 
 ---
 
