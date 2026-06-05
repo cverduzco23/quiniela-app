@@ -245,11 +245,11 @@ Se arman como links `https://wa.me/<NUMERO>?text=<mensaje-encodeado>`.
 | Plan | Para quién | Precio (MXN) |
 |------|-----------|----------------------|
 | **Primera quiniela** | Todos | **Gratis** |
-| **Por quiniela** (precio de lanzamiento) | Uso ocasional | **$59** |
+| **Por quiniela** (precio de lanzamiento) | Uso ocasional | **$49** |
 | **Pase Mundial** (ilimitadas durante el torneo) | Gancho inmediato | **$299** |
 
 > ✅ Confirmado. **Pase de temporada queda FUERA por ahora** (se puede añadir después).
-> Solo dos productos de pago: **por quiniela ($59)** y **Pase Mundial ($299)**.
+> Solo dos productos de pago: **por quiniela ($49)** y **Pase Mundial ($299)**.
 
 ---
 
@@ -331,7 +331,7 @@ Se arman como links `https://wa.me/<NUMERO>?text=<mensaje-encodeado>`.
 ## 14. Decisiones — estado
 
 1. ✅ **WhatsApp:** `525652491143`.
-2. ✅ **Precios:** $59 por quiniela (lanzamiento) + $299 Pase Mundial. Sin pase de temporada.
+2. ✅ **Precios:** $49 por quiniela (lanzamiento) + $299 Pase Mundial. Sin pase de temporada.
 3. ✅ **Tour:** modal de bienvenida de 3 pasos.
 4. ✅ **Caja:** ocultar para admins normales.
 5. ⏳ **Alcance inmediato:** propuesto arrancar **solo Fase A** (pendiente luz verde final).

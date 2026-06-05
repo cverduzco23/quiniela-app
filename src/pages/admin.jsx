@@ -318,7 +318,7 @@ export default function Admin() {
   }
 
   const darQuinielaExtra = async (c) => {
-    if (!(await confirmar(`Confirmar pago de $59 y dar 1 quiniela más a ${c.nombre || c.email}?`))) return
+    if (!(await confirmar(`Confirmar pago de $49 y dar 1 quiniela más a ${c.nombre || c.email}?`))) return
     try {
       await updateDoc(doc(db, 'admins', c.id), {
         quinielasPermitidas: increment(1),
@@ -1857,7 +1857,7 @@ export default function Admin() {
                     {c.notas ? <span style={{ color: 'var(--muted)' }}><br />📝 {c.notas}</span> : null}
                   </p>
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                    <button onClick={() => darQuinielaExtra(c)} style={accionBtn}>➕ +1 quiniela ($59)</button>
+                    <button onClick={() => darQuinielaExtra(c)} style={accionBtn}>➕ +1 quiniela ($49)</button>
                     <button onClick={() => darPaseMundial(c)} style={accionBtn}>🏆 Pase Mundial ($299)</button>
                     <button onClick={() => toggleActivoCliente(c)} style={accionBtn}>{c.activo ? '⏸ Desactivar' : '▶️ Activar'}</button>
                     <button onClick={() => editarNotasCliente(c)} style={accionBtn}>📝 Notas</button>

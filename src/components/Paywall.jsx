@@ -53,7 +53,7 @@ export function Paywall({ titulo = '¡Tu quiniela gratis quedó lista! 🎉' }) 
 
       <Plan
         titulo="Una quiniela más"
-        precio="59"
+        precio="49"
         detalle="Pago único. Creas una quiniela adicional. Ideal para un evento puntual."
         mensaje={MENSAJES_WA.comprarQuiniela}
         evento="paywall_por_quiniela"

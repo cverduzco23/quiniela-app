@@ -31,9 +31,9 @@ export const MENSAJES_WA = {
   crearQuiniela:
     '¡Hola! Quiero crear mi propia quiniela en Quinielapp.fun. ¿Me ayudas a empezar?',
 
-  // Desde el paywall (Fase B): comprar una quiniela adicional ($59).
+  // Desde el paywall (Fase B): comprar una quiniela adicional ($49).
   comprarQuiniela:
-    '¡Hola! Quiero adquirir una quiniela más en Quinielapp ($59). ¿Me pasas el link de pago?',
+    '¡Hola! Quiero adquirir una quiniela más en Quinielapp ($49). ¿Me pasas el link de pago?',
 
   // Desde el paywall (Fase B): Pase Mundial ($299, quinielas ilimitadas durante el torneo).
   paseMundial:
