@@ -3,6 +3,7 @@ import { collection, addDoc, doc, updateDoc, getDoc, getDocs, deleteDoc, query, 
 import { signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail } from 'firebase/auth'
 import { db, auth, crearUsuarioAislado, generarPasswordTemporal } from '../firebase'
 import { CambioPassword } from '../components/CambioPassword'
+import { useDialog } from '../components/Dialogs'
 import { Paywall } from '../components/Paywall'
 import { ComoFunciona } from '../components/ComoFunciona'
 import { puedeCrearQuiniela, quinielasRestantes, temporadaVigente } from '../utils/entitlements'
@@ -38,11 +39,20 @@ const LIGAS = [
 ]
 
 // Código de acceso legible y autogenerado (sin caracteres ambiguos: 0/O, 1/I).
+// 6 caracteres sobre un alfabeto de 32 = ~1,000 millones de combinaciones:
+// hace inviable adivinar uno al azar y deja margen de sobra para no agotarlos.
 function generarCodigoAcceso() {
   const abc = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
   let s = ''
-  for (let i = 0; i < 5; i++) s += abc[Math.floor(Math.random() * abc.length)]
+  for (let i = 0; i < 6; i++) s += abc[Math.floor(Math.random() * abc.length)]
   return s
+}
+
+// Heurística mínima para advertir (no bloquear) sobre códigos fáciles de adivinar:
+// los muy cortos. Los autogenerados (6 chars) nunca caen aquí.
+function esCodigoDebil(codigo) {
+  const c = (codigo ?? '').trim()
+  return c.length > 0 && c.length < 5
 }
 
 function goalsToResultado(local, visitante) {
@@ -72,6 +82,26 @@ function formatFixtureDate(value) {
   })
 }
 
+// Margen de seguridad: el cierre se sugiere unos minutos ANTES del primer partido.
+const MARGEN_CIERRE_MIN = 5
+
+// Valida que el cierre no quede DESPUÉS del arranque del primer partido — si así fuera,
+// se podrían registrar predicciones con partidos ya empezados/terminados (trampa).
+// Solo considera partidos que tengan hora (los manuales pueden no traerla).
+// Devuelve { conflicto, primera, sugerencia } donde `sugerencia` es el valor listo
+// para el <input datetime-local> (arranque del primer partido menos el margen).
+function validarCierreVsPartidos(cierreInput, partidos) {
+  const horas = (partidos ?? []).map(p => p?.hora).filter(Boolean).sort()
+  const primera = horas[0]
+  if (!primera || !cierreInput) return { conflicto: false }
+  const dCierre  = new Date(cierreInput)
+  const dPrimera = new Date(primera)
+  if (isNaN(dCierre.getTime()) || isNaN(dPrimera.getTime())) return { conflicto: false }
+  if (dCierre <= dPrimera) return { conflicto: false }
+  const sugerida = new Date(dPrimera.getTime() - MARGEN_CIERRE_MIN * 60 * 1000)
+  return { conflicto: true, primera, sugerencia: cierreToInputValue(sugerida) }
+}
+
 // ─── Estilos compartidos ──────────────────────────────────────────────────────
 const card = { background: 'var(--card)', borderRadius: 'var(--radius-md)', padding: '1.1rem 1.25rem', marginBottom: 10, border: '1px solid var(--border)' }
 const lbl = { fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 8 }
@@ -92,6 +122,8 @@ const accionBtn = {
 }
 
 export default function Admin() {
+  // Diálogos con diseño propio (reemplazan alert/confirm/prompt nativos).
+  const { alerta, confirmar, pedirTexto } = useDialog()
   // ─── Autenticación ────────────────────────────────────────────────────────
   const [autenticado, setAutenticado] = useState(false)
   const [authListo, setAuthListo]     = useState(false)
@@ -180,6 +212,7 @@ export default function Admin() {
   const [ncTel, setNcTel]                     = useState('')
   const [ncEmpresa, setNcEmpresa]             = useState('')
   const [creandoCliente, setCreandoCliente]   = useState(false)
+  const [eliminandoCliente, setEliminandoCliente] = useState(null) // id del cliente que se está borrando
   const [errorCliente, setErrorCliente]       = useState('')
   // Datos de la cuenta recién creada para entregar por WhatsApp.
   const [clienteCreado, setClienteCreado]     = useState(null) // { email, password, telefono }
@@ -277,15 +310,15 @@ export default function Admin() {
 
   const toggleActivoCliente = async (c) => {
     const desactivando = c.activo
-    if (desactivando && !window.confirm(`¿Desactivar a ${c.nombre || c.email}? No podrá crear quinielas hasta reactivarlo.`)) return
+    if (desactivando && !(await confirmar(`¿Desactivar a ${c.nombre || c.email}? No podrá crear quinielas hasta reactivarlo.`))) return
     try {
       await updateDoc(doc(db, 'admins', c.id), { activo: !c.activo })
       cargarClientes()
-    } catch { alert('No se pudo actualizar. Intenta de nuevo.') }
+    } catch { alerta('No se pudo actualizar. Intenta de nuevo.') }
   }
 
   const darQuinielaExtra = async (c) => {
-    if (!window.confirm(`Confirmar pago de $59 y dar 1 quiniela más a ${c.nombre || c.email}?`)) return
+    if (!(await confirmar(`Confirmar pago de $59 y dar 1 quiniela más a ${c.nombre || c.email}?`))) return
     try {
       await updateDoc(doc(db, 'admins', c.id), {
         quinielasPermitidas: increment(1),
@@ -293,18 +326,18 @@ export default function Admin() {
         activo: true,
       })
       cargarClientes()
-    } catch { alert('No se pudo actualizar. Intenta de nuevo.') }
+    } catch { alerta('No se pudo actualizar. Intenta de nuevo.') }
   }
 
   const darPaseMundial = async (c) => {
     const def = '2026-07-20'
-    const fecha = window.prompt(
+    const fecha = await pedirTexto(
       `Pase Mundial para ${c.nombre || c.email}: quinielas ilimitadas hasta esta fecha (YYYY-MM-DD).`,
       def
     )
     if (!fecha) return
     const d = new Date(`${fecha}T23:59:59`)
-    if (isNaN(d.getTime())) { alert('Fecha no válida.'); return }
+    if (isNaN(d.getTime())) { alerta('Fecha no válida.'); return }
     try {
       await updateDoc(doc(db, 'admins', c.id), {
         temporadaHasta: Timestamp.fromDate(d),
@@ -312,20 +345,50 @@ export default function Admin() {
         activo: true,
       })
       cargarClientes()
-    } catch { alert('No se pudo actualizar. Intenta de nuevo.') }
+    } catch { alerta('No se pudo actualizar. Intenta de nuevo.') }
   }
 
   const editarNotasCliente = async (c) => {
-    const notas = window.prompt(`Notas internas sobre ${c.nombre || c.email}:`, c.notas ?? '')
+    const notas = await pedirTexto(`Notas internas sobre ${c.nombre || c.email}:`, c.notas ?? '')
     if (notas === null) return
     try {
       await updateDoc(doc(db, 'admins', c.id), { notas: notas.trim() || null })
       cargarClientes()
-    } catch { alert('No se pudo guardar la nota.') }
+    } catch { alerta('No se pudo guardar la nota.') }
   }
 
-  const salir = () => {
-    if (window.confirm('¿Seguro que quieres cerrar sesión?')) signOut(auth)
+  // Borra al cliente del panel (doc admins/{uid}). Sus quinielas se conservan.
+  // OJO: la cuenta de Firebase Auth NO se puede borrar desde aquí (requiere servidor);
+  // hay que eliminarla a mano en la consola de Firebase. Se lo recordamos al super admin.
+  const eliminarCliente = async (c) => {
+    const usadas = c.quinielasCreadas ?? 0
+    const aviso =
+      `¿Eliminar a ${c.nombre || c.email} del panel?\n\n` +
+      `• Desaparecerá de tu lista de clientes.\n` +
+      (usadas > 0
+        ? `• Sus ${usadas} quiniela(s) ya creadas NO se borran (siguen visibles para sus participantes).\n`
+        : '') +
+      `• La cuenta de acceso (Firebase Auth) NO se borra automáticamente: debes eliminarla tú en la consola de Firebase → Authentication.\n\n` +
+      `Esta acción no se puede deshacer.`
+    if (!(await confirmar(aviso, { titulo: 'Eliminar cliente', confirmar: 'Eliminar', peligro: true }))) return
+    setEliminandoCliente(c.id)
+    try {
+      await deleteDoc(doc(db, 'admins', c.id))
+      await cargarClientes()
+      alerta(
+        `Cliente eliminado del panel.\n\n` +
+        `Recuerda borrar también su cuenta de acceso en:\n` +
+        `Firebase → Authentication → busca "${c.email}" → Eliminar usuario.`
+      )
+    } catch {
+      alerta('No se pudo eliminar al cliente. Intenta de nuevo.')
+    } finally {
+      setEliminandoCliente(null)
+    }
+  }
+
+  const salir = async () => {
+    if (await confirmar('¿Seguro que quieres cerrar sesión?')) signOut(auth)
   }
 
   // ─── Estado principal ─────────────────────────────────────────────────────
@@ -567,7 +630,7 @@ export default function Admin() {
     }
   }
 
-  const filtrarDuplicados = (existentes, nuevos) => {
+  const filtrarDuplicados = async (existentes, nuevos) => {
     const idsExistentes = new Set(existentes.map(p => p.espnId).filter(Boolean))
     const claveManual   = (p) => `${(p.local ?? '').trim().toLowerCase()}|${(p.visitante ?? '').trim().toLowerCase()}|${p.hora ?? ''}`
     const clavesManuales = new Set(existentes.filter(p => !p.espnId).map(claveManual))
@@ -590,10 +653,10 @@ export default function Admin() {
     }
 
     if (duplicadosId.length > 0) {
-      alert(`Estos partidos ya están agregados (mismo ID de ESPN) y se omitirán:\n\n• ${duplicadosId.join('\n• ')}`)
+      alerta(`Estos partidos ya están agregados y se omitirán:\n\n• ${duplicadosId.join('\n• ')}`)
     }
     if (advertenciasManuales.length > 0) {
-      const ok = window.confirm(
+      const ok = await confirmar(
         `Advertencia: ya hay un partido con la misma combinación local + visitante + hora:\n\n• ${advertenciasManuales.join('\n• ')}\n\n¿Agregarlos de todos modos?`
       )
       if (!ok) {
@@ -605,12 +668,12 @@ export default function Admin() {
     return aceptados
   }
 
-  const agregarSeleccionados = () => {
+  const agregarSeleccionados = async () => {
     const nuevos = seleccionados.map(fixtureAPartido)
     const baseExistente = (partidos.length === 1 && !partidos[0].local && !partidos[0].visitante)
       ? []
       : partidos
-    const aceptados = filtrarDuplicados(baseExistente, nuevos)
+    const aceptados = await filtrarDuplicados(baseExistente, nuevos)
     if (aceptados.length === 0) {
       setSeleccionados([])
       setFixtures([])
@@ -621,9 +684,9 @@ export default function Admin() {
     setFixtures([])
   }
 
-  const agregarSeleccionadosAEdicion = () => {
+  const agregarSeleccionadosAEdicion = async () => {
     const nuevos = seleccionados.map(fixtureAPartido)
-    const aceptados = filtrarDuplicados(editPartidos, nuevos)
+    const aceptados = await filtrarDuplicados(editPartidos, nuevos)
     if (aceptados.length === 0) {
       setSeleccionados([])
       setFixtures([])
@@ -637,11 +700,20 @@ export default function Admin() {
   // ─── Edición de quiniela existente ───────────────────────────────────────
   const guardarEdicion = async () => {
     if (!quinielaActual || guardandoEdicion) return
-    if (editPartidos.length === 0) return alert('La quiniela debe tener al menos un partido.')
-    if (!editNombre.trim()) return alert('El nombre no puede estar vacío.')
-    if (!editCierre) return alert('La fecha y hora de cierre es obligatoria.')
+    if (editPartidos.length === 0) return alerta('La quiniela debe tener al menos un partido.')
+    if (!editNombre.trim()) return alerta('El nombre no puede estar vacío.')
+    if (!editCierre) return alerta('La fecha y hora de cierre es obligatoria.')
+    const chkCierre = validarCierreVsPartidos(editCierre, editPartidos)
+    if (chkCierre.conflicto) {
+      setEditCierre(chkCierre.sugerencia)
+      return alerta(
+        `El cierre no puede ser después de que arranque el primer partido (${formatFixtureDate(chkCierre.primera)}).\n\n` +
+        `Si no, se podrían registrar predicciones con partidos ya empezados.\n\n` +
+        `Lo ajusté a ${formatFixtureDate(chkCierre.sugerencia)} (${MARGEN_CIERRE_MIN} min antes). Revísalo y guarda de nuevo.`
+      )
+    }
     if ((conteoPredicciones ?? 0) > 0 && editPartidos.length < editPartidosOriginales) {
-      return alert('No puedes quitar partidos existentes cuando ya hay predicciones registradas. Solo puedes agregar nuevos al final.')
+      return alerta('No puedes quitar partidos existentes cuando ya hay predicciones registradas. Solo puedes agregar nuevos al final.')
     }
     const { campos: premioFields } = camposPremio(editPremioFijo, editCuota, editModeloPremio)
     setGuardandoEdicion(true)
@@ -652,9 +724,13 @@ export default function Admin() {
       // Validar unicidad del código de acceso (excluyendo esta misma quiniela).
       // Mensaje neutro: no revelamos info de quinielas ajenas.
       if (codigoLimpio) {
+        if (esCodigoDebil(codigoLimpio) && !(await confirmar(
+          `El código "${codigoLimpio}" es muy corto y fácil de adivinar. Te recomendamos uno más largo o el autogenerado. ¿Usarlo de todos modos?`,
+          { titulo: 'Código fácil de adivinar', confirmar: 'Usar de todos modos' }
+        ))) { setGuardandoEdicion(false); return }
         const yaExiste = await codigoYaUsado(codigoLimpio.toLowerCase(), quinielaActual.id)
         if (yaExiste) {
-          alert(`El código "${codigoLimpio}" no está disponible. Prueba con otro (puedes agregar el año, iniciales o un número).`)
+          alerta(`El código "${codigoLimpio}" no está disponible. Prueba con otro (puedes agregar el año, iniciales o un número).`)
           setGuardandoEdicion(false)
           return
         }
@@ -676,7 +752,7 @@ export default function Admin() {
       setQuinielas(prev => prev.map(q => q.id === quinielaActual.id ? actualizado : q))
       setTab('resultados')
     } catch {
-      alert('Error al guardar cambios.')
+      alerta('Error al guardar cambios.')
     } finally {
       setGuardandoEdicion(false)
     }
@@ -687,9 +763,10 @@ export default function Admin() {
     if (!quinielaActual || toggling) return
     const estaCerrada = esCerradaQ(quinielaActual)
     // Reabrir es delicado: puede permitir entradas tardías y descuadrar el ranking.
-    if (estaCerrada && !window.confirm(
-      'Vas a REABRIR esta quiniela. Quedará sin fecha de cierre y la gente podrá volver a registrar o cambiar predicciones, lo que puede afectar el ranking. ¿Continuar?'
-    )) return
+    if (estaCerrada && !(await confirmar(
+      'Vas a REABRIR esta quiniela. Quedará sin fecha de cierre y la gente podrá volver a registrar o cambiar predicciones, lo que puede afectar el ranking. ¿Continuar?',
+      { titulo: 'Reabrir quiniela', confirmar: 'Reabrir', peligro: true }
+    ))) return
     setToggling(true)
     try {
       const changes = estaCerrada
@@ -700,7 +777,7 @@ export default function Admin() {
       setQuinielaActual(actualizado)
       setQuinielas(prev => prev.map(q => q.id === quinielaActual.id ? actualizado : q))
     } catch {
-      alert('Error al actualizar el estado.')
+      alerta('Error al actualizar el estado.')
     } finally {
       setToggling(false)
     }
@@ -731,7 +808,7 @@ export default function Admin() {
         ))
       }
     } catch {
-      alert('Error al actualizar el estado.')
+      alerta('Error al actualizar el estado.')
     } finally {
       setDestacando(false)
     }
@@ -745,7 +822,7 @@ export default function Admin() {
     const mensaje = nuevo
       ? '¿Marcar el bote como devuelto? Los premios dejarán de mostrarse en el ranking.'
       : '¿Reactivar el premio? Se volverán a mostrar los ganadores y sus premios.'
-    if (!window.confirm(mensaje)) return
+    if (!(await confirmar(mensaje))) return
     setToggleBote(true)
     try {
       await updateDoc(doc(db, 'quinielas', quinielaActual.id), { boteDevuelto: nuevo })
@@ -753,7 +830,7 @@ export default function Admin() {
       setQuinielaActual(actualizado)
       setQuinielas(prev => prev.map(q => q.id === quinielaActual.id ? actualizado : q))
     } catch {
-      alert('Error al actualizar el estado del bote.')
+      alerta('Error al actualizar el estado del bote.')
     } finally {
       setToggleBote(false)
     }
@@ -774,7 +851,7 @@ export default function Admin() {
       setQuinielaActual(actualizado)
       setQuinielas(prev => prev.map(q => q.id === quinielaActual.id ? actualizado : q))
     } catch {
-      alert('Error al actualizar el estado de pago.')
+      alerta('Error al actualizar el estado de pago.')
     } finally {
       setTogglingPago(null)
     }
@@ -782,14 +859,14 @@ export default function Admin() {
 
   // ─── Eliminar predicción individual ──────────────────────────────────────
   const eliminarPrediccion = async (pred) => {
-    if (!window.confirm(`¿Eliminar la predicción de "${pred.nombre}"? El jugador podrá volver a registrarse.`)) return
+    if (!(await confirmar(`¿Eliminar la predicción de "${pred.nombre}"? El jugador podrá volver a registrarse.`, { titulo: 'Eliminar predicción', confirmar: 'Eliminar', peligro: true }))) return
     setEliminandoPred(pred.id)
     try {
       await deleteDoc(doc(db, 'predicciones', pred.id))
       setListaPredicciones(prev => prev.filter(p => p.id !== pred.id))
       setConteos(prev => ({ ...prev, [quinielaActual.id]: Math.max(0, (prev[quinielaActual.id] ?? 1) - 1) }))
     } catch {
-      alert('Error al eliminar. Intenta de nuevo.')
+      alerta('Error al eliminar. Intenta de nuevo.')
     } finally {
       setEliminandoPred(null)
     }
@@ -798,7 +875,7 @@ export default function Admin() {
   // ─── Eliminar quiniela ────────────────────────────────────────────────────
   const eliminarQuiniela = async () => {
     if (!quinielaActual || eliminando) return
-    if (!window.confirm(`¿Seguro que deseas eliminar "${quinielaActual.nombre}"? Esta acción no se puede deshacer.`)) return
+    if (!(await confirmar(`¿Seguro que deseas eliminar "${quinielaActual.nombre}"? Esta acción no se puede deshacer.`, { titulo: 'Eliminar quiniela', confirmar: 'Eliminar', peligro: true }))) return
     if (deleteConfirm.trim() !== quinielaActual.nombre.trim()) return
     setEliminando(true)
     try {
@@ -811,7 +888,7 @@ export default function Admin() {
       setDeleteConfirm('')
       setVista('lista')
     } catch {
-      alert('Error al eliminar. Intenta de nuevo.')
+      alerta('Error al eliminar. Intenta de nuevo.')
     } finally {
       setEliminando(false)
     }
@@ -861,11 +938,20 @@ export default function Admin() {
 
   const guardarNuevaQuiniela = async () => {
     // Gate de cuota (defensivo; la UI ya muestra el paywall si no puede crear).
-    if (!puedeCrear) return alert('Ya usaste tu(s) quiniela(s) incluida(s). Elige un plan para crear más.')
-    if (!nombre.trim()) return alert('Ponle un nombre a la quiniela')
-    if (!cierre) return alert('La fecha y hora de cierre es obligatoria')
-    if (partidos.length === 0) return alert('Agrega al menos un partido')
-    if (partidos.some(p => !p.local.trim() || !p.visitante.trim())) return alert('Completa nombre de equipos en todos los partidos')
+    if (!puedeCrear) return alerta('Ya usaste tu(s) quiniela(s) incluida(s). Elige un plan para crear más.')
+    if (!nombre.trim()) return alerta('Ponle un nombre a la quiniela')
+    if (!cierre) return alerta('La fecha y hora de cierre es obligatoria')
+    if (partidos.length === 0) return alerta('Agrega al menos un partido')
+    if (partidos.some(p => !p.local.trim() || !p.visitante.trim())) return alerta('Completa nombre de equipos en todos los partidos')
+    const chkCierre = validarCierreVsPartidos(cierre, partidos)
+    if (chkCierre.conflicto) {
+      setCierre(chkCierre.sugerencia)
+      return alerta(
+        `El cierre no puede ser después de que arranque el primer partido (${formatFixtureDate(chkCierre.primera)}).\n\n` +
+        `Si no, se podrían registrar predicciones con partidos ya empezados.\n\n` +
+        `Lo ajusté a ${formatFixtureDate(chkCierre.sugerencia)} (${MARGEN_CIERRE_MIN} min antes). Revísalo y guarda de nuevo.`
+      )
+    }
     const { campos: premioFields } = camposPremio(premioFijo, cuota, modeloPremio)
     setGuardando(true)
     try {
@@ -877,9 +963,13 @@ export default function Admin() {
       // Mensaje neutro a propósito: no revelamos si el código es de otro admin
       // (sería un information leak hacia quinielas privadas ajenas).
       if (codigoLimpio) {
+        if (esCodigoDebil(codigoLimpio) && !(await confirmar(
+          `El código "${codigoLimpio}" es muy corto y fácil de adivinar. Te recomendamos uno más largo o el autogenerado. ¿Usarlo de todos modos?`,
+          { titulo: 'Código fácil de adivinar', confirmar: 'Usar de todos modos' }
+        ))) { setGuardando(false); return }
         const yaExiste = await codigoYaUsado(codigoLimpio.toLowerCase())
         if (yaExiste) {
-          alert(`El código "${codigoLimpio}" no está disponible. Prueba con otro (puedes agregar el año, iniciales o un número).`)
+          alerta(`El código "${codigoLimpio}" no está disponible. Prueba con otro (puedes agregar el año, iniciales o un número).`)
           setGuardando(false)
           return
         }
@@ -913,7 +1003,7 @@ export default function Admin() {
       setPremioFijo(''); setCuota(''); setModeloPremio(MODELO_PREMIO.GANADOR_UNICO)
       setCodigoAcceso(''); setPrivada(false); setEmpresa(''); setRequiereApellido(false)
       setFixtures([]); setSeleccionados([])
-    } catch { alert('Error al guardar. Intenta de nuevo.') }
+    } catch { alerta('Error al guardar. Intenta de nuevo.') }
     finally { setGuardando(false) }
   }
 
@@ -950,7 +1040,7 @@ export default function Admin() {
     }).filter(Boolean)
 
     if (items.length === 0) {
-      return alert('No hay resultados que guardar.')
+      return alerta('No hay resultados que guardar.')
     }
 
     setConfirmacionRes({ items })
@@ -1022,7 +1112,7 @@ export default function Admin() {
       setQuinielaActual(prev => ({ ...prev, ...patch }))
       setQuinielas(prev => prev.map(q => q.id === quinielaActual.id ? { ...q, ...patch } : q))
       setConfirmacionRes(null)
-    } catch { alert('Error al guardar resultados.') }
+    } catch { alerta('Error al guardar resultados.') }
     finally { setGuardandoRes(false) }
   }
 
@@ -1040,7 +1130,7 @@ export default function Admin() {
     })
 
     if (Object.keys(porLiga).length === 0) {
-      setSincrMsg('⚠ Estos partidos no tienen ID de ESPN. Crea la quiniela desde el buscador.')
+      setSincrMsg('⚠ Estos partidos no se pueden sincronizar (se agregaron a mano). Créalos desde el buscador.')
       setSincronizando(false)
       return
     }
@@ -1114,7 +1204,7 @@ export default function Admin() {
         setTimeout(() => setSincrMsg(''), 6000)
       } catch { setSincrMsg('⚠ Error al guardar. Intenta de nuevo.') }
     } else if (nuevasSugerencias.length > 0) {
-      setSincrMsg(`${nuevasSugerencias.length} partido${nuevasSugerencias.length !== 1 ? 's' : ''} con ID cambiado en ESPN — revisa arriba para confirmar.`)
+      setSincrMsg(`${nuevasSugerencias.length} partido${nuevasSugerencias.length !== 1 ? 's' : ''} con ID cambiado — revisa arriba para confirmar.`)
       setTimeout(() => setSincrMsg(''), 8000)
     } else {
       setSincrMsg('Sin partidos terminados para sincronizar.')
@@ -1168,7 +1258,7 @@ export default function Admin() {
       setSugerenciasIdMismatch(prev => prev.filter(x => x.idx !== s.idx))
     } catch (err) {
       console.error('Error aplicando sugerencia ESPN:', err)
-      alert('Error al aplicar la sugerencia. Intenta de nuevo.')
+      alerta('Error al aplicar la sugerencia. Intenta de nuevo.')
     } finally {
       setAplicandoSugerencia(null)
     }
@@ -1195,25 +1285,25 @@ export default function Admin() {
       setNuevoMonto('')
       setNuevaNota('')
     } catch {
-      alert('Error al guardar. Intenta de nuevo.')
+      alerta('Error al guardar. Intenta de nuevo.')
     } finally {
       setGuardandoMov(false)
     }
   }
 
   const eliminarMovimiento = async (mov) => {
-    if (!window.confirm('¿Eliminar este movimiento?')) return
+    if (!(await confirmar('¿Eliminar este movimiento?', { titulo: 'Eliminar movimiento', confirmar: 'Eliminar', peligro: true }))) return
     try {
       await deleteDoc(doc(db, 'movimientos', mov.id))
       setMovimientos(prev => prev.filter(m => m.id !== mov.id))
     } catch {
-      alert('Error al eliminar.')
+      alerta('Error al eliminar.')
     }
   }
 
   // ─── Compartir ────────────────────────────────────────────────────────────
-  const linkJugadores = quinielaActual ? `${window.location.origin}/?q=${quinielaActual.id}` : ''
-  const linkRanking   = quinielaActual ? `${window.location.origin}/ranking?q=${quinielaActual.id}` : ''
+  const linkJugadores = quinielaActual ? `${window.location.origin}/quiniela/${quinielaActual.id}` : ''
+  const linkRanking   = quinielaActual ? `${window.location.origin}/ranking/${quinielaActual.id}` : ''
 
   const copiar = (txt, key) => {
     navigator.clipboard.writeText(txt)
@@ -1409,7 +1499,7 @@ export default function Admin() {
       </div>
 
       <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 10, lineHeight: 1.5 }}>
-        Trae los partidos reales desde ESPN. Es la forma <strong style={{ color: 'var(--text)' }}>recomendada</strong>:
+        Trae los partidos reales automáticamente. Es la forma <strong style={{ color: 'var(--text)' }}>recomendada</strong>:
         los partidos llegan con escudos y fecha, y sus <strong style={{ color: 'var(--text)' }}>resultados se sincronizan solos</strong>.
         Elige la liga, toca <strong style={{ color: 'var(--text)' }}>Buscar</strong> y marca los que quieras agregar.
       </p>
@@ -1771,6 +1861,13 @@ export default function Admin() {
                     <button onClick={() => darPaseMundial(c)} style={accionBtn}>🏆 Pase Mundial ($299)</button>
                     <button onClick={() => toggleActivoCliente(c)} style={accionBtn}>{c.activo ? '⏸ Desactivar' : '▶️ Activar'}</button>
                     <button onClick={() => editarNotasCliente(c)} style={accionBtn}>📝 Notas</button>
+                    <button
+                      onClick={() => eliminarCliente(c)}
+                      disabled={eliminandoCliente === c.id}
+                      style={{ ...accionBtn, color: 'var(--red)', borderColor: 'var(--red)' }}
+                    >
+                      {eliminandoCliente === c.id ? 'Eliminando…' : '🗑 Eliminar'}
+                    </button>
                   </div>
                 </div>
               )
@@ -2001,7 +2098,8 @@ export default function Admin() {
 
               <label htmlFor="quiniela-codigo" style={{ ...lbl, marginBottom: 4 }}>Código de acceso</label>
               <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>
-                Lo generamos automático, pero puedes cambiarlo por uno más fácil de recordar (ej. ACME2026).
+                Lo generamos automático y seguro. Puedes cambiarlo por uno más fácil de recordar,
+                pero evita códigos obvios (solo el nombre de la empresa o el año): cualquiera podría adivinarlos.
                 Solo quien tenga este código podrá registrar predicciones; compártelo por tu canal interno.
               </p>
               <input id="quiniela-codigo" type="text" placeholder="Ej. ACME2026" value={codigoAcceso} onChange={e => setCodigoAcceso(e.target.value)} style={{ marginBottom: 14 }} />
@@ -2038,7 +2136,7 @@ export default function Admin() {
               <label style={lbl}>Partidos</label>
               <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 12, lineHeight: 1.5 }}>
                 Aquí van los partidos de tu quiniela, en orden. Lo ideal es traerlos con el buscador de arriba
-                (se sincronizan solos). Agrégalos <strong style={{ color: 'var(--text)' }}>a mano</strong> solo si no aparecen en ESPN;
+                (se sincronizan solos). Agrégalos <strong style={{ color: 'var(--text)' }}>a mano</strong> solo si no aparecen en el buscador;
                 en ese caso tendrás que poner los resultados manualmente. 💡 Una vez que alguien ya hizo su predicción,
                 <strong style={{ color: 'var(--text)' }}> los partidos ya no se pueden cambiar</strong> (para no descuadrar el ranking).
               </p>
@@ -2174,10 +2272,10 @@ export default function Admin() {
                       borderRadius: 'var(--radius-md)', padding: '14px 16px', marginBottom: 12,
                     }}>
                       <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--yellow-soft)', marginBottom: 4 }}>
-                        ⚠️ {sugerenciasIdMismatch.length} partido{sugerenciasIdMismatch.length !== 1 ? 's' : ''} con ID cambiado en ESPN
+                        ⚠️ {sugerenciasIdMismatch.length} partido{sugerenciasIdMismatch.length !== 1 ? 's' : ''} con ID cambiado
                       </p>
                       <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 12, lineHeight: 1.5 }}>
-                        Encontramos en ESPN un partido que parece ser el mismo pero con ID distinto. Verifica que sea correcto antes de aplicar.
+                        Encontramos un partido que parece ser el mismo pero con ID distinto. Verifica que sea correcto antes de aplicar.
                       </p>
                       {sugerenciasIdMismatch.map(s => {
                         const ev = s.eventoSugerido
@@ -2204,7 +2302,7 @@ export default function Admin() {
                               {s.partidoOriginal.local} vs {s.partidoOriginal.visitante}
                             </p>
                             <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 2, lineHeight: 1.5 }}>
-                              ID original: <code style={{ fontFamily: 'monospace' }}>{s.partidoOriginal.espnId}</code> (ya no existe en ESPN)
+                              ID original: <code style={{ fontFamily: 'monospace' }}>{s.partidoOriginal.espnId}</code> (ya no existe)
                             </p>
                             <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8, lineHeight: 1.5 }}>
                               ID encontrado: <code style={{ fontFamily: 'monospace', color: 'var(--green-light)' }}>{ev.id}</code> · {scoreTxt}
@@ -2316,9 +2414,9 @@ export default function Admin() {
                   </div>
 
                   <div style={{ background: 'var(--bg-soft)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '10px 12px', marginTop: 12, marginBottom: 12, fontSize: 11.5, color: 'var(--muted)', lineHeight: 1.55 }}>
-                    <p style={{ marginBottom: 4 }}><strong style={{ color: 'var(--green)' }}>⚡ Sincronizar ESPN</strong> — trae los marcadores reales solos (para partidos que agregaste con el buscador). Es lo recomendado: tú no escribes nada.</p>
-                    <p style={{ marginBottom: 4 }}><strong style={{ color: 'var(--text)' }}>Guardar manual</strong> — guarda los marcadores que escribiste tú arriba. Úsalo solo para partidos que no están en ESPN. ⚠️ Si después sincronizas, ESPN reemplaza lo que pusiste a mano.</p>
-                    <p>📌 <strong style={{ color: 'var(--text)' }}>Al terminar los partidos</strong>, espera unos minutos (a que ESPN marque el final) y da <strong style={{ color: 'var(--green)' }}>⚡ Sincronizar ESPN</strong> una vez para dejar los resultados guardados en firme.</p>
+                    <p style={{ marginBottom: 4 }}><strong style={{ color: 'var(--green)' }}>⚡ Sincronizar resultados</strong> — trae los marcadores reales solos (para partidos que agregaste con el buscador). Es lo recomendado: tú no escribes nada.</p>
+                    <p style={{ marginBottom: 4 }}><strong style={{ color: 'var(--text)' }}>Guardar manual</strong> — guarda los marcadores que escribiste tú arriba. Úsalo solo para partidos que no aparecen en el buscador. ⚠️ Si después sincronizas, los marcadores reales reemplazan lo que pusiste a mano.</p>
+                    <p>📌 <strong style={{ color: 'var(--text)' }}>Al terminar los partidos</strong>, espera unos minutos (a que se marquen como finalizados) y da <strong style={{ color: 'var(--green)' }}>⚡ Sincronizar resultados</strong> una vez para dejar los resultados guardados en firme.</p>
                   </div>
 
                   <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginTop: 4 }}>
@@ -2328,10 +2426,10 @@ export default function Admin() {
                     <div style={{ display: 'flex', gap: 8, marginLeft: 'auto' }}>
                       <button
                         onClick={sincronizarDesdeESPN} disabled={sincronizando}
-                        aria-label="Sincronizar resultados desde ESPN"
+                        aria-label="Sincronizar resultados"
                         style={{ ...greenCtaStyle(sincronizando), display: 'flex', alignItems: 'center', gap: 5 }}
                       >
-                        {sincronizando ? 'Sincronizando…' : '⚡ Sincronizar ESPN'}
+                        {sincronizando ? 'Sincronizando…' : '⚡ Sincronizar resultados'}
                       </button>
                       <button
                         onClick={iniciarGuardarResultados} disabled={guardandoRes}
@@ -2564,6 +2662,7 @@ export default function Admin() {
                     <label htmlFor="edit-codigo" style={{ ...lbl, marginBottom: 4 }}>Código de acceso <span style={{ color: 'var(--muted)', fontWeight: 500, textTransform: 'none', letterSpacing: 0 }}>(opcional)</span></label>
                     <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>
                       Si pones un código, solo quien lo sepa podrá registrar predicciones.
+                      Evita códigos obvios (nombre de la empresa o el año): se adivinan fácil.
                     </p>
                     <input id="edit-codigo" type="text" placeholder="Ej. ACME2026" value={editCodigoAcceso} onChange={e => setEditCodigoAcceso(e.target.value)} style={{ marginBottom: 14 }} />
 
@@ -2830,7 +2929,7 @@ export default function Admin() {
             </p>
             <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 16 }}>
               Vas a guardar {confirmacionRes.items.length} resultado{confirmacionRes.items.length !== 1 ? 's' : ''}.
-              {validandoEspn ? ' Validando con ESPN…' : ''}
+              {validandoEspn ? ' Validando resultados…' : ''}
             </p>
             <div style={{ display: 'grid', gap: 8, marginBottom: 16 }}>
               {confirmacionRes.items.map(it => {
@@ -2861,12 +2960,12 @@ export default function Admin() {
                     </div>
                     {divergente && (
                       <p style={{ fontSize: 11, color: 'var(--yellow-soft)', marginTop: 6, fontWeight: 600 }}>
-                        ⚠️ ESPN reporta <strong>{espnTexto}</strong>. ¿Es correcto tu valor?
+                        ⚠️ El marcador oficial reporta <strong>{espnTexto}</strong>. ¿Es correcto tu valor?
                       </p>
                     )}
                     {!divergente && espnTexto && espnTexto === tuValor && (
                       <p style={{ fontSize: 11, color: 'var(--green)', marginTop: 6 }}>
-                        ✓ Coincide con ESPN
+                        ✓ Coincide con el marcador oficial
                       </p>
                     )}
                   </div>

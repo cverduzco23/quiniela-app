@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams, useParams } from 'react-router-dom'
 import { doc, getDoc, addDoc, collection, getDocs, query, where } from 'firebase/firestore'
 import { db, track } from '../firebase'
 import { cierreToDate, quinielaCerrada, tiempoRestante } from '../utils/cierre'
@@ -7,6 +7,7 @@ import { tienePremio, tieneCuota, descripcionRegla, calcularBote, desglosePremio
 import { normalizarNombre, tieneNombreYApellido } from '../utils/nombres'
 import { PromoCTA } from '../components/PromoCTA'
 import { Footer } from '../components/Footer'
+import { useDialog } from '../components/Dialogs'
 
 function formatFecha(value) {
   const d = cierreToDate(value)
@@ -53,8 +54,11 @@ const card = {
 const lbl = { fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 8 }
 
 export default function Predicciones() {
+  const { alerta } = useDialog()
   const [searchParams] = useSearchParams()
-  const quinielaId = searchParams.get('q')
+  const { id: idDeRuta } = useParams()
+  // Acepta /quiniela/<id> (ruta nueva) y /?q=<id> (links viejos ya compartidos).
+  const quinielaId = idDeRuta || searchParams.get('q')
 
   const [quiniela, setQuiniela]           = useState(null)
   const [cargando, setCargando]           = useState(true)
@@ -277,7 +281,7 @@ export default function Predicciones() {
       setEnviado(true)
     } catch (err) {
       console.error('Firestore error:', err)
-      alert(`Error al guardar (${err?.code ?? err?.message ?? 'unknown'}). Intenta de nuevo.`)
+      alerta(`Error al guardar (${err?.code ?? err?.message ?? 'unknown'}). Intenta de nuevo.`)
       setEnviando(false)
     }
   }
@@ -367,7 +371,7 @@ export default function Predicciones() {
             onClick={() => navigator.share?.({
               title: `Quiniela ${quiniela.nombre}`,
               text: `Te invito a participar en la quiniela "${quiniela.nombre}". Registra tus predicciones aquí:`,
-              url: `${window.location.origin}/?q=${quinielaId}`,
+              url: `${window.location.origin}/quiniela/${quinielaId}`,
             }).catch(() => {})}
             style={{ ...ctaPrimary(false), marginBottom: 10 }}
           >
@@ -375,7 +379,7 @@ export default function Predicciones() {
           </button>
         ) : (
           <button
-            onClick={() => navigator.clipboard?.writeText(`${window.location.origin}/?q=${quinielaId}`).catch(() => {})}
+            onClick={() => navigator.clipboard?.writeText(`${window.location.origin}/quiniela/${quinielaId}`).catch(() => {})}
             style={{ ...ctaPrimary(false), marginBottom: 10 }}
           >
             Copiar enlace de invitación
@@ -383,7 +387,7 @@ export default function Predicciones() {
         )}
 
         <a
-          href={`/ranking?q=${quinielaId}`}
+          href={`/ranking/${quinielaId}`}
           style={{
             display: 'block', textAlign: 'center', padding: '12px 28px', borderRadius: 'var(--radius-md)',
             background: 'var(--card-light)', color: 'var(--muted)',
@@ -489,7 +493,7 @@ export default function Predicciones() {
               El tiempo para registrar predicciones ya cerró.<br />
               Sigue los resultados en el ranking en tiempo real.
             </p>
-            <a href={`/ranking?q=${quinielaId}`} style={{
+            <a href={`/ranking/${quinielaId}`} style={{
               display: 'inline-block', padding: '12px 28px', borderRadius: 'var(--radius-md)',
               background: 'linear-gradient(135deg, var(--green), var(--green-light))',
               color: '#07120A', fontWeight: 800, fontSize: 15, textDecoration: 'none',
@@ -547,7 +551,7 @@ export default function Predicciones() {
             <p style={{ fontSize: 12, color: 'var(--muted)', textAlign: 'center', marginBottom: 6 }}>
               ¿Solo quieres ver el ranking?{' '}
               <a
-                href={`/ranking?q=${quinielaId}`}
+                href={`/ranking/${quinielaId}`}
                 style={{ color: 'var(--green-light)', fontWeight: 700, textDecoration: 'underline' }}
               >
                 Entrar al ranking
@@ -581,7 +585,7 @@ export default function Predicciones() {
                 Si necesitas cambiar algo, contacta al organizador.
               </p>
               <a
-                href={`/ranking?q=${quinielaId}`}
+                href={`/ranking/${quinielaId}`}
                 style={{
                   display: 'block', textAlign: 'center', padding: '12px 28px', borderRadius: 'var(--radius-md)',
                   background: 'linear-gradient(135deg, var(--green), var(--green-light))',
@@ -949,7 +953,7 @@ export default function Predicciones() {
             <p style={{ fontSize: 12, color: 'var(--muted)', textAlign: 'center', marginTop: 14 }}>
               ¿Solo quieres ver el ranking?{' '}
               <a
-                href={`/ranking?q=${quinielaId}`}
+                href={`/ranking/${quinielaId}`}
                 style={{ color: 'var(--green-light)', fontWeight: 700, textDecoration: 'underline' }}
               >
                 Entrar al ranking

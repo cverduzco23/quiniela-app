@@ -204,3 +204,13 @@ a:focus-visible {
     padding: 1.25rem 1rem 1rem;
   }
 }
+
+/* Animaciones de los diálogos propios (ver components/Dialogs.jsx) */
+@keyframes qpDialogFade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes qpDialogPop {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}

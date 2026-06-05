@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams, useParams } from 'react-router-dom'
 import { doc, onSnapshot, collection, query, where, updateDoc } from 'firebase/firestore'
 import { db, track } from '../firebase'
 import { getResultado } from '../utils/scoring'
@@ -10,7 +10,9 @@ import { Footer } from '../components/Footer'
 
 export default function Ranking() {
   const [searchParams] = useSearchParams()
-  const quinielaId = searchParams.get('q')
+  const { id: idDeRuta } = useParams()
+  // Acepta /ranking/<id> (ruta nueva) y /ranking?q=<id> (links viejos ya compartidos).
+  const quinielaId = idDeRuta || searchParams.get('q')
 
   const [quiniela, setQuiniela]         = useState(null)
   const [predicciones, setPredicciones] = useState([])
@@ -316,7 +318,7 @@ export default function Ranking() {
                 </p>
               </div>
               <a
-                href={`/?q=${quinielaId}`}
+                href={`/quiniela/${quinielaId}`}
                 style={{
                   padding: '11px 20px', borderRadius: 'var(--radius-md)',
                   background: 'linear-gradient(135deg, var(--green), var(--green-light))',

@@ -57,8 +57,8 @@ export default function Home() {
 
   /**
    * Valida el código de acceso y redirige al destino indicado.
-   * destino = 'predicciones' → /?q=<id> (form para hacer predicción)
-   * destino = 'ranking'      → /ranking?q=<id> (solo ver el ranking)
+   * destino = 'predicciones' → /quiniela/<id> (form para hacer predicción)
+   * destino = 'ranking'      → /ranking/<id> (solo ver el ranking)
    * En ambos casos guardamos el código en localStorage para que la pantalla
    * de predicción no pida el código de nuevo si después decide registrarse.
    */
@@ -88,7 +88,7 @@ export default function Home() {
         }
       } catch { /* noop */ }
       track('codigo_busqueda_exito', { quinielaId: docSnap.id, destino })
-      const ruta = destino === 'ranking' ? `/ranking?q=${docSnap.id}` : `/?q=${docSnap.id}`
+      const ruta = destino === 'ranking' ? `/ranking/${docSnap.id}` : `/quiniela/${docSnap.id}`
       navigate(ruta)
     } catch {
       setErrorBusqueda('Error de conexión. Intenta de nuevo.')
@@ -283,10 +283,10 @@ export default function Home() {
                   </span>
                 )}
               </div>
-              <a href={`/?q=${principal.id}`} style={{ ...ctaPrimary, marginBottom: 10 }}>
+              <a href={`/quiniela/${principal.id}`} style={{ ...ctaPrimary, marginBottom: 10 }}>
                 Hacer mi predicción →
               </a>
-              <a href={`/ranking?q=${principal.id}`} style={ctaSecondary}>
+              <a href={`/ranking/${principal.id}`} style={ctaSecondary}>
                 Ver ranking
               </a>
             </div>
@@ -315,10 +315,10 @@ export default function Home() {
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 14, flexShrink: 0 }}>
-                  <a href={`/?q=${q.id}`} style={{ fontSize: 13, color: 'var(--green)', fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap' }}>
+                  <a href={`/quiniela/${q.id}`} style={{ fontSize: 13, color: 'var(--green)', fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap' }}>
                     Predecir →
                   </a>
-                  <a href={`/ranking?q=${q.id}`} style={{ fontSize: 13, color: 'var(--muted)', fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap' }}>
+                  <a href={`/ranking/${q.id}`} style={{ fontSize: 13, color: 'var(--muted)', fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap' }}>
                     Ranking →
                   </a>
                 </div>
@@ -351,7 +351,7 @@ export default function Home() {
                   </p>
                   {!tienePremio(q) && <SinPremioBadge />}
                 </div>
-                <a href={`/ranking?q=${q.id}`} style={ctaSecondary}>
+                <a href={`/ranking/${q.id}`} style={ctaSecondary}>
                   Ver ranking completo →
                 </a>
               </div>
@@ -382,7 +382,7 @@ export default function Home() {
                 </p>
                 {!tienePremio(ultimaFinal) && <SinPremioBadge />}
               </div>
-              <a href={`/ranking?q=${ultimaFinal.id}`} style={ctaSecondary}>
+              <a href={`/ranking/${ultimaFinal.id}`} style={ctaSecondary}>
                 Ver ranking completo →
               </a>
             </div>

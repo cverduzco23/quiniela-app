@@ -42,7 +42,7 @@ export function ComoFunciona({ onClose }) {
         <div style={seccion}>
           <p style={h}>1. Crear tu quiniela</p>
           <p style={p}>• Ponle un <span style={strong}>nombre</span> y una <span style={strong}>fecha de cierre</span> (después de esa hora ya nadie puede registrar predicciones).</p>
-          <p style={p}>• Usa el <span style={strong}>buscador de partidos</span> para traerlos desde ESPN con un clic — así llegan con escudos y sus resultados se sincronizan solos.</p>
+          <p style={p}>• Usa el <span style={strong}>buscador de partidos</span> para traerlos con un clic — así llegan con escudos y sus resultados se sincronizan solos.</p>
           <p style={p}>• Se genera un <span style={strong}>código de acceso</span> (lo puedes cambiar). Compártelo junto con el enlace; solo quien lo tenga puede participar.</p>
         </div>
 
@@ -57,8 +57,8 @@ export function ComoFunciona({ onClose }) {
         <div style={seccion}>
           <p style={h}>3. Cierre y resultados</p>
           <p style={p}>• La quiniela se <span style={strong}>cierra sola</span> a la hora de cierre (o cuando empiezan los partidos). Ya nadie puede entrar ni cambiar sus picks.</p>
-          <p style={p}>• Para los marcadores: <span style={strong}>⚡ Sincronizar ESPN</span> los trae automáticamente (recomendado). Si algún partido no está en ESPN, escribe el marcador y usa <span style={strong}>Guardar manual</span>.</p>
-          <p style={p}>• 📌 <span style={strong}>Al terminar los partidos:</span> espera unos minutos (a que ESPN marque el final) y entra a dar <span style={strong}>⚡ Sincronizar ESPN</span> una vez. Así los resultados quedan guardados en firme y el ranking final queda correcto.</p>
+          <p style={p}>• Para los marcadores: <span style={strong}>⚡ Sincronizar resultados</span> los trae automáticamente (recomendado). Si algún partido no aparece en el buscador, escribe el marcador y usa <span style={strong}>Guardar manual</span>.</p>
+          <p style={p}>• 📌 <span style={strong}>Al terminar los partidos:</span> espera unos minutos (a que se marquen como finalizados) y entra a dar <span style={strong}>⚡ Sincronizar resultados</span> una vez. Así los resultados quedan guardados en firme y el ranking final queda correcto.</p>
           <p style={p}>• El ranking se actualiza en vivo conforme entran los resultados. Cuando todos los partidos terminan, la quiniela queda <span style={strong}>finalizada</span> y se ve el ganador.</p>
         </div>
 

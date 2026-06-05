@@ -4,6 +4,7 @@ import { goalsToResultado, getResultado, getPickResultado, getEfectivo, calcular
 import { tienePremio, calcularGanadores, formatearMXN, descripcionRegla } from '../utils/premios'
 import { normalizarNombre } from '../utils/nombres'
 import { compartirRanking } from '../utils/shareRanking'
+import { useDialog } from './Dialogs'
 
 function formatFecha(value) {
   const d = cierreToDate(value)
@@ -33,6 +34,7 @@ const PAGE_SIZE = 50
 const UMBRAL_BUSQUEDA = 20
 
 export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStats = {} }) {
+  const { alerta } = useDialog()
   const [expandido, setExpandido]               = useState(new Set())
   const [expandidoPartido, setExpandidoPartido] = useState(new Set())
   const [visibles, setVisibles]                 = useState(PAGE_SIZE)
@@ -265,7 +267,7 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                         target="_blank" rel="noreferrer"
                         style={{ display: 'block', fontSize: 11, color: 'var(--muted)', textDecoration: 'none', textAlign: 'center', marginTop: hayStats ? 10 : 0 }}
                       >
-                        Ver resumen completo en ESPN →
+                        Ver resumen del partido →
                       </a>
                     )}
                   </div>
@@ -475,7 +477,7 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                 }
               } catch (err) {
                 console.error('Error compartiendo:', err)
-                alert('No se pudo generar la imagen. Intenta de nuevo.')
+                alerta('No se pudo generar la imagen. Intenta de nuevo.')
               } finally {
                 setCompartiendo(false)
               }
