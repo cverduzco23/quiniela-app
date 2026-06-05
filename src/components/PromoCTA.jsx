@@ -1,15 +1,17 @@
+import { waLink, MENSAJES_WA } from '../utils/whatsapp'
+
 /**
  * CTA comercial discreto: invita al usuario a crear su propia quiniela.
- * Reemplaza al antiguo WhatsAppCTA (grupo familiar) por mensajería neutra.
+ * Lleva directo a WhatsApp con un mensaje pre-armado para arrancar el alta.
  *
  * Se usa típicamente al final de un flujo (post-envío de predicción).
  * Para promoción aún más sutil, ver el Footer global.
  */
 export function PromoCTA({
   titulo = '¿Quieres tu propia quiniela?',
-  subtitulo = 'Crea la quiniela de tu equipo o empresa, gratis.',
+  subtitulo = 'Crea la quiniela de tu equipo o empresa. La primera es gratis.',
   ctaLabel = 'Crear mi quiniela →',
-  href = 'https://quinielapp.fun',
+  href = waLink(MENSAJES_WA.crearQuiniela),
 }) {
   return (
     <div style={{

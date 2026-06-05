@@ -1,6 +1,6 @@
-import { initializeApp } from "firebase/app";
+import { initializeApp, deleteApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
-import { getAuth } from "firebase/auth";
+import { getAuth, createUserWithEmailAndPassword, signOut } from "firebase/auth";
 import { getAnalytics, isSupported, logEvent } from "firebase/analytics";
 
 const firebaseConfig = {
@@ -34,4 +34,40 @@ export function track(eventName, params = {}) {
   try {
     if (_analytics) logEvent(_analytics, eventName, params);
   } catch { /* noop */ }
+}
+
+/**
+ * Genera una contraseña temporal legible para compartir por WhatsApp.
+ * Evita caracteres ambiguos (0/O, 1/l/I) para que sea fácil de teclear.
+ * Formato: "qp-XXXXXX" (8+ chars, cumple el mínimo de Firebase).
+ */
+export function generarPasswordTemporal() {
+  const abc = "abcdefghjkmnpqrstuvwxyz23456789";
+  let s = "";
+  for (let i = 0; i < 6; i++) s += abc[Math.floor(Math.random() * abc.length)];
+  return `qp-${s}`;
+}
+
+/**
+ * Crea una cuenta de Firebase Auth SIN afectar la sesión actual del super admin.
+ *
+ * El truco: se levanta una instancia secundaria y aislada de Firebase solo para
+ * esta operación. createUserWithEmailAndPassword inicia sesión en ESA instancia
+ * (no en la principal), así que el super admin nunca pierde su sesión. Al terminar
+ * se cierra la sesión secundaria y se destruye la instancia.
+ *
+ * @returns {Promise<string>} el UID de la cuenta recién creada.
+ * @throws  reenvía el error de Firebase (ej. 'auth/email-already-in-use').
+ */
+export async function crearUsuarioAislado(email, password) {
+  const secundaria = initializeApp(firebaseConfig, `alta-${Date.now()}`);
+  try {
+    const authSecundaria = getAuth(secundaria);
+    const cred = await createUserWithEmailAndPassword(authSecundaria, email, password);
+    const uid = cred.user.uid;
+    await signOut(authSecundaria);
+    return uid;
+  } finally {
+    await deleteApp(secundaria);
+  }
 }

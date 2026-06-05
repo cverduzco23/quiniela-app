@@ -1,7 +1,12 @@
 import { useState, useEffect, useMemo } from 'react'
-import { collection, addDoc, doc, updateDoc, getDocs, deleteDoc, query, orderBy, where } from 'firebase/firestore'
-import { signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth'
-import { db, auth } from '../firebase'
+import { collection, addDoc, doc, updateDoc, getDoc, getDocs, deleteDoc, query, orderBy, where, setDoc, serverTimestamp, increment, Timestamp } from 'firebase/firestore'
+import { signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail } from 'firebase/auth'
+import { db, auth, crearUsuarioAislado, generarPasswordTemporal } from '../firebase'
+import { CambioPassword } from '../components/CambioPassword'
+import { Paywall } from '../components/Paywall'
+import { ComoFunciona } from '../components/ComoFunciona'
+import { puedeCrearQuiniela, quinielasRestantes, temporadaVigente } from '../utils/entitlements'
+import { waLink } from '../utils/whatsapp'
 import { cierreToDate, cierreToInputValue, inputValueACierre, quinielaCerrada, quinielaFinalizada, resultadosCompletos } from '../utils/cierre'
 import { TIPO_PREMIO, MODELO_PREMIO, calcularBote, tienePremio, formatearMXN } from '../utils/premios'
 import { normalizarNombre } from '../utils/nombres'
@@ -31,6 +36,14 @@ const LIGAS = [
   { id: 'usa.1',              nombre: '🇺🇸 MLS' },
   { id: 'fifa.friendly',     nombre: '🌐 Amistosos Internacionales' },
 ]
+
+// Código de acceso legible y autogenerado (sin caracteres ambiguos: 0/O, 1/I).
+function generarCodigoAcceso() {
+  const abc = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+  let s = ''
+  for (let i = 0; i < 5; i++) s += abc[Math.floor(Math.random() * abc.length)]
+  return s
+}
 
 function goalsToResultado(local, visitante) {
   const l = parseInt(local), v = parseInt(visitante)
@@ -71,6 +84,12 @@ const greenCtaStyle = (disabled) => ({
   letterSpacing: 0.2,
   boxShadow: disabled ? 'none' : 'var(--shadow-green)',
 })
+// Botón pequeño de acción en las tarjetas de cliente.
+const accionBtn = {
+  padding: '7px 11px', borderRadius: 'var(--radius-sm)',
+  border: '1px solid var(--border-strong)', background: 'var(--neutral-bg)',
+  color: 'var(--text)', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+}
 
 export default function Admin() {
   // ─── Autenticación ────────────────────────────────────────────────────────
@@ -82,15 +101,44 @@ export default function Admin() {
   const [loginLoading, setLoginLoading] = useState(false)
 
   const [miUid, setMiUid] = useState(null)
+  // Doc admins/{uid}: perfil + derechos del cliente. null para el super admin
+  // (que no necesita doc) o si aún no se ha cargado.
+  const [adminDoc, setAdminDoc] = useState(null)
+  const [resetMsg, setResetMsg] = useState('')
+  const [ayudaAbierta, setAyudaAbierta] = useState(false)
+
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, user => {
+    const unsub = onAuthStateChanged(auth, async user => {
       setAutenticado(!!user)
       setMiUid(user?.uid ?? null)
+      if (user) {
+        try {
+          const snap = await getDoc(doc(db, 'admins', user.uid))
+          setAdminDoc(snap.exists() ? { id: snap.id, ...snap.data() } : null)
+        } catch {
+          setAdminDoc(null)
+        }
+      } else {
+        setAdminDoc(null)
+      }
       setAuthListo(true)
     })
     return unsub
   }, [])
   const soySuper = esSuperAdminUid(miUid)
+  // Forzar cambio de contraseña en el primer ingreso (solo clientes con el flag).
+  const debeCambiarPassword = !soySuper && adminDoc?.debeCambiarPassword === true
+  // ¿Puede crear una quiniela más? El super admin no tiene límite.
+  const puedeCrear = soySuper || puedeCrearQuiniela(adminDoc)
+
+  // Recarga el doc admins/{uid} propio (tras crear una quiniela, etc.).
+  const recargarMiAdminDoc = async () => {
+    if (!miUid) return
+    try {
+      const snap = await getDoc(doc(db, 'admins', miUid))
+      setAdminDoc(snap.exists() ? { id: snap.id, ...snap.data() } : null)
+    } catch { /* noop */ }
+  }
 
   const entrar = async () => {
     if (!email.trim() || !password) return
@@ -106,6 +154,176 @@ export default function Admin() {
     }
   }
 
+  // Envía el correo de restablecimiento de contraseña de Firebase.
+  const recuperarPassword = async () => {
+    setLoginError('')
+    setResetMsg('')
+    const correo = email.trim()
+    if (!correo) {
+      setLoginError('Escribe tu correo arriba y vuelve a tocar "¿Olvidaste tu contraseña?".')
+      return
+    }
+    try {
+      await sendPasswordResetEmail(auth, correo)
+      setResetMsg('Te enviamos un correo para restablecer tu contraseña. Revisa tu bandeja (y spam). Si no llega, escríbenos por WhatsApp.')
+    } catch {
+      // Mensaje neutro: no revelamos si el correo existe o no.
+      setResetMsg('Si ese correo tiene una cuenta, te llegará un mensaje para restablecer la contraseña.')
+    }
+  }
+
+  // ─── Clientes (solo super admin) ──────────────────────────────────────────
+  const [clientes, setClientes]               = useState([])
+  const [loadingClientes, setLoadingClientes] = useState(false)
+  const [ncEmail, setNcEmail]                 = useState('')
+  const [ncNombre, setNcNombre]               = useState('')
+  const [ncTel, setNcTel]                     = useState('')
+  const [ncEmpresa, setNcEmpresa]             = useState('')
+  const [creandoCliente, setCreandoCliente]   = useState(false)
+  const [errorCliente, setErrorCliente]       = useState('')
+  // Datos de la cuenta recién creada para entregar por WhatsApp.
+  const [clienteCreado, setClienteCreado]     = useState(null) // { email, password, telefono }
+
+  const cargarClientes = async () => {
+    setLoadingClientes(true)
+    try {
+      const snap = await getDocs(collection(db, 'admins'))
+      const lista = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+      // Más recientes primero (creado puede ser Timestamp o faltar en docs viejos).
+      lista.sort((a, b) => {
+        const ta = a.creado?.toMillis ? a.creado.toMillis() : 0
+        const tb = b.creado?.toMillis ? b.creado.toMillis() : 0
+        return tb - ta
+      })
+      setClientes(lista)
+    } catch {
+      setClientes([])
+    } finally {
+      setLoadingClientes(false)
+    }
+  }
+
+  // Normaliza un teléfono mexicano a formato wa.me (52 + 10 dígitos).
+  const telParaWa = (tel) => {
+    const d = String(tel ?? '').replace(/\D/g, '')
+    if (!d) return ''
+    if (d.length === 10) return `52${d}`
+    return d
+  }
+
+  // Sin emojis a propósito: algunos dispositivos los muestran como "�" en wa.me.
+  const mensajeAccesos = (email, password) =>
+    `¡Listo! Estos son tus accesos a Quinielapp:\n` +
+    `Entrar: https://quinielapp.fun/admin\n` +
+    `Correo: ${email}\n` +
+    `Contraseña temporal: ${password}\n\n` +
+    `Al entrar la primera vez te pedirá cambiar tu contraseña por una tuya. ` +
+    `Después creas tu primera quiniela (va por nuestra cuenta). Cualquier duda, aquí estoy.`
+
+  const crearCliente = async () => {
+    setErrorCliente('')
+    setClienteCreado(null)
+    const email = ncEmail.trim().toLowerCase()
+    const nombre = ncNombre.trim()
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setErrorCliente('Escribe un correo válido.')
+      return
+    }
+    if (nombre.length < 2) {
+      setErrorCliente('Escribe el nombre del cliente.')
+      return
+    }
+    setCreandoCliente(true)
+    try {
+      const password = generarPasswordTemporal()
+      // 1) Cuenta de acceso (sin tocar la sesión del super admin).
+      const uid = await crearUsuarioAislado(email, password)
+      // 2) Doc de derechos con los defaults del plan trial.
+      await setDoc(doc(db, 'admins', uid), {
+        email,
+        nombre,
+        empresa: ncEmpresa.trim() || null,
+        telefono: ncTel.trim() || null,
+        activo: true,
+        debeCambiarPassword: true,
+        plan: 'trial',
+        quinielasPermitidas: 1,
+        quinielasCreadas: 0,
+        temporadaHasta: null,
+        creado: serverTimestamp(),
+        notas: null,
+      })
+      // 3) Mostrar accesos para entregar por WhatsApp.
+      setClienteCreado({ email, password, telefono: ncTel.trim() })
+      setNcEmail(''); setNcNombre(''); setNcTel(''); setNcEmpresa('')
+      cargarClientes()
+    } catch (e) {
+      console.error('crearCliente error:', e?.code, e?.message, e)
+      if (e?.code === 'auth/email-already-in-use') {
+        setErrorCliente('Ya existe una cuenta con ese correo.')
+      } else if (e?.code === 'auth/operation-not-allowed' || e?.code === 'auth/admin-restricted-operation') {
+        setErrorCliente('Firebase tiene bloqueado el registro de cuentas nuevas. Hay que habilitar el alta en Authentication (Email/Password → permitir sign-up).')
+      } else if (e?.code === 'auth/weak-password') {
+        setErrorCliente('La contraseña generada fue rechazada. Intenta de nuevo.')
+      } else if (e?.code === 'permission-denied') {
+        setErrorCliente('La cuenta se creó pero Firestore bloqueó guardar su perfil (reglas). Avísame.')
+      } else {
+        setErrorCliente(`No se pudo crear el cliente. (${e?.code || e?.message || 'error desconocido'})`)
+      }
+    } finally {
+      setCreandoCliente(false)
+    }
+  }
+
+  const toggleActivoCliente = async (c) => {
+    const desactivando = c.activo
+    if (desactivando && !window.confirm(`¿Desactivar a ${c.nombre || c.email}? No podrá crear quinielas hasta reactivarlo.`)) return
+    try {
+      await updateDoc(doc(db, 'admins', c.id), { activo: !c.activo })
+      cargarClientes()
+    } catch { alert('No se pudo actualizar. Intenta de nuevo.') }
+  }
+
+  const darQuinielaExtra = async (c) => {
+    if (!window.confirm(`Confirmar pago de $59 y dar 1 quiniela más a ${c.nombre || c.email}?`)) return
+    try {
+      await updateDoc(doc(db, 'admins', c.id), {
+        quinielasPermitidas: increment(1),
+        plan: 'por_quiniela',
+        activo: true,
+      })
+      cargarClientes()
+    } catch { alert('No se pudo actualizar. Intenta de nuevo.') }
+  }
+
+  const darPaseMundial = async (c) => {
+    const def = '2026-07-20'
+    const fecha = window.prompt(
+      `Pase Mundial para ${c.nombre || c.email}: quinielas ilimitadas hasta esta fecha (YYYY-MM-DD).`,
+      def
+    )
+    if (!fecha) return
+    const d = new Date(`${fecha}T23:59:59`)
+    if (isNaN(d.getTime())) { alert('Fecha no válida.'); return }
+    try {
+      await updateDoc(doc(db, 'admins', c.id), {
+        temporadaHasta: Timestamp.fromDate(d),
+        plan: 'pase_mundial',
+        activo: true,
+      })
+      cargarClientes()
+    } catch { alert('No se pudo actualizar. Intenta de nuevo.') }
+  }
+
+  const editarNotasCliente = async (c) => {
+    const notas = window.prompt(`Notas internas sobre ${c.nombre || c.email}:`, c.notas ?? '')
+    if (notas === null) return
+    try {
+      await updateDoc(doc(db, 'admins', c.id), { notas: notas.trim() || null })
+      cargarClientes()
+    } catch { alert('No se pudo guardar la nota.') }
+  }
+
   const salir = () => {
     if (window.confirm('¿Seguro que quieres cerrar sesión?')) signOut(auth)
   }
@@ -117,6 +335,13 @@ export default function Admin() {
   const [quinielaActual, setQuinielaActual] = useState(null)
   const [tab, setTab]                     = useState('resultados')
   const [conteos, setConteos]             = useState({})
+
+  // Cargar la lista de clientes para el super admin: en el tab Clientes y también
+  // en la lista (para etiquetar de quién es cada quiniela de "otros admins").
+  useEffect(() => {
+    if (autenticado && authListo && soySuper && (vista === 'clientes' || vista === 'lista')) cargarClientes()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autenticado, authListo, soySuper, vista])
 
   // ─── Formulario nueva quiniela ────────────────────────────────────────────
   const [nombre, setNombre]     = useState('')
@@ -440,7 +665,7 @@ export default function Admin() {
         cierre:   cierreTs,
         codigoAcceso: codigoLimpio || null,
         codigoAccesoLower: codigoLimpio ? codigoLimpio.toLowerCase() : null,
-        privada: !!editPrivada,
+        privada: soySuper ? !!editPrivada : true,
         empresa: empresaLimpia || null,
         requiereApellido: !!editRequiereApellido,
         ...premioFields,
@@ -461,6 +686,10 @@ export default function Admin() {
   const toggleCerrar = async () => {
     if (!quinielaActual || toggling) return
     const estaCerrada = esCerradaQ(quinielaActual)
+    // Reabrir es delicado: puede permitir entradas tardías y descuadrar el ranking.
+    if (estaCerrada && !window.confirm(
+      'Vas a REABRIR esta quiniela. Quedará sin fecha de cierre y la gente podrá volver a registrar o cambiar predicciones, lo que puede afectar el ranking. ¿Continuar?'
+    )) return
     setToggling(true)
     try {
       const changes = estaCerrada
@@ -624,7 +853,15 @@ export default function Admin() {
     }
   }
 
+  // Abre el formulario de nueva quiniela, pre-llenando un código de acceso editable.
+  const abrirNuevaQuiniela = () => {
+    if (!codigoAcceso.trim()) setCodigoAcceso(generarCodigoAcceso())
+    setVista('nueva')
+  }
+
   const guardarNuevaQuiniela = async () => {
+    // Gate de cuota (defensivo; la UI ya muestra el paywall si no puede crear).
+    if (!puedeCrear) return alert('Ya usaste tu(s) quiniela(s) incluida(s). Elige un plan para crear más.')
     if (!nombre.trim()) return alert('Ponle un nombre a la quiniela')
     if (!cierre) return alert('La fecha y hora de cierre es obligatoria')
     if (partidos.length === 0) return alert('Agrega al menos un partido')
@@ -653,7 +890,8 @@ export default function Admin() {
         ownerUid: auth.currentUser?.uid ?? null,
         codigoAcceso: codigoLimpio || null,
         codigoAccesoLower: codigoLimpio ? codigoLimpio.toLowerCase() : null,
-        privada: !!privada,
+        // Los admins normales solo crean quinielas privadas (no salen al home público).
+        privada: soySuper ? !!privada : true,
         empresa: empresaLimpia || null,
         requiereApellido: !!requiereApellido,
         ...premioFields,
@@ -665,6 +903,12 @@ export default function Admin() {
       setVista('gestionar')
       setTab('compartir')
       cargarQuinielas()
+      // Descontar la cuota del cliente (el super admin no consume cuota).
+      if (!soySuper && miUid) {
+        try { await updateDoc(doc(db, 'admins', miUid), { quinielasCreadas: increment(1) }) }
+        catch { /* el contador es suave; no bloquea la creación ya hecha */ }
+        recargarMiAdminDoc()
+      }
       setNombre(''); setCierre(''); setPartidos([{ local: '', visitante: '', hora: '' }])
       setPremioFijo(''); setCuota(''); setModeloPremio(MODELO_PREMIO.GANADOR_UNICO)
       setCodigoAcceso(''); setPrivada(false); setEmpresa(''); setRequiereApellido(false)
@@ -993,6 +1237,16 @@ export default function Admin() {
   const mias  = subdividirPorEstado(quinielasMias)
   const otras = subdividirPorEstado(quinielasOtras)
 
+  // Mapa uid → doc de admin, para etiquetar de quién es cada quiniela (vista super).
+  const adminsPorUid = {}
+  clientes.forEach(c => { adminsPorUid[c.id] = c })
+  const labelDueno = (q) => {
+    if (!q.ownerUid) return null
+    const a = adminsPorUid[q.ownerUid]
+    if (a) return a.nombre || a.email
+    return `Admin (${q.ownerUid.slice(0, 6)}…)`
+  }
+
   // ─── Detección de posibles nombres duplicados (tab Participantes) ────────
   // Heurística estricta — solo marca casos con alta probabilidad real.
   const mapaSimilaresPorNombre = useMemo(
@@ -1054,18 +1308,38 @@ export default function Admin() {
           <button onClick={entrar} disabled={loginLoading} style={{ ...greenCtaStyle(loginLoading), width: '100%', padding: '12px' }}>
             {loginLoading ? 'Entrando…' : 'Entrar →'}
           </button>
+          <button
+            onClick={recuperarPassword}
+            style={{
+              width: '100%', marginTop: 12, padding: '4px', background: 'transparent',
+              border: 'none', color: 'var(--muted)', fontSize: 12, fontWeight: 600,
+              cursor: 'pointer', textDecoration: 'underline',
+            }}
+          >
+            ¿Olvidaste tu contraseña?
+          </button>
+          {resetMsg && (
+            <p style={{ fontSize: 12, color: 'var(--green-light)', marginTop: 10, lineHeight: 1.5 }}>
+              {resetMsg}
+            </p>
+          )}
         </div>
       </div>
     </div>
   )
 
+  // ─── Cambio de contraseña obligatorio (primer ingreso del cliente) ─────────
+  if (debeCambiarPassword) return (
+    <CambioPassword
+      uid={miUid}
+      onListo={() => setAdminDoc(d => (d ? { ...d, debeCambiarPassword: false } : d))}
+    />
+  )
+
   // ─── Formulario de premio (reutilizable) ──────────────────────────────────
-  const renderFormularioPremio = (fijo, setFijo, cuotaVal, setCuotaVal, modelo, setModelo) => {
+  // Único modelo de premio: "Ganador único" (gana quien más puntos; empate = se reparte).
+  const renderFormularioPremio = (fijo, setFijo, cuotaVal, setCuotaVal) => {
     const tienePremioLocal = (Number(fijo) || 0) > 0 || (Number(cuotaVal) || 0) > 0
-    const opcionesModelo = [
-      { val: MODELO_PREMIO.GANADOR_UNICO, label: 'Ganador único',   desc: 'Gana el 1° lugar. Si empatan, se reparten.' },
-      { val: MODELO_PREMIO.PODIO,         label: 'Podio 70/20/10', desc: '1° lugar 70%, 2° lugar 20%, 3° lugar 10%.' },
-    ]
     return (
       <div style={card}>
         <label style={lbl}>Premio</label>
@@ -1094,37 +1368,12 @@ export default function Admin() {
         )}
 
         {tienePremioLocal && (
-          <>
-            <label style={lbl}>Cómo se reparte</label>
-            <div style={{ display: 'grid', gap: 8 }}>
-              {opcionesModelo.map(op => {
-                const activa = modelo === op.val
-                return (
-                  <button
-                    key={op.val}
-                    type="button"
-                    onClick={() => setModelo(op.val)}
-                    style={{
-                      textAlign: 'left', padding: '10px 12px', borderRadius: 'var(--radius-sm)', cursor: 'pointer',
-                      background: activa ? 'var(--green-bg)' : 'var(--bg-soft)',
-                      border: `1.5px solid ${activa ? 'var(--green)' : 'var(--border)'}`,
-                      color: 'var(--text)',
-                    }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-                      <span style={{ fontSize: 13, fontWeight: 700 }}>{op.label}</span>
-                      <span style={{
-                        width: 16, height: 16, borderRadius: '50%', flexShrink: 0,
-                        border: `2px solid ${activa ? 'var(--green)' : 'var(--border-strong)'}`,
-                        background: activa ? 'var(--green)' : 'transparent',
-                      }} />
-                    </div>
-                    <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>{op.desc}</p>
-                  </button>
-                )
-              })}
-            </div>
-          </>
+          <div style={{ marginTop: 4, padding: '10px 12px', borderRadius: 'var(--radius-sm)', background: 'var(--bg-soft)', border: '1px solid var(--border)' }}>
+            <p style={{ fontSize: 12, color: 'var(--text)', lineHeight: 1.55 }}>
+              🏆 <strong>Gana quien acumule más puntos.</strong> Si dos o más quedan empatados en puntos,
+              se reparten el premio en partes iguales.
+            </p>
+          </div>
         )}
       </div>
     )
@@ -1137,23 +1386,33 @@ export default function Admin() {
         <label style={{ ...lbl, marginBottom: 0 }}>
           {onAgregar === agregarSeleccionados ? 'Buscar partidos' : 'Agregar partidos'}
         </label>
-        <div style={{ display: 'flex', background: 'var(--bg-soft)', borderRadius: 'var(--radius-sm)', padding: 3, gap: 2, border: '1px solid var(--border)' }}>
-          {[{ val: false, label: 'Próximos' }, { val: true, label: 'Pasados' }].map(op => (
-            <button
-              key={String(op.val)}
-              onClick={() => { setBuscarPasados(op.val); setFixtures([]); setSeleccionados([]) }}
-              style={{
-                padding: '5px 12px', fontSize: 12, fontWeight: 700, border: 'none',
-                borderRadius: 6, cursor: 'pointer', transition: 'all 0.15s',
-                background: buscarPasados === op.val ? 'var(--card-light)' : 'transparent',
-                color: buscarPasados === op.val ? 'var(--text-strong)' : 'var(--muted)',
-              }}
-            >
-              {op.label}
-            </button>
-          ))}
-        </div>
+        {/* El cambio Próximos/Pasados solo lo ve el super admin; los clientes
+            siempre buscan partidos próximos (que es lo que necesitan). */}
+        {soySuper && (
+          <div style={{ display: 'flex', background: 'var(--bg-soft)', borderRadius: 'var(--radius-sm)', padding: 3, gap: 2, border: '1px solid var(--border)' }}>
+            {[{ val: false, label: 'Próximos' }, { val: true, label: 'Pasados' }].map(op => (
+              <button
+                key={String(op.val)}
+                onClick={() => { setBuscarPasados(op.val); setFixtures([]); setSeleccionados([]) }}
+                style={{
+                  padding: '5px 12px', fontSize: 12, fontWeight: 700, border: 'none',
+                  borderRadius: 6, cursor: 'pointer', transition: 'all 0.15s',
+                  background: buscarPasados === op.val ? 'var(--card-light)' : 'transparent',
+                  color: buscarPasados === op.val ? 'var(--text-strong)' : 'var(--muted)',
+                }}
+              >
+                {op.label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
+
+      <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 10, lineHeight: 1.5 }}>
+        Trae los partidos reales desde ESPN. Es la forma <strong style={{ color: 'var(--text)' }}>recomendada</strong>:
+        los partidos llegan con escudos y fecha, y sus <strong style={{ color: 'var(--text)' }}>resultados se sincronizan solos</strong>.
+        Elige la liga, toca <strong style={{ color: 'var(--text)' }}>Buscar</strong> y marca los que quieras agregar.
+      </p>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, marginBottom: fixtures.length > 0 ? 12 : 0 }}>
         <select
@@ -1238,7 +1497,9 @@ export default function Admin() {
         <div style={{ maxWidth: 580, margin: '0 auto', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
           <div>
             <a href="/" style={{ fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', color: 'var(--green-light)', marginBottom: 6, fontWeight: 700, textDecoration: 'none', display: 'block' }}>⚽ QuinielApp</a>
-            <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, letterSpacing: '-0.01em' }}>Panel de Administrador</h1>
+            <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, letterSpacing: '-0.01em' }}>
+              {soySuper ? 'Panel de Súper Administrador' : 'Panel de Administrador'}
+            </h1>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             {vista !== 'lista' && (
@@ -1260,6 +1521,18 @@ export default function Admin() {
               </button>
             )}
             <button
+              onClick={() => setAyudaAbierta(true)}
+              style={{ background: 'var(--neutral-bg)', border: '1px solid var(--border)', color: 'var(--text)', padding: '7px 14px', borderRadius: 'var(--radius-sm)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+            >
+              ❓ Ayuda
+            </button>
+            <a
+              href="/"
+              style={{ background: 'var(--neutral-bg)', border: '1px solid var(--border)', color: 'var(--text)', padding: '7px 14px', borderRadius: 'var(--radius-sm)', fontSize: 13, fontWeight: 600, cursor: 'pointer', textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}
+            >
+              🏠 Inicio
+            </a>
+            <button
               onClick={salir}
               style={{ background: 'transparent', border: '1px solid var(--border-strong)', color: 'var(--muted)', padding: '7px 14px', borderRadius: 'var(--radius-sm)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
             >
@@ -1269,6 +1542,8 @@ export default function Admin() {
         </div>
       </div>
 
+      {ayudaAbierta && <ComoFunciona onClose={() => setAyudaAbierta(false)} />}
+
       <div style={{ maxWidth: 580, margin: '0 auto', padding: '1.25rem 1rem 3rem' }}>
 
         {/* ── Vista: Lista ────────────────────────────────────────────────── */}
@@ -1277,17 +1552,43 @@ export default function Admin() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
               <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)' }}>Tus quinielas</span>
               <div style={{ display: 'flex', gap: 8 }}>
-                <button
-                  onClick={() => setVista('caja')}
-                  style={{ background: 'var(--neutral-bg)', border: '1px solid var(--border)', color: 'var(--text)', padding: '7px 14px', borderRadius: 'var(--radius-sm)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
-                >
-                  💰 Caja
-                </button>
-                <button onClick={() => setVista('nueva')} style={{ ...greenCtaStyle(false), padding: '9px 18px' }}>
+                {/* Caja = contabilidad interna del producto (colección movimientos,
+                    solo super admin en las reglas). Se oculta a clientes normales. */}
+                {soySuper && (
+                  <>
+                    <button
+                      onClick={() => setVista('clientes')}
+                      style={{ background: 'var(--neutral-bg)', border: '1px solid var(--border)', color: 'var(--text)', padding: '7px 14px', borderRadius: 'var(--radius-sm)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+                    >
+                      👥 Clientes
+                    </button>
+                    <button
+                      onClick={() => setVista('caja')}
+                      style={{ background: 'var(--neutral-bg)', border: '1px solid var(--border)', color: 'var(--text)', padding: '7px 14px', borderRadius: 'var(--radius-sm)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+                    >
+                      💰 Caja
+                    </button>
+                  </>
+                )}
+                <button onClick={abrirNuevaQuiniela} style={{ ...greenCtaStyle(false), padding: '9px 18px' }}>
                   + Nueva quiniela
                 </button>
               </div>
             </div>
+
+            {/* Aviso de plan para clientes (el super admin no tiene cuota). */}
+            {!soySuper && adminDoc && (
+              <div style={{ ...card, padding: '0.9rem 1.1rem', display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 18, lineHeight: 1 }} aria-hidden="true">{temporadaVigente(adminDoc) ? '🏆' : '🎟️'}</span>
+                <p style={{ fontSize: 12.5, color: 'var(--text)', lineHeight: 1.4 }}>
+                  {temporadaVigente(adminDoc)
+                    ? 'Pase Mundial activo — puedes crear quinielas ilimitadas.'
+                    : quinielasRestantes(adminDoc) > 0
+                      ? `Tienes ${quinielasRestantes(adminDoc)} quiniela${quinielasRestantes(adminDoc) === 1 ? '' : 's'} disponible${quinielasRestantes(adminDoc) === 1 ? '' : 's'}.`
+                      : 'Ya usaste tus quinielas incluidas. Toca “+ Nueva quiniela” para ver los planes.'}
+                </p>
+              </div>
+            )}
 
             {loadingLista ? (
               <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--muted)', fontSize: 14 }}>Cargando…</div>
@@ -1296,12 +1597,12 @@ export default function Admin() {
                 <div style={{ fontSize: 48, marginBottom: 16 }}>📋</div>
                 <p style={{ fontWeight: 600, fontSize: 16, color: 'var(--text)', marginBottom: 8 }}>Sin quinielas todavía</p>
                 <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 20 }}>Crea tu primera quiniela para comenzar.</p>
-                <button onClick={() => setVista('nueva')} style={{ ...greenCtaStyle(false) }}>
+                <button onClick={abrirNuevaQuiniela} style={{ ...greenCtaStyle(false) }}>
                   Crear ahora →
                 </button>
               </div>
             ) : (() => {
-              const renderBloque = (sec) => (
+              const renderBloque = (sec, conDueno = false) => (
                 <>
                   {sec.activas.length > 0 && (
                     <>
@@ -1309,7 +1610,7 @@ export default function Admin() {
                         Activas
                       </p>
                       {sec.activas.map(q => (
-                        <QuinielaCard key={q.id} q={q} conteos={conteos} onGestionar={gestionarQuiniela} />
+                        <QuinielaCard key={q.id} q={q} conteos={conteos} onGestionar={gestionarQuiniela} dueno={conDueno ? labelDueno(q) : undefined} />
                       ))}
                     </>
                   )}
@@ -1319,7 +1620,7 @@ export default function Admin() {
                         Jugándose
                       </p>
                       {sec.enJuego.map(q => (
-                        <QuinielaCard key={q.id} q={q} conteos={conteos} onGestionar={gestionarQuiniela} />
+                        <QuinielaCard key={q.id} q={q} conteos={conteos} onGestionar={gestionarQuiniela} dueno={conDueno ? labelDueno(q) : undefined} />
                       ))}
                     </>
                   )}
@@ -1329,7 +1630,7 @@ export default function Admin() {
                         Finalizadas
                       </p>
                       {sec.finalizadas.map(q => (
-                        <QuinielaCard key={q.id} q={q} conteos={conteos} onGestionar={gestionarQuiniela} />
+                        <QuinielaCard key={q.id} q={q} conteos={conteos} onGestionar={gestionarQuiniela} dueno={conDueno ? labelDueno(q) : undefined} />
                       ))}
                     </>
                   )}
@@ -1348,7 +1649,7 @@ export default function Admin() {
                       <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginTop: 28, marginBottom: 10, letterSpacing: 0.2 }}>
                         De otros admins
                       </p>
-                      {renderBloque(otras)}
+                      {renderBloque(otras, true)}
                     </>
                   ) : (
                     renderBloque(mias)
@@ -1356,6 +1657,124 @@ export default function Admin() {
                 </>
               )
             })()}
+          </>
+        )}
+
+        {/* ── Vista: Clientes (solo super admin) ──────────────────────────── */}
+        {vista === 'clientes' && soySuper && (
+          <>
+            <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)', marginBottom: 14 }}>Clientes</p>
+
+            {/* Crear cliente */}
+            <div style={card}>
+              <p style={{ ...lbl, marginBottom: 10 }}>➕ Dar de alta un cliente</p>
+              <label htmlFor="nc-email" style={{ ...lbl, marginBottom: 4 }}>Correo <span style={{ color: 'var(--red)' }}>*</span></label>
+              <input id="nc-email" type="email" placeholder="correo@cliente.com" value={ncEmail}
+                onChange={e => { setNcEmail(e.target.value); setErrorCliente('') }} style={{ marginBottom: 12 }} />
+              <label htmlFor="nc-nombre" style={{ ...lbl, marginBottom: 4 }}>Nombre <span style={{ color: 'var(--red)' }}>*</span></label>
+              <input id="nc-nombre" type="text" placeholder="Nombre de quien organiza" value={ncNombre}
+                onChange={e => { setNcNombre(e.target.value); setErrorCliente('') }} style={{ marginBottom: 12 }} />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
+                <div>
+                  <label htmlFor="nc-tel" style={{ ...lbl, marginBottom: 4 }}>WhatsApp</label>
+                  <input id="nc-tel" type="tel" placeholder="55 1234 5678" value={ncTel}
+                    onChange={e => setNcTel(e.target.value)} />
+                </div>
+                <div>
+                  <label htmlFor="nc-empresa" style={{ ...lbl, marginBottom: 4 }}>Empresa</label>
+                  <input id="nc-empresa" type="text" placeholder="(opcional)" value={ncEmpresa}
+                    onChange={e => setNcEmpresa(e.target.value)} />
+                </div>
+              </div>
+              {errorCliente && <p style={{ fontSize: 12, color: 'var(--red)', marginBottom: 10 }}>{errorCliente}</p>}
+              <button onClick={crearCliente} disabled={creandoCliente}
+                style={{ ...greenCtaStyle(creandoCliente), width: '100%', padding: '12px' }}>
+                {creandoCliente ? 'Creando…' : 'Crear cuenta'}
+              </button>
+
+              {/* Accesos recién creados, listos para enviar */}
+              {clienteCreado && (
+                <div style={{ marginTop: 14, padding: '1rem', borderRadius: 'var(--radius-sm)', background: 'var(--green-bg)', border: '1px solid var(--green)' }}>
+                  <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-strong)', marginBottom: 8 }}>✅ Cuenta creada — comparte estos accesos:</p>
+                  <p style={{ fontSize: 13, color: 'var(--text)', fontFamily: 'monospace', lineHeight: 1.7, wordBreak: 'break-all' }}>
+                    📧 {clienteCreado.email}<br />
+                    🔑 {clienteCreado.password}
+                  </p>
+                  <p style={{ fontSize: 11, color: 'var(--muted)', margin: '8px 0 12px' }}>
+                    ⚠️ Guarda o envía la contraseña ahora: por seguridad no se vuelve a mostrar.
+                  </p>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    <button
+                      onClick={() => { navigator.clipboard?.writeText(mensajeAccesos(clienteCreado.email, clienteCreado.password)); }}
+                      style={{ flex: '1 1 140px', padding: '10px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-strong)', background: 'var(--neutral-bg)', color: 'var(--text)', fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}
+                    >
+                      📋 Copiar mensaje
+                    </button>
+                    {telParaWa(clienteCreado.telefono) && (
+                      <a
+                        href={waLink(mensajeAccesos(clienteCreado.email, clienteCreado.password), telParaWa(clienteCreado.telefono))}
+                        target="_blank" rel="noreferrer"
+                        style={{ flex: '1 1 140px', textAlign: 'center', padding: '10px', borderRadius: 'var(--radius-sm)', textDecoration: 'none', background: '#25D366', color: '#06140B', fontSize: 12.5, fontWeight: 800 }}
+                      >
+                        💬 Enviar por WhatsApp
+                      </a>
+                    )}
+                  </div>
+                  <button onClick={() => setClienteCreado(null)}
+                    style={{ width: '100%', marginTop: 10, padding: '6px', background: 'transparent', border: 'none', color: 'var(--muted)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                    Cerrar
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Lista de clientes */}
+            {loadingClientes ? (
+              <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--muted)', fontSize: 14 }}>Cargando…</div>
+            ) : clientes.length === 0 ? (
+              <div style={{ ...card, textAlign: 'center', padding: '2rem' }}>
+                <p style={{ fontSize: 13, color: 'var(--muted)' }}>Aún no hay clientes dados de alta.</p>
+              </div>
+            ) : clientes.map(c => {
+              const enPase = temporadaVigente(c)
+              const usadas = c.quinielasCreadas ?? 0
+              const permitidas = c.quinielasPermitidas ?? 0
+              const paseFecha = enPase && c.temporadaHasta?.toMillis
+                ? new Date(c.temporadaHasta.toMillis()).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })
+                : null
+              return (
+                <div key={c.id} style={card}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 8 }}>
+                    <div style={{ minWidth: 0 }}>
+                      <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-strong)' }}>
+                        {c.nombre || '(sin nombre)'}{c.empresa ? <span style={{ fontWeight: 500, color: 'var(--muted)' }}> · {c.empresa}</span> : null}
+                      </p>
+                      <p style={{ fontSize: 12, color: 'var(--muted)', wordBreak: 'break-all' }}>{c.email}{c.telefono ? ` · 📱 ${c.telefono}` : ''}</p>
+                    </div>
+                    <span style={{
+                      flexShrink: 0, fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 'var(--radius-full)',
+                      background: c.activo ? 'var(--green-bg)' : 'var(--neutral-bg)',
+                      color: c.activo ? 'var(--green)' : 'var(--muted)',
+                    }}>
+                      {c.activo ? 'Activo' : 'Inactivo'}
+                    </span>
+                  </div>
+                  <p style={{ fontSize: 12, color: 'var(--text)', marginBottom: 12 }}>
+                    {enPase
+                      ? `🏆 Pase Mundial — ilimitadas hasta ${paseFecha}`
+                      : `📊 ${usadas}/${permitidas} quinielas usadas`}
+                    {c.debeCambiarPassword ? <span style={{ color: 'var(--yellow)' }}> · 🔑 contraseña sin cambiar</span> : null}
+                    {c.notas ? <span style={{ color: 'var(--muted)' }}><br />📝 {c.notas}</span> : null}
+                  </p>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    <button onClick={() => darQuinielaExtra(c)} style={accionBtn}>➕ +1 quiniela ($59)</button>
+                    <button onClick={() => darPaseMundial(c)} style={accionBtn}>🏆 Pase Mundial ($299)</button>
+                    <button onClick={() => toggleActivoCliente(c)} style={accionBtn}>{c.activo ? '⏸ Desactivar' : '▶️ Activar'}</button>
+                    <button onClick={() => editarNotasCliente(c)} style={accionBtn}>📝 Notas</button>
+                  </div>
+                </div>
+              )
+            })}
           </>
         )}
 
@@ -1547,7 +1966,15 @@ export default function Admin() {
         )}
 
         {/* ── Vista: Nueva quiniela ────────────────────────────────────────── */}
-        {vista === 'nueva' && (
+        {/* Cliente sin cuota disponible: en vez del formulario, ve el paywall. */}
+        {vista === 'nueva' && !puedeCrear && (
+          <>
+            <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)', marginBottom: 14 }}>Nueva quiniela</p>
+            <Paywall />
+          </>
+        )}
+
+        {vista === 'nueva' && puedeCrear && (
           <>
             <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)', marginBottom: 14 }}>Nueva quiniela</p>
 
@@ -1572,19 +1999,27 @@ export default function Admin() {
               </p>
               <input id="quiniela-empresa" type="text" placeholder="Ej. Construcciones ACME" value={empresa} onChange={e => setEmpresa(e.target.value)} style={{ marginBottom: 14 }} />
 
-              <label htmlFor="quiniela-codigo" style={{ ...lbl, marginBottom: 4 }}>Código de acceso <span style={{ color: 'var(--muted)', fontWeight: 500, textTransform: 'none', letterSpacing: 0 }}>(opcional)</span></label>
+              <label htmlFor="quiniela-codigo" style={{ ...lbl, marginBottom: 4 }}>Código de acceso</label>
               <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>
-                Si pones un código, solo quien lo sepa podrá registrar predicciones. Compártelo por tu canal interno.
+                Lo generamos automático, pero puedes cambiarlo por uno más fácil de recordar (ej. ACME2026).
+                Solo quien tenga este código podrá registrar predicciones; compártelo por tu canal interno.
               </p>
               <input id="quiniela-codigo" type="text" placeholder="Ej. ACME2026" value={codigoAcceso} onChange={e => setCodigoAcceso(e.target.value)} style={{ marginBottom: 14 }} />
 
-              <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', marginBottom: 12 }}>
-                <input type="checkbox" checked={privada} onChange={e => setPrivada(e.target.checked)} style={{ marginTop: 3, width: 16, height: 16, accentColor: 'var(--green)' }} />
-                <span style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.5 }}>
-                  <strong style={{ fontWeight: 700, color: 'var(--text-strong)' }}>Quiniela privada</strong><br />
-                  <span style={{ fontSize: 12, color: 'var(--muted)' }}>No aparece en la página principal, solo se accede con el enlace directo.</span>
-                </span>
-              </label>
+              {soySuper ? (
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', marginBottom: 12 }}>
+                  <input type="checkbox" checked={privada} onChange={e => setPrivada(e.target.checked)} style={{ marginTop: 3, width: 16, height: 16, accentColor: 'var(--green)' }} />
+                  <span style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.5 }}>
+                    <strong style={{ fontWeight: 700, color: 'var(--text-strong)' }}>Quiniela privada</strong><br />
+                    <span style={{ fontSize: 12, color: 'var(--muted)' }}>No aparece en la página principal, solo se accede con el enlace directo.</span>
+                  </span>
+                </label>
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 12, fontSize: 12, color: 'var(--muted)', lineHeight: 1.5 }}>
+                  <span aria-hidden="true">🔒</span>
+                  <span>Tu quiniela es <strong style={{ color: 'var(--text)' }}>privada</strong>: no aparece en ninguna lista pública. Solo entra quien tenga tu enlace y código.</span>
+                </div>
+              )}
 
               <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer' }}>
                 <input type="checkbox" checked={requiereApellido} onChange={e => setRequiereApellido(e.target.checked)} style={{ marginTop: 3, width: 16, height: 16, accentColor: 'var(--green)' }} />
@@ -1595,12 +2030,18 @@ export default function Admin() {
               </label>
             </div>
 
-            {renderFormularioPremio(premioFijo, setPremioFijo, cuota, setCuota, modeloPremio, setModeloPremio)}
+            {renderFormularioPremio(premioFijo, setPremioFijo, cuota, setCuota)}
 
             {renderBuscadorFixtures(agregarSeleccionados)}
 
             <div style={card}>
               <label style={lbl}>Partidos</label>
+              <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 12, lineHeight: 1.5 }}>
+                Aquí van los partidos de tu quiniela, en orden. Lo ideal es traerlos con el buscador de arriba
+                (se sincronizan solos). Agrégalos <strong style={{ color: 'var(--text)' }}>a mano</strong> solo si no aparecen en ESPN;
+                en ese caso tendrás que poner los resultados manualmente. 💡 Una vez que alguien ya hizo su predicción,
+                <strong style={{ color: 'var(--text)' }}> los partidos ya no se pueden cambiar</strong> (para no descuadrar el ranking).
+              </p>
               {partidos.map((p, i) => (
                 <div key={i} style={{ marginBottom: 16, paddingBottom: 16, borderBottom: i < partidos.length - 1 ? '1px solid var(--border)' : 'none' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
@@ -1676,7 +2117,7 @@ export default function Admin() {
                 </div>
               )}
 
-              {!estaCerrada && (() => {
+              {!estaCerrada && soySuper && (() => {
                 const esDestacada = !!quinielaActual.destacada
                 return (
                   <button
@@ -1872,6 +2313,12 @@ export default function Admin() {
                         </div>
                       )
                     })}
+                  </div>
+
+                  <div style={{ background: 'var(--bg-soft)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '10px 12px', marginTop: 12, marginBottom: 12, fontSize: 11.5, color: 'var(--muted)', lineHeight: 1.55 }}>
+                    <p style={{ marginBottom: 4 }}><strong style={{ color: 'var(--green)' }}>⚡ Sincronizar ESPN</strong> — trae los marcadores reales solos (para partidos que agregaste con el buscador). Es lo recomendado: tú no escribes nada.</p>
+                    <p style={{ marginBottom: 4 }}><strong style={{ color: 'var(--text)' }}>Guardar manual</strong> — guarda los marcadores que escribiste tú arriba. Úsalo solo para partidos que no están en ESPN. ⚠️ Si después sincronizas, ESPN reemplaza lo que pusiste a mano.</p>
+                    <p>📌 <strong style={{ color: 'var(--text)' }}>Al terminar los partidos</strong>, espera unos minutos (a que ESPN marque el final) y da <strong style={{ color: 'var(--green)' }}>⚡ Sincronizar ESPN</strong> una vez para dejar los resultados guardados en firme.</p>
                   </div>
 
                   <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginTop: 4 }}>
@@ -2120,13 +2567,20 @@ export default function Admin() {
                     </p>
                     <input id="edit-codigo" type="text" placeholder="Ej. ACME2026" value={editCodigoAcceso} onChange={e => setEditCodigoAcceso(e.target.value)} style={{ marginBottom: 14 }} />
 
-                    <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', marginBottom: 12 }}>
-                      <input type="checkbox" checked={editPrivada} onChange={e => setEditPrivada(e.target.checked)} style={{ marginTop: 3, width: 16, height: 16, accentColor: 'var(--green)' }} />
-                      <span style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.5 }}>
-                        <strong style={{ fontWeight: 700, color: 'var(--text-strong)' }}>Quiniela privada</strong><br />
-                        <span style={{ fontSize: 12, color: 'var(--muted)' }}>No aparece en la página principal, solo se accede con el enlace directo.</span>
-                      </span>
-                    </label>
+                    {soySuper ? (
+                      <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', marginBottom: 12 }}>
+                        <input type="checkbox" checked={editPrivada} onChange={e => setEditPrivada(e.target.checked)} style={{ marginTop: 3, width: 16, height: 16, accentColor: 'var(--green)' }} />
+                        <span style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.5 }}>
+                          <strong style={{ fontWeight: 700, color: 'var(--text-strong)' }}>Quiniela privada</strong><br />
+                          <span style={{ fontSize: 12, color: 'var(--muted)' }}>No aparece en la página principal, solo se accede con el enlace directo.</span>
+                        </span>
+                      </label>
+                    ) : (
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 12, fontSize: 12, color: 'var(--muted)', lineHeight: 1.5 }}>
+                        <span aria-hidden="true">🔒</span>
+                        <span>Tu quiniela es <strong style={{ color: 'var(--text)' }}>privada</strong>: solo entra quien tenga tu enlace y código.</span>
+                      </div>
+                    )}
 
                     <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer' }}>
                       <input type="checkbox" checked={editRequiereApellido} onChange={e => setEditRequiereApellido(e.target.checked)} style={{ marginTop: 3, width: 16, height: 16, accentColor: 'var(--green)' }} />
@@ -2137,7 +2591,7 @@ export default function Admin() {
                     </label>
                   </div>
 
-                  {renderFormularioPremio(editPremioFijo, setEditPremioFijo, editCuota, setEditCuota, editModeloPremio, setEditModeloPremio)}
+                  {renderFormularioPremio(editPremioFijo, setEditPremioFijo, editCuota, setEditCuota)}
 
                   <div style={card}>
                     <label style={{ ...lbl, marginBottom: 14 }}>Partidos</label>
@@ -2443,7 +2897,7 @@ export default function Admin() {
 }
 
 // ─── Componente de card de quiniela en la lista ───────────────────────────────
-function QuinielaCard({ q, conteos, onGestionar }) {
+function QuinielaCard({ q, conteos, onGestionar, dueno }) {
   const cerrada = esCerradaQ(q)
   const enJuego = cerrada && !esFinalizadaQ(q)
   const n = conteos[q.id] ?? 0
@@ -2498,6 +2952,11 @@ function QuinielaCard({ q, conteos, onGestionar }) {
             </span>
           )}
         </div>
+        {dueno && (
+          <p style={{ fontSize: 11, color: 'var(--green-light)', marginBottom: 4, fontWeight: 700 }}>
+            👤 {dueno}
+          </p>
+        )}
         {q.empresa && (
           <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4, fontWeight: 600 }}>
             🏢 {q.empresa}

@@ -74,11 +74,14 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
 
   const jugadores = predicciones
     .map(p => ({ nombre: normalizarNombre(p.nombre), picks: p.picks, fecha: p.fecha, ...calcularPuntos(p.picks, resultados, liveScores, partidos) }))
+    // Orden: por puntos. Para mostrar la tabla de forma estable, dentro del mismo
+    // puntaje se ordena por marcadores exactos y luego aciertos. La posición y el
+    // premio dependen SOLO de los puntos (empate en puntos = misma posición y se
+    // reparte). La hora de envío NO influye en nada.
     .sort((a, b) =>
       b.puntos - a.puntos ||
       b.exactos - a.exactos ||
-      b.aciertos - a.aciertos ||
-      (a.fecha ?? '￿').localeCompare(b.fecha ?? '￿')
+      b.aciertos - a.aciertos
     )
 
   // Ranking olímpico: jugadores con los mismos puntos comparten posición

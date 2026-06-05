@@ -6,6 +6,7 @@ import { cierreToDate, quinielaCerrada, quinielaFinalizada } from '../utils/cier
 import { tienePremio } from '../utils/premios'
 import { PromoCTA } from '../components/PromoCTA'
 import { Footer } from '../components/Footer'
+import { waLink, MENSAJES_WA } from '../utils/whatsapp'
 
 const sinPremioBadgeStyle = {
   display: 'inline-flex', alignItems: 'center', gap: 4,
@@ -201,6 +202,49 @@ export default function Home() {
               ⚠️ {errorBusqueda}
             </p>
           )}
+        </div>
+
+        {/* ── CTA: crear tu propia quiniela (alta vía WhatsApp) ──────────── */}
+        <div style={{
+          background: 'var(--card)', borderRadius: 'var(--radius-lg)',
+          padding: '1.25rem 1.5rem', marginBottom: 24,
+          border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+            <span style={{ fontSize: 22, lineHeight: 1 }} aria-hidden="true">⚽</span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-strong)' }}>
+                ¿Quieres crear tu propia quiniela?
+              </p>
+              <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2, lineHeight: 1.45 }}>
+                Para tu equipo, empresa o grupo de amigos. <strong style={{ color: 'var(--green-light)' }}>La primera es gratis.</strong>
+              </p>
+            </div>
+          </div>
+          <a
+            href={waLink(MENSAJES_WA.crearQuiniela)}
+            target="_blank"
+            rel="noreferrer"
+            onClick={() => track('cta_crear_quiniela')}
+            style={{
+              display: 'block', textAlign: 'center', padding: '13px',
+              borderRadius: 'var(--radius-md)', textDecoration: 'none',
+              background: '#25D366', color: '#06140B', fontWeight: 800, fontSize: 14,
+              letterSpacing: 0.2,
+            }}
+          >
+            💬 Crear mi quiniela por WhatsApp
+          </a>
+          <a
+            href="/admin"
+            onClick={() => track('cta_soy_organizador')}
+            style={{
+              display: 'block', textAlign: 'center', marginTop: 10,
+              fontSize: 12, fontWeight: 600, color: 'var(--muted)', textDecoration: 'none',
+            }}
+          >
+            ¿Ya tienes cuenta? <span style={{ color: 'var(--green-light)', textDecoration: 'underline' }}>Entrar a mi panel →</span>
+          </a>
         </div>
 
         {!principal && enJuego.length === 0 && !ultimaFinal && (

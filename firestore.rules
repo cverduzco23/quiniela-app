@@ -26,6 +26,40 @@ service cloud.firestore {
         get(/databases/$(database)/documents/quinielas/$(quinielaId)).data.ownerUid == request.auth.uid;
     }
 
+    // Admin cliente "activo": tiene su doc en admins/ y el super admin lo habilitó.
+    // GATE DURO: sin esto, un cliente no puede crear quinielas (ni aunque manipule
+    // el cliente JS). El super admin controla el switch `activo` del lado servidor.
+    function adminActivo() {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.activo == true;
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // admins/  (perfil + derechos de cada cuenta de cliente)
+    // ──────────────────────────────────────────────────────────────
+    match /admins/{uid} {
+
+      // Cada cliente lee solo su propio doc; el super admin los lee todos.
+      allow read: if isSignedIn() && (request.auth.uid == uid || isSuperAdmin());
+
+      // Crear y borrar cuentas de cliente: solo super admin.
+      allow create, delete: if isSuperAdmin();
+
+      // Actualizar: el super admin puede todo. El dueño puede tocar SOLO campos
+      // operativos (debeCambiarPassword, quinielasCreadas, nombre, empresa, telefono);
+      // los campos de dinero/derechos quedan congelados a su valor actual para que
+      // nadie se auto-otorgue acceso.
+      allow update: if isSuperAdmin() || (
+        isSignedIn() && request.auth.uid == uid &&
+        request.resource.data.plan                == resource.data.plan &&
+        request.resource.data.quinielasPermitidas == resource.data.quinielasPermitidas &&
+        request.resource.data.activo              == resource.data.activo &&
+        request.resource.data.temporadaHasta      == resource.data.temporadaHasta &&
+        request.resource.data.email               == resource.data.email
+      );
+    }
+
     // ──────────────────────────────────────────────────────────────
     // quinielas/
     // ──────────────────────────────────────────────────────────────
@@ -35,12 +69,12 @@ service cloud.firestore {
       // funcionen sin login para participantes.
       allow read: if true;
 
-      // Crear: cualquier admin autenticado. El ownerUid del doc debe ser su propio UID
-      // (super admin puede crear con cualquier ownerUid, útil para asignar quinielas).
+      // Crear: el super admin siempre puede. Un admin cliente puede crear solo si
+      // está ACTIVO (gate duro) y la quiniela queda a su nombre (ownerUid propio).
       allow create: if isSignedIn() &&
         (
           isSuperAdmin() ||
-          request.resource.data.ownerUid == request.auth.uid
+          (request.resource.data.ownerUid == request.auth.uid && adminActivo())
         );
 
       // Editar/borrar: super admin o el dueño.

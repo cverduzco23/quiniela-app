@@ -80,6 +80,9 @@ input[type="email"],
 input[type="number"],
 input[type="password"],
 input[type="datetime-local"],
+input[type="tel"],
+input[type="search"],
+input[type="url"],
 textarea,
 select {
   font-family: inherit;
