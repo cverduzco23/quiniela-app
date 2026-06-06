@@ -6,6 +6,7 @@ import { CambioPassword } from '../components/CambioPassword'
 import { useDialog } from '../components/Dialogs'
 import { Paywall } from '../components/Paywall'
 import { ComoFunciona } from '../components/ComoFunciona'
+import { TourBienvenida } from '../components/TourBienvenida'
 import { puedeCrearQuiniela, quinielasRestantes, temporadaVigente } from '../utils/entitlements'
 import { waLink } from '../utils/whatsapp'
 import { cierreToDate, cierreToInputValue, inputValueACierre, quinielaCerrada, quinielaFinalizada, resultadosCompletos } from '../utils/cierre'
@@ -138,6 +139,15 @@ export default function Admin() {
   const [adminDoc, setAdminDoc] = useState(null)
   const [resetMsg, setResetMsg] = useState('')
   const [ayudaAbierta, setAyudaAbierta] = useState(false)
+  const [tourAbierto, setTourAbierto] = useState(false)
+  // Tip contextual en "Nueva quiniela": se cierra y no vuelve a salir (localStorage).
+  const [tipNuevaCerrado, setTipNuevaCerrado] = useState(() => {
+    try { return localStorage.getItem('tipNuevaVisto') === '1' } catch { return false }
+  })
+  const cerrarTipNueva = () => {
+    try { localStorage.setItem('tipNuevaVisto', '1') } catch { /* noop */ }
+    setTipNuevaCerrado(true)
+  }
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async user => {
@@ -162,6 +172,20 @@ export default function Admin() {
   const debeCambiarPassword = !soySuper && adminDoc?.debeCambiarPassword === true
   // ¿Puede crear una quiniela más? El super admin no tiene límite.
   const puedeCrear = soySuper || puedeCrearQuiniela(adminDoc)
+
+  // Tour de bienvenida: solo la primera vez que un cliente-admin entra al panel.
+  // El "visto" se guarda en localStorage (sin tocar Firestore ni sus reglas).
+  useEffect(() => {
+    if (!authListo || !autenticado || soySuper || debeCambiarPassword || !adminDoc) return
+    try {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      if (!localStorage.getItem('tourAdminVisto')) setTourAbierto(true)
+    } catch { /* localStorage no disponible: simplemente no se muestra */ }
+  }, [authListo, autenticado, soySuper, debeCambiarPassword, adminDoc])
+  const cerrarTour = () => {
+    try { localStorage.setItem('tourAdminVisto', '1') } catch { /* noop */ }
+    setTourAbierto(false)
+  }
 
   // Recarga el doc admins/{uid} propio (tras crear una quiniela, etc.).
   const recargarMiAdminDoc = async () => {
@@ -1650,6 +1674,7 @@ export default function Admin() {
       </div>
 
       {ayudaAbierta && <ComoFunciona onClose={() => setAyudaAbierta(false)} />}
+      {tourAbierto && <TourBienvenida onClose={cerrarTour} />}
 
       <div style={{ maxWidth: 580, margin: '0 auto', padding: '1.25rem 1rem 3rem' }}>
 
@@ -2091,6 +2116,16 @@ export default function Admin() {
         {vista === 'nueva' && puedeCrear && (
           <>
             <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)', marginBottom: 14 }}>Nueva quiniela</p>
+
+            {!tipNuevaCerrado && (
+              <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', background: 'var(--green-bg)', border: '1px solid var(--green)', borderRadius: 'var(--radius-md)', padding: '12px 14px', marginBottom: 14 }}>
+                <span aria-hidden="true" style={{ fontSize: 18, lineHeight: 1.3, flexShrink: 0 }}>👋</span>
+                <p style={{ flex: 1, fontSize: 12.5, color: 'var(--text)', lineHeight: 1.55, margin: 0 }}>
+                  <strong style={{ color: 'var(--text-strong)' }}>Tip:</strong> lo más fácil es traer tus partidos con el <strong style={{ color: 'var(--text-strong)' }}>buscador</strong> (llegan con escudos y sus resultados se sincronizan solos). Ponle <strong style={{ color: 'var(--text-strong)' }}>nombre</strong> y <strong style={{ color: 'var(--text-strong)' }}>hora de cierre</strong>, comparte el <strong style={{ color: 'var(--text-strong)' }}>enlace + código</strong>, y al terminar los partidos usa <strong style={{ color: 'var(--text-strong)' }}>⚡ Sincronizar resultados</strong>.
+                </p>
+                <button onClick={cerrarTipNueva} aria-label="Cerrar tip" style={{ background: 'none', border: 'none', color: 'var(--muted)', fontSize: 14, fontWeight: 700, cursor: 'pointer', padding: '0 2px', flexShrink: 0, lineHeight: 1.3 }}>✕</button>
+              </div>
+            )}
 
             <div style={card}>
               <label htmlFor="quiniela-nombre" style={lbl}>Nombre de la quiniela</label>
