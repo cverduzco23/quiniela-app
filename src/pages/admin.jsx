@@ -410,6 +410,9 @@ export default function Admin() {
   const [nombre, setNombre]     = useState('')
   const [cierre, setCierre]     = useState('')
   const [partidos, setPartidos] = useState([{ local: '', visitante: '', hora: '' }])
+  // Índice del partido que se está editando en el formulario de crear (null = ninguno).
+  // Los partidos completos se muestran colapsados; este abre uno para editarlo.
+  const [editandoPartido, setEditandoPartido] = useState(null)
   const [guardando, setGuardando] = useState(false)
   const [premioFijo, setPremioFijo]     = useState('')
   const [cuota, setCuota]               = useState('')
@@ -554,10 +557,24 @@ export default function Admin() {
   // ─── CRUD partidos ────────────────────────────────────────────────────────
   const actualizarPartido = (i, campo, valor) =>
     setPartidos(prev => prev.map((p, idx) => idx === i ? { ...p, [campo]: valor } : p))
-  const agregarPartido = () =>
+  const agregarPartido = () => {
+    // El nuevo partido se agrega al final y se abre en modo edición.
+    // partidos.length (antes de agregar) == índice del nuevo elemento.
+    setEditandoPartido(partidos.length)
     setPartidos(prev => [...prev, { local: '', visitante: '', hora: '' }])
-  const quitarPartido = (i) =>
+  }
+  const quitarPartido = (i) => {
     setPartidos(prev => prev.filter((_, idx) => idx !== i))
+    setEditandoPartido(null) // evita índices obsoletos tras el reordenamiento
+  }
+  // ¿Le falta nombre a algún equipo? Un partido incompleto no se puede colapsar.
+  const partidoIncompleto = (p) => !(p.local ?? '').trim() || !(p.visitante ?? '').trim()
+  // Escudo del equipo, o un círculo con la inicial si es manual (sin logo de ESPN).
+  const escudoMini = (url, nombre) => (
+    url
+      ? <img src={url} alt="" style={{ width: 20, height: 20, objectFit: 'contain', flexShrink: 0 }} onError={e => { e.target.style.display = 'none' }} />
+      : <span style={{ width: 20, height: 20, borderRadius: '50%', background: 'var(--border)', color: 'var(--muted)', fontSize: 10, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{(nombre ?? '?').trim().charAt(0).toUpperCase() || '?'}</span>
+  )
 
   // ─── Buscador ESPN ────────────────────────────────────────────────────────
   const buscarFixtures = async () => {
@@ -2140,32 +2157,72 @@ export default function Admin() {
                 en ese caso tendrás que poner los resultados manualmente. 💡 Una vez que alguien ya hizo su predicción,
                 <strong style={{ color: 'var(--text)' }}> los partidos ya no se pueden cambiar</strong> (para no descuadrar el ranking).
               </p>
-              {partidos.map((p, i) => (
-                <div key={i} style={{ marginBottom: 16, paddingBottom: 16, borderBottom: i < partidos.length - 1 ? '1px solid var(--border)' : 'none' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.8 }}>
-                      Partido {i + 1}
-                    </span>
-                    {partidos.length > 1 && (
-                      <button onClick={() => quitarPartido(i)} style={{ background: 'none', border: 'none', color: 'var(--red)', fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: '2px 6px', borderRadius: 6 }}>
-                        Quitar ✕
-                      </button>
+              {partidos.map((p, i) => {
+                const incompleto = partidoIncompleto(p)
+                // Modo edición si el usuario lo abrió, o si está incompleto (no se puede colapsar vacío).
+                const enEdicion = editandoPartido === i || incompleto
+
+                if (!enEdicion) {
+                  // ── Tarjeta colapsada (solo lectura) ──
+                  return (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', marginBottom: 10, background: 'var(--card-light)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', flexShrink: 0 }}>{i + 1}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
+                        {escudoMini(p.escudoLocal, p.local)}
+                        <span style={{ fontSize: 13, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.local}</span>
+                        <span style={{ fontSize: 11, color: 'var(--muted)', flexShrink: 0 }}>vs</span>
+                        {escudoMini(p.escudoVisitante, p.visitante)}
+                        <span style={{ fontSize: 13, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.visitante}</span>
+                      </div>
+                      {p.hora && <span style={{ fontSize: 11, color: 'var(--muted)', flexShrink: 0 }}>{formatFixtureDate(p.hora)}</span>}
+                      <button onClick={() => setEditandoPartido(i)} aria-label="Editar partido" title="Editar" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, padding: '2px 4px', flexShrink: 0 }}>✏️</button>
+                      {partidos.length > 1 && (
+                        <button onClick={() => quitarPartido(i)} aria-label="Quitar partido" title="Quitar" style={{ background: 'none', border: 'none', color: 'var(--red)', cursor: 'pointer', fontSize: 13, fontWeight: 700, padding: '2px 4px', flexShrink: 0 }}>✕</button>
+                      )}
+                    </div>
+                  )
+                }
+
+                // ── Modo edición ──
+                return (
+                  <div key={i} style={{ marginBottom: 16, paddingBottom: 16, borderBottom: i < partidos.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.8 }}>
+                        Partido {i + 1}
+                      </span>
+                      {partidos.length > 1 && (
+                        <button onClick={() => quitarPartido(i)} style={{ background: 'none', border: 'none', color: 'var(--red)', fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: '2px 6px', borderRadius: 6 }}>
+                          Quitar ✕
+                        </button>
+                      )}
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: 8, marginBottom: 8, alignItems: 'center' }}>
+                      <input type="text" placeholder="Equipo local"     value={p.local}     onChange={e => actualizarPartido(i, 'local', e.target.value)} />
+                      <span style={{ color: 'var(--muted)', fontSize: 12, fontWeight: 700, textAlign: 'center' }}>VS</span>
+                      <input type="text" placeholder="Equipo visitante" value={p.visitante} onChange={e => actualizarPartido(i, 'visitante', e.target.value)} />
+                    </div>
+                    <input type="datetime-local" value={p.hora} onChange={e => actualizarPartido(i, 'hora', e.target.value)} />
+                    {!incompleto && (
+                      <div style={{ textAlign: 'right', marginTop: 8 }}>
+                        <button onClick={() => setEditandoPartido(null)} style={{ background: 'none', border: '1px solid var(--border-strong)', color: 'var(--text)', fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: '6px 14px', borderRadius: 'var(--radius-sm)' }}>
+                          Listo ✓
+                        </button>
+                      </div>
                     )}
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: 8, marginBottom: 8, alignItems: 'center' }}>
-                    <input placeholder="Equipo local"     value={p.local}     onChange={e => actualizarPartido(i, 'local', e.target.value)} />
-                    <span style={{ color: 'var(--muted)', fontSize: 12, fontWeight: 700, textAlign: 'center' }}>VS</span>
-                    <input placeholder="Equipo visitante" value={p.visitante} onChange={e => actualizarPartido(i, 'visitante', e.target.value)} />
-                  </div>
-                  <input type="datetime-local" value={p.hora} onChange={e => actualizarPartido(i, 'hora', e.target.value)} />
-                </div>
-              ))}
-              <button
-                onClick={agregarPartido}
-                style={{ width: '100%', padding: '10px', border: '1.5px dashed var(--border-strong)', background: 'transparent', borderRadius: 'var(--radius-sm)', cursor: 'pointer', color: 'var(--muted)', fontSize: 13, fontWeight: 600 }}
-              >
-                + Agregar partido manualmente
-              </button>
+                )
+              })}
+              <div style={{ marginTop: 12, textAlign: 'center' }}>
+                <button
+                  onClick={agregarPartido}
+                  style={{ background: 'none', border: 'none', color: 'var(--muted)', fontSize: 12, fontWeight: 600, cursor: 'pointer', textDecoration: 'underline', padding: '4px' }}
+                >
+                  ¿No encuentras tu partido? Agrégalo a mano
+                </button>
+                <p style={{ fontSize: 10.5, color: 'var(--muted)', marginTop: 4, lineHeight: 1.4 }}>
+                  Los partidos manuales no se sincronizan con ESPN: tendrás que capturar el resultado tú mismo.
+                </p>
+              </div>
             </div>
 
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
