@@ -938,6 +938,11 @@ export default function Admin() {
       'Vas a REABRIR esta quiniela. Quedará sin fecha de cierre y la gente podrá volver a registrar o cambiar predicciones, lo que puede afectar el ranking. ¿Continuar?',
       { titulo: 'Reabrir quiniela', confirmar: 'Reabrir', peligro: true }
     ))) return
+    // Cerrar manualmente también merece confirmación: bloquea registros y picks al instante.
+    if (!estaCerrada && !(await confirmar(
+      'Vas a CERRAR esta quiniela ahora mismo.\n\n• Nadie podrá registrar predicciones nuevas ni cambiar las suyas.\n• El ranking queda fijo con los participantes actuales.\n• Podrás reabrirla más tarde si lo necesitas.\n\n¿Cerrar ahora?',
+      { titulo: 'Cerrar quiniela', confirmar: 'Cerrar quiniela', cancelar: 'Cancelar' }
+    ))) return
     setToggling(true)
     try {
       const changes = estaCerrada
@@ -2898,7 +2903,7 @@ export default function Admin() {
                       )}
                       <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 12 }}>
                         {esTipoBote
-                          ? 'Marca ✓ cuando recibas el comprobante. Eliminar quita al jugador del ranking.'
+                          ? 'Cuando confirmes el pago (transferencia o efectivo), pulsa el botón "⏳ Pendiente" del jugador para cambiarlo a "✓ Pagado". Eliminar lo quita del ranking.'
                           : 'Al eliminar una predicción el jugador podrá volver a registrarse con su nombre.'}
                       </p>
                       {/* Buscador — solo cuando hay suficientes participantes */}
@@ -3404,10 +3409,10 @@ function QuinielaCard({ q, conteos, onGestionar, dueno }) {
       display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
     }}>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-          <p style={{ fontWeight: 600, fontSize: 15, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {q.nombre}
-          </p>
+        <p style={{ fontWeight: 600, fontSize: 15, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: 6 }}>
+          {q.nombre}
+        </p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 4 }}>
           <span style={{
             fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 'var(--radius-full)', flexShrink: 0,
             background: badge.bg, color: badge.color,

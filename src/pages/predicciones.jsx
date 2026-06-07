@@ -694,14 +694,14 @@ export default function Predicciones() {
                 background: 'var(--yellow-bg)', border: '1px solid var(--yellow-soft)',
                 borderRadius: 'var(--radius-sm)', padding: '10px 12px', marginBottom: 12,
               }}>
-                ⚠️ <strong>Realiza tu transferencia primero.</strong> Al continuar confirmas que ya transferiste — el organizador validará tu pago antes del cierre.
+                ⚠️ <strong>Realiza tu pago primero.</strong> Al continuar confirmas que ya pagaste (transferencia o efectivo) — el organizador validará tu pago antes del cierre.
               </p>
             )}
             <button
               onClick={() => setConfirmadoRegla(true)}
               style={ctaPrimary(false)}
             >
-              {tieneCuota(quiniela) ? 'Ya transferí, continuar →' : 'Entendido, continuar →'}
+              {tieneCuota(quiniela) ? 'Ya pagué, continuar →' : 'Entendido, continuar →'}
             </button>
           </div>
         ) : (
