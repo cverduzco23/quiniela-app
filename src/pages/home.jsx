@@ -204,6 +204,30 @@ export default function Home() {
           )}
         </div>
 
+        {/* ── ¿Cómo funciona? (3 pasos, para quien llega por primera vez) ─── */}
+        <div style={{ marginBottom: 24 }}>
+          <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
+            ¿Cómo funciona?
+          </p>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {[
+              { icono: '🔑', titulo: 'Entra con tu código', sub: 'Te lo da el organizador' },
+              { icono: '⚽', titulo: 'Predice los partidos', sub: 'Antes del cierre' },
+              { icono: '📊', titulo: 'Sigue el ranking', sub: 'En vivo' },
+            ].map((paso, i) => (
+              <div key={i} style={{
+                flex: 1, minWidth: 0, textAlign: 'center',
+                background: 'var(--card)', borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--border)', padding: '12px 6px',
+              }}>
+                <div style={{ fontSize: 20, marginBottom: 4 }} aria-hidden="true">{paso.icono}</div>
+                <p style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-strong)', lineHeight: 1.25, marginBottom: 2 }}>{paso.titulo}</p>
+                <p style={{ fontSize: 10, color: 'var(--muted)', lineHeight: 1.2 }}>{paso.sub}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
         {/* ── CTA: crear tu propia quiniela (alta vía WhatsApp) ──────────── */}
         <div style={{
           background: 'var(--card)', borderRadius: 'var(--radius-lg)',
