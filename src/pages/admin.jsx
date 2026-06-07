@@ -28,17 +28,49 @@ function esSuperAdminUid(uid) {
   return !!uid && SUPER_ADMIN_UIDS.includes(uid)
 }
 
+// Slugs verificados contra el scoreboard de ESPN. Los torneos solo devuelven
+// partidos cuando están en temporada; fuera de temporada el buscador sale vacío
+// (es esperado, no es un error). Orden: lo más seguido por la afición mexicana
+// primero (Liga MX, El Tri y torneos donde juegan clubes/selección de México).
 const LIGAS = [
-  { id: 'mex.1',              nombre: '🇲🇽 Liga MX' },
-  { id: 'fifa.world',         nombre: '🌍 Mundial 2026' },
-  { id: 'uefa.champions',     nombre: '⭐ Champions League' },
-  { id: 'concacaf.champions', nombre: '🌎 CONCACAF Champions Cup' },
-  { id: 'eng.1',              nombre: '🏴󠁧󠁢󠁥󠁮󠁧󠁿 Premier League' },
-  { id: 'esp.1',              nombre: '🇪🇸 La Liga' },
-  { id: 'ita.1',              nombre: '🇮🇹 Serie A' },
-  { id: 'ger.1',              nombre: '🇩🇪 Bundesliga' },
-  { id: 'usa.1',              nombre: '🇺🇸 MLS' },
-  { id: 'fifa.friendly',     nombre: '🌐 Amistosos Internacionales' },
+  // ── México y selección nacional (El Tri) ──
+  { id: 'mex.1',                 nombre: '🇲🇽 Liga MX' },
+  { id: 'mex.2',                 nombre: '🇲🇽 Liga de Expansión MX' },
+  { id: 'mex.campeon',           nombre: '🇲🇽 Campeón de Campeones' },
+  { id: 'fifa.world',            nombre: '🌍 Mundial 2026' },
+  { id: 'fifa.worldq.concacaf',  nombre: '🎟️ Eliminatorias CONCACAF' },
+  { id: 'concacaf.gold',         nombre: '🏆 Copa Oro' },
+  { id: 'concacaf.nations.league', nombre: '🌎 CONCACAF Nations League' },
+  { id: 'conmebol.america',      nombre: '🌎 Copa América' },
+  // ── Torneos de clubes (Liga MX cruzando fronteras) ──
+  { id: 'concacaf.leagues.cup',  nombre: '🤝 Leagues Cup (Liga MX vs MLS)' },
+  { id: 'concacaf.champions',    nombre: '🌎 CONCACAF Champions Cup' },
+  { id: 'fifa.cwc',              nombre: '🏟️ Mundial de Clubes' },
+  { id: 'conmebol.libertadores', nombre: '🏆 Copa Libertadores' },
+  { id: 'conmebol.sudamericana', nombre: '🥈 Copa Sudamericana' },
+  // ── Europa: clubes ──
+  { id: 'uefa.champions',        nombre: '⭐ Champions League' },
+  { id: 'uefa.europa',           nombre: '🟠 Europa League' },
+  { id: 'uefa.europa.conf',      nombre: '🟢 Conference League' },
+  // ── Europa: selecciones ──
+  { id: 'uefa.euro',             nombre: '🇪🇺 Eurocopa' },
+  { id: 'uefa.nations',          nombre: '🇪🇺 UEFA Nations League' },
+  // ── Ligas nacionales ──
+  { id: 'eng.1',                 nombre: '🏴󠁧󠁢󠁥󠁮󠁧󠁿 Premier League' },
+  { id: 'esp.1',                 nombre: '🇪🇸 La Liga' },
+  { id: 'ita.1',                 nombre: '🇮🇹 Serie A' },
+  { id: 'ger.1',                 nombre: '🇩🇪 Bundesliga' },
+  { id: 'fra.1',                 nombre: '🇫🇷 Ligue 1' },
+  { id: 'ned.1',                 nombre: '🇳🇱 Eredivisie' },
+  { id: 'por.1',                 nombre: '🇵🇹 Primeira Liga' },
+  { id: 'usa.1',                 nombre: '🇺🇸 MLS' },
+  { id: 'bra.1',                 nombre: '🇧🇷 Brasileirão' },
+  { id: 'arg.1',                 nombre: '🇦🇷 Liga Argentina' },
+  // ── Copas nacionales ──
+  { id: 'eng.fa',                nombre: '🏴󠁧󠁢󠁥󠁮󠁧󠁿 FA Cup' },
+  { id: 'esp.copa_del_rey',      nombre: '🇪🇸 Copa del Rey' },
+  // ── Otros ──
+  { id: 'fifa.friendly',         nombre: '🌐 Amistosos Internacionales' },
 ]
 
 // Código de acceso legible y autogenerado (sin caracteres ambiguos: 0/O, 1/I).
