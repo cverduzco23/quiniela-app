@@ -62,7 +62,7 @@ export function Paywall({ titulo = '¡Tu quiniela gratis quedó lista! 🎉' }) 
       />
       <Plan
         titulo="Pase Mundial"
-        precio="299"
+        precio="199"
         vinetas={['Quinielas ilimitadas durante el Mundial 2026', 'Pago único, no por cada quiniela']}
         mensaje={MENSAJES_WA.paseMundial}
         evento="paywall_pase_mundial"

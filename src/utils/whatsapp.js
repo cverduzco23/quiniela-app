@@ -35,9 +35,9 @@ export const MENSAJES_WA = {
   comprarQuiniela:
     '¡Hola! Quiero adquirir una quiniela más en Quinielapp ($49). ¿Me pasas el link de pago?',
 
-  // Desde el paywall (Fase B): Pase Mundial ($299, quinielas ilimitadas durante el torneo).
+  // Desde el paywall (Fase B): Pase Mundial ($199, quinielas ilimitadas durante el torneo).
   paseMundial:
-    '¡Hola! Quiero el Pase Mundial de Quinielapp ($299, quinielas ilimitadas durante el Mundial). ¿Me pasas el link de pago?',
+    '¡Hola! Quiero el Pase Mundial de Quinielapp ($199, quinielas ilimitadas durante el Mundial). ¿Me pasas el link de pago?',
 
   // Soporte genérico.
   soporte:

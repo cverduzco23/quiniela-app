@@ -67,6 +67,30 @@ function goalsToResultado(local, visitante) {
 const esCerradaQ = quinielaCerrada
 const esFinalizadaQ = quinielaFinalizada
 
+// iOS (WebKit) deja los <input datetime-local> vacíos sin ningún texto visible
+// porque les aplicamos appearance:none (ver index.css). En Chrome de escritorio
+// (Blink) sí muestra el "dd/mm/aaaa". Detectamos iOS para superponer nosotros un
+// texto-guía solo cuando el campo está vacío, sin afectar al escritorio.
+const ES_IOS = typeof navigator !== 'undefined' &&
+  (/iP(hone|ad|od)/.test(navigator.userAgent) ||
+   (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1))
+
+// Envuelve un <input datetime-local> y, solo en iOS y solo cuando está vacío,
+// muestra un texto-guía superpuesto (el nativo se ve en blanco). pointerEvents:
+// none deja que el toque llegue al input.
+function DateTimeWrap({ vacio, texto = '📅 Elige fecha y hora', children }) {
+  return (
+    <div style={{ position: 'relative' }}>
+      {children}
+      {ES_IOS && vacio && (
+        <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', fontSize: 16, color: 'var(--muted-soft)', pointerEvents: 'none' }}>
+          {texto}
+        </span>
+      )}
+    </div>
+  )
+}
+
 function formatFecha(value) {
   const d = cierreToDate(value)
   if (!d) return '—'
@@ -177,6 +201,9 @@ export default function Admin() {
   const [cuentaP2, setCuentaP2]           = useState('')
   const [cambiandoPass, setCambiandoPass] = useState(false)
   const [cuentaPassMsg, setCuentaPassMsg] = useState(null)
+  // La sección de cambio de contraseña va colapsada por default: solo se
+  // despliega cuando el usuario realmente la necesita.
+  const [seguridadAbierta, setSeguridadAbierta] = useState(false)
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async user => {
@@ -1601,7 +1628,7 @@ export default function Admin() {
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-strong)' }}>🏆 Pase Mundial</span>
-            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>$299</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>$199</span>
           </div>
           <ul style={{ margin: '6px 0 0', padding: '0 0 0 18px', fontSize: 11.5, color: 'var(--muted)', lineHeight: 1.5 }}>
             <li>Quinielas ilimitadas durante el Mundial 2026</li>
@@ -1621,7 +1648,7 @@ export default function Admin() {
         <label style={lbl}>Premio</label>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: tienePremioLocal ? 14 : 0 }}>
           <div>
-            <label style={{ ...lbl, marginBottom: 6 }}>Premio fijo (MXN)</label>
+            <label style={{ ...lbl, marginBottom: 6, minHeight: 28 }}>Premio fijo<span style={{ display: 'block' }}>(MXN)</span></label>
             <input
               type="number" min="0" step="1" placeholder="Ej. 500"
               value={fijo}
@@ -1630,7 +1657,7 @@ export default function Admin() {
             <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>Monto garantizado, independiente de participantes.</p>
           </div>
           <div>
-            <label style={{ ...lbl, marginBottom: 6 }}>Cuota por participante (MXN)</label>
+            <label style={{ ...lbl, marginBottom: 6, minHeight: 28 }}>Cuota por participante<span style={{ display: 'block' }}>(MXN)</span></label>
             <input
               type="number" min="0" step="1" placeholder="Ej. 50"
               value={cuotaVal}
@@ -1768,7 +1795,8 @@ export default function Admin() {
     <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
       {/* Hero */}
       <div className="hero-pad" style={{ background: 'var(--hero-gradient)', color: 'var(--text)', borderBottom: '1px solid var(--border)' }}>
-        <div style={{ maxWidth: 580, margin: '0 auto', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+        <div style={{ maxWidth: 580, margin: '0 auto' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
           <div>
             <a href="/" style={{ fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', color: 'var(--green-light)', marginBottom: 6, fontWeight: 700, textDecoration: 'none', display: 'block' }}>⚽ QuinielApp</a>
             <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, letterSpacing: '-0.01em' }}>
@@ -1780,7 +1808,14 @@ export default function Admin() {
               </p>
             )}
           </div>
-          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              onClick={salir}
+              style={{ background: 'transparent', border: '1px solid var(--border-strong)', color: 'var(--muted)', padding: '7px 14px', borderRadius: 'var(--radius-sm)', fontSize: 13, fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}
+            >
+              Salir
+            </button>
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'space-between', marginTop: 16 }}>
             {vista !== 'lista' && (
               <button
                 onClick={() => {
@@ -1799,23 +1834,17 @@ export default function Admin() {
                 {vista === 'caja' && cajaNombre !== null ? '← Caja' : '← Lista'}
               </button>
             )}
+            <a
+              href="/"
+              style={{ background: 'var(--neutral-bg)', border: '1px solid var(--border)', color: 'var(--text)', padding: '7px 14px', borderRadius: 'var(--radius-sm)', fontSize: 13, fontWeight: 600, cursor: 'pointer', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', whiteSpace: 'nowrap' }}
+            >
+              🏠 Inicio
+            </a>
             <button
               onClick={() => setAyudaAbierta(true)}
               style={{ background: 'var(--neutral-bg)', border: '1px solid var(--border)', color: 'var(--text)', padding: '7px 14px', borderRadius: 'var(--radius-sm)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
             >
               ❓ Ayuda
-            </button>
-            <a
-              href="/"
-              style={{ background: 'var(--neutral-bg)', border: '1px solid var(--border)', color: 'var(--text)', padding: '7px 14px', borderRadius: 'var(--radius-sm)', fontSize: 13, fontWeight: 600, cursor: 'pointer', textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}
-            >
-              🏠 Inicio
-            </a>
-            <button
-              onClick={salir}
-              style={{ background: 'transparent', border: '1px solid var(--border-strong)', color: 'var(--muted)', padding: '7px 14px', borderRadius: 'var(--radius-sm)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
-            >
-              Salir
             </button>
           </div>
         </div>
@@ -2059,7 +2088,7 @@ export default function Admin() {
                   </p>
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                     <button onClick={() => darQuinielaExtra(c)} style={accionBtn}>➕ +1 quiniela ($49)</button>
-                    <button onClick={() => darPaseMundial(c)} style={accionBtn}>🏆 Pase Mundial ($299)</button>
+                    <button onClick={() => darPaseMundial(c)} style={accionBtn}>🏆 Pase Mundial ($199)</button>
                     <button onClick={() => toggleActivoCliente(c)} style={accionBtn}>{c.activo ? '⏸ Desactivar' : '▶️ Activar'}</button>
                     <button onClick={() => editarNotasCliente(c)} style={accionBtn}>📝 Notas</button>
                     <button
@@ -2307,19 +2336,30 @@ export default function Admin() {
               {renderUpsellPlan()}
             </div>
 
-            {/* Seguridad */}
+            {/* Seguridad — colapsada por default */}
             <div style={card}>
-              <p style={{ ...lbl, marginBottom: 12 }}>Seguridad — cambiar contraseña</p>
-              <label htmlFor="cuenta-p1" style={lbl}>Nueva contraseña</label>
-              <input id="cuenta-p1" type="password" placeholder="Mínimo 8 caracteres" value={cuentaP1} onChange={e => { setCuentaP1(e.target.value); setCuentaPassMsg(null) }} style={{ marginBottom: 8 }} />
-              <MedidorPassword pwd={cuentaP1} />
-              <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 12, lineHeight: 1.4 }}>Mínimo 8 caracteres, con al menos una letra y un número.</p>
-              <label htmlFor="cuenta-p2" style={lbl}>Confirmar contraseña</label>
-              <input id="cuenta-p2" type="password" placeholder="Repite tu contraseña" value={cuentaP2} onChange={e => { setCuentaP2(e.target.value); setCuentaPassMsg(null) }} onKeyDown={e => e.key === 'Enter' && cambiarMiPassword()} style={{ marginBottom: 10 }} />
-              {cuentaPassMsg && <p style={{ fontSize: 12, color: cuentaPassMsg.tipo === 'ok' ? 'var(--green)' : 'var(--red)', marginBottom: 10 }}>{cuentaPassMsg.texto}</p>}
-              <button onClick={cambiarMiPassword} disabled={cambiandoPass} style={greenCtaStyle(cambiandoPass)}>
-                {cambiandoPass ? 'Guardando…' : 'Cambiar contraseña'}
+              <button
+                onClick={() => setSeguridadAbierta(v => !v)}
+                aria-expanded={seguridadAbierta}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+              >
+                <span style={{ ...lbl, marginBottom: 0 }}>Seguridad — cambiar contraseña</span>
+                <span style={{ fontSize: 13, color: 'var(--muted)', transform: seguridadAbierta ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} aria-hidden="true">⌄</span>
               </button>
+              {seguridadAbierta && (
+                <div style={{ marginTop: 14 }}>
+                  <label htmlFor="cuenta-p1" style={lbl}>Nueva contraseña</label>
+                  <input id="cuenta-p1" type="password" placeholder="Mínimo 8 caracteres" value={cuentaP1} onChange={e => { setCuentaP1(e.target.value); setCuentaPassMsg(null) }} style={{ marginBottom: 8 }} />
+                  <MedidorPassword pwd={cuentaP1} />
+                  <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 12, lineHeight: 1.4 }}>Mínimo 8 caracteres, con al menos una letra y un número.</p>
+                  <label htmlFor="cuenta-p2" style={lbl}>Confirmar contraseña</label>
+                  <input id="cuenta-p2" type="password" placeholder="Repite tu contraseña" value={cuentaP2} onChange={e => { setCuentaP2(e.target.value); setCuentaPassMsg(null) }} onKeyDown={e => e.key === 'Enter' && cambiarMiPassword()} style={{ marginBottom: 10 }} />
+                  {cuentaPassMsg && <p style={{ fontSize: 12, color: cuentaPassMsg.tipo === 'ok' ? 'var(--green)' : 'var(--red)', marginBottom: 10 }}>{cuentaPassMsg.texto}</p>}
+                  <button onClick={cambiarMiPassword} disabled={cambiandoPass} style={greenCtaStyle(cambiandoPass)}>
+                    {cambiandoPass ? 'Guardando…' : 'Cambiar contraseña'}
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Ayuda */}
@@ -2418,7 +2458,9 @@ export default function Admin() {
                       <span style={{ color: 'var(--muted)', fontSize: 12, fontWeight: 700, textAlign: 'center' }}>VS</span>
                       <input type="text" placeholder="Equipo visitante" value={p.visitante} onChange={e => actualizarPartido(i, 'visitante', e.target.value)} />
                     </div>
-                    <input type="datetime-local" value={p.hora} onChange={e => actualizarPartido(i, 'hora', e.target.value)} />
+                    <DateTimeWrap vacio={!p.hora} texto="📅 Fecha y hora del partido">
+                      <input type="datetime-local" value={p.hora} onChange={e => actualizarPartido(i, 'hora', e.target.value)} />
+                    </DateTimeWrap>
                     {!incompleto && (
                       <div style={{ textAlign: 'right', marginTop: 8 }}>
                         <button onClick={() => setEditandoPartido(null)} style={{ background: 'none', border: '1px solid var(--border-strong)', color: 'var(--text)', fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: '6px 14px', borderRadius: 'var(--radius-sm)' }}>
@@ -2450,7 +2492,9 @@ export default function Admin() {
               <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>
                 Después de esta hora los jugadores ya no pueden registrar ni cambiar sus predicciones.
               </p>
-              <input id="quiniela-cierre" type="datetime-local" value={cierre} onChange={e => setCierre(e.target.value)} style={{ borderColor: !cierre ? 'var(--red)' : undefined }} />
+              <DateTimeWrap vacio={!cierre}>
+                <input id="quiniela-cierre" type="datetime-local" value={cierre} onChange={e => setCierre(e.target.value)} style={{ borderColor: !cierre ? 'var(--red)' : undefined }} />
+              </DateTimeWrap>
               {primeraHoraPartido(partidos) && (
                 <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 8, lineHeight: 1.5 }}>
                   📅 Tu primer partido empieza el <strong style={{ color: 'var(--text)' }}>{formatFixtureDate(primeraHoraPartido(partidos))}</strong>. El cierre debe ser antes.{' '}
@@ -3034,7 +3078,9 @@ export default function Admin() {
                     <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>
                       Después de esta hora los jugadores ya no pueden registrar ni cambiar sus predicciones.
                     </p>
-                    <input id="edit-cierre" type="datetime-local" value={editCierre} onChange={e => setEditCierre(e.target.value)} style={{ borderColor: !editCierre ? 'var(--red)' : undefined }} />
+                    <DateTimeWrap vacio={!editCierre}>
+                      <input id="edit-cierre" type="datetime-local" value={editCierre} onChange={e => setEditCierre(e.target.value)} style={{ borderColor: !editCierre ? 'var(--red)' : undefined }} />
+                    </DateTimeWrap>
                     {primeraHoraPartido(editPartidos) && (
                       <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 8, lineHeight: 1.5 }}>
                         📅 Tu primer partido empieza el <strong style={{ color: 'var(--text)' }}>{formatFixtureDate(primeraHoraPartido(editPartidos))}</strong>. El cierre debe ser antes.{' '}
