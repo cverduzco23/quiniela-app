@@ -1,14 +1,16 @@
 import { useState, useEffect, useMemo } from 'react'
 import { collection, addDoc, doc, updateDoc, getDoc, getDocs, deleteDoc, query, orderBy, where, setDoc, serverTimestamp, increment, Timestamp } from 'firebase/firestore'
-import { signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail } from 'firebase/auth'
+import { signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, updatePassword } from 'firebase/auth'
 import { db, auth, crearUsuarioAislado, generarPasswordTemporal } from '../firebase'
 import { CambioPassword } from '../components/CambioPassword'
 import { useDialog } from '../components/Dialogs'
 import { Paywall } from '../components/Paywall'
 import { ComoFunciona } from '../components/ComoFunciona'
 import { TourBienvenida } from '../components/TourBienvenida'
+import { MedidorPassword } from '../components/MedidorPassword'
+import { evaluarPassword } from '../utils/password'
 import { puedeCrearQuiniela, quinielasRestantes, temporadaVigente } from '../utils/entitlements'
-import { waLink } from '../utils/whatsapp'
+import { waLink, MENSAJES_WA } from '../utils/whatsapp'
 import { cierreToDate, cierreToInputValue, inputValueACierre, quinielaCerrada, quinielaFinalizada, resultadosCompletos } from '../utils/cierre'
 import { TIPO_PREMIO, MODELO_PREMIO, calcularBote, tienePremio, formatearMXN } from '../utils/premios'
 import { normalizarNombre } from '../utils/nombres'
@@ -103,6 +105,21 @@ function validarCierreVsPartidos(cierreInput, partidos) {
   return { conflicto: true, primera, sugerencia: cierreToInputValue(sugerida) }
 }
 
+// Hora (ISO) del primer partido con hora definida, o null si ninguno la tiene.
+function primeraHoraPartido(partidos) {
+  return (partidos ?? []).map(p => p?.hora).filter(Boolean).sort()[0] ?? null
+}
+
+// Cierre sugerido (valor listo para <input datetime-local>) = primer partido − margen.
+// Devuelve '' si ningún partido tiene hora todavía (ej. manuales sin capturar).
+function cierreSugerido(partidos) {
+  const primera = primeraHoraPartido(partidos)
+  if (!primera) return ''
+  const d = new Date(primera)
+  if (isNaN(d.getTime())) return ''
+  return cierreToInputValue(new Date(d.getTime() - MARGEN_CIERRE_MIN * 60 * 1000))
+}
+
 // ─── Estilos compartidos ──────────────────────────────────────────────────────
 const card = { background: 'var(--card)', borderRadius: 'var(--radius-md)', padding: '1.1rem 1.25rem', marginBottom: 10, border: '1px solid var(--border)' }
 const lbl = { fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 8 }
@@ -149,6 +166,18 @@ export default function Admin() {
     setTipNuevaCerrado(true)
   }
 
+  // ─── "Mi cuenta" (perfil del cliente) ───────────────────────────────────
+  const [cuentaNombre, setCuentaNombre]   = useState('')
+  const [cuentaEmpresa, setCuentaEmpresa] = useState('')
+  const [cuentaTel, setCuentaTel]         = useState('')
+  const [guardandoCuenta, setGuardandoCuenta] = useState(false)
+  const [cuentaMsg, setCuentaMsg]         = useState(null) // { tipo: 'ok'|'error', texto }
+  // Cambio de contraseña dentro de Mi cuenta.
+  const [cuentaP1, setCuentaP1]           = useState('')
+  const [cuentaP2, setCuentaP2]           = useState('')
+  const [cambiandoPass, setCambiandoPass] = useState(false)
+  const [cuentaPassMsg, setCuentaPassMsg] = useState(null)
+
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async user => {
       setAutenticado(!!user)
@@ -194,6 +223,62 @@ export default function Admin() {
       const snap = await getDoc(doc(db, 'admins', miUid))
       setAdminDoc(snap.exists() ? { id: snap.id, ...snap.data() } : null)
     } catch { /* noop */ }
+  }
+
+  // Abre "Mi cuenta" precargando el formulario con los datos actuales.
+  const abrirMiCuenta = () => {
+    setCuentaNombre(adminDoc?.nombre ?? '')
+    setCuentaEmpresa(adminDoc?.empresa ?? '')
+    setCuentaTel(adminDoc?.telefono ?? '')
+    setCuentaMsg(null)
+    setCuentaPassMsg(null)
+    setCuentaP1(''); setCuentaP2('')
+    setVista('cuenta')
+  }
+
+  // Guarda nombre/empresa/teléfono (las reglas congelan plan/dinero/correo).
+  const guardarMiCuenta = async () => {
+    if (!cuentaNombre.trim()) { setCuentaMsg({ tipo: 'error', texto: 'El nombre no puede quedar vacío.' }); return }
+    if (!miUid) return
+    setGuardandoCuenta(true)
+    setCuentaMsg(null)
+    const datos = {
+      nombre: cuentaNombre.trim(),
+      empresa: cuentaEmpresa.trim() || null,
+      telefono: cuentaTel.trim() || null,
+    }
+    try {
+      await updateDoc(doc(db, 'admins', miUid), datos)
+      setAdminDoc(d => (d ? { ...d, ...datos } : d))
+      setCuentaMsg({ tipo: 'ok', texto: 'Datos guardados.' })
+    } catch {
+      setCuentaMsg({ tipo: 'error', texto: 'No se pudieron guardar los datos. Intenta de nuevo.' })
+    } finally {
+      setGuardandoCuenta(false)
+    }
+  }
+
+  // Cambia la contraseña desde Mi cuenta (misma política que el cambio inicial).
+  const cambiarMiPassword = async () => {
+    setCuentaPassMsg(null)
+    const v = evaluarPassword(cuentaP1)
+    if (!v.ok)                 { setCuentaPassMsg({ tipo: 'error', texto: v.error }); return }
+    if (cuentaP1 !== cuentaP2) { setCuentaPassMsg({ tipo: 'error', texto: 'Las contraseñas no coinciden.' }); return }
+    if (!auth.currentUser)     { setCuentaPassMsg({ tipo: 'error', texto: 'Tu sesión expiró. Vuelve a iniciar sesión.' }); return }
+    setCambiandoPass(true)
+    try {
+      await updatePassword(auth.currentUser, cuentaP1)
+      setCuentaP1(''); setCuentaP2('')
+      setCuentaPassMsg({ tipo: 'ok', texto: 'Contraseña actualizada.' })
+    } catch (e) {
+      if (e?.code === 'auth/requires-recent-login') {
+        setCuentaPassMsg({ tipo: 'error', texto: 'Por seguridad, cierra sesión, vuelve a entrar e inténtalo de nuevo.' })
+      } else {
+        setCuentaPassMsg({ tipo: 'error', texto: 'No se pudo cambiar la contraseña. Intenta de nuevo.' })
+      }
+    } finally {
+      setCambiandoPass(false)
+    }
   }
 
   const entrar = async () => {
@@ -720,7 +805,13 @@ export default function Admin() {
       setFixtures([])
       return
     }
-    setPartidos([...baseExistente, ...aceptados])
+    const lista = [...baseExistente, ...aceptados]
+    setPartidos(lista)
+    // Auto-rellenar el cierre si está vacío: el usuario no debe calcular la fecha.
+    if (!cierre) {
+      const sug = cierreSugerido(lista)
+      if (sug) setCierre(sug)
+    }
     setSeleccionados([])
     setFixtures([])
   }
@@ -733,7 +824,13 @@ export default function Admin() {
       setFixtures([])
       return
     }
-    setEditPartidos(prev => [...prev, ...aceptados])
+    const lista = [...editPartidos, ...aceptados]
+    setEditPartidos(lista)
+    // Auto-rellenar el cierre solo si está vacío (en edición normalmente ya tiene valor).
+    if (!editCierre) {
+      const sug = cierreSugerido(lista)
+      if (sug) setEditCierre(sug)
+    }
     setSeleccionados([])
     setFixtures([])
   }
@@ -762,6 +859,12 @@ export default function Admin() {
       const cierreTs = inputValueACierre(editCierre)
       const codigoLimpio = editCodigoAcceso.trim()
       const empresaLimpia = editEmpresa.trim()
+      // El código es obligatorio para clientes (quiniela privada). El super sí puede vaciarlo.
+      if (!soySuper && !codigoLimpio) {
+        alerta('Ponle un código de acceso: es la llave para que entren tus jugadores.')
+        setGuardandoEdicion(false)
+        return
+      }
       // Validar unicidad del código de acceso (excluyendo esta misma quiniela).
       // Mensaje neutro: no revelamos info de quinielas ajenas.
       if (codigoLimpio) {
@@ -1000,6 +1103,13 @@ export default function Admin() {
       const creada   = new Date().toISOString()
       const codigoLimpio = codigoAcceso.trim()
       const empresaLimpia = empresa.trim()
+      // El código es obligatorio para clientes (su quiniela es privada: el código
+      // es la llave de acceso). El super admin sí puede dejarlo vacío (quinielas públicas).
+      if (!soySuper && !codigoLimpio) {
+        alerta('Ponle un código de acceso: es la llave para que entren tus jugadores.')
+        setGuardando(false)
+        return
+      }
       // Validar unicidad del código de acceso antes de crear.
       // Mensaje neutro a propósito: no revelamos si el código es de otro admin
       // (sería un information leak hacia quinielas privadas ajenas).
@@ -1467,6 +1577,41 @@ export default function Admin() {
     />
   )
 
+  // ─── Bloque de upsell de planes (banner de lista + Mi cuenta) ─────────────
+  // Explica el Pase Mundial + botones de compra. Solo si NO tiene pase vigente.
+  const renderUpsellPlan = () => (
+    !temporadaVigente(adminDoc) ? (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 }}>
+        <a
+          href={waLink(MENSAJES_WA.comprarQuiniela)} target="_blank" rel="noopener noreferrer"
+          style={{ display: 'block', padding: '10px 12px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-strong)', background: 'transparent', textDecoration: 'none' }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-strong)' }}>➕ Otra quiniela</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>$49</span>
+          </div>
+          <ul style={{ margin: '6px 0 0', padding: '0 0 0 18px', fontSize: 11.5, color: 'var(--muted)', lineHeight: 1.5 }}>
+            <li>Una quiniela adicional</li>
+            <li>Pago único</li>
+          </ul>
+        </a>
+        <a
+          href={waLink(MENSAJES_WA.paseMundial)} target="_blank" rel="noopener noreferrer"
+          style={{ display: 'block', padding: '10px 12px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--green)', background: 'var(--green-bg)', textDecoration: 'none' }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-strong)' }}>🏆 Pase Mundial</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>$299</span>
+          </div>
+          <ul style={{ margin: '6px 0 0', padding: '0 0 0 18px', fontSize: 11.5, color: 'var(--muted)', lineHeight: 1.5 }}>
+            <li>Quinielas ilimitadas durante el Mundial 2026</li>
+            <li>Pago único, no por cada quiniela</li>
+          </ul>
+        </a>
+      </div>
+    ) : null
+  )
+
   // ─── Formulario de premio (reutilizable) ──────────────────────────────────
   // Único modelo de premio: "Ganador único" (gana quien más puntos; empate = se reparte).
   const renderFormularioPremio = (fijo, setFijo, cuotaVal, setCuotaVal) => {
@@ -1495,7 +1640,7 @@ export default function Admin() {
           </div>
         </div>
         {!tienePremioLocal && (
-          <p style={{ fontSize: 11, color: 'var(--muted)' }}>Deja ambos en 0 para una quiniela gratis sin premio.</p>
+          <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 14 }}>Deja ambos en 0 para una quiniela gratis sin premio.</p>
         )}
 
         {tienePremioLocal && (
@@ -1540,9 +1685,7 @@ export default function Admin() {
       </div>
 
       <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 10, lineHeight: 1.5 }}>
-        Trae los partidos reales automáticamente. Es la forma <strong style={{ color: 'var(--text)' }}>recomendada</strong>:
-        los partidos llegan con escudos y fecha, y sus <strong style={{ color: 'var(--text)' }}>resultados se sincronizan solos</strong>.
-        Elige la liga, toca <strong style={{ color: 'var(--text)' }}>Buscar</strong> y marca los que quieras agregar.
+        Elige la liga, toca <strong style={{ color: 'var(--text)' }}>Buscar</strong> y marca los partidos que quieras agregar.
       </p>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, marginBottom: fixtures.length > 0 ? 12 : 0 }}>
@@ -1631,6 +1774,11 @@ export default function Admin() {
             <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, letterSpacing: '-0.01em' }}>
               {soySuper ? 'Panel de Súper Administrador' : 'Panel de Administrador'}
             </h1>
+            {!soySuper && adminDoc?.nombre && (
+              <p style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 4 }}>
+                👤 {adminDoc.nombre}{adminDoc.empresa ? ` · ${adminDoc.empresa}` : ''}
+              </p>
+            )}
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             {vista !== 'lista' && (
@@ -1702,6 +1850,14 @@ export default function Admin() {
                     </button>
                   </>
                 )}
+                {!soySuper && (
+                  <button
+                    onClick={abrirMiCuenta}
+                    style={{ background: 'var(--neutral-bg)', border: '1px solid var(--border)', color: 'var(--text)', padding: '7px 14px', borderRadius: 'var(--radius-sm)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+                  >
+                    👤 Mi cuenta
+                  </button>
+                )}
                 <button onClick={abrirNuevaQuiniela} style={{ ...greenCtaStyle(false), padding: '9px 18px' }}>
                   + Nueva quiniela
                 </button>
@@ -1710,15 +1866,18 @@ export default function Admin() {
 
             {/* Aviso de plan para clientes (el super admin no tiene cuota). */}
             {!soySuper && adminDoc && (
-              <div style={{ ...card, padding: '0.9rem 1.1rem', display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span style={{ fontSize: 18, lineHeight: 1 }} aria-hidden="true">{temporadaVigente(adminDoc) ? '🏆' : '🎟️'}</span>
-                <p style={{ fontSize: 12.5, color: 'var(--text)', lineHeight: 1.4 }}>
-                  {temporadaVigente(adminDoc)
-                    ? 'Pase Mundial activo — puedes crear quinielas ilimitadas.'
-                    : quinielasRestantes(adminDoc) > 0
-                      ? `Tienes ${quinielasRestantes(adminDoc)} quiniela${quinielasRestantes(adminDoc) === 1 ? '' : 's'} disponible${quinielasRestantes(adminDoc) === 1 ? '' : 's'}.`
-                      : 'Ya usaste tus quinielas incluidas. Toca “+ Nueva quiniela” para ver los planes.'}
-                </p>
+              <div style={{ ...card, padding: '0.9rem 1.1rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ fontSize: 18, lineHeight: 1 }} aria-hidden="true">{temporadaVigente(adminDoc) ? '🏆' : '🎟️'}</span>
+                  <p style={{ fontSize: 12.5, color: 'var(--text)', lineHeight: 1.4 }}>
+                    {temporadaVigente(adminDoc)
+                      ? 'Pase Mundial activo — puedes crear quinielas ilimitadas.'
+                      : quinielasRestantes(adminDoc) > 0
+                        ? `Tienes ${quinielasRestantes(adminDoc)} quiniela${quinielasRestantes(adminDoc) === 1 ? '' : 's'} disponible${quinielasRestantes(adminDoc) === 1 ? '' : 's'}.`
+                        : 'Ya usaste tus quinielas incluidas. Elige un plan para crear más.'}
+                  </p>
+                </div>
+                {renderUpsellPlan()}
               </div>
             )}
 
@@ -2104,6 +2263,73 @@ export default function Admin() {
           </>
         )}
 
+        {/* ── Vista: Mi cuenta ─────────────────────────────────────────────── */}
+        {vista === 'cuenta' && (
+          <>
+            <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)', marginBottom: 14 }}>Mi cuenta</p>
+
+            {/* Tus datos */}
+            <div style={card}>
+              <p style={{ ...lbl, marginBottom: 12 }}>Tus datos</p>
+
+              <label htmlFor="cuenta-nombre" style={{ ...lbl, marginBottom: 4 }}>Nombre</label>
+              <input id="cuenta-nombre" type="text" value={cuentaNombre} onChange={e => { setCuentaNombre(e.target.value); setCuentaMsg(null) }} style={{ marginBottom: 14 }} />
+
+              <label htmlFor="cuenta-empresa" style={{ ...lbl, marginBottom: 4 }}>Empresa u organización <span style={{ color: 'var(--muted)', fontWeight: 500, textTransform: 'none', letterSpacing: 0 }}>(opcional)</span></label>
+              <input id="cuenta-empresa" type="text" placeholder="Ej. Construcciones ACME" value={cuentaEmpresa} onChange={e => { setCuentaEmpresa(e.target.value); setCuentaMsg(null) }} style={{ marginBottom: 14 }} />
+
+              <label htmlFor="cuenta-tel" style={{ ...lbl, marginBottom: 4 }}>Teléfono <span style={{ color: 'var(--muted)', fontWeight: 500, textTransform: 'none', letterSpacing: 0 }}>(opcional)</span></label>
+              <input id="cuenta-tel" type="tel" placeholder="Ej. 55 1234 5678" value={cuentaTel} onChange={e => { setCuentaTel(e.target.value); setCuentaMsg(null) }} style={{ marginBottom: 14 }} />
+
+              <label style={{ ...lbl, marginBottom: 4 }}>Correo</label>
+              <input type="email" value={adminDoc?.email ?? ''} disabled style={{ marginBottom: 6, opacity: 0.6, cursor: 'not-allowed' }} />
+              <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 14, lineHeight: 1.4 }}>Es tu usuario de acceso. Para cambiarlo, escríbenos por WhatsApp.</p>
+
+              {cuentaMsg && <p style={{ fontSize: 12, color: cuentaMsg.tipo === 'ok' ? 'var(--green)' : 'var(--red)', marginBottom: 10 }}>{cuentaMsg.texto}</p>}
+              <button onClick={guardarMiCuenta} disabled={guardandoCuenta} style={greenCtaStyle(guardandoCuenta)}>
+                {guardandoCuenta ? 'Guardando…' : 'Guardar cambios'}
+              </button>
+            </div>
+
+            {/* Tu plan */}
+            <div style={card}>
+              <p style={{ ...lbl, marginBottom: 10 }}>Tu plan</p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 18, lineHeight: 1 }} aria-hidden="true">{temporadaVigente(adminDoc) ? '🏆' : '🎟️'}</span>
+                <p style={{ fontSize: 12.5, color: 'var(--text)', lineHeight: 1.4 }}>
+                  {temporadaVigente(adminDoc)
+                    ? 'Pase Mundial activo — puedes crear quinielas ilimitadas.'
+                    : quinielasRestantes(adminDoc) > 0
+                      ? `Tienes ${quinielasRestantes(adminDoc)} quiniela${quinielasRestantes(adminDoc) === 1 ? '' : 's'} disponible${quinielasRestantes(adminDoc) === 1 ? '' : 's'}.`
+                      : 'Ya usaste tus quinielas incluidas. Elige un plan para crear más.'}
+                </p>
+              </div>
+              {renderUpsellPlan()}
+            </div>
+
+            {/* Seguridad */}
+            <div style={card}>
+              <p style={{ ...lbl, marginBottom: 12 }}>Seguridad — cambiar contraseña</p>
+              <label htmlFor="cuenta-p1" style={lbl}>Nueva contraseña</label>
+              <input id="cuenta-p1" type="password" placeholder="Mínimo 8 caracteres" value={cuentaP1} onChange={e => { setCuentaP1(e.target.value); setCuentaPassMsg(null) }} style={{ marginBottom: 8 }} />
+              <MedidorPassword pwd={cuentaP1} />
+              <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 12, lineHeight: 1.4 }}>Mínimo 8 caracteres, con al menos una letra y un número.</p>
+              <label htmlFor="cuenta-p2" style={lbl}>Confirmar contraseña</label>
+              <input id="cuenta-p2" type="password" placeholder="Repite tu contraseña" value={cuentaP2} onChange={e => { setCuentaP2(e.target.value); setCuentaPassMsg(null) }} onKeyDown={e => e.key === 'Enter' && cambiarMiPassword()} style={{ marginBottom: 10 }} />
+              {cuentaPassMsg && <p style={{ fontSize: 12, color: cuentaPassMsg.tipo === 'ok' ? 'var(--green)' : 'var(--red)', marginBottom: 10 }}>{cuentaPassMsg.texto}</p>}
+              <button onClick={cambiarMiPassword} disabled={cambiandoPass} style={greenCtaStyle(cambiandoPass)}>
+                {cambiandoPass ? 'Guardando…' : 'Cambiar contraseña'}
+              </button>
+            </div>
+
+            {/* Ayuda */}
+            <div style={{ ...card, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+              <span style={{ fontSize: 12.5, color: 'var(--text)' }}>¿Necesitas ayuda?</span>
+              <a href={waLink(MENSAJES_WA.soporte)} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, fontWeight: 700, color: 'var(--green)', textDecoration: 'none' }}>Escríbenos por WhatsApp →</a>
+            </div>
+          </>
+        )}
+
         {/* ── Vista: Nueva quiniela ────────────────────────────────────────── */}
         {/* Cliente sin cuota disponible: en vez del formulario, ve el paywall. */}
         {vista === 'nueva' && !puedeCrear && (
@@ -2121,76 +2347,32 @@ export default function Admin() {
               <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', background: 'var(--green-bg)', border: '1px solid var(--green)', borderRadius: 'var(--radius-md)', padding: '12px 14px', marginBottom: 14 }}>
                 <span aria-hidden="true" style={{ fontSize: 18, lineHeight: 1.3, flexShrink: 0 }}>👋</span>
                 <p style={{ flex: 1, fontSize: 12.5, color: 'var(--text)', lineHeight: 1.55, margin: 0 }}>
-                  <strong style={{ color: 'var(--text-strong)' }}>Tip:</strong> lo más fácil es traer tus partidos con el <strong style={{ color: 'var(--text-strong)' }}>buscador</strong> (llegan con escudos y sus resultados se sincronizan solos). Ponle <strong style={{ color: 'var(--text-strong)' }}>nombre</strong> y <strong style={{ color: 'var(--text-strong)' }}>hora de cierre</strong>, comparte el <strong style={{ color: 'var(--text-strong)' }}>enlace + código</strong>, y al terminar los partidos usa <strong style={{ color: 'var(--text-strong)' }}>⚡ Sincronizar resultados</strong>.
+                  <strong style={{ color: 'var(--text-strong)' }}>Tip:</strong> ponle un <strong style={{ color: 'var(--text-strong)' }}>nombre</strong> y agrega tus <strong style={{ color: 'var(--text-strong)' }}>partidos con el buscador</strong>. La <strong style={{ color: 'var(--text-strong)' }}>hora de cierre</strong> se ajusta sola al primer partido. Comparte el <strong style={{ color: 'var(--text-strong)' }}>enlace + código</strong>, y al terminar usa <strong style={{ color: 'var(--text-strong)' }}>⚡ Sincronizar resultados</strong>.
                 </p>
                 <button onClick={cerrarTipNueva} aria-label="Cerrar tip" style={{ background: 'none', border: 'none', color: 'var(--muted)', fontSize: 14, fontWeight: 700, cursor: 'pointer', padding: '0 2px', flexShrink: 0, lineHeight: 1.3 }}>✕</button>
               </div>
             )}
 
+            {/* 1. ¿Qué es? — identidad de la quiniela */}
             <div style={card}>
               <label htmlFor="quiniela-nombre" style={lbl}>Nombre de la quiniela</label>
-              <input id="quiniela-nombre" type="text" placeholder="Ej. Jornada 17 — Liga MX" value={nombre} onChange={e => setNombre(e.target.value)} style={{ marginBottom: 12 }} />
-              <label htmlFor="quiniela-cierre" style={{ ...lbl, marginBottom: 4 }}>
-                Fecha y hora de cierre <span style={{ color: 'var(--red)' }}>*</span>
-              </label>
-              <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>
-                Los jugadores no podrán registrar predicciones después de esta hora.
-              </p>
-              <input id="quiniela-cierre" type="datetime-local" value={cierre} onChange={e => setCierre(e.target.value)} style={{ borderColor: !cierre ? 'var(--red)' : undefined }} />
-            </div>
-
-            <div style={card}>
-              <p style={{ ...lbl, marginBottom: 10 }}>Acceso y empresa</p>
+              <input id="quiniela-nombre" type="text" placeholder="Ej. Jornada 17 — Liga MX" value={nombre} onChange={e => setNombre(e.target.value)} style={{ marginBottom: 14 }} />
 
               <label htmlFor="quiniela-empresa" style={{ ...lbl, marginBottom: 4 }}>Empresa u organización <span style={{ color: 'var(--muted)', fontWeight: 500, textTransform: 'none', letterSpacing: 0 }}>(opcional)</span></label>
               <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>
                 Si la quiniela es para una empresa o equipo, ponlo aquí.
               </p>
-              <input id="quiniela-empresa" type="text" placeholder="Ej. Construcciones ACME" value={empresa} onChange={e => setEmpresa(e.target.value)} style={{ marginBottom: 14 }} />
-
-              <label htmlFor="quiniela-codigo" style={{ ...lbl, marginBottom: 4 }}>Código de acceso</label>
-              <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>
-                Lo generamos automático y seguro. Puedes cambiarlo por uno más fácil de recordar,
-                pero evita códigos obvios (solo el nombre de la empresa o el año): cualquiera podría adivinarlos.
-                Solo quien tenga este código podrá registrar predicciones; compártelo por tu canal interno.
-              </p>
-              <input id="quiniela-codigo" type="text" placeholder="Ej. ACME2026" value={codigoAcceso} onChange={e => setCodigoAcceso(e.target.value)} style={{ marginBottom: 14 }} />
-
-              {soySuper ? (
-                <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', marginBottom: 12 }}>
-                  <input type="checkbox" checked={privada} onChange={e => setPrivada(e.target.checked)} style={{ marginTop: 3, width: 16, height: 16, accentColor: 'var(--green)' }} />
-                  <span style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.5 }}>
-                    <strong style={{ fontWeight: 700, color: 'var(--text-strong)' }}>Quiniela privada</strong><br />
-                    <span style={{ fontSize: 12, color: 'var(--muted)' }}>No aparece en la página principal, solo se accede con el enlace directo.</span>
-                  </span>
-                </label>
-              ) : (
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 12, fontSize: 12, color: 'var(--muted)', lineHeight: 1.5 }}>
-                  <span aria-hidden="true">🔒</span>
-                  <span>Tu quiniela es <strong style={{ color: 'var(--text)' }}>privada</strong>: no aparece en ninguna lista pública. Solo entra quien tenga tu enlace y código.</span>
-                </div>
-              )}
-
-              <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer' }}>
-                <input type="checkbox" checked={requiereApellido} onChange={e => setRequiereApellido(e.target.checked)} style={{ marginTop: 3, width: 16, height: 16, accentColor: 'var(--green)' }} />
-                <span style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.5 }}>
-                  <strong style={{ fontWeight: 700, color: 'var(--text-strong)' }}>Requerir nombre y apellido</strong><br />
-                  <span style={{ fontSize: 12, color: 'var(--muted)' }}>El participante debe registrar nombre + al menos un apellido. Recomendado para empresas con muchos participantes.</span>
-                </span>
-              </label>
+              <input id="quiniela-empresa" type="text" placeholder="Ej. Construcciones ACME" value={empresa} onChange={e => setEmpresa(e.target.value)} />
             </div>
 
-            {renderFormularioPremio(premioFijo, setPremioFijo, cuota, setCuota)}
-
+            {/* 2. Partidos: buscador + lista (el corazón de la quiniela) */}
             {renderBuscadorFixtures(agregarSeleccionados)}
 
             <div style={card}>
               <label style={lbl}>Partidos</label>
               <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 12, lineHeight: 1.5 }}>
-                Aquí van los partidos de tu quiniela, en orden. Lo ideal es traerlos con el buscador de arriba
-                (se sincronizan solos). Agrégalos <strong style={{ color: 'var(--text)' }}>a mano</strong> solo si no aparecen en el buscador;
-                en ese caso tendrás que poner los resultados manualmente. 💡 Una vez que alguien ya hizo su predicción,
-                <strong style={{ color: 'var(--text)' }}> los partidos ya no se pueden cambiar</strong> (para no descuadrar el ranking).
+                Tráelos con el buscador de arriba; agrégalos <strong style={{ color: 'var(--text)' }}>manualmente</strong> solo si no aparecen.
+                Una vez que alguien predijo, <strong style={{ color: 'var(--text)' }}>ya no se pueden cambiar</strong>.
               </p>
               {partidos.map((p, i) => {
                 const incompleto = partidoIncompleto(p)
@@ -2255,10 +2437,66 @@ export default function Admin() {
                   ¿No encuentras tu partido? Agrégalo a mano
                 </button>
                 <p style={{ fontSize: 10.5, color: 'var(--muted)', marginTop: 4, lineHeight: 1.4 }}>
-                  Los partidos manuales no se sincronizan con ESPN: tendrás que capturar el resultado tú mismo.
+                  Los partidos manuales no se sincronizan: tendrás que capturar el resultado tú mismo.
                 </p>
               </div>
             </div>
+
+            {/* 3. Cierre — depende de los partidos, por eso va después de ellos */}
+            <div style={card}>
+              <label htmlFor="quiniela-cierre" style={{ ...lbl, marginBottom: 4 }}>
+                Fecha y hora de cierre <span style={{ color: 'var(--red)' }}>*</span>
+              </label>
+              <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>
+                Después de esta hora los jugadores ya no pueden registrar ni cambiar sus predicciones.
+              </p>
+              <input id="quiniela-cierre" type="datetime-local" value={cierre} onChange={e => setCierre(e.target.value)} style={{ borderColor: !cierre ? 'var(--red)' : undefined }} />
+              {primeraHoraPartido(partidos) && (
+                <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 8, lineHeight: 1.5 }}>
+                  📅 Tu primer partido empieza el <strong style={{ color: 'var(--text)' }}>{formatFixtureDate(primeraHoraPartido(partidos))}</strong>. El cierre debe ser antes.{' '}
+                  <button type="button" onClick={() => setCierre(cierreSugerido(partidos))} style={{ background: 'none', border: 'none', color: 'var(--green)', fontSize: 11, fontWeight: 700, cursor: 'pointer', textDecoration: 'underline', padding: 0 }}>
+                    Cerrar 5 min antes
+                  </button>
+                </p>
+              )}
+            </div>
+
+            {/* 4. Acceso — quién puede entrar */}
+            <div style={card}>
+              <p style={{ ...lbl, marginBottom: 10 }}>Acceso</p>
+
+              <label htmlFor="quiniela-codigo" style={{ ...lbl, marginBottom: 4 }}>Código de acceso{!soySuper && <span style={{ color: 'var(--red)' }}> *</span>}</label>
+              <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>
+                Generado automático. Puedes cambiarlo, pero evita un código muy fácil. Solo quien lo tenga puede participar.
+              </p>
+              <input id="quiniela-codigo" type="text" placeholder="Ej. ACME2026" value={codigoAcceso} onChange={e => setCodigoAcceso(e.target.value)} style={{ marginBottom: 14 }} />
+
+              {soySuper ? (
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', marginBottom: 12 }}>
+                  <input type="checkbox" checked={privada} onChange={e => setPrivada(e.target.checked)} style={{ marginTop: 3, width: 16, height: 16, accentColor: 'var(--green)' }} />
+                  <span style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.5 }}>
+                    <strong style={{ fontWeight: 700, color: 'var(--text-strong)' }}>Quiniela privada</strong><br />
+                    <span style={{ fontSize: 12, color: 'var(--muted)' }}>No aparece en la página principal, solo se accede con el enlace directo.</span>
+                  </span>
+                </label>
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 12, fontSize: 12, color: 'var(--muted)', lineHeight: 1.5 }}>
+                  <span aria-hidden="true">🔒</span>
+                  <span><strong style={{ color: 'var(--text)' }}>Privada</strong>: no aparece en listas públicas. Solo participa quien tenga el código.</span>
+                </div>
+              )}
+
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer' }}>
+                <input type="checkbox" checked={requiereApellido} onChange={e => setRequiereApellido(e.target.checked)} style={{ marginTop: 3, width: 16, height: 16, accentColor: 'var(--green)' }} />
+                <span style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.5 }}>
+                  <strong style={{ fontWeight: 700, color: 'var(--text-strong)' }}>Requerir nombre y apellido</strong><br />
+                  <span style={{ fontSize: 12, color: 'var(--muted)' }}>Pide nombre + apellido. Útil en grupos grandes.</span>
+                </span>
+              </label>
+            </div>
+
+            {/* 5. Premio */}
+            {renderFormularioPremio(premioFijo, setPremioFijo, cuota, setCuota)}
 
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
               <button onClick={() => { setVista('lista'); setFixtures([]); setSeleccionados([]) }} style={{ padding: '10px 20px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-strong)', background: 'transparent', color: 'var(--muted)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
@@ -2730,59 +2968,17 @@ export default function Admin() {
               {/* Tab: Editar */}
               {tab === 'editar' && (
                 <>
+                  {/* 1. ¿Qué es? */}
                   <div style={card}>
                     <label htmlFor="edit-nombre" style={lbl}>Nombre de la quiniela</label>
-                    <input id="edit-nombre" type="text" value={editNombre} onChange={e => setEditNombre(e.target.value)} placeholder="Nombre de la quiniela" />
-                  </div>
-
-                  <div style={card}>
-                    <label htmlFor="edit-cierre" style={{ ...lbl, marginBottom: 4 }}>
-                      Fecha y hora de cierre <span style={{ color: 'var(--red)' }}>*</span>
-                    </label>
-                    <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>
-                      Los jugadores no podrán registrar predicciones después de esta hora.
-                    </p>
-                    <input id="edit-cierre" type="datetime-local" value={editCierre} onChange={e => setEditCierre(e.target.value)} style={{ borderColor: !editCierre ? 'var(--red)' : undefined }} />
-                  </div>
-
-                  <div style={card}>
-                    <p style={{ ...lbl, marginBottom: 10 }}>Acceso y empresa</p>
+                    <input id="edit-nombre" type="text" value={editNombre} onChange={e => setEditNombre(e.target.value)} placeholder="Nombre de la quiniela" style={{ marginBottom: 14 }} />
 
                     <label htmlFor="edit-empresa" style={{ ...lbl, marginBottom: 4 }}>Empresa u organización <span style={{ color: 'var(--muted)', fontWeight: 500, textTransform: 'none', letterSpacing: 0 }}>(opcional)</span></label>
-                    <input id="edit-empresa" type="text" placeholder="Ej. Construcciones ACME" value={editEmpresa} onChange={e => setEditEmpresa(e.target.value)} style={{ marginBottom: 14 }} />
-
-                    <label htmlFor="edit-codigo" style={{ ...lbl, marginBottom: 4 }}>Código de acceso <span style={{ color: 'var(--muted)', fontWeight: 500, textTransform: 'none', letterSpacing: 0 }}>(opcional)</span></label>
-                    <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>
-                      Si pones un código, solo quien lo sepa podrá registrar predicciones.
-                      Evita códigos obvios (nombre de la empresa o el año): se adivinan fácil.
-                    </p>
-                    <input id="edit-codigo" type="text" placeholder="Ej. ACME2026" value={editCodigoAcceso} onChange={e => setEditCodigoAcceso(e.target.value)} style={{ marginBottom: 14 }} />
-
-                    {soySuper ? (
-                      <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', marginBottom: 12 }}>
-                        <input type="checkbox" checked={editPrivada} onChange={e => setEditPrivada(e.target.checked)} style={{ marginTop: 3, width: 16, height: 16, accentColor: 'var(--green)' }} />
-                        <span style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.5 }}>
-                          <strong style={{ fontWeight: 700, color: 'var(--text-strong)' }}>Quiniela privada</strong><br />
-                          <span style={{ fontSize: 12, color: 'var(--muted)' }}>No aparece en la página principal, solo se accede con el enlace directo.</span>
-                        </span>
-                      </label>
-                    ) : (
-                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 12, fontSize: 12, color: 'var(--muted)', lineHeight: 1.5 }}>
-                        <span aria-hidden="true">🔒</span>
-                        <span>Tu quiniela es <strong style={{ color: 'var(--text)' }}>privada</strong>: solo entra quien tenga tu enlace y código.</span>
-                      </div>
-                    )}
-
-                    <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer' }}>
-                      <input type="checkbox" checked={editRequiereApellido} onChange={e => setEditRequiereApellido(e.target.checked)} style={{ marginTop: 3, width: 16, height: 16, accentColor: 'var(--green)' }} />
-                      <span style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.5 }}>
-                        <strong style={{ fontWeight: 700, color: 'var(--text-strong)' }}>Requerir nombre y apellido</strong><br />
-                        <span style={{ fontSize: 12, color: 'var(--muted)' }}>El participante debe registrar nombre + al menos un apellido.</span>
-                      </span>
-                    </label>
+                    <input id="edit-empresa" type="text" placeholder="Ej. Construcciones ACME" value={editEmpresa} onChange={e => setEditEmpresa(e.target.value)} />
                   </div>
 
-                  {renderFormularioPremio(editPremioFijo, setEditPremioFijo, editCuota, setEditCuota)}
+                  {/* 2. Partidos: buscador + lista */}
+                  {renderBuscadorFixtures(agregarSeleccionadosAEdicion)}
 
                   <div style={card}>
                     <label style={{ ...lbl, marginBottom: 14 }}>Partidos</label>
@@ -2830,7 +3026,61 @@ export default function Admin() {
                     </button>
                   </div>
 
-                  {renderBuscadorFixtures(agregarSeleccionadosAEdicion)}
+                  {/* 3. Cierre — depende de los partidos */}
+                  <div style={card}>
+                    <label htmlFor="edit-cierre" style={{ ...lbl, marginBottom: 4 }}>
+                      Fecha y hora de cierre <span style={{ color: 'var(--red)' }}>*</span>
+                    </label>
+                    <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>
+                      Después de esta hora los jugadores ya no pueden registrar ni cambiar sus predicciones.
+                    </p>
+                    <input id="edit-cierre" type="datetime-local" value={editCierre} onChange={e => setEditCierre(e.target.value)} style={{ borderColor: !editCierre ? 'var(--red)' : undefined }} />
+                    {primeraHoraPartido(editPartidos) && (
+                      <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 8, lineHeight: 1.5 }}>
+                        📅 Tu primer partido empieza el <strong style={{ color: 'var(--text)' }}>{formatFixtureDate(primeraHoraPartido(editPartidos))}</strong>. El cierre debe ser antes.{' '}
+                        <button type="button" onClick={() => setEditCierre(cierreSugerido(editPartidos))} style={{ background: 'none', border: 'none', color: 'var(--green)', fontSize: 11, fontWeight: 700, cursor: 'pointer', textDecoration: 'underline', padding: 0 }}>
+                          Cerrar 5 min antes
+                        </button>
+                      </p>
+                    )}
+                  </div>
+
+                  {/* 4. Acceso — quién puede entrar */}
+                  <div style={card}>
+                    <p style={{ ...lbl, marginBottom: 10 }}>Acceso</p>
+
+                    <label htmlFor="edit-codigo" style={{ ...lbl, marginBottom: 4 }}>Código de acceso {soySuper ? <span style={{ color: 'var(--muted)', fontWeight: 500, textTransform: 'none', letterSpacing: 0 }}>(opcional)</span> : <span style={{ color: 'var(--red)' }}>*</span>}</label>
+                    <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>
+                      Si pones un código, solo quien lo tenga puede participar. Evita uno muy fácil.
+                    </p>
+                    <input id="edit-codigo" type="text" placeholder="Ej. ACME2026" value={editCodigoAcceso} onChange={e => setEditCodigoAcceso(e.target.value)} style={{ marginBottom: 14 }} />
+
+                    {soySuper ? (
+                      <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', marginBottom: 12 }}>
+                        <input type="checkbox" checked={editPrivada} onChange={e => setEditPrivada(e.target.checked)} style={{ marginTop: 3, width: 16, height: 16, accentColor: 'var(--green)' }} />
+                        <span style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.5 }}>
+                          <strong style={{ fontWeight: 700, color: 'var(--text-strong)' }}>Quiniela privada</strong><br />
+                          <span style={{ fontSize: 12, color: 'var(--muted)' }}>No aparece en la página principal, solo se accede con el enlace directo.</span>
+                        </span>
+                      </label>
+                    ) : (
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 12, fontSize: 12, color: 'var(--muted)', lineHeight: 1.5 }}>
+                        <span aria-hidden="true">🔒</span>
+                        <span><strong style={{ color: 'var(--text)' }}>Privada</strong>: no aparece en listas públicas. Solo participa quien tenga el código.</span>
+                      </div>
+                    )}
+
+                    <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer' }}>
+                      <input type="checkbox" checked={editRequiereApellido} onChange={e => setEditRequiereApellido(e.target.checked)} style={{ marginTop: 3, width: 16, height: 16, accentColor: 'var(--green)' }} />
+                      <span style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.5 }}>
+                        <strong style={{ fontWeight: 700, color: 'var(--text-strong)' }}>Requerir nombre y apellido</strong><br />
+                        <span style={{ fontSize: 12, color: 'var(--muted)' }}>Pide nombre + apellido. Útil en grupos grandes.</span>
+                      </span>
+                    </label>
+                  </div>
+
+                  {/* 5. Premio */}
+                  {renderFormularioPremio(editPremioFijo, setEditPremioFijo, editCuota, setEditCuota)}
 
                   <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
                     <button onClick={() => { setTab('resultados'); setFixtures([]); setSeleccionados([]) }} style={{ padding: '10px 20px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-strong)', background: 'transparent', color: 'var(--muted)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>

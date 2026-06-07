@@ -13,18 +13,20 @@ const card = {
   padding: '1.25rem 1.5rem', border: '1px solid var(--border)', marginBottom: 12,
 }
 
-function Plan({ titulo, precio, detalle, mensaje, evento, destacado }) {
+function Plan({ titulo, precio, vinetas, mensaje, evento, destacado }) {
   return (
     <div style={{
       border: `1.5px solid ${destacado ? 'var(--green)' : 'var(--border)'}`,
       borderRadius: 'var(--radius-md)', padding: '1.1rem 1.25rem', marginBottom: 12,
       background: destacado ? 'var(--green-bg)' : 'var(--bg-soft)',
     }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, marginBottom: 4 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, marginBottom: 8 }}>
         <span style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-strong)' }}>{titulo}</span>
         <span style={{ fontSize: 20, fontWeight: 800, color: destacado ? 'var(--green)' : 'var(--text-strong)' }}>${precio}</span>
       </div>
-      <p style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.45, marginBottom: 12 }}>{detalle}</p>
+      <ul style={{ margin: '0 0 12px', padding: '0 0 0 18px', fontSize: 12, color: 'var(--muted)', lineHeight: 1.6 }}>
+        {vinetas.map((v, i) => <li key={i}>{v}</li>)}
+      </ul>
       <a
         href={waLink(mensaje)}
         target="_blank"
@@ -54,14 +56,14 @@ export function Paywall({ titulo = '¡Tu quiniela gratis quedó lista! 🎉' }) 
       <Plan
         titulo="Una quiniela más"
         precio="49"
-        detalle="Pago único. Creas una quiniela adicional. Ideal para un evento puntual."
+        vinetas={['Una quiniela adicional', 'Pago único']}
         mensaje={MENSAJES_WA.comprarQuiniela}
         evento="paywall_por_quiniela"
       />
       <Plan
         titulo="Pase Mundial"
         precio="299"
-        detalle="Quinielas ilimitadas durante todo el Mundial. La mejor opción si vas a correr varias."
+        vinetas={['Quinielas ilimitadas durante el Mundial 2026', 'Pago único, no por cada quiniela']}
         mensaje={MENSAJES_WA.paseMundial}
         evento="paywall_pase_mundial"
         destacado

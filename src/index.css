@@ -97,6 +97,51 @@ select {
   width: 100%;
 }
 
+/* iOS Safari renderiza datetime-local/date/time más anchos que su contenedor y
+   se desbordan de la tarjeta. Normalizamos su apariencia para que respeten el ancho. */
+input[type="datetime-local"],
+input[type="date"],
+input[type="time"] {
+  -webkit-appearance: none;
+  appearance: none;
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* Checkbox con estilo propio para que combine con el tema oscuro
+   (el nativo se ve como una caja blanca sin formato). El tamaño lo fija
+   cada checkbox por su estilo inline (16px); aquí solo el aspecto. */
+input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  border: 1.5px solid var(--border-strong);
+  border-radius: 5px;
+  background: var(--card-light);
+  cursor: pointer;
+  position: relative;
+  flex-shrink: 0;
+  transition: background 0.15s, border-color 0.15s;
+}
+input[type="checkbox"]:checked {
+  background: var(--green);
+  border-color: var(--green);
+}
+input[type="checkbox"]:checked::after {
+  content: '';
+  position: absolute;
+  left: 4.5px;
+  top: 1px;
+  width: 4px;
+  height: 8px;
+  border: solid #07120A;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+input[type="checkbox"]:focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: 2px;
+}
+
 /* Evita el zoom automático de iOS Safari y Chrome móvil al enfocar un input.
    El zoom se dispara cuando el font-size es menor a 16px. Aplica solo en
    pantallas pequeñas para no agrandar los inputs de desktop.

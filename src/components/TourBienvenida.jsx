@@ -30,7 +30,7 @@ const PASOS = [
   {
     emoji: '⚽',
     titulo: '1. Crea tu quiniela',
-    texto: 'Ponle un nombre y una fecha de cierre. Usa el buscador de partidos para traerlos con un clic: llegan con sus escudos y los resultados se sincronizan solos.',
+    texto: 'Ponle un nombre y agrega tus partidos con el buscador. La hora de cierre se ajusta sola al primer partido (puedes cambiarla).',
   },
   {
     emoji: '📤',

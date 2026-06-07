@@ -42,7 +42,7 @@ export function ComoFunciona({ onClose }) {
         <div style={seccion}>
           <p style={h}>1. Crear tu quiniela</p>
           <p style={p}>• Ponle un <span style={strong}>nombre</span> y una <span style={strong}>fecha de cierre</span> (después de esa hora ya nadie puede registrar predicciones).</p>
-          <p style={p}>• Usa el <span style={strong}>buscador de partidos</span> para traerlos con un clic — así llegan con escudos y sus resultados se sincronizan solos.</p>
+          <p style={p}>• Usa el <span style={strong}>buscador de partidos</span> para traerlos con un clic — sus resultados se sincronizan solos.</p>
           <p style={p}>• Se genera un <span style={strong}>código de acceso</span> (lo puedes cambiar). Compártelo junto con el enlace; solo quien lo tenga puede participar.</p>
         </div>
 

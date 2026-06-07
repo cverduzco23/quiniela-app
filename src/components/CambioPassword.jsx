@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { updatePassword, signOut } from 'firebase/auth'
 import { doc, updateDoc } from 'firebase/firestore'
 import { auth, db } from '../firebase'
+import { evaluarPassword } from '../utils/password'
+import { MedidorPassword } from './MedidorPassword'
 
 /**
  * Pantalla de cambio de contraseña OBLIGATORIO en el primer ingreso.
@@ -39,8 +41,9 @@ export function CambioPassword({ uid, onListo }) {
 
   const guardar = async () => {
     setError('')
-    if (p1.length < 6) { setError('La contraseña debe tener al menos 6 caracteres.'); return }
-    if (p1 !== p2)     { setError('Las contraseñas no coinciden.'); return }
+    const v = evaluarPassword(p1)
+    if (!v.ok)     { setError(v.error); return }
+    if (p1 !== p2) { setError('Las contraseñas no coinciden.'); return }
     if (!auth.currentUser) { setError('Tu sesión expiró. Vuelve a iniciar sesión.'); return }
 
     setCargando(true)
@@ -55,7 +58,7 @@ export function CambioPassword({ uid, onListo }) {
       if (e?.code === 'auth/requires-recent-login') {
         setError('Por seguridad, vuelve a iniciar sesión y cambia tu contraseña de inmediato.')
       } else if (e?.code === 'auth/weak-password') {
-        setError('Esa contraseña es muy débil. Usa al menos 6 caracteres.')
+        setError('Esa contraseña es muy débil. Usa al menos 8 caracteres, con letras y números.')
       } else {
         setError('No se pudo cambiar la contraseña. Intenta de nuevo.')
       }
@@ -81,10 +84,14 @@ export function CambioPassword({ uid, onListo }) {
           <label htmlFor="np1" style={lbl}>Nueva contraseña</label>
           <input
             id="np1"
-            type="password" placeholder="Mínimo 6 caracteres" value={p1}
+            type="password" placeholder="Mínimo 8 caracteres" value={p1}
             onChange={e => { setP1(e.target.value); setError('') }}
-            style={{ marginBottom: 12, borderColor: error ? 'var(--red)' : undefined }}
+            style={{ marginBottom: 8, borderColor: error ? 'var(--red)' : undefined }}
           />
+          <MedidorPassword pwd={p1} />
+          <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 12, lineHeight: 1.4 }}>
+            Mínimo 8 caracteres, con al menos una letra y un número.
+          </p>
           <label htmlFor="np2" style={lbl}>Confirmar contraseña</label>
           <input
             id="np2"
