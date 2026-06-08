@@ -566,6 +566,8 @@ export default function Admin() {
   const [quinielaActual, setQuinielaActual] = useState(null)
   const [tab, setTab]                     = useState('resultados')
   const [conteos, setConteos]             = useState({})
+  // Qué grupos de la lista están expandidos (clave → bool), para el "Mostrar más".
+  const [verTodo, setVerTodo]             = useState({})
 
   // Cargar la lista de clientes para el super admin: en el tab Clientes y también
   // en la lista (para etiquetar de quién es cada quiniela de "otros admins").
@@ -1959,38 +1961,36 @@ export default function Admin() {
                 </button>
               </div>
             ) : (() => {
-              const renderBloque = (sec, conDueno = false) => (
+              // Un grupo (Activas / Jugándose / Finalizadas) con tope de filas
+              // visibles y botón "Mostrar más". `limite = Infinity` ⇒ sin tope.
+              const tituloGrupo = { fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }
+              const renderGrupo = (items, titulo, clave, limite, conDueno, marginTop) => {
+                if (items.length === 0) return null
+                const abierto  = verTodo[clave]
+                const visibles = abierto ? items : items.slice(0, limite)
+                const ocultas  = items.length - visibles.length
+                return (
+                  <>
+                    <p style={{ ...tituloGrupo, marginTop }}>{titulo}</p>
+                    {visibles.map(q => (
+                      <QuinielaCard key={q.id} q={q} conteos={conteos} onGestionar={gestionarQuiniela} dueno={conDueno ? labelDueno(q) : undefined} />
+                    ))}
+                    {items.length > limite && (
+                      <button
+                        onClick={() => setVerTodo(v => ({ ...v, [clave]: !abierto }))}
+                        style={{ display: 'block', width: '100%', padding: '8px', marginBottom: 4, background: 'transparent', border: '1px dashed var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--muted)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}
+                      >
+                        {abierto ? '▲ Mostrar menos' : `▼ Mostrar ${ocultas} más`}
+                      </button>
+                    )}
+                  </>
+                )
+              }
+              const renderBloque = (sec, prefijo, conDueno = false) => (
                 <>
-                  {sec.activas.length > 0 && (
-                    <>
-                      <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
-                        Activas
-                      </p>
-                      {sec.activas.map(q => (
-                        <QuinielaCard key={q.id} q={q} conteos={conteos} onGestionar={gestionarQuiniela} dueno={conDueno ? labelDueno(q) : undefined} />
-                      ))}
-                    </>
-                  )}
-                  {sec.enJuego.length > 0 && (
-                    <>
-                      <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8, marginTop: sec.activas.length > 0 ? 16 : 0 }}>
-                        Jugándose
-                      </p>
-                      {sec.enJuego.map(q => (
-                        <QuinielaCard key={q.id} q={q} conteos={conteos} onGestionar={gestionarQuiniela} dueno={conDueno ? labelDueno(q) : undefined} />
-                      ))}
-                    </>
-                  )}
-                  {sec.finalizadas.length > 0 && (
-                    <>
-                      <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8, marginTop: (sec.activas.length > 0 || sec.enJuego.length > 0) ? 16 : 0 }}>
-                        Finalizadas
-                      </p>
-                      {sec.finalizadas.map(q => (
-                        <QuinielaCard key={q.id} q={q} conteos={conteos} onGestionar={gestionarQuiniela} dueno={conDueno ? labelDueno(q) : undefined} />
-                      ))}
-                    </>
-                  )}
+                  {renderGrupo(sec.activas, 'Activas', `${prefijo}-activas`, 5, conDueno, 0)}
+                  {renderGrupo(sec.enJuego, 'Jugándose', `${prefijo}-enjuego`, Infinity, conDueno, sec.activas.length > 0 ? 16 : 0)}
+                  {renderGrupo(sec.finalizadas, 'Finalizadas', `${prefijo}-finalizadas`, 2, conDueno, (sec.activas.length > 0 || sec.enJuego.length > 0) ? 16 : 0)}
                 </>
               )
               return (
@@ -2001,15 +2001,15 @@ export default function Admin() {
                         ★ Tuyas
                       </p>
                       {quinielasMias.length > 0
-                        ? renderBloque(mias)
+                        ? renderBloque(mias, 'mias')
                         : <p style={{ fontSize: 12, color: 'var(--muted)', fontStyle: 'italic', marginBottom: 12 }}>Aún no has creado quinielas.</p>}
                       <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginTop: 28, marginBottom: 10, letterSpacing: 0.2 }}>
                         De otros admins
                       </p>
-                      {renderBloque(otras, true)}
+                      {renderBloque(otras, 'otras', true)}
                     </>
                   ) : (
-                    renderBloque(mias)
+                    renderBloque(mias, 'mias')
                   )}
                 </>
               )
