@@ -3,6 +3,7 @@ import { useSearchParams, useParams } from 'react-router-dom'
 import { doc, onSnapshot, collection, query, where, updateDoc } from 'firebase/firestore'
 import { db, track } from '../firebase'
 import { getResultado } from '../utils/scoring'
+import { findEventByTeamsAndDate } from '../utils/espn'
 import { tienePremio } from '../utils/premios'
 import { quinielaCerrada, cierreToDate, tiempoRestante } from '../utils/cierre'
 import { RankingTable } from '../components/RankingTable'
@@ -61,14 +62,22 @@ export default function Ranking() {
     const getStat = (stats, name) => stats?.find(s => s.name === name)?.displayValue ?? '—'
     const nuevos = {}
     const nuevosStats = {}
+    const idsCorregidos = []
     for (const [liga, ps] of Object.entries(porLiga)) {
       try {
         const r = await fetch(`https://site.api.espn.com/apis/site/v2/sports/soccer/${liga}/scoreboard`)
         const d = await r.json()
         const events = d.events ?? []
         ps.forEach(p => {
-          const ev    = events.find(e => e.id === p.espnId)
-          if (!ev) return
+          let ev = events.find(e => e.id === p.espnId)
+          if (!ev) {
+            // ESPN reasignó el ID del evento (reprogramación, cambio de sede, etc.).
+            // Buscamos por nombres de equipos + mismo día; si hay un único candidato
+            // lo usamos para el marcador en vivo y corregimos el espnId guardado.
+            ev = findEventByTeamsAndDate(events, p.local, p.visitante, p.hora)
+            if (!ev) return
+            idsCorregidos.push({ idx: partidos.indexOf(p), nuevoId: ev.id })
+          }
           const state = ev.status?.type?.state
           const completed = ev.status?.type?.completed
           const comps = ev.competitions?.[0]?.competitors ?? []
@@ -111,6 +120,16 @@ export default function Ranking() {
     setLiveScores(prev => ({ ...prev, ...nuevos }))
     setLiveStats(prev => ({ ...prev, ...nuevosStats }))
     setUltimaAct(new Date())
+
+    if (idsCorregidos.length > 0) {
+      try {
+        const nuevosPartidos = partidos.map((p, i) => {
+          const fix = idsCorregidos.find(c => c.idx === i)
+          return fix ? { ...p, espnId: fix.nuevoId } : p
+        })
+        await updateDoc(doc(db, 'quinielas', quinielaData.id), { partidos: nuevosPartidos })
+      } catch { /* silencioso */ }
+    }
 
     if (
       conEspn.length > 0 &&
