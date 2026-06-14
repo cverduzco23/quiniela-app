@@ -63,9 +63,19 @@ export default function Ranking() {
     const nuevos = {}
     const nuevosStats = {}
     const idsCorregidos = []
+    // ESPN agrupa los eventos por fecha en hora del Este de EE.UU. Un partido que
+    // arrancó tarde (ej. 10pm CDMX = 11pm ET) puede seguir "en vivo" pero ESPN ya
+    // lo reporta bajo el día anterior. Pedimos un rango de 3 días (ayer-mañana)
+    // para no perder esos partidos por el corte de fecha.
+    const fmtFecha = d => d.toISOString().slice(0, 10).replace(/-/g, '')
+    const hoyDate    = new Date()
+    const ayerDate   = new Date(hoyDate.getTime() - 24 * 60 * 60 * 1000)
+    const mananaDate = new Date(hoyDate.getTime() + 24 * 60 * 60 * 1000)
+    const rangoFechas = `${fmtFecha(ayerDate)}-${fmtFecha(mananaDate)}`
+
     for (const [liga, ps] of Object.entries(porLiga)) {
       try {
-        const r = await fetch(`https://site.api.espn.com/apis/site/v2/sports/soccer/${liga}/scoreboard`)
+        const r = await fetch(`https://site.api.espn.com/apis/site/v2/sports/soccer/${liga}/scoreboard?dates=${rangoFechas}`)
         const d = await r.json()
         const events = d.events ?? []
         ps.forEach(p => {
