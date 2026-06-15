@@ -586,6 +586,8 @@ export default function Admin() {
   const [conteos, setConteos]             = useState({})
   // Qué grupos de la lista están expandidos (clave → bool), para el "Mostrar más".
   const [verTodo, setVerTodo]             = useState({})
+  // Admin seleccionado en la sección "Otros admins" para ver sus quinielas.
+  const [adminExpandido, setAdminExpandido] = useState(null)
 
   // ─── Config del inicio (solo super admin) ─────────────────────────────────
   // Qué secciones del home se muestran. Campo ausente = visible (default seguro).
@@ -595,7 +597,7 @@ export default function Admin() {
   // Cargar la lista de clientes para el super admin: en el tab Clientes y también
   // en la lista (para etiquetar de quién es cada quiniela de "otros admins").
   useEffect(() => {
-    if (autenticado && authListo && soySuper && (vista === 'clientes' || vista === 'lista')) cargarClientes()
+    if (autenticado && authListo && soySuper && vista === 'lista') cargarClientes()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autenticado, authListo, soySuper, vista])
 
@@ -790,7 +792,7 @@ export default function Admin() {
   }
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { if (autenticado && authListo && vista === 'caja') cargarMovimientos() }, [autenticado, authListo, vista])
+  useEffect(() => { if (autenticado && authListo && (vista === 'caja' || (vista === 'lista' && soySuper))) cargarMovimientos() }, [autenticado, authListo, vista, soySuper])
 
   // ─── CRUD partidos ────────────────────────────────────────────────────────
   const actualizarPartido = (i, campo, valor) =>
@@ -1928,19 +1930,15 @@ export default function Admin() {
             {vista !== 'lista' && (
               <button
                 onClick={() => {
-                  if (vista === 'caja' && cajaNombre !== null) {
-                    setCajaNombre(null)
-                  } else {
-                    setVista('lista')
-                    setQuinielaActual(null)
-                    setFixtures([])
-                    setSeleccionados([])
-                    setCajaNombre(null)
-                  }
+                  setVista('lista')
+                  setQuinielaActual(null)
+                  setFixtures([])
+                  setSeleccionados([])
+                  setCajaNombre(null)
                 }}
                 style={{ background: 'var(--neutral-bg)', border: '1px solid var(--border)', color: 'var(--text)', padding: '7px 14px', borderRadius: 'var(--radius-sm)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
               >
-                {vista === 'caja' && cajaNombre !== null ? '← Caja' : '← Lista'}
+                {'← Lista'}
               </button>
             )}
             <a
@@ -1967,27 +1965,8 @@ export default function Admin() {
         {/* ── Vista: Lista ────────────────────────────────────────────────── */}
         {vista === 'lista' && (
           <>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-              <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)' }}>Tus quinielas</span>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginBottom: 14 }}>
               <div style={{ display: 'flex', gap: 8 }}>
-                {/* Caja = contabilidad interna del producto (colección movimientos,
-                    solo super admin en las reglas). Se oculta a clientes normales. */}
-                {soySuper && (
-                  <>
-                    <button
-                      onClick={() => setVista('clientes')}
-                      style={{ background: 'var(--neutral-bg)', border: '1px solid var(--border)', color: 'var(--text)', padding: '7px 14px', borderRadius: 'var(--radius-sm)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
-                    >
-                      👥 Clientes
-                    </button>
-                    <button
-                      onClick={() => setVista('caja')}
-                      style={{ background: 'var(--neutral-bg)', border: '1px solid var(--border)', color: 'var(--text)', padding: '7px 14px', borderRadius: 'var(--radius-sm)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
-                    >
-                      💰 Caja
-                    </button>
-                  </>
-                )}
                 {!soySuper && (
                   <button
                     onClick={abrirMiCuenta}
@@ -2029,11 +2008,11 @@ export default function Admin() {
                   disabled={deshabilitada || guardandoHome !== null}
                   aria-label={dir < 0 ? 'Subir' : 'Bajar'}
                   style={{
-                    width: 26, height: 26, lineHeight: 1, padding: 0, borderRadius: 'var(--radius-sm)',
+                    width: 36, height: 36, lineHeight: 1, padding: 0, borderRadius: 'var(--radius-sm)',
                     border: '1px solid var(--border-strong)', background: 'var(--card-light)',
                     color: deshabilitada ? 'var(--border-strong)' : 'var(--text)',
                     cursor: deshabilitada || guardandoHome !== null ? 'not-allowed' : 'pointer',
-                    fontSize: 12, fontWeight: 700,
+                    fontSize: 14, fontWeight: 700,
                   }}
                 >
                   {dir < 0 ? '↑' : '↓'}
@@ -2051,7 +2030,14 @@ export default function Admin() {
                     <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, fontWeight: 700, color: 'var(--text-strong)' }}>
                       🏠 Secciones del inicio
                     </span>
-                    <span style={{ color: 'var(--muted)', fontSize: 12 }}>{abierto ? '▲ Ocultar' : '▼ Mostrar'}</span>
+                    <span style={{
+                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                      width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
+                      border: `1.5px solid ${abierto ? 'var(--green)' : 'var(--border-strong)'}`,
+                      color: abierto ? 'var(--green)' : 'var(--muted)',
+                      fontSize: 18, fontWeight: 300, lineHeight: 1,
+                      background: abierto ? 'var(--green-bg)' : 'transparent',
+                    }}>{abierto ? '−' : '+'}</span>
                   </button>
                   {abierto && (
                     <div style={{ marginTop: 12 }}>
@@ -2068,25 +2054,25 @@ export default function Admin() {
                           <div
                             key={clave}
                             style={{
-                              display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0',
+                              display: 'flex', alignItems: 'center', gap: 10, padding: '14px 0',
                               borderTop: '1px solid var(--border)',
                               opacity: cargando ? 0.6 : 1,
                             }}
                           >
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                               {flecha(clave, -1, idx === 0)}
                               {flecha(clave, 1, idx === orden.length - 1)}
                             </div>
-                            <label style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, cursor: cargando ? 'wait' : 'pointer' }}>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, cursor: cargando ? 'wait' : 'pointer', minHeight: 44 }}>
                               <input
                                 type="checkbox"
                                 checked={visible}
                                 disabled={cargando}
                                 onChange={() => toggleSeccionHome(clave)}
-                                style={{ width: 17, height: 17, accentColor: 'var(--green)', cursor: 'inherit' }}
+                                style={{ width: 20, height: 20, accentColor: 'var(--green)', cursor: 'inherit', flexShrink: 0 }}
                               />
-                              <span style={{ fontSize: 13, color: visible ? 'var(--text)' : 'var(--muted)', flex: 1 }}>{label}</span>
-                              <span style={{ fontSize: 11, fontWeight: 700, color: visible ? 'var(--green)' : 'var(--muted)' }}>
+                              <span style={{ fontSize: 14, color: visible ? 'var(--text)' : 'var(--muted)', flex: 1 }}>{label}</span>
+                              <span style={{ fontSize: 11, fontWeight: 700, color: visible ? 'var(--green)' : 'var(--muted)', flexShrink: 0 }}>
                                 {visible ? 'Visible' : 'Oculta'}
                               </span>
                             </label>
@@ -2101,294 +2087,451 @@ export default function Admin() {
 
             {loadingLista ? (
               <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--muted)', fontSize: 14 }}>Cargando…</div>
-            ) : quinielasMias.length === 0 && quinielasOtras.length === 0 ? (
-              <div style={{ ...card, textAlign: 'center', padding: '3rem 2rem' }}>
-                <div style={{ fontSize: 48, marginBottom: 16 }}>📋</div>
-                <p style={{ fontWeight: 600, fontSize: 16, color: 'var(--text)', marginBottom: 8 }}>Sin quinielas todavía</p>
-                <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 20 }}>Crea tu primera quiniela para comenzar.</p>
-                <button onClick={abrirNuevaQuiniela} style={{ ...greenCtaStyle(false) }}>
-                  Crear ahora →
-                </button>
-              </div>
-            ) : (() => {
-              // Un grupo (Activas / Jugándose / Finalizadas) con tope de filas
-              // visibles y botón "Mostrar más". `limite = Infinity` ⇒ sin tope.
-              const tituloGrupo = { fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }
-              const renderGrupo = (items, titulo, clave, limite, conDueno, marginTop) => {
-                if (items.length === 0) return null
-                const abierto  = verTodo[clave]
-                const visibles = abierto ? items : items.slice(0, limite)
-                const ocultas  = items.length - visibles.length
+            ) : soySuper ? (
+              (() => {
+                const secBtn = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', padding: 0, background: 'transparent', border: 'none', cursor: 'pointer' }
+                const secLabel = { display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, fontWeight: 700, color: 'var(--text-strong)' }
+                const secCard = { ...card, marginTop: 12, padding: '0.9rem 1.1rem' }
+                // Botón circular +/− para secciones principales
+                const toggle = (ab) => (
+                  <span style={{
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                    width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
+                    border: `1.5px solid ${ab ? 'var(--green)' : 'var(--border-strong)'}`,
+                    color: ab ? 'var(--green)' : 'var(--muted)',
+                    fontSize: 18, fontWeight: 300, lineHeight: 1,
+                    background: ab ? 'var(--green-bg)' : 'transparent',
+                  }}>{ab ? '−' : '+'}</span>
+                )
+                // Chevron rotado para subsecciones
+                const subChevron = (ab) => (
+                  <span style={{
+                    fontSize: 13, fontWeight: 700,
+                    color: ab ? 'var(--green)' : 'var(--muted)',
+                    display: 'inline-block',
+                    transform: ab ? 'rotate(90deg)' : 'rotate(0deg)',
+                  }}>›</span>
+                )
+
+                // Flat list of quinielas: top 3 visible, ver más
+                const renderFlat = (flat, claveVer, conDueno = false) => {
+                  if (flat.length === 0) return <p style={{ fontSize: 12, color: 'var(--muted)', fontStyle: 'italic', paddingTop: 8 }}>Sin quinielas.</p>
+                  const ab = verTodo[claveVer]
+                  const visible = ab ? flat : flat.slice(0, 3)
+                  const ocultas = flat.length - visible.length
+                  return (
+                    <>
+                      {visible.map(q => (
+                        <QuinielaCard key={q.id} q={q} conteos={conteos} onGestionar={gestionarQuiniela} dueno={conDueno ? labelDueno(q) : undefined} />
+                      ))}
+                      {flat.length > 3 && (
+                        <button
+                          onClick={() => setVerTodo(v => ({ ...v, [claveVer]: !ab }))}
+                          style={{ display: 'block', width: '100%', padding: '8px', marginBottom: 4, background: 'transparent', border: '1px dashed var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--muted)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}
+                        >
+                          {ab ? '▲ Mostrar menos' : `▼ Mostrar ${ocultas} más`}
+                        </button>
+                      )}
+                    </>
+                  )
+                }
+
+                // ── Caja ───────────────────────────────────────────────────────
+                const cajaAb = verTodo['caja-inline']
+                const cajaSection = (
+                  <div style={secCard}>
+                    <button onClick={() => setVerTodo(v => ({ ...v, 'caja-inline': !cajaAb }))} style={secBtn}>
+                      <span style={secLabel}>💰 Caja</span>
+                      {toggle(cajaAb)}
+                    </button>
+                    {cajaAb && (
+                      <div style={{ marginTop: 12 }}>
+                        <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 12, lineHeight: 1.5 }}>
+                          Registra y consulta depósitos, inscripciones, premios y retiros por participante. Es una herramienta interna de apoyo — próximamente disponible para todos los administradores.
+                        </p>
+                        {saldos.length > 1 && (
+                          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 10 }}>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--muted)' }}>
+                              Ordenar:
+                              <select
+                                value={cajaOrden}
+                                onChange={e => setCajaOrden(e.target.value)}
+                                style={{ fontSize: 12, padding: '5px 8px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-strong)', background: 'var(--card-light)', color: 'var(--text)' }}
+                              >
+                                <option value="nombre">Nombre (A-Z)</option>
+                                <option value="monto">Monto (mayor a menor)</option>
+                              </select>
+                            </label>
+                          </div>
+                        )}
+                        <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                          <input
+                            type="text"
+                            placeholder="Nombre del participante…"
+                            value={buscarNombreCaja}
+                            onChange={e => setBuscarNombreCaja(e.target.value)}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter' && buscarNombreCaja.trim()) {
+                                setCajaNombre(normalizarNombre(buscarNombreCaja.trim()))
+                                setVista('caja')
+                                setBuscarNombreCaja('')
+                              }
+                            }}
+                            style={{ flex: 1 }}
+                          />
+                          <button
+                            onClick={() => {
+                              if (buscarNombreCaja.trim()) {
+                                setCajaNombre(normalizarNombre(buscarNombreCaja.trim()))
+                                setVista('caja')
+                                setBuscarNombreCaja('')
+                              }
+                            }}
+                            disabled={!buscarNombreCaja.trim()}
+                            style={{ ...greenCtaStyle(!buscarNombreCaja.trim()), padding: '9px 16px', whiteSpace: 'nowrap' }}
+                          >
+                            Ver →
+                          </button>
+                        </div>
+                        {loadingMovimientos ? (
+                          <p style={{ fontSize: 12.5, color: 'var(--muted)' }}>Cargando…</p>
+                        ) : saldos.length === 0 ? (
+                          <p style={{ fontSize: 12.5, color: 'var(--muted)', fontStyle: 'italic' }}>Sin movimientos. Busca un participante arriba para registrar el primero.</p>
+                        ) : saldos.map(({ nombre, saldo }) => (
+                          <div
+                            key={nombre}
+                            onClick={() => { setCajaNombre(nombre); setVista('caja') }}
+                            style={{ ...card, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}
+                          >
+                            <span style={{ fontWeight: 600, fontSize: 14, color: 'var(--text)' }}>{nombre}</span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                              <span style={{ fontSize: 14, fontWeight: 700, color: saldo > 0 ? 'var(--green)' : saldo === 0 ? 'var(--muted)' : 'var(--red)' }}>
+                                {saldo >= 0 ? '+' : ''}{formatearMXN(saldo)}
+                              </span>
+                              <span style={{ fontSize: 12, color: 'var(--muted)' }}>→</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )
+
+                // ── Clientes ───────────────────────────────────────────────────
+                const clientesAb = verTodo['clientes-bloque']
+                const crearAb = verTodo['clientes-crear']
+                const listaAb = verTodo['clientes-lista']
+                const todosAb = verTodo['clientes-todos']
+                const clientesMostrados = todosAb ? clientes : clientes.slice(0, 5)
+                const clientesSection = (
+                  <div style={secCard}>
+                    <button onClick={() => setVerTodo(v => ({ ...v, 'clientes-bloque': !clientesAb }))} style={secBtn}>
+                      <span style={secLabel}>
+                        👥 Clientes
+                        {clientes.length > 0 && <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>({clientes.length})</span>}
+                      </span>
+                      {toggle(clientesAb)}
+                    </button>
+                    {clientesAb && (
+                      <div style={{ marginTop: 12 }}>
+                        {/* Dar de alta */}
+                        <div style={{ marginBottom: 8 }}>
+                          <button onClick={() => setVerTodo(v => ({ ...v, 'clientes-crear': !crearAb }))} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', minHeight: 52, padding: '14px 14px', background: crearAb ? 'var(--green-bg)' : 'var(--neutral-bg)', border: `1px solid ${crearAb ? 'var(--green)' : 'var(--border)'}`, borderRadius: 'var(--radius-sm)', cursor: 'pointer' }}>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: crearAb ? 'var(--green)' : 'var(--text)' }}>➕ Dar de alta un cliente</span>
+                            {subChevron(crearAb)}
+                          </button>
+                          {crearAb && (
+                            <div style={{ marginTop: 8, paddingLeft: 14, paddingBottom: 4, borderLeft: '3px solid var(--green)' }}>
+                              <label htmlFor="nc-email" style={{ ...lbl, marginBottom: 4 }}>Correo <span style={{ color: 'var(--red)' }}>*</span></label>
+                              <input id="nc-email" type="email" placeholder="correo@cliente.com" value={ncEmail}
+                                onChange={e => { setNcEmail(e.target.value); setErrorCliente('') }} style={{ marginBottom: 12 }} />
+                              <label htmlFor="nc-nombre" style={{ ...lbl, marginBottom: 4 }}>Nombre <span style={{ color: 'var(--red)' }}>*</span></label>
+                              <input id="nc-nombre" type="text" placeholder="Nombre de quien organiza" value={ncNombre}
+                                onChange={e => { setNcNombre(e.target.value); setErrorCliente('') }} style={{ marginBottom: 12 }} />
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
+                                <div>
+                                  <label htmlFor="nc-tel" style={{ ...lbl, marginBottom: 4 }}>WhatsApp</label>
+                                  <input id="nc-tel" type="tel" placeholder="55 1234 5678" value={ncTel}
+                                    onChange={e => setNcTel(e.target.value)} />
+                                </div>
+                                <div>
+                                  <label htmlFor="nc-empresa" style={{ ...lbl, marginBottom: 4 }}>Empresa</label>
+                                  <input id="nc-empresa" type="text" placeholder="(opcional)" value={ncEmpresa}
+                                    onChange={e => setNcEmpresa(e.target.value)} />
+                                </div>
+                              </div>
+                              {errorCliente && <p style={{ fontSize: 12, color: 'var(--red)', marginBottom: 10 }}>{errorCliente}</p>}
+                              <button onClick={crearCliente} disabled={creandoCliente}
+                                style={{ ...greenCtaStyle(creandoCliente), width: '100%', padding: '12px' }}>
+                                {creandoCliente ? 'Creando…' : 'Crear cuenta'}
+                              </button>
+                              {clienteCreado && (
+                                <div style={{ marginTop: 14, padding: '1rem', borderRadius: 'var(--radius-sm)', background: 'var(--green-bg)', border: '1px solid var(--green)' }}>
+                                  <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-strong)', marginBottom: 8 }}>✅ Cuenta creada — comparte estos accesos:</p>
+                                  <p style={{ fontSize: 13, color: 'var(--text)', fontFamily: 'monospace', lineHeight: 1.7, wordBreak: 'break-all' }}>
+                                    📧 {clienteCreado.email}<br />
+                                    🔑 {clienteCreado.password}
+                                  </p>
+                                  <p style={{ fontSize: 11, color: 'var(--muted)', margin: '8px 0 12px' }}>
+                                    ⚠️ Guarda o envía la contraseña ahora: por seguridad no se vuelve a mostrar.
+                                  </p>
+                                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                                    <button
+                                      onClick={() => { navigator.clipboard?.writeText(mensajeAccesos(clienteCreado.email, clienteCreado.password)); }}
+                                      style={{ flex: '1 1 140px', padding: '10px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-strong)', background: 'var(--neutral-bg)', color: 'var(--text)', fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}
+                                    >
+                                      📋 Copiar mensaje
+                                    </button>
+                                    {telParaWa(clienteCreado.telefono) && (
+                                      <a
+                                        href={waLink(mensajeAccesos(clienteCreado.email, clienteCreado.password), telParaWa(clienteCreado.telefono))}
+                                        target="_blank" rel="noreferrer"
+                                        style={{ flex: '1 1 140px', textAlign: 'center', padding: '10px', borderRadius: 'var(--radius-sm)', textDecoration: 'none', background: '#25D366', color: '#06140B', fontSize: 12.5, fontWeight: 800 }}
+                                      >
+                                        💬 Enviar por WhatsApp
+                                      </a>
+                                    )}
+                                  </div>
+                                  <button onClick={() => setClienteCreado(null)}
+                                    style={{ width: '100%', marginTop: 10, padding: '6px', background: 'transparent', border: 'none', color: 'var(--muted)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                                    Cerrar
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        {/* Clientes existentes */}
+                        <div>
+                          <button onClick={() => setVerTodo(v => ({ ...v, 'clientes-lista': !listaAb }))} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', minHeight: 52, padding: '14px 14px', background: listaAb ? 'var(--green-bg)' : 'var(--neutral-bg)', border: `1px solid ${listaAb ? 'var(--green)' : 'var(--border)'}`, borderRadius: 'var(--radius-sm)', cursor: 'pointer' }}>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: listaAb ? 'var(--green)' : 'var(--text)' }}>📋 Clientes existentes</span>
+                            {subChevron(listaAb)}
+                          </button>
+                          {listaAb && (
+                            <div style={{ marginTop: 8, paddingLeft: 14, paddingBottom: 4, borderLeft: '3px solid var(--green)' }}>
+                              {loadingClientes ? (
+                                <p style={{ fontSize: 12.5, color: 'var(--muted)' }}>Cargando…</p>
+                              ) : clientes.length === 0 ? (
+                                <p style={{ fontSize: 12.5, color: 'var(--muted)', fontStyle: 'italic' }}>Aún no hay clientes dados de alta.</p>
+                              ) : (
+                                <>
+                                  {clientesMostrados.map(c => {
+                                    const enPase = temporadaVigente(c)
+                                    const usadas = c.quinielasCreadas ?? 0
+                                    const permitidas = c.quinielasPermitidas ?? 0
+                                    const paseFecha = enPase && c.temporadaHasta?.toMillis
+                                      ? new Date(c.temporadaHasta.toMillis()).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })
+                                      : null
+                                    return (
+                                      <div key={c.id} style={card}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 8 }}>
+                                          <div style={{ minWidth: 0 }}>
+                                            <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-strong)' }}>
+                                              {c.nombre || '(sin nombre)'}{c.empresa ? <span style={{ fontWeight: 500, color: 'var(--muted)' }}> · {c.empresa}</span> : null}
+                                            </p>
+                                            <p style={{ fontSize: 12, color: 'var(--muted)', wordBreak: 'break-all' }}>{c.email}{c.telefono ? ` · 📱 ${c.telefono}` : ''}</p>
+                                          </div>
+                                          <span style={{ flexShrink: 0, fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 'var(--radius-full)', background: c.activo ? 'var(--green-bg)' : 'var(--neutral-bg)', color: c.activo ? 'var(--green)' : 'var(--muted)' }}>
+                                            {c.activo ? 'Activo' : 'Inactivo'}
+                                          </span>
+                                        </div>
+                                        <p style={{ fontSize: 12, color: 'var(--text)', marginBottom: 12 }}>
+                                          {enPase ? `🏆 Pase Mundial — ilimitadas hasta ${paseFecha}` : `📊 ${usadas}/${permitidas} quinielas usadas`}
+                                          {c.debeCambiarPassword ? <span style={{ color: 'var(--yellow)' }}> · 🔑 contraseña sin cambiar</span> : null}
+                                          {c.notas ? <span style={{ color: 'var(--muted)' }}><br />📝 {c.notas}</span> : null}
+                                        </p>
+                                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                                          <button onClick={() => darQuinielaExtra(c)} style={accionBtn}>➕ +1 quiniela ($49)</button>
+                                          <button onClick={() => darPaseMundial(c)} style={accionBtn}>🏆 Pase Mundial ($199)</button>
+                                          <button onClick={() => toggleActivoCliente(c)} style={accionBtn}>{c.activo ? '⏸ Desactivar' : '▶️ Activar'}</button>
+                                          <button onClick={() => editarNotasCliente(c)} style={accionBtn}>📝 Notas</button>
+                                          <button
+                                            onClick={() => eliminarCliente(c)}
+                                            disabled={eliminandoCliente === c.id}
+                                            style={{ ...accionBtn, color: 'var(--red)', borderColor: 'var(--red)' }}
+                                          >
+                                            {eliminandoCliente === c.id ? 'Eliminando…' : '🗑 Eliminar'}
+                                          </button>
+                                        </div>
+                                      </div>
+                                    )
+                                  })}
+                                  {clientes.length > 5 && !todosAb && (
+                                    <button
+                                      onClick={() => setVerTodo(v => ({ ...v, 'clientes-todos': true }))}
+                                      style={{ display: 'block', width: '100%', padding: '8px', background: 'transparent', border: '1px dashed var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--muted)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}
+                                    >
+                                      ▼ Ver todos ({clientes.length - 5} más)
+                                    </button>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
+
+                // ── Mis quinielas ──────────────────────────────────────────────
+                const misFlat = [...mias.activas, ...mias.enJuego, ...mias.finalizadas]
+                const misAb = verTodo['mis-quinielas']
+                const misQuinielasSection = (
+                  <div style={secCard}>
+                    <button onClick={() => setVerTodo(v => ({ ...v, 'mis-quinielas': !misAb }))} style={secBtn}>
+                      <span style={secLabel}>
+                        ⚽ Mis quinielas
+                        {misFlat.length > 0 && <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>({misFlat.length})</span>}
+                      </span>
+                      {toggle(misAb)}
+                    </button>
+                    {misAb && (
+                      <div style={{ marginTop: 8 }}>
+                        {misFlat.length === 0 ? (
+                          <div style={{ textAlign: 'center', padding: '1.5rem 0' }}>
+                            <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 12 }}>Aún no has creado quinielas.</p>
+                            <button onClick={abrirNuevaQuiniela} style={{ ...greenCtaStyle(false), padding: '9px 18px' }}>
+                              + Nueva quiniela
+                            </button>
+                          </div>
+                        ) : renderFlat(misFlat, 'mis-q-flat')}
+                      </div>
+                    )}
+                  </div>
+                )
+
+                // ── Quinielas de otros admins ──────────────────────────────────
+                const quinielasPorAdmin = {}
+                quinielasOtras.forEach(q => {
+                  const uid = q.ownerUid || 'sin-owner'
+                  if (!quinielasPorAdmin[uid]) quinielasPorAdmin[uid] = []
+                  quinielasPorAdmin[uid].push(q)
+                })
+                const adminsConQ = Object.entries(quinielasPorAdmin).map(([uid, qs]) => {
+                  const a = adminsPorUid[uid]
+                  const sub = subdividirPorEstado(qs)
+                  return {
+                    uid,
+                    nombre: a?.nombre || a?.email || `Admin (${uid.slice(0, 6)}…)`,
+                    activas: sub.activas.length,
+                    enJuego: sub.enJuego.length,
+                    total: qs.length,
+                    flat: [...sub.activas, ...sub.enJuego, ...sub.finalizadas],
+                  }
+                })
+                const otrosAb = verTodo['otros-bloque']
+                const otrosSection = quinielasOtras.length > 0 ? (
+                  <div style={secCard}>
+                    <button onClick={() => setVerTodo(v => ({ ...v, 'otros-bloque': !otrosAb }))} style={secBtn}>
+                      <span style={secLabel}>
+                        👤 Quinielas de otros admins
+                        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>({quinielasOtras.length})</span>
+                      </span>
+                      {toggle(otrosAb)}
+                    </button>
+                    {otrosAb && (
+                      <div style={{ marginTop: 12 }}>
+                        {adminsConQ.map(adm => {
+                          const admAb = adminExpandido === adm.uid
+                          return (
+                            <div key={adm.uid} style={{ marginBottom: 8 }}>
+                              <button
+                                onClick={() => setAdminExpandido(admAb ? null : adm.uid)}
+                                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', minHeight: 56, padding: '14px 14px', background: admAb ? 'var(--green-bg)' : 'var(--neutral-bg)', border: `1px solid ${admAb ? 'var(--green)' : 'var(--border)'}`, borderRadius: 'var(--radius-sm)', cursor: 'pointer' }}
+                              >
+                                <div style={{ textAlign: 'left' }}>
+                                  <span style={{ fontSize: 13, fontWeight: 700, color: admAb ? 'var(--green)' : 'var(--text)' }}>{adm.nombre}</span>
+                                  <span style={{ display: 'block', fontSize: 11, color: admAb ? 'var(--green)' : 'var(--muted)', marginTop: 3, opacity: admAb ? 0.85 : 1 }}>
+                                    {adm.total} quiniela{adm.total !== 1 ? 's' : ''}
+                                    {adm.activas > 0 ? ` · ${adm.activas} activa${adm.activas !== 1 ? 's' : ''}` : ''}
+                                    {adm.enJuego > 0 ? ` · ${adm.enJuego} en juego` : ''}
+                                  </span>
+                                </div>
+                                <span style={{
+                                  fontSize: 16, fontWeight: 700, flexShrink: 0, marginLeft: 8,
+                                  color: admAb ? 'var(--green)' : 'var(--muted)',
+                                  display: 'inline-block',
+                                  transform: admAb ? 'rotate(90deg)' : 'rotate(0deg)',
+                                }}>›</span>
+                              </button>
+                              {admAb && (
+                                <div style={{ marginTop: 8, paddingLeft: 14, paddingBottom: 4, borderLeft: '3px solid var(--green)' }}>
+                                  {renderFlat(adm.flat, `admin-${adm.uid}`, true)}
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                ) : null
+
                 return (
                   <>
-                    <p style={{ ...tituloGrupo, marginTop }}>{titulo}</p>
-                    {visibles.map(q => (
-                      <QuinielaCard key={q.id} q={q} conteos={conteos} onGestionar={gestionarQuiniela} dueno={conDueno ? labelDueno(q) : undefined} />
-                    ))}
-                    {items.length > limite && (
-                      <button
-                        onClick={() => setVerTodo(v => ({ ...v, [clave]: !abierto }))}
-                        style={{ display: 'block', width: '100%', padding: '8px', marginBottom: 4, background: 'transparent', border: '1px dashed var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--muted)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}
-                      >
-                        {abierto ? '▲ Mostrar menos' : `▼ Mostrar ${ocultas} más`}
-                      </button>
-                    )}
+                    {cajaSection}
+                    {clientesSection}
+                    {misQuinielasSection}
+                    {otrosSection}
                   </>
                 )
-              }
-              const renderBloque = (sec, prefijo, conDueno = false) => (
-                <>
-                  {renderGrupo(sec.activas, 'Activas', `${prefijo}-activas`, 2, conDueno, 0)}
-                  {renderGrupo(sec.enJuego, 'Jugándose', `${prefijo}-enjuego`, 2, conDueno, sec.activas.length > 0 ? 16 : 0)}
-                  {renderGrupo(sec.finalizadas, 'Finalizadas', `${prefijo}-finalizadas`, 0, conDueno, (sec.activas.length > 0 || sec.enJuego.length > 0) ? 16 : 0)}
-                </>
-              )
-              return (
-                <>
-                  {soySuper && quinielasOtras.length > 0 ? (
-                    <>
-                      <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--green-light)', marginBottom: 10, letterSpacing: 0.2 }}>
-                        ★ Tuyas
-                      </p>
-                      {quinielasMias.length > 0
-                        ? renderBloque(mias, 'mias')
-                        : <p style={{ fontSize: 12, color: 'var(--muted)', fontStyle: 'italic', marginBottom: 12 }}>Aún no has creado quinielas.</p>}
-                      <button
-                        onClick={() => setVerTodo(v => ({ ...v, 'otros-bloque': !v['otros-bloque'] }))}
-                        style={{
-                          display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%',
-                          marginTop: 28, marginBottom: 10, padding: 0, background: 'transparent', border: 'none',
-                          cursor: 'pointer', color: 'var(--text)', fontSize: 13, fontWeight: 700, letterSpacing: 0.2,
-                        }}
-                      >
-                        <span>De otros admins {quinielasOtras.length > 0 && <span style={{ color: 'var(--muted)', fontWeight: 600 }}>({quinielasOtras.length})</span>}</span>
-                        <span style={{ color: 'var(--muted)', fontSize: 12 }}>{verTodo['otros-bloque'] ? '▲ Ocultar' : '▼ Mostrar'}</span>
-                      </button>
-                      {verTodo['otros-bloque'] && renderBloque(otras, 'otras', true)}
-                    </>
-                  ) : (
-                    renderBloque(mias, 'mias')
-                  )}
-                </>
-              )
-            })()}
-          </>
-        )}
-
-        {/* ── Vista: Clientes (solo super admin) ──────────────────────────── */}
-        {vista === 'clientes' && soySuper && (
-          <>
-            <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)', marginBottom: 14 }}>Clientes</p>
-
-            {/* Crear cliente */}
-            <div style={card}>
-              <p style={{ ...lbl, marginBottom: 10 }}>➕ Dar de alta un cliente</p>
-              <label htmlFor="nc-email" style={{ ...lbl, marginBottom: 4 }}>Correo <span style={{ color: 'var(--red)' }}>*</span></label>
-              <input id="nc-email" type="email" placeholder="correo@cliente.com" value={ncEmail}
-                onChange={e => { setNcEmail(e.target.value); setErrorCliente('') }} style={{ marginBottom: 12 }} />
-              <label htmlFor="nc-nombre" style={{ ...lbl, marginBottom: 4 }}>Nombre <span style={{ color: 'var(--red)' }}>*</span></label>
-              <input id="nc-nombre" type="text" placeholder="Nombre de quien organiza" value={ncNombre}
-                onChange={e => { setNcNombre(e.target.value); setErrorCliente('') }} style={{ marginBottom: 12 }} />
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
-                <div>
-                  <label htmlFor="nc-tel" style={{ ...lbl, marginBottom: 4 }}>WhatsApp</label>
-                  <input id="nc-tel" type="tel" placeholder="55 1234 5678" value={ncTel}
-                    onChange={e => setNcTel(e.target.value)} />
-                </div>
-                <div>
-                  <label htmlFor="nc-empresa" style={{ ...lbl, marginBottom: 4 }}>Empresa</label>
-                  <input id="nc-empresa" type="text" placeholder="(opcional)" value={ncEmpresa}
-                    onChange={e => setNcEmpresa(e.target.value)} />
-                </div>
-              </div>
-              {errorCliente && <p style={{ fontSize: 12, color: 'var(--red)', marginBottom: 10 }}>{errorCliente}</p>}
-              <button onClick={crearCliente} disabled={creandoCliente}
-                style={{ ...greenCtaStyle(creandoCliente), width: '100%', padding: '12px' }}>
-                {creandoCliente ? 'Creando…' : 'Crear cuenta'}
-              </button>
-
-              {/* Accesos recién creados, listos para enviar */}
-              {clienteCreado && (
-                <div style={{ marginTop: 14, padding: '1rem', borderRadius: 'var(--radius-sm)', background: 'var(--green-bg)', border: '1px solid var(--green)' }}>
-                  <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-strong)', marginBottom: 8 }}>✅ Cuenta creada — comparte estos accesos:</p>
-                  <p style={{ fontSize: 13, color: 'var(--text)', fontFamily: 'monospace', lineHeight: 1.7, wordBreak: 'break-all' }}>
-                    📧 {clienteCreado.email}<br />
-                    🔑 {clienteCreado.password}
-                  </p>
-                  <p style={{ fontSize: 11, color: 'var(--muted)', margin: '8px 0 12px' }}>
-                    ⚠️ Guarda o envía la contraseña ahora: por seguridad no se vuelve a mostrar.
-                  </p>
-                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                    <button
-                      onClick={() => { navigator.clipboard?.writeText(mensajeAccesos(clienteCreado.email, clienteCreado.password)); }}
-                      style={{ flex: '1 1 140px', padding: '10px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-strong)', background: 'var(--neutral-bg)', color: 'var(--text)', fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}
-                    >
-                      📋 Copiar mensaje
-                    </button>
-                    {telParaWa(clienteCreado.telefono) && (
-                      <a
-                        href={waLink(mensajeAccesos(clienteCreado.email, clienteCreado.password), telParaWa(clienteCreado.telefono))}
-                        target="_blank" rel="noreferrer"
-                        style={{ flex: '1 1 140px', textAlign: 'center', padding: '10px', borderRadius: 'var(--radius-sm)', textDecoration: 'none', background: '#25D366', color: '#06140B', fontSize: 12.5, fontWeight: 800 }}
-                      >
-                        💬 Enviar por WhatsApp
-                      </a>
-                    )}
-                  </div>
-                  <button onClick={() => setClienteCreado(null)}
-                    style={{ width: '100%', marginTop: 10, padding: '6px', background: 'transparent', border: 'none', color: 'var(--muted)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
-                    Cerrar
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* Lista de clientes */}
-            {loadingClientes ? (
-              <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--muted)', fontSize: 14 }}>Cargando…</div>
-            ) : clientes.length === 0 ? (
-              <div style={{ ...card, textAlign: 'center', padding: '2rem' }}>
-                <p style={{ fontSize: 13, color: 'var(--muted)' }}>Aún no hay clientes dados de alta.</p>
-              </div>
-            ) : clientes.map(c => {
-              const enPase = temporadaVigente(c)
-              const usadas = c.quinielasCreadas ?? 0
-              const permitidas = c.quinielasPermitidas ?? 0
-              const paseFecha = enPase && c.temporadaHasta?.toMillis
-                ? new Date(c.temporadaHasta.toMillis()).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })
-                : null
-              return (
-                <div key={c.id} style={card}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 8 }}>
-                    <div style={{ minWidth: 0 }}>
-                      <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-strong)' }}>
-                        {c.nombre || '(sin nombre)'}{c.empresa ? <span style={{ fontWeight: 500, color: 'var(--muted)' }}> · {c.empresa}</span> : null}
-                      </p>
-                      <p style={{ fontSize: 12, color: 'var(--muted)', wordBreak: 'break-all' }}>{c.email}{c.telefono ? ` · 📱 ${c.telefono}` : ''}</p>
-                    </div>
-                    <span style={{
-                      flexShrink: 0, fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 'var(--radius-full)',
-                      background: c.activo ? 'var(--green-bg)' : 'var(--neutral-bg)',
-                      color: c.activo ? 'var(--green)' : 'var(--muted)',
-                    }}>
-                      {c.activo ? 'Activo' : 'Inactivo'}
-                    </span>
-                  </div>
-                  <p style={{ fontSize: 12, color: 'var(--text)', marginBottom: 12 }}>
-                    {enPase
-                      ? `🏆 Pase Mundial — ilimitadas hasta ${paseFecha}`
-                      : `📊 ${usadas}/${permitidas} quinielas usadas`}
-                    {c.debeCambiarPassword ? <span style={{ color: 'var(--yellow)' }}> · 🔑 contraseña sin cambiar</span> : null}
-                    {c.notas ? <span style={{ color: 'var(--muted)' }}><br />📝 {c.notas}</span> : null}
-                  </p>
-                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                    <button onClick={() => darQuinielaExtra(c)} style={accionBtn}>➕ +1 quiniela ($49)</button>
-                    <button onClick={() => darPaseMundial(c)} style={accionBtn}>🏆 Pase Mundial ($199)</button>
-                    <button onClick={() => toggleActivoCliente(c)} style={accionBtn}>{c.activo ? '⏸ Desactivar' : '▶️ Activar'}</button>
-                    <button onClick={() => editarNotasCliente(c)} style={accionBtn}>📝 Notas</button>
-                    <button
-                      onClick={() => eliminarCliente(c)}
-                      disabled={eliminandoCliente === c.id}
-                      style={{ ...accionBtn, color: 'var(--red)', borderColor: 'var(--red)' }}
-                    >
-                      {eliminandoCliente === c.id ? 'Eliminando…' : '🗑 Eliminar'}
-                    </button>
-                  </div>
-                </div>
-              )
-            })}
-          </>
-        )}
-
-        {/* ── Vista: Caja ─────────────────────────────────────────────────── */}
-        {vista === 'caja' && (
-          <>
-            {cajaNombre === null ? (
-              // ── Lista de saldos ──────────────────────────────────────────
-              <>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, gap: 10 }}>
-                  <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)' }}>Caja</span>
-                  {saldos.length > 1 && (
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--muted)' }}>
-                      Ordenar:
-                      <select
-                        value={cajaOrden}
-                        onChange={e => setCajaOrden(e.target.value)}
-                        style={{
-                          fontSize: 12, padding: '5px 8px', borderRadius: 'var(--radius-sm)',
-                          border: '1px solid var(--border-strong)', background: 'var(--card-light)', color: 'var(--text)',
-                        }}
-                      >
-                        <option value="nombre">Nombre (A-Z)</option>
-                        <option value="monto">Monto (mayor a menor)</option>
-                      </select>
-                    </label>
-                  )}
-                </div>
-
-                <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-                  <input
-                    type="text"
-                    placeholder="Nombre del participante…"
-                    value={buscarNombreCaja}
-                    onChange={e => setBuscarNombreCaja(e.target.value)}
-                    onKeyDown={e => {
-                      if (e.key === 'Enter' && buscarNombreCaja.trim()) {
-                        setCajaNombre(normalizarNombre(buscarNombreCaja.trim()))
-                        setBuscarNombreCaja('')
-                      }
-                    }}
-                    style={{ flex: 1 }}
-                  />
-                  <button
-                    onClick={() => {
-                      if (buscarNombreCaja.trim()) {
-                        setCajaNombre(normalizarNombre(buscarNombreCaja.trim()))
-                        setBuscarNombreCaja('')
-                      }
-                    }}
-                    disabled={!buscarNombreCaja.trim()}
-                    style={{ ...greenCtaStyle(!buscarNombreCaja.trim()), padding: '9px 16px', whiteSpace: 'nowrap' }}
-                  >
-                    Ver →
-                  </button>
-                </div>
-
-                {loadingMovimientos ? (
-                  <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--muted)', fontSize: 14 }}>Cargando…</div>
-                ) : saldos.length === 0 ? (
-                  <div style={{ ...card, textAlign: 'center', padding: '3rem 2rem' }}>
-                    <div style={{ fontSize: 48, marginBottom: 16 }}>💰</div>
-                    <p style={{ fontWeight: 600, fontSize: 16, color: 'var(--text)', marginBottom: 8 }}>Sin movimientos todavía</p>
-                    <p style={{ fontSize: 13, color: 'var(--muted)' }}>Busca un participante arriba para registrar su primer movimiento.</p>
-                  </div>
-                ) : (
-                  saldos.map(({ nombre, saldo }) => (
-                    <div
-                      key={nombre}
-                      onClick={() => setCajaNombre(nombre)}
-                      style={{
-                        ...card, cursor: 'pointer',
-                        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
-                      }}
-                    >
-                      <span style={{ fontWeight: 600, fontSize: 14, color: 'var(--text)' }}>{nombre}</span>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <span style={{
-                          fontSize: 14, fontWeight: 700,
-                          color: saldo > 0 ? 'var(--green)' : saldo === 0 ? 'var(--muted)' : 'var(--red)',
-                        }}>
-                          {saldo >= 0 ? '+' : ''}{formatearMXN(saldo)}
-                        </span>
-                        <span style={{ fontSize: 12, color: 'var(--muted)' }}>→</span>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </>
+              })()
             ) : (
-              // ── Detalle de participante ──────────────────────────────────
-              <>
+              // ── Vista de cliente normal ───────────────────────────────────────
+              quinielasMias.length === 0 ? (
+                <div style={{ ...card, textAlign: 'center', padding: '3rem 2rem' }}>
+                  <div style={{ fontSize: 48, marginBottom: 16 }}>📋</div>
+                  <p style={{ fontWeight: 600, fontSize: 16, color: 'var(--text)', marginBottom: 8 }}>Sin quinielas todavía</p>
+                  <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 20 }}>Crea tu primera quiniela para comenzar.</p>
+                  <button onClick={abrirNuevaQuiniela} style={{ ...greenCtaStyle(false) }}>
+                    Crear ahora →
+                  </button>
+                </div>
+              ) : (() => {
+                const tituloGrupo = { fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }
+                const renderGrupo = (items, titulo, clave, limite, marginTop) => {
+                  if (items.length === 0) return null
+                  const abierto = verTodo[clave]
+                  const visibles = abierto ? items : items.slice(0, limite)
+                  const ocultas = items.length - visibles.length
+                  return (
+                    <>
+                      <p style={{ ...tituloGrupo, marginTop }}>{titulo}</p>
+                      {visibles.map(q => (
+                        <QuinielaCard key={q.id} q={q} conteos={conteos} onGestionar={gestionarQuiniela} />
+                      ))}
+                      {items.length > limite && (
+                        <button
+                          onClick={() => setVerTodo(v => ({ ...v, [clave]: !abierto }))}
+                          style={{ display: 'block', width: '100%', padding: '8px', marginBottom: 4, background: 'transparent', border: '1px dashed var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--muted)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}
+                        >
+                          {abierto ? '▲ Mostrar menos' : `▼ Mostrar ${ocultas} más`}
+                        </button>
+                      )}
+                    </>
+                  )
+                }
+                return (
+                  <>
+                    {renderGrupo(mias.activas, 'Activas', 'mias-activas', 2, 0)}
+                    {renderGrupo(mias.enJuego, 'Jugándose', 'mias-enjuego', 2, mias.activas.length > 0 ? 16 : 0)}
+                    {renderGrupo(mias.finalizadas, 'Finalizadas', 'mias-finalizadas', 0, (mias.activas.length > 0 || mias.enJuego.length > 0) ? 16 : 0)}
+                  </>
+                )
+              })()
+            )}
+          </>
+        )}
+
+
+        {/* ── Vista: Caja — detalle de participante ────────────────────── */}
+        {vista === 'caja' && cajaNombre !== null && (
+          <>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, gap: 10 }}>
+              <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)' }}>Caja</span>
+            </div>
+            <>
                 <div style={{ marginBottom: 16 }}>
                   <p style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>{cajaNombre}</p>
                   <p style={{
@@ -2499,8 +2642,7 @@ export default function Admin() {
                   </div>
                 )}
               </>
-            )}
-          </>
+            </>
         )}
 
         {/* ── Vista: Mi cuenta ─────────────────────────────────────────────── */}
