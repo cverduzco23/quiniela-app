@@ -1,16 +1,67 @@
-# React + Vite
+# QuinielApp ⚽
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Quinielas privadas de futbol para equipos, empresas y grupos de amigos.
+Los participantes entran **sin cuenta** con un código de acceso, registran sus
+predicciones antes del cierre y siguen el ranking en vivo (marcadores de ESPN).
 
-Currently, two official plugins are available:
+- **Producción:** https://quinielapp.fun (deploy automático: push a `main` → Vercel)
+- **Estado, pendientes y prioridades:** ver [ROADMAP.md](ROADMAP.md) ← empezar aquí para retomar
+- **Flujo de clientes y cobro (manual, vigente):** [PLAN_ONBOARDING_CLIENTES.md](PLAN_ONBOARDING_CLIENTES.md)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Stack
 
-## React Compiler
+React 19 + Vite (JSX, estilos inline — sin frameworks CSS, decisión deliberada),
+React Router, Firebase (Firestore + Auth + Analytics, plan Spark gratuito), Vercel.
+Sin backend propio: la app habla directo con Firestore y con la API pública de ESPN
+desde el navegador.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Estructura
 
-## Expanding the ESLint configuration
+```
+src/
+  pages/
+    home.jsx          # Inicio público: buscador por código, lista de quinielas
+    predicciones.jsx  # Form de predicción del participante (sin login)
+    ranking.jsx       # Ranking en vivo con polling ESPN (90s)
+    admin.jsx         # Panel: login, crear/editar quinielas, clientes (super), caja
+  components/         # RankingTable, Paywall, TourBienvenida, Dialogs, etc.
+  utils/              # scoring, cierre, premios, espn, entitlements, etc. (con tests)
+  firebase.js         # Config + helpers (track, crearUsuarioAislado)
+firestore.rules       # Seguridad real (server-side), comentada
+scripts/              # Utilidades locales (generar-predicciones.mjs)
+```
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Modelo de datos (Firestore)
+
+| Colección | Qué guarda | Acceso |
+|---|---|---|
+| `quinielas/{id}` | Nombre, partidos, cierre, resultados, premio/cuota, `ownerUid`, `codigoAcceso` | Lectura pública; escribe dueño/super admin |
+| `predicciones/{id}` | `quinielaId`, nombre del jugador, picks, fecha | Lectura pública; crea cualquiera **antes del cierre** (validado en rules); inmutables |
+| `admins/{uid}` | Perfil + derechos del cliente (`activo`, plan, cuota) | Cada quien su doc; derechos solo los cambia el super admin |
+| `movimientos/{id}` | Caja interna | Solo super admin |
+
+**Roles:** super admin (UID fijo en `firestore.rules` y `admin.jsx`, mantener sincronizados),
+admins-cliente (doc en `admins/`, gate duro `activo`), participantes (anónimos, sin cuenta).
+
+**Puntaje:** 1 pt resultado correcto, +2 pts marcador exacto. Desempates y partidos
+cancelados: ver `src/utils/scoring.js` y sus tests.
+
+## Comandos
+
+```bash
+npm run dev        # desarrollo local
+npm test           # vitest (727 tests)
+npm run lint       # eslint (ignorar errores de .claude/worktrees/, no son del código)
+npm run build      # build de producción
+```
+
+No hay variables de entorno: la config de Firebase es pública por diseño (la seguridad
+vive en `firestore.rules`, no en ocultar las llaves).
+
+## Reglas de oro del proyecto
+
+1. **Costo ~$0** mientras el uso sea familiar/amigos — todo debe caber en capas gratuitas.
+2. **Dinero como premio solo en grupos privados de conocidos** (tema regulatorio SEGOB);
+   para público general el modelo futuro es puntos + anuncios, nunca cash.
+3. Estilos inline, español, sin dependencias pesadas.
+4. Durante torneos activos (ej. Mundial 2026): **solo cambios seguros y aditivos**.

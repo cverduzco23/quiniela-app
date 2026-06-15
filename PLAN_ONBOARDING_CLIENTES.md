@@ -6,6 +6,10 @@
 > paguen, y operen su propia quiniela. Listo para clientes reales: **seguro y escalable**.
 > Fecha de redacción: 2026-06-05.
 
+> ℹ️ **2026-06-11:** los pendientes de seguridad/infra se consolidaron y repriorizaron en
+> [ROADMAP.md](ROADMAP.md) (incluye la auditoría completa de seguridad y costos). Ese
+> documento manda sobre esta sección.
+
 ## ⏳ Pendiente (Fase D — post-lanzamiento, opcional)
 - **Automatizar sincronización de resultados ESPN** (Cloud Function programada, plan Blaze).
   Hoy es manual: el admin da "⚡ Sincronizar ESPN" al terminar los partidos.

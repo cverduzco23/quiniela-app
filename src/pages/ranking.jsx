@@ -7,6 +7,7 @@ import { findEventByTeamsAndDate } from '../utils/espn'
 import { tienePremio } from '../utils/premios'
 import { quinielaCerrada, cierreToDate, tiempoRestante } from '../utils/cierre'
 import { RankingTable } from '../components/RankingTable'
+import { CuentaRegresiva } from '../components/CuentaRegresiva'
 import { Footer } from '../components/Footer'
 
 export default function Ranking() {
@@ -345,6 +346,9 @@ export default function Ranking() {
                 <p style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.4 }}>
                   {subtitulo}
                 </p>
+                <div style={{ marginTop: 8 }}>
+                  <CuentaRegresiva cierre={quiniela.cierre} />
+                </div>
               </div>
               <a
                 href={`/quiniela/${quinielaId}`}

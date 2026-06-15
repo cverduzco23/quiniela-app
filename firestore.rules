@@ -134,5 +134,15 @@ service cloud.firestore {
     match /movimientos/{movimientoId} {
       allow read, write: if isSuperAdmin();
     }
+
+    // ──────────────────────────────────────────────────────────────
+    // config/  (configuración global del producto)
+    // ──────────────────────────────────────────────────────────────
+    // config/home guarda qué secciones del inicio se muestran. Lectura
+    // pública (el home la lee sin sesión); solo el super admin la edita.
+    match /config/{docId} {
+      allow read: if true;
+      allow write: if isSuperAdmin();
+    }
   }
 }

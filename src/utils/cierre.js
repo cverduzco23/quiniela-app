@@ -52,6 +52,27 @@ export function quinielaFinalizada(q) {
   return resultadosCompletos(q)
 }
 
+// ¿Hay algún partido jugándose en este momento? (heurística por horario, sin ESPN)
+// Un partido se considera "en vivo" si ya pasó su hora de inicio, sigue dentro de
+// una ventana de ~2.5h (90 min + medio tiempo + tiempo añadido + margen) y todavía
+// no tiene marcador final ni está cancelado. Pensado para un indicador ligero en el
+// inicio; no es exacto (no contempla retrasos), pero no requiere llamadas a la API.
+export function hayPartidoEnVivo(quiniela, ahora = Date.now()) {
+  const partidos = quiniela?.partidos ?? []
+  const resultados = quiniela?.resultados ?? {}
+  const VENTANA = 2.5 * 60 * 60 * 1000
+  return partidos.some((p, i) => {
+    const r = resultados[i] ?? resultados[String(i)]
+    // Ya tiene marcador final o está cancelado → no está en vivo.
+    if (r?.cancelado) return false
+    if (r && String(r.local ?? '').trim() !== '' && String(r.visitante ?? '').trim() !== '') return false
+    if (!p?.hora) return false
+    const inicio = new Date(p.hora).getTime()
+    if (isNaN(inicio)) return false
+    return ahora >= inicio && ahora <= inicio + VENTANA
+  })
+}
+
 // Tiempo restante hasta el cierre, con nivel de urgencia para badges UI.
 // Devuelve null si no aplica (sin cierre, ya pasó, falta más de 24h).
 // Niveles:

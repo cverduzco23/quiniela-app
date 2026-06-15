@@ -16,6 +16,8 @@ import { TIPO_PREMIO, MODELO_PREMIO, calcularBote, tienePremio, formatearMXN } f
 import { normalizarNombre } from '../utils/nombres'
 import { detectarSimilares } from '../utils/duplicados'
 import { findEventByTeamsAndDate } from '../utils/espn'
+import { LABELS_SECCIONES_HOME, ordenSeccionesHome } from '../utils/homeSections'
+import { EmojiPicker } from '../components/EmojiPicker'
 
 // UIDs con privilegios globales (ver/editar todas las quinielas).
 // Mantener sincronizado con `isSuperAdmin()` en firestore.rules.
@@ -164,6 +166,22 @@ function validarCierreVsPartidos(cierreInput, partidos) {
 // Hora (ISO) del primer partido con hora definida, o null si ninguno la tiene.
 function primeraHoraPartido(partidos) {
   return (partidos ?? []).map(p => p?.hora).filter(Boolean).sort()[0] ?? null
+}
+
+// Ordena los partidos por hora, del más próximo al más lejano.
+// Los partidos sin hora (agregados a mano) se van al final, conservando su orden.
+function ordenarPorHora(partidos) {
+  return [...(partidos ?? [])]
+    .map((p, i) => ({ p, i }))
+    .sort((a, b) => {
+      const ha = a.p?.hora || ''
+      const hb = b.p?.hora || ''
+      if (!ha && !hb) return a.i - b.i   // ambos sin hora: orden original
+      if (!ha) return 1                  // sin hora → al final
+      if (!hb) return -1
+      return ha < hb ? -1 : ha > hb ? 1 : a.i - b.i
+    })
+    .map(x => x.p)
 }
 
 // Cierre sugerido (valor listo para <input datetime-local>) = primer partido − margen.
@@ -569,12 +587,60 @@ export default function Admin() {
   // Qué grupos de la lista están expandidos (clave → bool), para el "Mostrar más".
   const [verTodo, setVerTodo]             = useState({})
 
+  // ─── Config del inicio (solo super admin) ─────────────────────────────────
+  // Qué secciones del home se muestran. Campo ausente = visible (default seguro).
+  const [homeConfig, setHomeConfig]       = useState(null)
+  const [guardandoHome, setGuardandoHome] = useState(null)
+
   // Cargar la lista de clientes para el super admin: en el tab Clientes y también
   // en la lista (para etiquetar de quién es cada quiniela de "otros admins").
   useEffect(() => {
     if (autenticado && authListo && soySuper && (vista === 'clientes' || vista === 'lista')) cargarClientes()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autenticado, authListo, soySuper, vista])
+
+  // Cargar la config del inicio (qué secciones se muestran) — solo super admin.
+  useEffect(() => {
+    if (!autenticado || !authListo || !soySuper) return
+    getDoc(doc(db, 'config', 'home'))
+      .then(s => setHomeConfig(s.exists() ? s.data() : {}))
+      .catch(() => setHomeConfig({}))
+  }, [autenticado, authListo, soySuper])
+
+  // Activar/desactivar una sección del inicio. `clave` = campo en config/home.
+  // Default (campo ausente) = visible, por eso el toggle invierte `!== false`.
+  const toggleSeccionHome = async (clave) => {
+    const visibleActual = homeConfig?.[clave] !== false
+    const nuevoValor = !visibleActual
+    setGuardandoHome(clave)
+    try {
+      await setDoc(doc(db, 'config', 'home'), { [clave]: nuevoValor }, { merge: true })
+      setHomeConfig(c => ({ ...(c ?? {}), [clave]: nuevoValor }))
+    } catch {
+      alerta('No se pudo guardar el cambio. Intenta de nuevo.')
+    } finally {
+      setGuardandoHome(null)
+    }
+  }
+
+  // Mover una sección del inicio hacia arriba (dir=-1) o abajo (dir=+1).
+  // Guarda el orden completo en config/home.orden.
+  const moverSeccionHome = async (clave, dir) => {
+    const arr = ordenSeccionesHome(homeConfig)
+    const i = arr.indexOf(clave)
+    const j = i + dir
+    if (i < 0 || j < 0 || j >= arr.length) return
+    ;[arr[i], arr[j]] = [arr[j], arr[i]]
+    setGuardandoHome(clave)
+    try {
+      await setDoc(doc(db, 'config', 'home'), { orden: arr }, { merge: true })
+      setHomeConfig(c => ({ ...(c ?? {}), orden: arr }))
+    } catch {
+      alerta('No se pudo guardar el orden. Intenta de nuevo.')
+    } finally {
+      setGuardandoHome(null)
+    }
+  }
 
   // ─── Formulario nueva quiniela ────────────────────────────────────────────
   const [nombre, setNombre]     = useState('')
@@ -655,6 +721,8 @@ export default function Admin() {
   const [nuevaNota, setNuevaNota]                   = useState('')
   const [guardandoMov, setGuardandoMov]             = useState(false)
   const [buscarNombreCaja, setBuscarNombreCaja]     = useState('')
+  // Orden de la lista de saldos en Caja: 'nombre' (A-Z) o 'monto' (mayor a menor).
+  const [cajaOrden, setCajaOrden]                   = useState('nombre')
 
   // Declarado antes de los useEffects que lo usan para evitar la zona muerta temporal
   const cargarQuinielas = async () => {
@@ -866,7 +934,7 @@ export default function Admin() {
       setFixtures([])
       return
     }
-    const lista = [...baseExistente, ...aceptados]
+    const lista = ordenarPorHora([...baseExistente, ...aceptados])
     setPartidos(lista)
     // Auto-rellenar el cierre si está vacío: el usuario no debe calcular la fecha.
     if (!cierre) {
@@ -885,7 +953,7 @@ export default function Admin() {
       setFixtures([])
       return
     }
-    const lista = [...editPartidos, ...aceptados]
+    const lista = ordenarPorHora([...editPartidos, ...aceptados])
     setEditPartidos(lista)
     // Auto-rellenar el cierre solo si está vacío (en edición normalmente ya tiene valor).
     if (!editCierre) {
@@ -1572,7 +1640,9 @@ export default function Admin() {
       nombre,
       saldo: movs.reduce((acc, m) => acc + ((m.tipo === 'premio' || m.tipo === 'deposito') ? m.monto : -m.monto), 0),
     }))
-    .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es-MX'))
+    .sort((a, b) => cajaOrden === 'monto'
+      ? b.saldo - a.saldo || a.nombre.localeCompare(b.nombre, 'es-MX')
+      : a.nombre.localeCompare(b.nombre, 'es-MX'))
   const movimientosParticipante = cajaNombre ? movimientos.filter(m => m.nombre === cajaNombre) : []
   const saldoParticipante = movimientosParticipante.reduce(
     (acc, m) => acc + ((m.tipo === 'premio' || m.tipo === 'deposito') ? m.monto : -m.monto),
@@ -1949,6 +2019,86 @@ export default function Admin() {
               </div>
             )}
 
+            {/* Secciones del inicio (solo super admin): mostrar/ocultar y reordenar bloques del home. */}
+            {soySuper && (() => {
+              const abierto = verTodo['home-config']
+              const orden = ordenSeccionesHome(homeConfig)
+              const flecha = (clave, dir, deshabilitada) => (
+                <button
+                  onClick={() => !deshabilitada && guardandoHome === null && moverSeccionHome(clave, dir)}
+                  disabled={deshabilitada || guardandoHome !== null}
+                  aria-label={dir < 0 ? 'Subir' : 'Bajar'}
+                  style={{
+                    width: 26, height: 26, lineHeight: 1, padding: 0, borderRadius: 'var(--radius-sm)',
+                    border: '1px solid var(--border-strong)', background: 'var(--card-light)',
+                    color: deshabilitada ? 'var(--border-strong)' : 'var(--text)',
+                    cursor: deshabilitada || guardandoHome !== null ? 'not-allowed' : 'pointer',
+                    fontSize: 12, fontWeight: 700,
+                  }}
+                >
+                  {dir < 0 ? '↑' : '↓'}
+                </button>
+              )
+              return (
+                <div style={{ ...card, padding: '0.9rem 1.1rem' }}>
+                  <button
+                    onClick={() => setVerTodo(v => ({ ...v, 'home-config': !v['home-config'] }))}
+                    style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%',
+                      padding: 0, background: 'transparent', border: 'none', cursor: 'pointer',
+                    }}
+                  >
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, fontWeight: 700, color: 'var(--text-strong)' }}>
+                      🏠 Secciones del inicio
+                    </span>
+                    <span style={{ color: 'var(--muted)', fontSize: 12 }}>{abierto ? '▲ Ocultar' : '▼ Mostrar'}</span>
+                  </button>
+                  {abierto && (
+                    <div style={{ marginTop: 12 }}>
+                      <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 10, lineHeight: 1.45 }}>
+                        Marca qué bloques se ven en la página de inicio (quinielapp.fun) y usa las flechas para cambiar su orden. Los cambios aplican de inmediato.
+                      </p>
+                      {homeConfig === null ? (
+                        <p style={{ fontSize: 12.5, color: 'var(--muted)' }}>Cargando…</p>
+                      ) : orden.map((clave, idx) => {
+                        const label = LABELS_SECCIONES_HOME[clave] ?? clave
+                        const visible = homeConfig?.[clave] !== false
+                        const cargando = guardandoHome === clave
+                        return (
+                          <div
+                            key={clave}
+                            style={{
+                              display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0',
+                              borderTop: '1px solid var(--border)',
+                              opacity: cargando ? 0.6 : 1,
+                            }}
+                          >
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                              {flecha(clave, -1, idx === 0)}
+                              {flecha(clave, 1, idx === orden.length - 1)}
+                            </div>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, cursor: cargando ? 'wait' : 'pointer' }}>
+                              <input
+                                type="checkbox"
+                                checked={visible}
+                                disabled={cargando}
+                                onChange={() => toggleSeccionHome(clave)}
+                                style={{ width: 17, height: 17, accentColor: 'var(--green)', cursor: 'inherit' }}
+                              />
+                              <span style={{ fontSize: 13, color: visible ? 'var(--text)' : 'var(--muted)', flex: 1 }}>{label}</span>
+                              <span style={{ fontSize: 11, fontWeight: 700, color: visible ? 'var(--green)' : 'var(--muted)' }}>
+                                {visible ? 'Visible' : 'Oculta'}
+                              </span>
+                            </label>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
+
             {loadingLista ? (
               <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--muted)', fontSize: 14 }}>Cargando…</div>
             ) : quinielasMias.length === 0 && quinielasOtras.length === 0 ? (
@@ -1988,9 +2138,9 @@ export default function Admin() {
               }
               const renderBloque = (sec, prefijo, conDueno = false) => (
                 <>
-                  {renderGrupo(sec.activas, 'Activas', `${prefijo}-activas`, 5, conDueno, 0)}
-                  {renderGrupo(sec.enJuego, 'Jugándose', `${prefijo}-enjuego`, Infinity, conDueno, sec.activas.length > 0 ? 16 : 0)}
-                  {renderGrupo(sec.finalizadas, 'Finalizadas', `${prefijo}-finalizadas`, 2, conDueno, (sec.activas.length > 0 || sec.enJuego.length > 0) ? 16 : 0)}
+                  {renderGrupo(sec.activas, 'Activas', `${prefijo}-activas`, 2, conDueno, 0)}
+                  {renderGrupo(sec.enJuego, 'Jugándose', `${prefijo}-enjuego`, 2, conDueno, sec.activas.length > 0 ? 16 : 0)}
+                  {renderGrupo(sec.finalizadas, 'Finalizadas', `${prefijo}-finalizadas`, 0, conDueno, (sec.activas.length > 0 || sec.enJuego.length > 0) ? 16 : 0)}
                 </>
               )
               return (
@@ -2003,10 +2153,18 @@ export default function Admin() {
                       {quinielasMias.length > 0
                         ? renderBloque(mias, 'mias')
                         : <p style={{ fontSize: 12, color: 'var(--muted)', fontStyle: 'italic', marginBottom: 12 }}>Aún no has creado quinielas.</p>}
-                      <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginTop: 28, marginBottom: 10, letterSpacing: 0.2 }}>
-                        De otros admins
-                      </p>
-                      {renderBloque(otras, 'otras', true)}
+                      <button
+                        onClick={() => setVerTodo(v => ({ ...v, 'otros-bloque': !v['otros-bloque'] }))}
+                        style={{
+                          display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%',
+                          marginTop: 28, marginBottom: 10, padding: 0, background: 'transparent', border: 'none',
+                          cursor: 'pointer', color: 'var(--text)', fontSize: 13, fontWeight: 700, letterSpacing: 0.2,
+                        }}
+                      >
+                        <span>De otros admins {quinielasOtras.length > 0 && <span style={{ color: 'var(--muted)', fontWeight: 600 }}>({quinielasOtras.length})</span>}</span>
+                        <span style={{ color: 'var(--muted)', fontSize: 12 }}>{verTodo['otros-bloque'] ? '▲ Ocultar' : '▼ Mostrar'}</span>
+                      </button>
+                      {verTodo['otros-bloque'] && renderBloque(otras, 'otras', true)}
                     </>
                   ) : (
                     renderBloque(mias, 'mias')
@@ -2148,8 +2306,24 @@ export default function Admin() {
             {cajaNombre === null ? (
               // ── Lista de saldos ──────────────────────────────────────────
               <>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, gap: 10 }}>
                   <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)' }}>Caja</span>
+                  {saldos.length > 1 && (
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--muted)' }}>
+                      Ordenar:
+                      <select
+                        value={cajaOrden}
+                        onChange={e => setCajaOrden(e.target.value)}
+                        style={{
+                          fontSize: 12, padding: '5px 8px', borderRadius: 'var(--radius-sm)',
+                          border: '1px solid var(--border-strong)', background: 'var(--card-light)', color: 'var(--text)',
+                        }}
+                      >
+                        <option value="nombre">Nombre (A-Z)</option>
+                        <option value="monto">Monto (mayor a menor)</option>
+                      </select>
+                    </label>
+                  )}
                 </div>
 
                 <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
@@ -2433,7 +2607,10 @@ export default function Admin() {
             {/* 1. ¿Qué es? — identidad de la quiniela */}
             <div style={card}>
               <label htmlFor="quiniela-nombre" style={lbl}>Nombre de la quiniela</label>
-              <input id="quiniela-nombre" type="text" placeholder="Ej. Jornada 17 — Liga MX" value={nombre} onChange={e => setNombre(e.target.value)} style={{ marginBottom: 14 }} />
+              <div style={{ display: 'flex', gap: 8, alignItems: 'stretch', marginBottom: 14 }}>
+                <input id="quiniela-nombre" type="text" placeholder="Ej. Jornada 17 — Liga MX" value={nombre} onChange={e => setNombre(e.target.value)} style={{ flex: 1, marginBottom: 0 }} />
+                <EmojiPicker inputId="quiniela-nombre" value={nombre} onChange={setNombre} />
+              </div>
 
               <label htmlFor="quiniela-empresa" style={{ ...lbl, marginBottom: 4 }}>Empresa u organización <span style={{ color: 'var(--muted)', fontWeight: 500, textTransform: 'none', letterSpacing: 0 }}>(opcional)</span></label>
               <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>
@@ -3052,7 +3229,10 @@ export default function Admin() {
                   {/* 1. ¿Qué es? */}
                   <div style={card}>
                     <label htmlFor="edit-nombre" style={lbl}>Nombre de la quiniela</label>
-                    <input id="edit-nombre" type="text" value={editNombre} onChange={e => setEditNombre(e.target.value)} placeholder="Nombre de la quiniela" style={{ marginBottom: 14 }} />
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'stretch', marginBottom: 14 }}>
+                      <input id="edit-nombre" type="text" value={editNombre} onChange={e => setEditNombre(e.target.value)} placeholder="Nombre de la quiniela" style={{ flex: 1, marginBottom: 0 }} />
+                      <EmojiPicker inputId="edit-nombre" value={editNombre} onChange={setEditNombre} />
+                    </div>
 
                     <label htmlFor="edit-empresa" style={{ ...lbl, marginBottom: 4 }}>Empresa u organización <span style={{ color: 'var(--muted)', fontWeight: 500, textTransform: 'none', letterSpacing: 0 }}>(opcional)</span></label>
                     <input id="edit-empresa" type="text" placeholder="Ej. Construcciones ACME" value={editEmpresa} onChange={e => setEditEmpresa(e.target.value)} />
@@ -3274,10 +3454,14 @@ export default function Admin() {
                     }
                     lineas.push('')
                     if (quinielaActual.codigoAcceso) {
-                      lineas.push(`🔑 Entra a quinielapp.fun y mete el código:`)
+                      lineas.push(`🔑 Entra a https://quinielapp.fun y mete el código:`)
                       lineas.push(`   ${quinielaActual.codigoAcceso}`)
                     } else {
                       lineas.push(`🔗 ${linkJugadores}`)
+                    }
+                    if (Number(quinielaActual.cuota) > 0) {
+                      lineas.push('')
+                      lineas.push(`💵 Cuota: ${formatearMXN(quinielaActual.cuota)}`)
                     }
                     if (quinielaActual.cierre) {
                       const d = cierreToDate(quinielaActual.cierre)

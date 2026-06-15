@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { collection, getDocs, query, orderBy, limit, where } from 'firebase/firestore'
+import { collection, getDocs, query, orderBy, limit, where, doc, getDoc } from 'firebase/firestore'
 import { db, track } from '../firebase'
-import { cierreToDate, quinielaCerrada, quinielaFinalizada } from '../utils/cierre'
+import { cierreToDate, quinielaCerrada, quinielaFinalizada, hayPartidoEnVivo } from '../utils/cierre'
 import { tienePremio } from '../utils/premios'
 import { PromoCTA } from '../components/PromoCTA'
 import { Footer } from '../components/Footer'
 import { waLink, MENSAJES_WA } from '../utils/whatsapp'
+import { ordenSeccionesHome } from '../utils/homeSections'
+import { CuentaRegresiva } from '../components/CuentaRegresiva'
 
 const sinPremioBadgeStyle = {
   display: 'inline-flex', alignItems: 'center', gap: 4,
@@ -48,6 +50,9 @@ export default function Home() {
   const [quinielas, setQuinielas] = useState([])
   const [conteos, setConteos]     = useState({})
   const [cargando, setCargando]   = useState(true)
+  // Config de secciones visibles (la edita el super admin). Campo ausente = visible.
+  const [homeConfig, setHomeConfig] = useState({})
+  const verSeccion = (clave) => homeConfig?.[clave] !== false
 
   // Buscador por código de acceso
   const navigate = useNavigate()
@@ -98,6 +103,20 @@ export default function Home() {
   }
 
   useEffect(() => {
+    // Config del inicio: no bloquea la carga; si falla, todo queda visible.
+    getDoc(doc(db, 'config', 'home'))
+      .then(s => { if (s.exists()) setHomeConfig(s.data()) })
+      .catch(() => {})
+  }, [])
+
+  // Tick cada 30s para refrescar el indicador "Partido en vivo" sin recargar.
+  const [, setTickVivo] = useState(0)
+  useEffect(() => {
+    const i = setInterval(() => setTickVivo(t => t + 1), 30000)
+    return () => clearInterval(i)
+  }, [])
+
+  useEffect(() => {
     Promise.all([
       getDocs(query(collection(db, 'quinielas'), orderBy('creada', 'desc'), limit(10))),
       getDocs(collection(db, 'predicciones')),
@@ -137,6 +156,12 @@ export default function Home() {
   const principal     = activas.find(q => q.destacada) ?? activas[0] ?? null
   const otrasActivas  = activas.filter(q => q.id !== principal?.id)
 
+  // Orden configurable de las secciones (lo controla el super admin). Usamos
+  // flexbox `order`: cada sección recibe su posición; los bloques fijos del pie
+  // (imagen, promo, disclaimer) quedan al final con un order alto.
+  const ordenHome = ordenSeccionesHome(homeConfig)
+  const ordenDe = (clave) => ordenHome.indexOf(clave)
+
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
       {/* Hero */}
@@ -150,10 +175,12 @@ export default function Home() {
         </div>
       </div>
 
-      <div style={{ maxWidth: 560, margin: '0 auto', padding: '1.5rem 1rem 3rem' }}>
+      <div style={{ maxWidth: 560, margin: '0 auto', padding: '1.5rem 1rem 3rem', display: 'flex', flexDirection: 'column' }}>
 
         {/* ── Buscador por código de acceso (CTA principal) ──────────── */}
+        {verSeccion('mostrarCodigo') && (
         <div style={{
+          order: ordenDe('mostrarCodigo'),
           background: 'var(--card)', borderRadius: 'var(--radius-lg)',
           padding: '1.25rem 1.5rem', marginBottom: 24,
           border: '1.5px solid var(--green)', boxShadow: 'var(--shadow-md)',
@@ -203,9 +230,11 @@ export default function Home() {
             </p>
           )}
         </div>
+        )}
 
         {/* ── ¿Cómo funciona? (3 pasos, para quien llega por primera vez) ─── */}
-        <div style={{ marginBottom: 24 }}>
+        {verSeccion('mostrarComoFunciona') && (
+        <div style={{ order: ordenDe('mostrarComoFunciona'), marginBottom: 24 }}>
           <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
             ¿Cómo funciona?
           </p>
@@ -227,9 +256,12 @@ export default function Home() {
             ))}
           </div>
         </div>
+        )}
 
         {/* ── CTA: crear tu propia quiniela (alta vía WhatsApp) ──────────── */}
+        {verSeccion('mostrarCrearQuiniela') && (
         <div style={{
+          order: ordenDe('mostrarCrearQuiniela'),
           background: 'var(--card)', borderRadius: 'var(--radius-lg)',
           padding: '1.25rem 1.5rem', marginBottom: 24,
           border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)',
@@ -270,9 +302,10 @@ export default function Home() {
             ¿Ya tienes cuenta? <span style={{ color: 'var(--green-light)', textDecoration: 'underline' }}>Entrar a mi panel →</span>
           </a>
         </div>
+        )}
 
-        {!principal && enJuego.length === 0 && !ultimaFinal && (
-          <div style={{ background: 'var(--card)', borderRadius: 'var(--radius-lg)', padding: '2.5rem 2rem', textAlign: 'center', boxShadow: 'var(--shadow-sm)', border: '1px solid var(--border)' }}>
+        {verSeccion('mostrarActiva') && !principal && enJuego.length === 0 && !ultimaFinal && (
+          <div style={{ order: ordenDe('mostrarActiva'), marginBottom: 24, background: 'var(--card)', borderRadius: 'var(--radius-lg)', padding: '2.5rem 2rem', textAlign: 'center', boxShadow: 'var(--shadow-sm)', border: '1px solid var(--border)' }}>
             <div style={{ fontSize: 48, marginBottom: 14 }}>⚽</div>
             <p style={{ fontWeight: 700, fontSize: 16, color: 'var(--text)', marginBottom: 6 }}>No hay quinielas públicas activas</p>
             <p style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.5 }}>Si te invitaron a una quiniela privada, ingresa el código arriba para entrar.</p>
@@ -280,8 +313,8 @@ export default function Home() {
         )}
 
         {/* Quiniela activa principal */}
-        {principal && (
-          <div style={{ marginBottom: 20 }}>
+        {verSeccion('mostrarActiva') && principal && (
+          <div style={{ order: ordenDe('mostrarActiva'), marginBottom: 20 }}>
             <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
               Quiniela activa
             </p>
@@ -306,6 +339,7 @@ export default function Home() {
                     ⏳ Cierra: {formatFecha(principal.cierre)}
                   </span>
                 )}
+                <CuentaRegresiva cierre={principal.cierre} />
               </div>
               <a href={`/quiniela/${principal.id}`} style={{ ...ctaPrimary, marginBottom: 10 }}>
                 Hacer mi predicción →
@@ -318,8 +352,8 @@ export default function Home() {
         )}
 
         {/* Otras activas */}
-        {otrasActivas.length > 0 && (
-          <div style={{ marginBottom: 20 }}>
+        {verSeccion('mostrarActiva') && otrasActivas.length > 0 && (
+          <div style={{ order: ordenDe('mostrarActiva'), marginBottom: 20 }}>
             <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
               Otras quinielas activas
             </p>
@@ -352,22 +386,36 @@ export default function Home() {
         )}
 
         {/* Jugándose ahora (todas) */}
-        {enJuego.length > 0 && (
-          <div style={{ marginBottom: 20 }}>
+        {verSeccion('mostrarJugandose') && enJuego.length > 0 && (
+          <div style={{ order: ordenDe('mostrarJugandose'), marginBottom: 20 }}>
             <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
               Jugándose ahora
             </p>
-            {enJuego.map(q => (
-              <div key={q.id} style={{ background: 'var(--card)', borderRadius: 'var(--radius-lg)', padding: '1.25rem 1.5rem', border: '1px solid var(--yellow-soft)', marginBottom: 10 }}>
+            {enJuego.map(q => {
+              const enVivo = hayPartidoEnVivo(q)
+              return (
+              <div key={q.id} style={{ background: 'var(--card)', borderRadius: 'var(--radius-lg)', padding: '1.25rem 1.5rem', border: `1px solid ${enVivo ? 'var(--red)' : 'var(--yellow-soft)'}`, marginBottom: 10 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
                   <p style={{ fontSize: 16, fontWeight: 600, color: 'var(--text)' }}>{q.nombre}</p>
-                  <span style={{
-                    fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 'var(--radius-full)',
-                    flexShrink: 0, marginLeft: 8,
-                    background: 'var(--yellow-bg)', color: 'var(--yellow)',
-                  }}>
-                    Jugándose
-                  </span>
+                  {enVivo ? (
+                    <span style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 6,
+                      fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 'var(--radius-full)',
+                      flexShrink: 0, marginLeft: 8,
+                      background: 'var(--red-bg-strong)', color: '#FCA5A5', border: '1px solid var(--red)',
+                    }}>
+                      <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#FCA5A5', display: 'inline-block' }} />
+                      Partido en vivo
+                    </span>
+                  ) : (
+                    <span style={{
+                      fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 'var(--radius-full)',
+                      flexShrink: 0, marginLeft: 8,
+                      background: 'var(--yellow-bg)', color: 'var(--yellow)',
+                    }}>
+                      Jugándose
+                    </span>
+                  )}
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
                   <p style={{ fontSize: 12, color: 'var(--muted)' }}>
@@ -379,13 +427,14 @@ export default function Home() {
                   Ver ranking completo →
                 </a>
               </div>
-            ))}
+              )
+            })}
           </div>
         )}
 
         {/* Última finalizada */}
-        {ultimaFinal && (
-          <div>
+        {verSeccion('mostrarTerminada') && ultimaFinal && (
+          <div style={{ order: ordenDe('mostrarTerminada'), marginBottom: 24 }}>
             <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
               {principal || enJuego.length > 0 ? 'Última quiniela terminada' : 'Quiniela más reciente'}
             </p>
@@ -413,28 +462,36 @@ export default function Home() {
           </div>
         )}
 
-        {/* Imagen decorativa */}
-        <div style={{ marginTop: 24, textAlign: 'center' }}>
-          <img
-            src="/jugador-verde.png"
-            alt=""
-            style={{ width: '100%', maxWidth: 360, height: 'auto', display: 'block', margin: '0 auto' }}
-          />
+        {/* Imagen decorativa (ordenable) */}
+        {verSeccion('mostrarImagen') && (
+          <div style={{ order: ordenDe('mostrarImagen'), marginBottom: 24, textAlign: 'center' }}>
+            <img
+              src="/jugador-verde.png"
+              alt=""
+              style={{ width: '100%', maxWidth: 360, height: 'auto', display: 'block', margin: '0 auto' }}
+            />
+          </div>
+        )}
+
+        {/* CTA comercial discreto (ordenable) */}
+        {verSeccion('mostrarPromo') && (
+          <div style={{ order: ordenDe('mostrarPromo'), marginBottom: 24 }}>
+            <PromoCTA />
+          </div>
+        )}
+
+        {/* Disclaimer + footer: siempre al final, sin importar el orden de las secciones. */}
+        <div style={{ order: 99 }}>
+          <p style={{
+            fontSize: 11, color: 'var(--muted)', textAlign: 'center',
+            marginTop: 16, padding: '0 1rem', lineHeight: 1.6, fontStyle: 'italic',
+          }}>
+            Plataforma para crear quinielas privadas entre grupos cerrados.
+            <br />No es una plataforma de apuestas comerciales.
+          </p>
+
+          <Footer />
         </div>
-
-        {/* CTA comercial discreto */}
-        <PromoCTA />
-
-        {/* Disclaimer al fondo */}
-        <p style={{
-          fontSize: 11, color: 'var(--muted)', textAlign: 'center',
-          marginTop: 16, padding: '0 1rem', lineHeight: 1.6, fontStyle: 'italic',
-        }}>
-          Plataforma para crear quinielas privadas entre grupos cerrados.
-          <br />No es una plataforma de apuestas comerciales.
-        </p>
-
-        <Footer />
       </div>
     </div>
   )
