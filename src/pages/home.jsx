@@ -403,6 +403,7 @@ export default function Home() {
                       fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 'var(--radius-full)',
                       flexShrink: 0, marginLeft: 8,
                       background: 'var(--red-bg-strong)', color: '#FCA5A5', border: '1px solid var(--red)',
+                      animation: 'pulse-badge 1.4s ease-in-out infinite',
                     }}>
                       <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#FCA5A5', display: 'inline-block' }} />
                       Partido en vivo

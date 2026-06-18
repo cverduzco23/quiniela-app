@@ -33,7 +33,7 @@ const PAGE_SIZE = 50
 // Por debajo de este umbral, scrollear es más rápido.
 const UMBRAL_BUSQUEDA = 20
 
-export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStats = {} }) {
+export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStats = {}, liveEventos = {} }) {
   const { alerta } = useDialog()
   const [expandido, setExpandido]               = useState(new Set())
   const [expandidoPartido, setExpandidoPartido] = useState(new Set())
@@ -186,6 +186,7 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
             const tieneStats = !!p.espnId
             const partidoAbierto = expandidoPartido.has(i)
             const st = liveStats[p.espnId]
+            const eventos = liveEventos[p.espnId] ?? []
             const hayStats = !!st && st.state !== 'pre'
             const hayResumen = tieneStats && (esFinish || !!stored) && !cancelado
             const tieneAlgo = hayStats || hayResumen
@@ -261,11 +262,28 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                         ))}
                       </>
                     )}
+                    {eventos.length > 0 && (
+                      <div style={{ marginTop: hayStats ? 12 : 0, paddingTop: hayStats ? 10 : 0, borderTop: hayStats ? '1px solid var(--border)' : 'none' }}>
+                        <p style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6, textAlign: 'center' }}>Últimos eventos</p>
+                        {[...eventos].reverse().map((ev, j) => {
+                          const izq = ev.lado === 'home'
+                          return (
+                            <div key={j} style={{ display: 'flex', alignItems: 'center', flexDirection: izq ? 'row' : 'row-reverse', gap: 6, padding: '3px 0' }}>
+                              <span style={{ fontSize: 13 }}>{ev.emoji}</span>
+                              <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', minWidth: 30, textAlign: izq ? 'left' : 'right' }}>{ev.minuto}</span>
+                              <span style={{ fontSize: 12, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {ev.jugador}{ev.ownGoal ? ' (a.g.)' : ''}
+                              </span>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
                     {hayResumen && (
                       <a
                         href={`https://www.espn.com/soccer/match/_/gameId/${p.espnId}`}
                         target="_blank" rel="noreferrer"
-                        style={{ display: 'block', fontSize: 11, color: 'var(--muted)', textDecoration: 'none', textAlign: 'center', marginTop: hayStats ? 10 : 0 }}
+                        style={{ display: 'block', fontSize: 11, color: 'var(--muted)', textDecoration: 'none', textAlign: 'center', marginTop: 10 }}
                       >
                         Ver resumen del partido →
                       </a>

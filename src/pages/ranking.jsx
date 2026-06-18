@@ -22,6 +22,7 @@ export default function Ranking() {
   const [error, setError]               = useState(null)
   const [liveScores, setLiveScores]     = useState({})
   const [liveStats, setLiveStats]       = useState({})
+  const [liveEventos, setLiveEventos]   = useState({})
   const [ultimaAct, setUltimaAct]       = useState(null)
   const [actualizando, setActualizando] = useState(false)
 
@@ -63,6 +64,7 @@ export default function Ranking() {
     const getStat = (stats, name) => stats?.find(s => s.name === name)?.displayValue ?? '—'
     const nuevos = {}
     const nuevosStats = {}
+    const nuevosEventos = {}
     const idsCorregidos = []
     // ESPN agrupa los eventos por fecha en hora del Este de EE.UU. Un partido que
     // arrancó tarde (ej. 10pm CDMX = 11pm ET) puede seguir "en vivo" pero ESPN ya
@@ -125,11 +127,33 @@ export default function Ranking() {
               faltas:       getStat(away?.statistics, 'foulsCommitted'),
             },
           }
+          // Eventos del partido (goles, tarjetas, cambios). ESPN los entrega
+          // en orden cronológico; los mostramos todos (recientes arriba en la tabla).
+          const detalles = ev.competitions?.[0]?.details ?? []
+          const eventos = detalles.map(dt => {
+            const teamId = dt.team?.id
+            const lado = teamId === home?.team?.id ? 'home' : teamId === away?.team?.id ? 'away' : null
+            const jugador = dt.athletesInvolved?.[0]?.shortName || dt.athletesInvolved?.[0]?.displayName || ''
+            let emoji = '•'
+            if (dt.scoringPlay) emoji = '⚽'
+            else if (dt.redCard) emoji = '🟥'
+            else if (dt.yellowCard) emoji = '🟨'
+            else if (/substitution/i.test(dt.type?.text || '')) emoji = '🔄'
+            return {
+              emoji,
+              minuto: dt.clock?.displayValue || '',
+              lado,
+              jugador,
+              ownGoal: !!dt.ownGoal,
+            }
+          })
+          if (eventos.length > 0) nuevosEventos[p.espnId] = eventos
         })
       } catch { /* silencioso */ }
     }
     setLiveScores(prev => ({ ...prev, ...nuevos }))
     setLiveStats(prev => ({ ...prev, ...nuevosStats }))
+    setLiveEventos(prev => ({ ...prev, ...nuevosEventos }))
     setUltimaAct(new Date())
 
     if (idsCorregidos.length > 0) {
@@ -279,6 +303,7 @@ export default function Ranking() {
               padding: '4px 12px', borderRadius: 'var(--radius-full)',
               background: enVivo ? 'var(--red-bg-strong)' : 'var(--neutral-bg)',
               border: `1px solid ${enVivo ? 'var(--red)' : 'var(--border)'}`,
+              animation: enVivo ? 'pulse-badge 1.4s ease-in-out infinite' : 'none',
             }}>
               {enVivo && <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#FCA5A5', display: 'inline-block' }} />}
               {enVivo ? 'EN VIVO' : terminados === 0 ? 'Sin resultados aún' : `${terminados}/${partidos.length} partidos terminados`}
@@ -321,16 +346,13 @@ export default function Ranking() {
           const tr = tiempoRestante(quiniela.cierre)
           // Tono del banner según urgencia
           const border = tr?.nivel === 'critico' ? 'var(--red)' : tr?.nivel === 'urgente' ? 'var(--yellow)' : 'var(--green)'
+          // El timer (CuentaRegresiva) solo aparece en las últimas 24h. Cuando está,
+          // el subtítulo "antes del cierre" sobra: dejamos título + timer + botón.
+          const hayTimer = tr?.nivel === 'critico' || tr?.nivel === 'urgente'
           const titulo = tr?.nivel === 'critico'
-            ? `⏰ ¡Último momento! ${tr.texto.replace('⏰ ', '')}`
-            : tr?.nivel === 'urgente'
-              ? `⏳ Cierra pronto — registra tu predicción`
-              : '¿Aún no haces tu predicción?'
-          const subtitulo = tr?.nivel === 'critico'
-            ? 'No te quedes fuera, regístrate ahora.'
-            : tr?.nivel === 'urgente'
-              ? tr.texto.replace('⏳ ', '')
-              : 'Regístrate antes del cierre para aparecer en este ranking.'
+            ? '⏰ ¡Último momento para entrar!'
+            : '¿Aún no haces tu predicción?'
+          const subtitulo = hayTimer ? null : 'Regístrate antes del cierre para aparecer en este ranking.'
           const cta = tr?.nivel === 'critico' ? 'Registrar ahora →' : 'Hacer mi predicción →'
           return (
             <div style={{
@@ -340,13 +362,15 @@ export default function Ranking() {
               display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
             }}>
               <div style={{ flex: '1 1 200px', minWidth: 0 }}>
-                <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-strong)', marginBottom: 2 }}>
+                <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-strong)', marginBottom: subtitulo ? 4 : 0 }}>
                   {titulo}
                 </p>
-                <p style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.4 }}>
-                  {subtitulo}
-                </p>
-                <div style={{ marginTop: 8 }}>
+                {subtitulo && (
+                  <p style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.4 }}>
+                    {subtitulo}
+                  </p>
+                )}
+                <div style={{ marginTop: 10 }}>
                   <CuentaRegresiva cierre={quiniela.cierre} />
                 </div>
               </div>
@@ -365,7 +389,7 @@ export default function Ranking() {
             </div>
           )
         })()}
-        <RankingTable quiniela={quiniela} predicciones={predicciones} liveScores={liveScores} liveStats={liveStats} />
+        <RankingTable quiniela={quiniela} predicciones={predicciones} liveScores={liveScores} liveStats={liveStats} liveEventos={liveEventos} />
         <Footer />
       </div>
     </div>
