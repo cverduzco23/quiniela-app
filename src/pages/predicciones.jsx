@@ -6,6 +6,7 @@ import { cierreToDate, quinielaCerrada, tiempoRestante } from '../utils/cierre'
 import { tienePremio, tieneCuota, descripcionRegla, calcularBote, desglosePremio, TIPO_PREMIO, formatearMXN } from '../utils/premios'
 import { normalizarNombre, tieneNombreYApellido } from '../utils/nombres'
 import { PromoCTA } from '../components/PromoCTA'
+import { CuentaRegresiva } from '../components/CuentaRegresiva'
 import { Footer } from '../components/Footer'
 import { useDialog } from '../components/Dialogs'
 
@@ -456,23 +457,32 @@ export default function Predicciones() {
               </span>
             )}
             {quiniela.cierre && (() => {
-              const tr = !cerrada ? tiempoRestante(quiniela.cierre) : null
-              const cfg = (cerrada || tr?.nivel === 'critico')
-                ? { bg: 'var(--red-bg-strong)', color: '#FCA5A5', border: 'var(--red)', weight: 700 }
-                : tr?.nivel === 'urgente'
-                  ? { bg: 'var(--yellow-bg)', color: 'var(--yellow)', border: 'var(--yellow)', weight: 700 }
-                  : { bg: 'var(--neutral-bg)', color: 'var(--text)', border: 'var(--border)', weight: 600 }
-              const texto = cerrada
-                ? '🔒 Quiniela cerrada'
-                : tr ? tr.texto : `⏳ Cierre: ${formatFecha(quiniela.cierre)}`
+              // Cerrada → badge fijo. Dentro de 24h → timer en vivo (mismo que
+              // ranking/home). A más de 24h → fecha de cierre.
+              if (cerrada) {
+                return (
+                  <span style={{
+                    display: 'inline-block', fontSize: 12, fontWeight: 700,
+                    padding: '4px 12px', borderRadius: 'var(--radius-full)',
+                    background: 'var(--red-bg-strong)', color: '#FCA5A5',
+                    border: '1px solid var(--red)',
+                  }}>
+                    🔒 Quiniela cerrada
+                  </span>
+                )
+              }
+              // tiempoRestante devuelve null si falta más de 24h (caso ya cerrado
+              // lo cubre el bloque de arriba); si hay valor, estamos dentro de 24h.
+              const tr = tiempoRestante(quiniela.cierre)
+              if (tr) return <CuentaRegresiva cierre={quiniela.cierre} />
               return (
                 <span style={{
-                  display: 'inline-block', fontSize: 12, fontWeight: cfg.weight,
+                  display: 'inline-block', fontSize: 12, fontWeight: 600,
                   padding: '4px 12px', borderRadius: 'var(--radius-full)',
-                  background: cfg.bg, color: cfg.color,
-                  border: `1px solid ${cfg.border}`,
+                  background: 'var(--neutral-bg)', color: 'var(--text)',
+                  border: '1px solid var(--border)',
                 }}>
-                  {texto}
+                  ⏳ Cierre: {formatFecha(quiniela.cierre)}
                 </span>
               )
             })()}
@@ -694,14 +704,14 @@ export default function Predicciones() {
                 background: 'var(--yellow-bg)', border: '1px solid var(--yellow-soft)',
                 borderRadius: 'var(--radius-sm)', padding: '10px 12px', marginBottom: 12,
               }}>
-                ⚠️ <strong>Realiza tu pago primero.</strong> Al continuar confirmas que ya pagaste (transferencia o efectivo) — el organizador validará tu pago antes del cierre.
+                ⚠️ <strong>Realiza tu pago primero.</strong> Al continuar declaras que <strong>ya realizaste tu pago</strong> (transferencia o efectivo). Toda predicción sin pago confirmado se elimina automáticamente.
               </p>
             )}
             <button
               onClick={() => setConfirmadoRegla(true)}
               style={ctaPrimary(false)}
             >
-              {tieneCuota(quiniela) ? 'Ya pagué, continuar →' : 'Entendido, continuar →'}
+              {tieneCuota(quiniela) ? 'Confirmo que ya pagué →' : 'Entendido, continuar →'}
             </button>
           </div>
         ) : (
