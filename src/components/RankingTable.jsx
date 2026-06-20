@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { cierreToDate, quinielaCerrada, quinielaFinalizada } from '../utils/cierre'
 import { goalsToResultado, getResultado, getPickResultado, getEfectivo, calcularPuntos } from '../utils/scoring'
 import { tienePremio, calcularGanadores, formatearMXN, descripcionRegla } from '../utils/premios'
+import { simularUltimoPartido } from '../utils/escenarios'
 import { normalizarNombre } from '../utils/nombres'
 import { compartirRanking } from '../utils/shareRanking'
 import { useDialog } from './Dialogs'
@@ -130,6 +131,10 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
 
   const conPremio = tienePremio(quiniela)
   const { ganadores, premioPorNombre, bote } = calcularGanadores(jugadores, quiniela, jugadores.length)
+
+  // Escenarios del último partido: solo tiene sentido cuando la quiniela ya
+  // cerró (los picks son públicos) y queda exactamente un partido por definir.
+  const simulacion = cerrada ? simularUltimoPartido(quiniela, predicciones, liveScores) : null
 
   return (
     <>
@@ -296,6 +301,9 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
         </div>
       )}
 
+      {/* ¿Quién gana según el marcador del último partido? */}
+      {simulacion && <EscenariosUltimoPartido sim={simulacion} conPremio={conPremio} liveScores={liveScores} />}
+
       {/* Tabla ranking */}
       <div style={{ background: 'var(--card)', borderRadius: 'var(--radius-md)', overflow: 'hidden', border: '1px solid var(--border)' }}>
         {enVivo && (
@@ -397,6 +405,8 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                                       String(res.local) === String(pick.local) &&
                                       String(res.visitante) === String(pick.visitante)
                     const pts       = cancelado ? null : !resR ? null : exacto ? 3 : correcto ? 1 : 0
+                    // Punto rojo parpadeante junto al marcador mientras ESE partido está en vivo.
+                    const enVivoPartido = !cancelado && partido.espnId && liveScores?.[partido.espnId]?.state === 'in'
                     return (
                       <div key={pi} style={{
                         display: 'grid', gridTemplateColumns: '1fr auto auto auto', alignItems: 'center', gap: 8,
@@ -414,7 +424,8 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                         <span style={{ fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 700, padding: '2px 8px', borderRadius: 'var(--radius-sm)', background: 'var(--neutral-bg)', color: 'var(--text)', whiteSpace: 'nowrap' }}>
                           {pickDisplay(pick)}
                         </span>
-                        <span style={{ fontFamily: 'var(--font-display)', fontSize: 13, color: 'var(--muted)', whiteSpace: 'nowrap' }}>
+                        <span style={{ fontFamily: 'var(--font-display)', fontSize: 13, color: enVivoPartido ? '#FCA5A5' : 'var(--muted)', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                          {enVivoPartido && <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--red)', display: 'inline-block', flexShrink: 0, animation: 'pulse-dot 1.2s ease-in-out infinite' }} />}
                           {cancelado ? 'Cancelado' : res ? `${res.local}–${res.visitante}` : '—'}
                         </span>
                         <span style={{ fontSize: 12, fontWeight: 800, whiteSpace: 'nowrap', minWidth: 36, textAlign: 'right', color: pts === 3 ? 'var(--yellow)' : pts === 1 ? 'var(--green)' : pts === 0 ? 'var(--red)' : 'var(--muted)' }}>
@@ -526,6 +537,182 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
         Empate en puntos: comparten posición{conPremio ? ' y reparten el premio en partes iguales' : ''} · {enVivo ? '🔴 Actualizando cada 60 seg' : 'Actualización en tiempo real'}
       </p>
     </>
+  )
+}
+
+// Acorta un nombre a sus dos primeros tokens (en una quiniela familiar el
+// nombre distingue mejor que el apellido). "Juan José Verduzco" → "Juan José".
+function nombreCorto(nombre) {
+  return String(nombre || '').trim().split(/\s+/).slice(0, 2).join(' ')
+}
+
+// Iniciales de un equipo para usar cuando no hay escudo: nombres compuestos
+// toman la inicial de cada palabra ("South Korea" → "SK"); los simples, sus
+// 3 primeras letras ("Türkiye" → "TÜR").
+function inicialesEquipo(nombre) {
+  const tokens = String(nombre || '').trim().split(/[\s-]+/).filter(Boolean)
+  if (tokens.length > 1) return tokens.map(t => t[0]).join('').slice(0, 3).toUpperCase()
+  return (tokens[0] || '').slice(0, 3).toUpperCase()
+}
+
+// Escudo del equipo, o un badge con sus iniciales si no hay imagen.
+function EscudoEquipo({ url, nombre, size = 18 }) {
+  const [error, setError] = useState(false)
+  if (url && !error) {
+    return <img src={url} alt={nombre} title={nombre} style={{ width: size, height: size, objectFit: 'contain' }} onError={() => setError(true)} />
+  }
+  return (
+    <span title={nombre} style={{
+      fontSize: size < 16 ? 8 : 9, fontWeight: 800, color: 'var(--muted)', letterSpacing: 0.3,
+      background: 'var(--neutral-bg)', border: '1px solid var(--border-strong)',
+      borderRadius: 'var(--radius-sm)', padding: '1px 3px', lineHeight: 1.2,
+    }}>{inicialesEquipo(nombre)}</span>
+  )
+}
+
+function EscenariosUltimoPartido({ sim, conPremio, liveScores = {} }) {
+  const { partido, filas, numJugadores } = sim
+  const local = partido.local, visitante = partido.visitante
+  const [abierto, setAbierto] = useState(false)
+
+  const exactas   = filas.filter(f => f.esc.tipo === 'exacto')
+  const genericas = filas.filter(f => f.esc.tipo === 'generico')
+
+  // Ancho común del chip (marcadores y genéricos) para que todo quede alineado.
+  const CHIP_W = 60
+  // Contenido del chip genérico: "Gana" + escudo del equipo, o "Empate".
+  const contenidoGenerico = (esc) =>
+    esc.resultado === 'draw'
+      ? 'Empate'
+      : (<>Gana <EscudoEquipo url={esc.resultado === 'home' ? partido.escudoLocal : partido.escudoVisitante} nombre={esc.resultado === 'home' ? local : visitante} size={13} /></>)
+
+  // Marcador actual si el partido está EN VIVO: marca qué fila va ganando ahora.
+  // Si el marcador en curso coincide con un exacto pronosticado, resaltamos ese;
+  // si no, resaltamos la fila genérica (Gana local / Empate / Gana visitante).
+  const live = partido.espnId ? liveScores?.[partido.espnId] : null
+  const enVivo = live?.state === 'in' && live.local !== '' && live.visitante !== '' &&
+    live.local != null && live.visitante != null
+  const curL = enVivo ? Number(live.local) : null
+  const curV = enVivo ? Number(live.visitante) : null
+  const curRes = enVivo ? goalsToResultado(curL, curV) : null
+  const hayExactaActual = enVivo && exactas.some(f => f.esc.local === curL && f.esc.visitante === curV)
+  const marcadorActual = enVivo ? `${curL}–${curV}` : ''
+
+  // Una fila compacta: marcador a la izquierda, ganador(es) a la derecha.
+  // `actual` resalta la fila del marcador en vivo; `imposible` tacha la fila de
+  // un marcador exacto que ya no se puede alcanzar (los goles solo suben).
+  const Fila = ({ marcador, esExacto, fila, ultima, actual, imposible }) => (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 10, padding: '7px 8px', margin: '0 -8px',
+      borderBottom: ultima ? 'none' : '1px solid var(--border)',
+      background: actual ? 'var(--red-bg)' : 'transparent',
+      borderRadius: actual ? 'var(--radius-sm)' : 0,
+      opacity: imposible ? 0.4 : 1,
+    }}>
+      <span style={{
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: esExacto ? 0 : 3,
+        fontFamily: esExacto ? 'var(--font-display)' : 'inherit',
+        fontSize: esExacto ? 13 : 10.5, fontWeight: esExacto ? 800 : 700,
+        color: actual ? '#FCA5A5' : imposible ? 'var(--muted)' : 'var(--text-strong)',
+        background: actual ? 'var(--red-bg-strong)' : 'var(--neutral-bg)',
+        border: `1px solid ${actual ? 'var(--red)' : 'var(--border-strong)'}`,
+        borderRadius: 'var(--radius-sm)', padding: '2px 3px', width: CHIP_W, flexShrink: 0,
+        textDecoration: imposible ? 'line-through' : 'none', whiteSpace: 'nowrap',
+      }}>{marcador}</span>
+      <span style={{
+        fontSize: 13, fontWeight: 700, lineHeight: 1.3, flex: 1, minWidth: 0,
+        color: imposible ? 'var(--muted)' : 'var(--green)',
+        textDecoration: imposible ? 'line-through' : 'none',
+      }}>
+        {fila.lideres.map(nombreCorto).join(', ')}
+      </span>
+      {actual && (
+        <span style={{
+          marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 4, flexShrink: 0,
+          fontSize: 10, fontWeight: 800, color: '#FCA5A5',
+          background: 'var(--red-bg-strong)', borderRadius: 'var(--radius-full)', padding: '2px 8px', whiteSpace: 'nowrap',
+        }}>
+          <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--red)', display: 'inline-block', animation: 'pulse-dot 1.2s ease-in-out infinite' }} />
+          {marcadorActual}
+        </span>
+      )}
+    </div>
+  )
+
+  return (
+    <div style={{
+      background: 'linear-gradient(135deg, rgba(168,85,247,0.12), rgba(168,85,247,0.04))',
+      border: '1px solid var(--purple, #A855F7)', borderRadius: 'var(--radius-md)',
+      padding: '12px 14px', marginBottom: 16,
+      // Parpadeo morado solo cuando está colapsado (para invitar a tocarlo).
+      animation: abierto ? 'none' : 'pulse-morado 1.6s ease-in-out infinite',
+    }}>
+      <style>{`@keyframes pulse-morado{0%,100%{box-shadow:0 0 0 0 rgba(168,85,247,0)}50%{box-shadow:0 0 0 4px rgba(168,85,247,0.28)}}`}</style>
+
+      {/* Encabezado: toda la barra es el botón para expandir/colapsar */}
+      <button
+        onClick={() => setAbierto(a => !a)}
+        aria-expanded={abierto}
+        style={{
+          width: '100%', background: 'transparent', border: 'none', padding: 0,
+          cursor: 'pointer', textAlign: 'left',
+          display: 'flex', alignItems: 'center', gap: 8,
+        }}
+      >
+        <span style={{ fontSize: 18, lineHeight: 1 }} aria-hidden="true">🔮</span>
+        <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--text-strong)', letterSpacing: 0.2, flex: 1 }}>
+          ¿Quién gana según el marcador?
+        </span>
+        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--purple, #A855F7)', whiteSpace: 'nowrap' }}>
+          {abierto ? 'Ocultar ▲' : 'Ver ▼'}
+        </span>
+      </button>
+
+      {abierto && (
+        <>
+          <p style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.5, margin: '8px 0 10px' }}>
+            <strong style={{ color: 'var(--text)' }}>{local} vs {visitante}</strong> define la quiniela.
+            Esto es quién se lleva el 1° lugar{conPremio ? ' y el premio' : ''} según cómo quede:
+          </p>
+
+          <div style={{ background: 'var(--card)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', padding: '2px 12px' }}>
+            {/* Encabezado: escudos de los equipos (marcan la orientación local–visitante) y "Ganadores" */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--border-strong)' }}>
+              <span style={{ width: 52, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, flexShrink: 0 }}>
+                <EscudoEquipo url={partido.escudoLocal} nombre={local} />
+                <EscudoEquipo url={partido.escudoVisitante} nombre={visitante} />
+              </span>
+              <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.8 }}>
+                Ganadores
+              </span>
+            </div>
+            {exactas.map((f, i) => (
+              <Fila key={i} esExacto marcador={`${f.esc.local}–${f.esc.visitante}`} fila={f}
+                ultima={i === exactas.length - 1}
+                actual={enVivo && f.esc.local === curL && f.esc.visitante === curV}
+                imposible={enVivo && (f.esc.local < curL || f.esc.visitante < curV)} />
+            ))}
+            {genericas.length > 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 0 5px' }}>
+                <span style={{ fontSize: 9.5, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.8, whiteSpace: 'nowrap' }}>
+                  Cualquier otro marcador
+                </span>
+                <span style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+              </div>
+            )}
+            {genericas.map((f, i) => (
+              <Fila key={`g${i}`} marcador={contenidoGenerico(f.esc)} fila={f}
+                ultima={i === genericas.length - 1}
+                actual={enVivo && !hayExactaActual && f.esc.resultado === curRes} />
+            ))}
+          </div>
+
+          <p style={{ fontSize: 10, color: 'var(--muted)', marginTop: 8, lineHeight: 1.5 }}>
+            Con los {numJugadores} participantes. En empate de puntos, comparten el 1° lugar.
+          </p>
+        </>
+      )}
+    </div>
   )
 }
 
