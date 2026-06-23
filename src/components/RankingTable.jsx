@@ -405,9 +405,9 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
           </div>
         )}
 
-        <div style={{ display: 'grid', gridTemplateColumns: '44px 1fr 60px 60px 52px', padding: '10px 16px', background: 'var(--card-light)', borderBottom: '1px solid var(--border)' }}>
-          {['#', 'Jugador', 'Result.', 'Exactos', 'Pts'].map((h, idx) => (
-            <span key={h} style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.8, textAlign: idx >= 2 ? 'center' : 'left' }}>{h}</span>
+        <div style={{ display: 'grid', gridTemplateColumns: '30px 1fr 38px 38px 46px', padding: '10px 16px', alignItems: 'center', background: 'var(--card-light)', borderBottom: '1px solid var(--border)' }}>
+          {['#', 'Jugador', '✓', '🎯', 'Pts'].map((h, idx) => (
+            <span key={h} title={idx === 2 ? 'Aciertos' : idx === 3 ? 'Marcadores exactos' : undefined} style={{ fontSize: idx === 2 || idx === 3 ? 12 : 10, color: 'var(--muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.8, textAlign: idx >= 2 ? 'center' : 'left', whiteSpace: 'nowrap', display: idx === 2 || idx === 3 ? 'flex' : 'inline', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>{h}</span>
           ))}
         </div>
 
@@ -431,7 +431,7 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
               <div
                 onClick={() => cerrada && toggleExpandido(j.nombre)}
                 style={{
-                  display: 'grid', gridTemplateColumns: '44px 1fr 60px 60px 52px',
+                  display: 'grid', gridTemplateColumns: '30px 1fr 38px 38px 46px',
                   padding: '13px 16px', alignItems: 'center',
                   background: esLider
                     ? 'linear-gradient(90deg, var(--yellow-bg), transparent 60%)'
@@ -445,7 +445,7 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                   {cambio === 'bajo'  && <span style={{ fontSize: 11, color: 'var(--red)',   fontWeight: 800 }} aria-label="Bajó de posición">▼</span>}
                 </span>
                 <div style={{ minWidth: 0 }}>
-                  <span style={{ fontSize: 14, fontWeight: esLider ? 700 : 500, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                  <span style={{ fontSize: 13, fontWeight: esLider ? 700 : 500, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
                     <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{nombresCortos.get(j.nombre) || nombreCorto(j.nombre)}</span>
                     {j.racha.exactas >= 3 ? (
                       <span title={`Racha de ${j.racha.exactas} marcadores exactos seguidos`} aria-label="Racha de marcadores exactos" style={{ flexShrink: 0 }}>🎯</span>
@@ -488,7 +488,7 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                   <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.8, padding: '10px 0 8px' }}>
                     Predicciones de {j.nombre}
                   </p>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 56px 60px 44px', alignItems: 'center', gap: 10, padding: '0 12px 4px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 40px 46px 32px', alignItems: 'center', gap: 6, padding: '0 12px 4px' }}>
                     <span />
                     <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.5, textAlign: 'right' }}>Tu pick</span>
                     <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.5, textAlign: 'right' }}>Real</span>
@@ -509,7 +509,7 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                     const enVivoPartido = !cancelado && partido.espnId && liveScores?.[partido.espnId]?.state === 'in'
                     return (
                       <div key={pi} style={{
-                        display: 'grid', gridTemplateColumns: '1fr 56px 60px 44px', alignItems: 'center', gap: 10,
+                        display: 'grid', gridTemplateColumns: '1fr 40px 46px 32px', alignItems: 'center', gap: 6,
                         padding: '8px 12px', marginBottom: 4, borderRadius: 'var(--radius-sm)',
                         background: cancelado ? 'var(--card)' : !resR ? 'var(--card)' : (exacto || correcto) ? 'var(--green-bg)' : 'var(--red-bg)',
                         border: '1px solid',
@@ -521,10 +521,10 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                             {partido.local} vs {partido.visitante}
                           </p>
                         </div>
-                        <span style={{ fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 700, padding: '2px 8px', borderRadius: 'var(--radius-sm)', background: 'var(--neutral-bg)', color: 'var(--text)', whiteSpace: 'nowrap', justifySelf: 'end' }}>
+                        <span style={{ fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 700, padding: '2px 5px', borderRadius: 'var(--radius-sm)', background: 'var(--neutral-bg)', color: 'var(--text)', whiteSpace: 'nowrap', justifySelf: 'end' }}>
                           {pickDisplay(pick)}
                         </span>
-                        <span style={{ fontFamily: 'var(--font-display)', fontSize: 13, color: enVivoPartido ? '#FCA5A5' : 'var(--muted)', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 4, justifySelf: 'end' }}>
+                        <span style={{ fontFamily: 'var(--font-display)', fontSize: 13, color: enVivoPartido ? '#FCA5A5' : 'var(--muted)', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 3, justifySelf: 'end' }}>
                           {/* Punto siempre presente (oculto si no hay partido en vivo) para que el ancho de la columna no cambie entre filas */}
                           <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--red)', display: 'inline-block', flexShrink: 0, opacity: enVivoPartido ? 1 : 0, animation: enVivoPartido ? 'pulse-dot 1.2s ease-in-out infinite' : 'none' }} />
                           {cancelado ? 'Cancelado' : res ? `${res.local}–${res.visitante}` : '—'}
@@ -634,16 +634,28 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
       )}
 
       <div style={{
-        marginTop: 16, textAlign: 'center', fontSize: 11, color: 'var(--muted)',
-        lineHeight: 1.7, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5,
+        marginTop: 16, background: 'var(--card)', borderRadius: 'var(--radius-md)',
+        border: '1px solid var(--border)', padding: '12px 14px',
+        display: 'flex', flexDirection: 'column', gap: 8,
       }}>
-        <span>1 pt resultado correcto · +2 pts marcador exacto <span style={{ opacity: 0.75 }}>(máx. 3 pts por partido)</span></span>
-        <span style={{ display: 'inline-flex', flexWrap: 'wrap', justifyContent: 'center', gap: '2px 14px' }}>
-          <span>🔥 3+ resultados correctos en racha</span>
-          <span>🎯 3+ marcadores exactos en racha</span>
-        </span>
-        <span>Empate en puntos: comparten posición{conPremio ? ' y reparten el premio en partes iguales' : ''}</span>
-        <span style={{ opacity: 0.7, fontSize: 10, letterSpacing: 0.3, textTransform: 'uppercase' }}>Actualización en tiempo real</span>
+        {[
+          { icon: '✅', text: <>1 pt resultado correcto · +2 pts marcador exacto <span style={{ opacity: 0.75 }}>(máx. 3 pts por partido)</span></> },
+          { icon: '🔥', text: '3+ resultados correctos en racha' },
+          { icon: '🎯', text: '3+ marcadores exactos en racha' },
+          { icon: '🤝', text: <>Empate en puntos: comparten posición{conPremio ? ' y reparten el premio en partes iguales' : ''}</> },
+        ].map((item, i) => (
+          <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+            <span style={{ fontSize: 13, flexShrink: 0, lineHeight: 1.5 }}>{item.icon}</span>
+            <span style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.5 }}>{item.text}</span>
+          </div>
+        ))}
+        <div style={{
+          textAlign: 'center', fontSize: 10, color: 'var(--muted)', opacity: 0.7,
+          letterSpacing: 0.3, textTransform: 'uppercase', marginTop: 4, paddingTop: 8,
+          borderTop: '1px solid var(--border)',
+        }}>
+          Actualización en tiempo real
+        </div>
       </div>
     </>
   )
