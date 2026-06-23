@@ -711,6 +711,7 @@ export default function Admin() {
   const [loadingPredicciones, setLoadingPredicciones]   = useState(false)
   const [eliminandoPred, setEliminandoPred]             = useState(null)
   const [togglingPago, setTogglingPago]                 = useState(null)
+  const [togglingCumple, setTogglingCumple]             = useState(null)
   const [busquedaParticipante, setBusquedaParticipante] = useState('')
 
   // ─── Compartir ───────────────────────────────────────────────────────────
@@ -1140,6 +1141,27 @@ export default function Admin() {
       alerta('Error al actualizar el estado de pago.')
     } finally {
       setTogglingPago(null)
+    }
+  }
+
+  // ─── Marcar/desmarcar cumpleaños de un participante (muestra 🎂 en el ranking) ─
+  const toggleCumple = async (predId) => {
+    if (!quinielaActual || togglingCumple) return
+    setTogglingCumple(predId)
+    try {
+      const actuales = quinielaActual.cumpleaneros ?? []
+      const yaCumple = actuales.includes(predId)
+      const nuevos = yaCumple
+        ? actuales.filter(id => id !== predId)
+        : [...actuales, predId]
+      await updateDoc(doc(db, 'quinielas', quinielaActual.id), { cumpleaneros: nuevos })
+      const actualizado = { ...quinielaActual, cumpleaneros: nuevos }
+      setQuinielaActual(actualizado)
+      setQuinielas(prev => prev.map(q => q.id === quinielaActual.id ? actualizado : q))
+    } catch {
+      alerta('Error al actualizar el cumpleaños.')
+    } finally {
+      setTogglingCumple(null)
     }
   }
 
@@ -3385,6 +3407,28 @@ export default function Admin() {
                                   {togglingEste ? '…' : yaPagado ? '✓ Pagado' : '⏳ Pendiente'}
                                 </button>
                               )}
+                              {(() => {
+                                const esCumple = (quinielaActual.cumpleaneros ?? []).includes(pred.id)
+                                const togglingCumpleEste = togglingCumple === pred.id
+                                return (
+                                  <button
+                                    onClick={() => toggleCumple(pred.id)}
+                                    disabled={togglingCumpleEste}
+                                    title={esCumple ? 'Quitar cumpleaños (oculta el 🎂 en el ranking)' : 'Marcar cumpleaños (muestra 🎂 en el ranking)'}
+                                    aria-label={esCumple ? 'Quitar cumpleaños' : 'Marcar cumpleaños'}
+                                    style={{
+                                      background: esCumple ? 'var(--purple-bg, rgba(168,85,247,0.12))' : 'transparent',
+                                      border: `1px solid ${esCumple ? 'var(--purple, #A855F7)' : 'var(--border-strong)'}`,
+                                      color: esCumple ? 'var(--purple, #A855F7)' : 'var(--muted)',
+                                      fontSize: 14, fontWeight: 700, padding: '5px 9px',
+                                      borderRadius: 'var(--radius-sm)', cursor: togglingCumpleEste ? 'not-allowed' : 'pointer',
+                                      opacity: togglingCumpleEste ? 0.5 : 1, lineHeight: 1,
+                                    }}
+                                  >
+                                    {togglingCumpleEste ? '…' : '🎂'}
+                                  </button>
+                                )
+                              })()}
                               <button
                                 onClick={() => eliminarPrediccion(pred)}
                                 disabled={eliminandoPred === pred.id}

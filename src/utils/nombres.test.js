@@ -50,6 +50,19 @@ describe('normalizarNombre', () => {
     expect(normalizarNombre('Carlos G. López')).toBe('Carlos G. López')
     expect(normalizarNombre('garcia-lopez.')).toBe('Garcia-Lopez')
   })
+
+  it('limita a 4 palabras como máximo', () => {
+    expect(normalizarNombre('juan carlos perez lopez garcia')).toBe('Juan Carlos Perez Lopez')
+    expect(normalizarNombre('ana maria del carmen rodriguez')).toBe('Ana Maria Del Carmen')
+  })
+
+  it('respeta nombres de hasta 4 palabras sin recortar', () => {
+    expect(normalizarNombre('María José García Hernández')).toBe('María José García Hernández')
+  })
+
+  it('limita a 40 caracteres como salvaguarda', () => {
+    expect(normalizarNombre('a'.repeat(60)).length).toBeLessThanOrEqual(40)
+  })
 })
 
 describe('tieneNombreYApellido', () => {

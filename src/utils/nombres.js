@@ -1,15 +1,22 @@
 // Normaliza un nombre: trim, espacios colapsados, cada palabra capitalizada
 // con primera letra en mayúscula y el resto en minúsculas. Preserva acentos
 // y capitaliza también después de guiones (ej. "García-López").
+// Tope de longitud del nombre: máximo 4 palabras (2 nombres + 2 apellidos) y
+// 40 caracteres. Evita que nombres muy largos descuadren el ranking, el título
+// de predicciones y la imagen para compartir.
+const MAX_PALABRAS = 4
+const MAX_CARACTERES = 40
+
 export function normalizarNombre(nombre) {
   if (!nombre) return ''
-  return String(nombre)
+  const limpio = String(nombre)
     .trim()
     .replace(/\s+/g, ' ')
     // Quita signos de puntuación sueltos al final (puntos, comas, signos, etc.)
     .replace(/[\s.,;:!?¡¿'"´`*_/\\]+$/u, '')
     .toLocaleLowerCase('es-MX')
     .replace(/(^|[\s-])(\p{L})/gu, (_, sep, letra) => sep + letra.toLocaleUpperCase('es-MX'))
+  return limpio.split(' ').slice(0, MAX_PALABRAS).join(' ').slice(0, MAX_CARACTERES).trim()
 }
 
 /**

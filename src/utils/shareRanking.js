@@ -55,6 +55,11 @@ function truncate(ctx, text, maxWidth) {
   return text.slice(0, Math.max(0, lo - 1)) + '…'
 }
 
+// Dos primeros tokens del nombre (para el banner de ganador/es).
+function dosTokens(nombre) {
+  return String(nombre || '').trim().split(/\s+/).slice(0, 2).join(' ')
+}
+
 function formatearFechaCorta() {
   return new Date().toLocaleString('es-MX', {
     weekday: 'long', day: 'numeric', month: 'long',
@@ -151,6 +156,7 @@ export async function generarImagenRanking({
   }
 
   const { top, vecinos, separadorN, restoFinal, miNombreNorm } = calcularLayout(jugadores, miNombre)
+  const cumpleaneros = quiniela?.cumpleaneros ?? []
   const boteDevuelto = !!quiniela?.boteDevuelto
   const ganadoresNombres = conPremio && !boteDevuelto
     ? jugadores.filter(j => premioPorNombre[j.nombre] !== undefined).map(j => j.nombre)
@@ -243,7 +249,7 @@ export async function generarImagenRanking({
       ctx.font = '600 13px Inter'
       ctx.fillText('Devuelto a participantes', W - PAD - 16, banY + 38)
     } else {
-      const ganadores = ganadoresNombres.slice(0, 2).join(', ') + (ganadoresNombres.length > 2 ? `, +${ganadoresNombres.length - 2}` : '')
+      const ganadores = ganadoresNombres.slice(0, 2).map(dosTokens).join(', ') + (ganadoresNombres.length > 2 ? `, +${ganadoresNombres.length - 2}` : '')
       ctx.fillStyle = COLORS.textStrong
       ctx.font = '700 16px Inter'
       const ganTexto = ganadores ? truncate(ctx, ganadores, W - PAD * 2 - 220) : '—'
@@ -333,19 +339,29 @@ export async function generarImagenRanking({
       ctx.fillText(`${pos}`, colNum + 4, y + 30)
     }
 
-    // Nombre (con "TÚ" si aplica)
+    // Nombre (con racha/cumpleaños y "TÚ" si aplica). El nombre va completo;
+    // junto a él se muestra 🔥/🎯 (racha) y/o 🎂 (cumpleaños) del jugador.
     ctx.textAlign = 'left'
-    ctx.fillStyle = COLORS.textStrong
     ctx.font = (esLider || esTu) ? '700 17px Inter' : '600 16px Inter'
-    const sufijoTu = esTu ? '  TÚ' : ''
-    const anchoTu  = esTu ? ctx.measureText(sufijoTu).width + 4 : 0
-    const maxNombreW = (colAci - 40) - colNom - anchoTu
-    ctx.fillText(truncate(ctx, j.nombre, maxNombreW), colNom, y + 30)
+    const rachaEmoji  = (j.racha?.exactas ?? 0) >= 3 ? '🎯' : (j.racha?.correctas ?? 0) >= 3 ? '🔥' : ''
+    const cumpleEmoji = cumpleaneros.includes(j.id) ? '🎂' : ''
+    const txtEmojis   = [rachaEmoji, cumpleEmoji].filter(Boolean).join(' ')
+    const anchoEmoji  = txtEmojis ? ctx.measureText('  ' + txtEmojis).width : 0
+    const sufijoTu    = esTu ? '  TÚ' : ''
+    const anchoTu     = esTu ? ctx.measureText(sufijoTu).width + 4 : 0
+    const maxNombreW  = (colAci - 40) - colNom - anchoTu - anchoEmoji
+    const nombreTrunc = truncate(ctx, j.nombre, maxNombreW)
+    ctx.fillStyle = COLORS.textStrong
+    ctx.fillText(nombreTrunc, colNom, y + 30)
+    let cursorX = colNom + ctx.measureText(nombreTrunc).width
+    if (txtEmojis) {
+      ctx.fillText('  ' + txtEmojis, cursorX, y + 30)
+      cursorX += ctx.measureText('  ' + txtEmojis).width
+    }
     if (esTu) {
-      const wn = ctx.measureText(truncate(ctx, j.nombre, maxNombreW)).width
       ctx.fillStyle = COLORS.green
       ctx.font = '800 12px Inter'
-      ctx.fillText('TÚ', colNom + wn + 8, y + 30)
+      ctx.fillText('TÚ', cursorX + 8, y + 30)
     }
 
     // Aciertos

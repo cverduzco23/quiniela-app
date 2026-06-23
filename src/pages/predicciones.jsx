@@ -840,6 +840,7 @@ export default function Predicciones() {
                 type="text"
                 placeholder={quiniela?.requiereApellido ? 'Ej. María González' : '¿Cómo te llamas?'}
                 value={nombre}
+                maxLength={40}
                 onChange={e => { setNombre(e.target.value); setNombreError('') }}
                 style={{ fontSize: 15, borderColor: nombreError ? 'var(--red)' : undefined }}
               />

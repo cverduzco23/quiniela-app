@@ -44,7 +44,7 @@ export default function Ranking() {
     )
     const unsubP = onSnapshot(
       query(collection(db, 'predicciones'), where('quinielaId', '==', quinielaId)),
-      snap => setPredicciones(snap.docs.map(d => d.data())),
+      snap => setPredicciones(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
       () => {}
     )
     return () => { unsubQ(); unsubP() }

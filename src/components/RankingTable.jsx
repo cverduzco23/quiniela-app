@@ -82,7 +82,7 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
 
   const jugadores = predicciones
     .map(p => ({
-      nombre: normalizarNombre(p.nombre), picks: p.picks, fecha: p.fecha,
+      id: p.id, nombre: normalizarNombre(p.nombre), picks: p.picks, fecha: p.fecha,
       ...calcularPuntos(p.picks, resultados, liveScores, partidos),
       racha: calcularRacha(p.picks, resultados, liveScores, partidos),
     }))
@@ -108,6 +108,10 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
 
   // Atamos la posición al jugador para que el filtro preserve la posición real
   const jugadoresConPos = jugadores.map((j, i) => ({ ...j, _pos: posiciones[i] }))
+  // Nombres abreviados (2 tokens, o más si hay empate) para la fila colapsada.
+  const nombresCortos = abreviarNombres(jugadores.map(j => j.nombre))
+  // Cumpleañeros marcados por el admin (ids de predicción) → muestran 🎂.
+  const cumpleaneros = quiniela?.cumpleaneros ?? []
   const filtroBusqueda  = busqueda.trim().toLowerCase()
   const filtrados       = filtroBusqueda
     ? jugadoresConPos.filter(j => j.nombre.toLowerCase().includes(filtroBusqueda))
@@ -174,7 +178,8 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
 
   return (
     <>
-      <style>{`@keyframes pulse-dot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.3;transform:scale(.65)}}`}</style>
+      <style>{`@keyframes pulse-dot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.3;transform:scale(.65)}}
+        @keyframes flame{0%,100%{transform:translateX(-50%) translateY(3%) scaleY(.92) scaleX(1.03);opacity:.72}50%{transform:translateX(-50%) translateY(-6%) scaleY(1.14) scaleX(.93);opacity:1}}`}</style>
 
       {golFestejo && (
         <div aria-hidden="true" style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 9999, overflow: 'hidden' }}>
@@ -382,7 +387,7 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
         {enVivo && (
           <div style={{ background: 'var(--red-bg)', borderBottom: '1px solid var(--red)', padding: '8px 16px', display: 'flex', alignItems: 'center', gap: 6 }}>
             <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--red)', display: 'inline-block', flexShrink: 0, animation: 'pulse-dot 1.2s ease-in-out infinite' }} />
-            <span style={{ fontSize: 12, color: '#FCA5A5', fontWeight: 600 }}>Ranking provisional — actualizando cada minuto</span>
+            <span style={{ fontSize: 12, color: '#FCA5A5', fontWeight: 600 }}>Ranking provisional</span>
           </div>
         )}
 
@@ -439,14 +444,30 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                   {cambio === 'subio' && <span style={{ fontSize: 11, color: 'var(--green)', fontWeight: 800 }} aria-label="Subió de posición">▲</span>}
                   {cambio === 'bajo'  && <span style={{ fontSize: 11, color: 'var(--red)',   fontWeight: 800 }} aria-label="Bajó de posición">▼</span>}
                 </span>
-                <div style={{ minWidth: 0, overflow: 'hidden' }}>
-                  <span style={{ fontSize: 14, fontWeight: esLider ? 700 : 500, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                    {j.nombre}
+                <div style={{ minWidth: 0 }}>
+                  <span style={{ fontSize: 14, fontWeight: esLider ? 700 : 500, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{nombresCortos.get(j.nombre) || nombreCorto(j.nombre)}</span>
                     {j.racha.exactas >= 3 ? (
-                      <span title={`Racha de ${j.racha.exactas} marcadores exactos seguidos`} aria-label="Racha de marcadores exactos">🎯</span>
+                      <span title={`Racha de ${j.racha.exactas} marcadores exactos seguidos`} aria-label="Racha de marcadores exactos" style={{ flexShrink: 0 }}>🎯</span>
                     ) : j.racha.correctas >= 3 ? (
-                      <span title={`Racha de ${j.racha.correctas} resultados correctos seguidos`} aria-label="Racha de resultados correctos">🔥</span>
+                      <span title={`Racha de ${j.racha.correctas} resultados correctos seguidos`} aria-label="Racha de resultados correctos" style={{ position: 'relative', display: 'inline-flex', flexShrink: 0 }}>
+                        <span aria-hidden="true" style={{ position: 'absolute', left: '50%', bottom: '8%', width: 32, height: 17, transform: 'translateX(-50%)', pointerEvents: 'none', zIndex: 0 }}>
+                          {[{ l: '50%', w: 20, h: 17, d: 0, t: 1.0 }, { l: '32%', w: 14, h: 13, d: .35, t: 1.3 }, { l: '68%', w: 14, h: 13, d: .55, t: 1.2 }, { l: '50%', w: 9, h: 9, d: .2, t: 1.5 }].map((f, fi) => (
+                            <span key={fi} style={{
+                              position: 'absolute', bottom: 0, left: f.l, width: f.w, height: f.h,
+                              transform: 'translateX(-50%)', transformOrigin: 'bottom center',
+                              borderRadius: '50% 50% 46% 46%', filter: 'blur(1.5px)',
+                              background: 'radial-gradient(ellipse at 50% 80%, rgba(255,240,170,0.34), rgba(249,115,22,0.28) 40%, rgba(239,68,68,0.16) 66%, transparent 80%)',
+                              animation: `flame ${f.t}s ease-in-out ${f.d}s infinite`,
+                            }} />
+                          ))}
+                        </span>
+                        <span style={{ position: 'relative', zIndex: 1 }}>🔥</span>
+                      </span>
                     ) : null}
+                    {cumpleaneros.includes(j.id) && (
+                      <span title="¡Hoy está de cumpleaños! 🎉" aria-label="Cumpleaños" style={{ flexShrink: 0 }}>🎂</span>
+                    )}
                     {cerrada && <span style={{ fontSize: 11, color: 'var(--muted)' }}>{abierto ? '▲' : '▼'}</span>}
                   </span>
                 </div>
@@ -467,10 +488,10 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                   <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.8, padding: '10px 0 8px' }}>
                     Predicciones de {j.nombre}
                   </p>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 64px 92px 42px', alignItems: 'center', gap: 8, padding: '0 12px 4px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 56px 60px 44px', alignItems: 'center', gap: 10, padding: '0 12px 4px' }}>
                     <span />
-                    <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Tu pick</span>
-                    <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.5, paddingLeft: 10 }}>Real</span>
+                    <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.5, textAlign: 'right' }}>Tu pick</span>
+                    <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.5, textAlign: 'right' }}>Real</span>
                     <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.5, textAlign: 'right' }}>Pts</span>
                   </div>
                   {partidos.map((partido, pi) => {
@@ -488,7 +509,7 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                     const enVivoPartido = !cancelado && partido.espnId && liveScores?.[partido.espnId]?.state === 'in'
                     return (
                       <div key={pi} style={{
-                        display: 'grid', gridTemplateColumns: '1fr 64px 92px 42px', alignItems: 'center', gap: 8,
+                        display: 'grid', gridTemplateColumns: '1fr 56px 60px 44px', alignItems: 'center', gap: 10,
                         padding: '8px 12px', marginBottom: 4, borderRadius: 'var(--radius-sm)',
                         background: cancelado ? 'var(--card)' : !resR ? 'var(--card)' : (exacto || correcto) ? 'var(--green-bg)' : 'var(--red-bg)',
                         border: '1px solid',
@@ -500,10 +521,10 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                             {partido.local} vs {partido.visitante}
                           </p>
                         </div>
-                        <span style={{ fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 700, padding: '2px 8px', borderRadius: 'var(--radius-sm)', background: 'var(--neutral-bg)', color: 'var(--text)', whiteSpace: 'nowrap', justifySelf: 'start' }}>
+                        <span style={{ fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 700, padding: '2px 8px', borderRadius: 'var(--radius-sm)', background: 'var(--neutral-bg)', color: 'var(--text)', whiteSpace: 'nowrap', justifySelf: 'end' }}>
                           {pickDisplay(pick)}
                         </span>
-                        <span style={{ fontFamily: 'var(--font-display)', fontSize: 13, color: enVivoPartido ? '#FCA5A5' : 'var(--muted)', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 4, justifySelf: 'start' }}>
+                        <span style={{ fontFamily: 'var(--font-display)', fontSize: 13, color: enVivoPartido ? '#FCA5A5' : 'var(--muted)', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 4, justifySelf: 'end' }}>
                           {/* Punto siempre presente (oculto si no hay partido en vivo) para que el ancho de la columna no cambie entre filas */}
                           <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--red)', display: 'inline-block', flexShrink: 0, opacity: enVivoPartido ? 1 : 0, animation: enVivoPartido ? 'pulse-dot 1.2s ease-in-out infinite' : 'none' }} />
                           {cancelado ? 'Cancelado' : res ? `${res.local}–${res.visitante}` : '—'}
@@ -612,10 +633,18 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
         </>
       )}
 
-      <p style={{ fontSize: 11, color: 'var(--muted)', textAlign: 'center', marginTop: 14, lineHeight: 1.8 }}>
-        1 pt resultado correcto · +2 pts marcador exacto (máx. 3 pts por partido){'\n'}
-        Empate en puntos: comparten posición{conPremio ? ' y reparten el premio en partes iguales' : ''} · {enVivo ? '🔴 Actualizando cada 60 seg' : 'Actualización en tiempo real'}
-      </p>
+      <div style={{
+        marginTop: 16, textAlign: 'center', fontSize: 11, color: 'var(--muted)',
+        lineHeight: 1.7, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5,
+      }}>
+        <span>1 pt resultado correcto · +2 pts marcador exacto <span style={{ opacity: 0.75 }}>(máx. 3 pts por partido)</span></span>
+        <span style={{ display: 'inline-flex', flexWrap: 'wrap', justifyContent: 'center', gap: '2px 14px' }}>
+          <span>🔥 3+ resultados correctos en racha</span>
+          <span>🎯 3+ marcadores exactos en racha</span>
+        </span>
+        <span>Empate en puntos: comparten posición{conPremio ? ' y reparten el premio en partes iguales' : ''}</span>
+        <span style={{ opacity: 0.7, fontSize: 10, letterSpacing: 0.3, textTransform: 'uppercase' }}>Actualización en tiempo real</span>
+      </div>
     </>
   )
 }
@@ -624,6 +653,24 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
 // nombre distingue mejor que el apellido). "Juan José Verduzco" → "Juan José".
 function nombreCorto(nombre) {
   return String(nombre || '').trim().split(/\s+/).slice(0, 2).join(' ')
+}
+
+// Abrevia cada nombre a 2 tokens, pero si dos jugadores quedarían con el mismo
+// nombre corto, les agrega tokens (3°, 4°…) hasta distinguirlos. Devuelve un
+// Map de nombre completo → nombre a mostrar en la fila colapsada.
+function abreviarNombres(nombres) {
+  const partes = nombres.map(n => ({ full: n, toks: String(n || '').trim().split(/\s+/).filter(Boolean) }))
+  const corto = (toks, k) => toks.slice(0, k).join(' ')
+  const map = new Map()
+  for (const p of partes) {
+    let k = 2
+    while (k < 6 && partes.some(o => o.full !== p.full &&
+      corto(o.toks, k).toLowerCase() === corto(p.toks, k).toLowerCase())) {
+      k++
+    }
+    map.set(p.full, corto(p.toks, k))
+  }
+  return map
 }
 
 // Iniciales de un equipo para usar cuando no hay escudo: nombres compuestos
