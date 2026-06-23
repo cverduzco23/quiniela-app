@@ -27,7 +27,7 @@ export const LABELS_SECCIONES_HOME = {
   mostrarCodigo:        '¿Tienes un código de acceso?',
   mostrarComoFunciona:  '¿Cómo funciona? (3 pasos)',
   mostrarCrearQuiniela: '¿Quieres crear tu propia quiniela?',
-  mostrarActiva:        'Quiniela activa',
+  mostrarActiva:        'Quiniela abierta',
   mostrarJugandose:     'Jugándose ahora',
   mostrarTerminada:     'Última quiniela terminada',
   mostrarImagen:        'Imagen decorativa',

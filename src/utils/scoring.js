@@ -57,3 +57,30 @@ export function calcularPuntos(picks, resultados, liveScores, partidos) {
   })
   return { puntos, aciertos, exactos }
 }
+
+// Racha actual: partidos consecutivos (de los ya finalizados, de más reciente
+// hacia atrás) en los que el jugador le atinó al resultado, y cuántos de esos
+// además fueron marcador exacto. Ignora partidos cancelados o sin terminar
+// (no rompen la racha, solo se saltan). Un partido en vivo NO cuenta como
+// finalizado todavía.
+export function calcularRacha(picks, resultados, liveScores, partidos) {
+  let correctas = 0, exactas = 0, exactasActivas = true
+  for (let i = partidos.length - 1; i >= 0; i--) {
+    const p = partidos[i]
+    const live = p?.espnId ? liveScores?.[p.espnId] : null
+    if (live?.state === 'in' && !live?.cancelado) continue // en vivo: aún no cuenta
+    const res = getEfectivo(p, i, resultados, liveScores)
+    if (!res) continue
+    if (res.cancelado) continue
+    const resR = getResultado(res)
+    const pick = picks?.[i] ?? picks?.[String(i)]
+    const pickR = getPickResultado(pick)
+    if (!resR || !pickR || resR !== pickR) break
+    correctas++
+    const exacto = typeof pick === 'object' && pick !== null &&
+      Number(res.local) === Number(pick.local) && Number(res.visitante) === Number(pick.visitante)
+    if (exactasActivas && exacto) exactas++
+    else exactasActivas = false
+  }
+  return { correctas, exactas }
+}

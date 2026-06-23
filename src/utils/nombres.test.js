@@ -38,6 +38,18 @@ describe('normalizarNombre', () => {
     expect(normalizarNombre('Omar V')).toBe('Omar V')
     expect(normalizarNombre('omar v')).toBe('Omar V')
   })
+
+  it('quita signos de puntuación al final', () => {
+    expect(normalizarNombre('Javier Aranda.')).toBe('Javier Aranda')
+    expect(normalizarNombre('Roque Verduzco. ')).toBe('Roque Verduzco')
+    expect(normalizarNombre('Ana López!!')).toBe('Ana López')
+    expect(normalizarNombre('Juan Pérez,')).toBe('Juan Pérez')
+  })
+
+  it('preserva puntuación interna (no al final)', () => {
+    expect(normalizarNombre('Carlos G. López')).toBe('Carlos G. López')
+    expect(normalizarNombre('garcia-lopez.')).toBe('Garcia-Lopez')
+  })
 })
 
 describe('tieneNombreYApellido', () => {

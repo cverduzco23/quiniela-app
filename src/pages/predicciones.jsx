@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, Fragment } from 'react'
 import { useSearchParams, useParams } from 'react-router-dom'
 import { doc, getDoc, addDoc, collection, getDocs, query, where } from 'firebase/firestore'
 import { db, track } from '../firebase'
@@ -84,6 +84,7 @@ export default function Predicciones() {
   const [yaEnviadoAntes, setYaEnviadoAntes] = useState(null)
 
   const visitanteRefs = useRef([])
+  const localRefs = useRef([])
   const progresoPrevRef = useRef(0)
   const restauradoRef = useRef(false)
   const lsKey = quinielaId ? `quiniela-${quinielaId}-progreso` : null
@@ -309,7 +310,7 @@ export default function Predicciones() {
           color: '#07120A', fontWeight: 800, fontSize: 14, textDecoration: 'none',
           boxShadow: 'var(--shadow-green)', letterSpacing: 0.2,
         }}>
-          ← Ver quinielas activas
+          ← Ver quinielas abiertas
         </a>
       </div>
     </div>
@@ -341,42 +342,43 @@ export default function Predicciones() {
           <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 14 }}>
             Tu quiniela · {quiniela.nombre}
           </p>
-          {partidos.map((p, i) => {
-            const pick = picks[i]
-            const res  = getPickResultado(pick)
-            const info = res ? resultadoInfo(res, p.local, p.visitante) : null
-            return (
-              <div key={i} style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: '8px 0', borderBottom: i < partidos.length - 1 ? '1px solid var(--border)' : 'none', gap: 8,
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 5, flex: 1, minWidth: 0 }}>
-                  {p.escudoLocal && <img src={p.escudoLocal} alt="" style={{ width: 18, height: 18, objectFit: 'contain', flexShrink: 0 }} onError={e => { e.target.style.display = 'none' }} />}
-                  <span style={{ fontSize: 13, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.local}</span>
-                </div>
-                <span style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 700, color: 'var(--text-strong)', padding: '2px 12px', background: 'var(--green-bg)', borderRadius: 'var(--radius-sm)', flexShrink: 0 }}>
-                  {pick?.local ?? '?'}–{pick?.visitante ?? '?'}
-                </span>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 5, flex: 1, minWidth: 0 }}>
-                  <span style={{ fontSize: 13, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'right' }}>{p.visitante}</span>
-                  {p.escudoVisitante && <img src={p.escudoVisitante} alt="" style={{ width: 18, height: 18, objectFit: 'contain', flexShrink: 0 }} onError={e => { e.target.style.display = 'none' }} />}
-                </div>
-                {info && <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 'var(--radius-full)', background: info.bg, color: info.color, flexShrink: 0 }}>{info.label}</span>}
-              </div>
-            )
-          })}
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) auto minmax(0,1fr) auto', alignItems: 'center', columnGap: 8 }}>
+            {partidos.map((p, i) => {
+              const pick = picks[i]
+              const res  = getPickResultado(pick)
+              const info = res ? resultadoInfo(res, p.local, p.visitante) : null
+              return (
+                <Fragment key={i}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0, padding: '8px 0' }}>
+                    {p.escudoLocal && <img src={p.escudoLocal} alt="" style={{ width: 18, height: 18, objectFit: 'contain', flexShrink: 0 }} onError={e => { e.target.style.display = 'none' }} />}
+                    <span style={{ fontSize: 13, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.local}</span>
+                  </div>
+                  <span style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 700, color: 'var(--text-strong)', padding: '2px 12px', background: 'var(--green-bg)', borderRadius: 'var(--radius-sm)' }}>
+                    {pick?.local ?? '?'}–{pick?.visitante ?? '?'}
+                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
+                    <span style={{ fontSize: 13, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.visitante}</span>
+                    {p.escudoVisitante && <img src={p.escudoVisitante} alt="" style={{ width: 18, height: 18, objectFit: 'contain', flexShrink: 0 }} onError={e => { e.target.style.display = 'none' }} />}
+                  </div>
+                  <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 'var(--radius-full)', background: info?.bg ?? 'transparent', color: info?.color ?? 'transparent', whiteSpace: 'nowrap', textAlign: 'center' }}>
+                    {info?.label ?? ''}
+                  </span>
+                  {i < partidos.length - 1 && <div style={{ gridColumn: '1 / -1', borderBottom: '1px solid var(--border)' }} />}
+                </Fragment>
+              )
+            })}
+          </div>
         </div>
 
         {navigator.share ? (
           <button
             onClick={() => navigator.share?.({
               title: `Quiniela ${quiniela.nombre}`,
-              text: `Te invito a participar en la quiniela "${quiniela.nombre}". Registra tus predicciones aquí:`,
-              url: `${window.location.origin}/quiniela/${quinielaId}`,
+              text: `Te invito a participar en la quiniela "${quiniela.nombre}". Registra tus predicciones aquí: ${window.location.origin}/quiniela/${quinielaId}`,
             }).catch(() => {})}
             style={{ ...ctaPrimary(false), marginBottom: 10 }}
           >
-            Compartir quiniela
+            Invitar amigos
           </button>
         ) : (
           <button
@@ -762,39 +764,36 @@ export default function Predicciones() {
               </p>
               <p style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-strong)', marginBottom: 16 }}>{nombre}</p>
 
-              {partidos.map((p, i) => {
-                const pick = picks[i]
-                const res  = getPickResultado(pick)
-                const info = res ? resultadoInfo(res, p.local, p.visitante) : null
-                return (
-                  <div key={i} style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '10px 0', borderBottom: i < partidos.length - 1 ? '1px solid var(--border)' : 'none',
-                    gap: 8,
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, flex: 1, minWidth: 0 }}>
-                      {p.escudoLocal && (
-                        <img src={p.escudoLocal} alt="" style={{ width: 18, height: 18, objectFit: 'contain', flexShrink: 0 }} onError={e => { e.target.style.display = 'none' }} />
-                      )}
-                      <span style={{ fontSize: 13, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.local}</span>
-                    </div>
-                    <span style={{ fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 700, color: 'var(--text-strong)', padding: '2px 14px', background: 'var(--green-bg)', borderRadius: 'var(--radius-sm)', flexShrink: 0 }}>
-                      {pick?.local ?? '?'} – {pick?.visitante ?? '?'}
-                    </span>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 5, flex: 1, minWidth: 0 }}>
-                      <span style={{ fontSize: 13, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'right' }}>{p.visitante}</span>
-                      {p.escudoVisitante && (
-                        <img src={p.escudoVisitante} alt="" style={{ width: 18, height: 18, objectFit: 'contain', flexShrink: 0 }} onError={e => { e.target.style.display = 'none' }} />
-                      )}
-                    </div>
-                    {info && (
-                      <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 'var(--radius-full)', background: info.bg, color: info.color, flexShrink: 0 }}>
-                        {info.label}
+              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) auto minmax(0,1fr) auto', alignItems: 'center', columnGap: 8 }}>
+                {partidos.map((p, i) => {
+                  const pick = picks[i]
+                  const res  = getPickResultado(pick)
+                  const info = res ? resultadoInfo(res, p.local, p.visitante) : null
+                  return (
+                    <Fragment key={i}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0, padding: '10px 0' }}>
+                        {p.escudoLocal && (
+                          <img src={p.escudoLocal} alt="" style={{ width: 18, height: 18, objectFit: 'contain', flexShrink: 0 }} onError={e => { e.target.style.display = 'none' }} />
+                        )}
+                        <span style={{ fontSize: 13, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.local}</span>
+                      </div>
+                      <span style={{ fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 700, color: 'var(--text-strong)', padding: '2px 14px', background: 'var(--green-bg)', borderRadius: 'var(--radius-sm)' }}>
+                        {pick?.local ?? '?'} – {pick?.visitante ?? '?'}
                       </span>
-                    )}
-                  </div>
-                )
-              })}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
+                        <span style={{ fontSize: 13, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.visitante}</span>
+                        {p.escudoVisitante && (
+                          <img src={p.escudoVisitante} alt="" style={{ width: 18, height: 18, objectFit: 'contain', flexShrink: 0 }} onError={e => { e.target.style.display = 'none' }} />
+                        )}
+                      </div>
+                      <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 'var(--radius-full)', background: info?.bg ?? 'transparent', color: info?.color ?? 'transparent', whiteSpace: 'nowrap', textAlign: 'center' }}>
+                        {info?.label ?? ''}
+                      </span>
+                      {i < partidos.length - 1 && <div style={{ gridColumn: '1 / -1', borderBottom: '1px solid var(--border)' }} />}
+                    </Fragment>
+                  )
+                })}
+              </div>
             </div>
 
             {nombreError && (
@@ -875,12 +874,15 @@ export default function Predicciones() {
                         {p.local}
                       </span>
                       <input
+                        ref={el => { localRefs.current[i] = el }}
                         type="text" inputMode="numeric" pattern="[0-9]*"
                         value={pick?.local ?? ''}
                         onChange={e => {
+                          const eraVacio = (pick?.local ?? '') === ''
                           const v = e.target.value.replace(/[^0-9]/g, '').slice(0, 2)
                           const norm = v === '' ? '' : String(Number(v))
                           setPick(i, 'local', norm)
+                          if (eraVacio && v.length === 1) visitanteRefs.current[i]?.focus()
                         }}
                         placeholder="–"
                         style={{
@@ -907,7 +909,12 @@ export default function Predicciones() {
                         ref={el => { visitanteRefs.current[i] = el }}
                         type="text" inputMode="numeric" pattern="[0-9]*"
                         value={pick?.visitante ?? ''}
-                        onChange={e => { const v = e.target.value.replace(/[^0-9]/g, '').slice(0, 2); setPick(i, 'visitante', v === '' ? '' : String(Number(v))) }}
+                        onChange={e => {
+                          const eraVacio = (pick?.visitante ?? '') === ''
+                          const v = e.target.value.replace(/[^0-9]/g, '').slice(0, 2)
+                          setPick(i, 'visitante', v === '' ? '' : String(Number(v)))
+                          if (eraVacio && v.length === 1) localRefs.current[i + 1]?.focus()
+                        }}
                         placeholder="–"
                         style={{
                           width: 68, textAlign: 'center', fontFamily: 'var(--font-display)', fontSize: 30, fontWeight: 700,

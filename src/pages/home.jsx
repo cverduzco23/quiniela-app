@@ -307,16 +307,16 @@ export default function Home() {
         {verSeccion('mostrarActiva') && !principal && enJuego.length === 0 && !ultimaFinal && (
           <div style={{ order: ordenDe('mostrarActiva'), marginBottom: 24, background: 'var(--card)', borderRadius: 'var(--radius-lg)', padding: '2.5rem 2rem', textAlign: 'center', boxShadow: 'var(--shadow-sm)', border: '1px solid var(--border)' }}>
             <div style={{ fontSize: 48, marginBottom: 14 }}>⚽</div>
-            <p style={{ fontWeight: 700, fontSize: 16, color: 'var(--text)', marginBottom: 6 }}>No hay quinielas públicas activas</p>
+            <p style={{ fontWeight: 700, fontSize: 16, color: 'var(--text)', marginBottom: 6 }}>No hay quinielas públicas abiertas</p>
             <p style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.5 }}>Si te invitaron a una quiniela privada, ingresa el código arriba para entrar.</p>
           </div>
         )}
 
-        {/* Quiniela activa principal */}
+        {/* Quiniela abierta principal */}
         {verSeccion('mostrarActiva') && principal && (
           <div style={{ order: ordenDe('mostrarActiva'), marginBottom: 20 }}>
             <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
-              Quiniela activa
+              Quiniela abierta
             </p>
             <div style={{
               background: 'var(--card)', borderRadius: 'var(--radius-lg)', padding: '1.5rem',
@@ -351,11 +351,11 @@ export default function Home() {
           </div>
         )}
 
-        {/* Otras activas */}
+        {/* Otras abiertas */}
         {verSeccion('mostrarActiva') && otrasActivas.length > 0 && (
           <div style={{ order: ordenDe('mostrarActiva'), marginBottom: 20 }}>
             <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
-              Otras quinielas activas
+              Otras quinielas abiertas
             </p>
             {otrasActivas.map(q => (
               <div key={q.id} style={{

@@ -230,6 +230,7 @@ export default function Admin() {
   const [adminDoc, setAdminDoc] = useState(null)
   const [resetMsg, setResetMsg] = useState('')
   const [ayudaAbierta, setAyudaAbierta] = useState(false)
+  const [ayudaSyncAbierta, setAyudaSyncAbierta] = useState(false)
   const [tourAbierto, setTourAbierto] = useState(false)
   // Tip contextual en "Nueva quiniela": se cierra y no vuelve a salir (localStorage).
   const [tipNuevaCerrado, setTipNuevaCerrado] = useState(() => {
@@ -685,6 +686,7 @@ export default function Admin() {
   const [editNombre, setEditNombre]             = useState('')
   const [editPartidos, setEditPartidos]         = useState([])
   const [editPartidosOriginales, setEditPartidosOriginales] = useState(0)
+  const [editandoPartidoEdicion, setEditandoPartidoEdicion] = useState(null)
   const [editCierre, setEditCierre]             = useState('')
   const [editPremioFijo, setEditPremioFijo]     = useState('')
   const [editCuota, setEditCuota]               = useState('')
@@ -724,7 +726,7 @@ export default function Admin() {
   const [guardandoMov, setGuardandoMov]             = useState(false)
   const [buscarNombreCaja, setBuscarNombreCaja]     = useState('')
   // Orden de la lista de saldos en Caja: 'nombre' (A-Z) o 'monto' (mayor a menor).
-  const [cajaOrden, setCajaOrden]                   = useState('nombre')
+  const [cajaOrden, setCajaOrden]                   = useState('monto')
 
   // Declarado antes de los useEffects que lo usan para evitar la zona muerta temporal
   const cargarQuinielas = async () => {
@@ -774,6 +776,7 @@ export default function Admin() {
     setEditEmpresa(quinielaActual.empresa ?? '')
     setEditRequiereApellido(!!quinielaActual.requiereApellido)
     setFixtures([]); setSeleccionados([])
+    setEditandoPartidoEdicion(null)
     setConteoPredicciones(null)
     getDocs(query(collection(db, 'predicciones'), where('quinielaId', '==', quinielaActual.id)))
       .then(snap => setConteoPredicciones(snap.size))
@@ -965,6 +968,9 @@ export default function Admin() {
     setSeleccionados([])
     setFixtures([])
   }
+
+  const actualizarEditPartido = (i, campo, valor) =>
+    setEditPartidos(prev => prev.map((p, idx) => idx === i ? { ...p, [campo]: valor } : p))
 
   // ─── Edición de quiniela existente ───────────────────────────────────────
   const guardarEdicion = async () => {
@@ -1926,33 +1932,37 @@ export default function Admin() {
               Salir
             </button>
           </div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'space-between', marginTop: 16 }}>
-            {vista !== 'lista' && (
-              <button
-                onClick={() => {
-                  setVista('lista')
-                  setQuinielaActual(null)
-                  setFixtures([])
-                  setSeleccionados([])
-                  setCajaNombre(null)
-                }}
-                style={{ background: 'var(--neutral-bg)', border: '1px solid var(--border)', color: 'var(--text)', padding: '7px 14px', borderRadius: 'var(--radius-sm)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
-              >
-                {'← Lista'}
-              </button>
-            )}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', gap: 8, marginTop: 16 }}>
+            <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+              {vista !== 'lista' && (
+                <button
+                  onClick={() => {
+                    setVista('lista')
+                    setQuinielaActual(null)
+                    setFixtures([])
+                    setSeleccionados([])
+                    setCajaNombre(null)
+                  }}
+                  style={{ background: 'var(--neutral-bg)', border: '1px solid var(--border)', color: 'var(--text)', padding: '7px 14px', borderRadius: 'var(--radius-sm)', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                >
+                  {'← Atrás'}
+                </button>
+              )}
+            </div>
             <a
               href="/"
               style={{ background: 'var(--neutral-bg)', border: '1px solid var(--border)', color: 'var(--text)', padding: '7px 14px', borderRadius: 'var(--radius-sm)', fontSize: 13, fontWeight: 600, cursor: 'pointer', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', whiteSpace: 'nowrap' }}
             >
               🏠 Inicio
             </a>
-            <button
-              onClick={() => setAyudaAbierta(true)}
-              style={{ background: 'var(--neutral-bg)', border: '1px solid var(--border)', color: 'var(--text)', padding: '7px 14px', borderRadius: 'var(--radius-sm)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
-            >
-              ❓ Ayuda
-            </button>
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setAyudaAbierta(true)}
+                style={{ background: 'var(--neutral-bg)', border: '1px solid var(--border)', color: 'var(--text)', padding: '7px 14px', borderRadius: 'var(--radius-sm)', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
+              >
+                ❓ Ayuda
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -3070,6 +3080,72 @@ export default function Admin() {
                     </div>
                   )}
 
+                  <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: sincrMsg.startsWith('✓') ? 'var(--green)' : sincrMsg.startsWith('⚠') ? 'var(--yellow)' : 'var(--muted)' }}>
+                      {sincrMsg || (guardadoRes ? '✓ Ranking actualizado' : '')}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto' }}>
+                      <button
+                        onClick={sincronizarDesdeESPN} disabled={sincronizando}
+                        aria-label="Sincronizar resultados"
+                        style={{ ...greenCtaStyle(sincronizando), display: 'flex', alignItems: 'center', gap: 5 }}
+                      >
+                        {sincronizando ? 'Sincronizando…' : '⚡ Sincronizar resultados'}
+                      </button>
+                      <button
+                        onClick={iniciarGuardarResultados} disabled={guardandoRes}
+                        style={{
+                          padding: '10px 20px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-strong)',
+                          background: 'var(--card-light)', color: 'var(--text)',
+                          fontSize: 13, fontWeight: 600, cursor: guardandoRes ? 'not-allowed' : 'pointer',
+                          opacity: guardandoRes ? 0.5 : 1,
+                        }}
+                      >
+                        {guardandoRes ? 'Guardando…' : 'Guardar manual'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAyudaSyncAbierta(true)}
+                        aria-label="Ver instrucciones de sincronizar resultados"
+                        style={{
+                          width: 28, height: 28, borderRadius: '50%', border: '1px solid var(--border-strong)',
+                          background: 'var(--card-light)', color: 'var(--muted)', fontSize: 13, fontWeight: 700,
+                          cursor: 'pointer', flexShrink: 0, lineHeight: 1,
+                        }}
+                      >
+                        ⓘ
+                      </button>
+                    </div>
+                  </div>
+
+                  {ayudaSyncAbierta && (
+                    <div
+                      onClick={() => setAyudaSyncAbierta(false)}
+                      style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(2px)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '5vh 1rem', overflowY: 'auto' }}
+                    >
+                      <div
+                        onClick={e => e.stopPropagation()}
+                        style={{ background: 'var(--card)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-md)', maxWidth: 480, width: '100%', padding: '1.25rem' }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                          <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 700, color: 'var(--text-strong)' }}>Sincronizar resultados</h3>
+                          <button
+                            onClick={() => setAyudaSyncAbierta(false)}
+                            aria-label="Cerrar"
+                            style={{ background: 'var(--neutral-bg)', border: '1px solid var(--border)', color: 'var(--text)', width: 28, height: 28, borderRadius: 'var(--radius-sm)', fontSize: 14, cursor: 'pointer', lineHeight: 1 }}
+                          >
+                            ✕
+                          </button>
+                        </div>
+                        <div style={{ fontSize: 12.5, color: 'var(--muted)', lineHeight: 1.6 }}>
+                          <p style={{ marginBottom: 8 }}>📌 <strong style={{ color: 'var(--text)' }}>Al terminar los partidos</strong>, espera unos minutos (a que se marquen como finalizados) y da <strong style={{ color: 'var(--green)' }}>⚡ Sincronizar resultados</strong> para dejarlos guardados.</p>
+                          <p style={{ marginBottom: 8 }}><strong style={{ color: 'var(--green)' }}>⚡ Sincronizar resultados</strong> — trae los marcadores reales para partidos que agregaste con el buscador. <strong style={{ color: 'var(--green)', background: 'var(--green-bg)', padding: '1px 6px', borderRadius: 'var(--radius-full)', fontSize: 11 }}>Recomendado</strong></p>
+                          <p><strong style={{ color: 'var(--text)' }}>Guardar manual</strong> — guarda los marcadores que escribas tú. Úsalo solo para partidos que agregaste manualmente.</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   <div style={card}>
                     <label style={{ ...lbl, marginBottom: 14 }}>Registrar marcadores</label>
                     {(quinielaActual.partidos ?? []).map((p, i) => {
@@ -3141,38 +3217,6 @@ export default function Admin() {
                         </div>
                       )
                     })}
-                  </div>
-
-                  <div style={{ background: 'var(--bg-soft)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '10px 12px', marginTop: 12, marginBottom: 12, fontSize: 11.5, color: 'var(--muted)', lineHeight: 1.55 }}>
-                    <p style={{ marginBottom: 4 }}><strong style={{ color: 'var(--green)' }}>⚡ Sincronizar resultados</strong> — trae los marcadores reales solos (para partidos que agregaste con el buscador). Es lo recomendado: tú no escribes nada.</p>
-                    <p style={{ marginBottom: 4 }}><strong style={{ color: 'var(--text)' }}>Guardar manual</strong> — guarda los marcadores que escribiste tú arriba. Úsalo solo para partidos que no aparecen en el buscador. ⚠️ Si después sincronizas, los marcadores reales reemplazan lo que pusiste a mano.</p>
-                    <p>📌 <strong style={{ color: 'var(--text)' }}>Al terminar los partidos</strong>, espera unos minutos (a que se marquen como finalizados) y da <strong style={{ color: 'var(--green)' }}>⚡ Sincronizar resultados</strong> una vez para dejar los resultados guardados en firme.</p>
-                  </div>
-
-                  <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginTop: 4 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: sincrMsg.startsWith('✓') ? 'var(--green)' : sincrMsg.startsWith('⚠') ? 'var(--yellow)' : 'var(--muted)' }}>
-                      {sincrMsg || (guardadoRes ? '✓ Ranking actualizado' : '')}
-                    </div>
-                    <div style={{ display: 'flex', gap: 8, marginLeft: 'auto' }}>
-                      <button
-                        onClick={sincronizarDesdeESPN} disabled={sincronizando}
-                        aria-label="Sincronizar resultados"
-                        style={{ ...greenCtaStyle(sincronizando), display: 'flex', alignItems: 'center', gap: 5 }}
-                      >
-                        {sincronizando ? 'Sincronizando…' : '⚡ Sincronizar resultados'}
-                      </button>
-                      <button
-                        onClick={iniciarGuardarResultados} disabled={guardandoRes}
-                        style={{
-                          padding: '10px 20px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-strong)',
-                          background: 'var(--card-light)', color: 'var(--text)',
-                          fontSize: 13, fontWeight: 600, cursor: guardandoRes ? 'not-allowed' : 'pointer',
-                          opacity: guardandoRes ? 0.5 : 1,
-                        }}
-                      >
-                        {guardandoRes ? 'Guardando…' : 'Guardar manual'}
-                      </button>
-                    </div>
                   </div>
 
                   {tienePremio(quinielaActual) && esFinalizadaQ(quinielaActual) && (
@@ -3284,7 +3328,6 @@ export default function Admin() {
                         const fecha = pred.fecha
                           ? new Date(pred.fecha).toLocaleString('es-MX', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
                           : '—'
-                        const nPicks = Object.keys(pred.picks ?? {}).length
                         const yaPagado = pagados.includes(pred.id)
                         const togglingEste = togglingPago === pred.id
                         return (
@@ -3321,7 +3364,7 @@ export default function Admin() {
                                 </p>
                               )}
                               <p style={{ fontSize: 11, color: 'var(--muted)' }}>
-                                {nPicks} pick{nPicks !== 1 ? 's' : ''} · {fecha}
+                                {fecha}
                               </p>
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
@@ -3393,27 +3436,67 @@ export default function Admin() {
                     {editPartidos.map((p, i) => {
                       const esOriginal = i < editPartidosOriginales
                       const bloqueado = esOriginal && conteoPredicciones > 0
-                      return (
-                        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: i < editPartidos.length - 1 ? '1px solid var(--border)' : 'none' }}>
-                          {bloqueado && (
-                            <span aria-label="Partido fijo" title="No editable: ya hay predicciones" style={{ fontSize: 12, opacity: 0.7, flexShrink: 0 }}>🔒</span>
-                          )}
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
-                            {p.escudoLocal && <img src={p.escudoLocal} alt="" style={{ width: 18, height: 18, objectFit: 'contain', flexShrink: 0 }} onError={e => { e.target.style.display = 'none' }} />}
-                            <span style={{ fontSize: 13, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.local}</span>
-                            <span style={{ fontSize: 11, color: 'var(--muted)', flexShrink: 0 }}>vs</span>
-                            {p.escudoVisitante && <img src={p.escudoVisitante} alt="" style={{ width: 18, height: 18, objectFit: 'contain', flexShrink: 0 }} onError={e => { e.target.style.display = 'none' }} />}
-                            <span style={{ fontSize: 13, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.visitante}</span>
+                      const incompleto = partidoIncompleto(p)
+                      const enEdicion = !bloqueado && (editandoPartidoEdicion === i || incompleto)
+
+                      if (!enEdicion) {
+                        // ── Tarjeta colapsada (solo lectura) ──
+                        return (
+                          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: i < editPartidos.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                            {bloqueado && (
+                              <span aria-label="Partido fijo" title="No editable: ya hay predicciones" style={{ fontSize: 12, opacity: 0.7, flexShrink: 0 }}>🔒</span>
+                            )}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
+                              {escudoMini(p.escudoLocal, p.local)}
+                              <span style={{ fontSize: 13, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.local}</span>
+                              <span style={{ fontSize: 11, color: 'var(--muted)', flexShrink: 0 }}>vs</span>
+                              {escudoMini(p.escudoVisitante, p.visitante)}
+                              <span style={{ fontSize: 13, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.visitante}</span>
+                            </div>
+                            {p.hora && <span style={{ fontSize: 11, color: 'var(--muted)', flexShrink: 0 }}>{formatFixtureDate(p.hora)}</span>}
+                            {!bloqueado && (
+                              <button onClick={() => setEditandoPartidoEdicion(i)} aria-label="Editar partido" title="Editar" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, padding: '2px 4px', flexShrink: 0 }}>✏️</button>
+                            )}
+                            {!bloqueado && !esOriginal && (
+                              <button
+                                onClick={() => setEditPartidos(prev => prev.filter((_, idx) => idx !== i))}
+                                aria-label="Quitar partido nuevo"
+                                style={{ background: 'none', border: 'none', color: 'var(--red)', fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: '2px 6px', borderRadius: 6, flexShrink: 0 }}
+                              >
+                                Quitar ✕
+                              </button>
+                            )}
                           </div>
-                          {p.hora && <span style={{ fontSize: 11, color: 'var(--muted)', flexShrink: 0 }}>{formatFixtureDate(p.hora)}</span>}
-                          {!bloqueado && !esOriginal && (
-                            <button
-                              onClick={() => setEditPartidos(prev => prev.filter((_, idx) => idx !== i))}
-                              aria-label="Quitar partido nuevo"
-                              style={{ background: 'none', border: 'none', color: 'var(--red)', fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: '2px 6px', borderRadius: 6, flexShrink: 0 }}
-                            >
-                              Quitar ✕
-                            </button>
+                        )
+                      }
+
+                      // ── Modo edición ──
+                      return (
+                        <div key={i} style={{ marginBottom: 16, paddingBottom: 16, borderBottom: i < editPartidos.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.8 }}>
+                              Partido {i + 1}
+                            </span>
+                            {!esOriginal && (
+                              <button onClick={() => setEditPartidos(prev => prev.filter((_, idx) => idx !== i))} style={{ background: 'none', border: 'none', color: 'var(--red)', fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: '2px 6px', borderRadius: 6 }}>
+                                Quitar ✕
+                              </button>
+                            )}
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: 8, marginBottom: 8, alignItems: 'center' }}>
+                            <input type="text" placeholder="Equipo local"     value={p.local}     onChange={e => actualizarEditPartido(i, 'local', e.target.value)} />
+                            <span style={{ color: 'var(--muted)', fontSize: 12, fontWeight: 700, textAlign: 'center' }}>VS</span>
+                            <input type="text" placeholder="Equipo visitante" value={p.visitante} onChange={e => actualizarEditPartido(i, 'visitante', e.target.value)} />
+                          </div>
+                          <DateTimeWrap vacio={!p.hora} texto="📅 Fecha y hora del partido">
+                            <input type="datetime-local" value={p.hora} onChange={e => actualizarEditPartido(i, 'hora', e.target.value)} />
+                          </DateTimeWrap>
+                          {!incompleto && (
+                            <div style={{ textAlign: 'right', marginTop: 8 }}>
+                              <button onClick={() => setEditandoPartidoEdicion(null)} style={{ background: 'none', border: '1px solid var(--border-strong)', color: 'var(--text)', fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: '6px 14px', borderRadius: 'var(--radius-sm)' }}>
+                                Listo ✓
+                              </button>
+                            </div>
                           )}
                         </div>
                       )
@@ -3422,7 +3505,10 @@ export default function Admin() {
                       <p style={{ fontSize: 13, color: 'var(--muted)', textAlign: 'center', padding: '1rem 0' }}>Sin partidos. Agrega desde el buscador o manualmente.</p>
                     )}
                     <button
-                      onClick={() => setEditPartidos(prev => [...prev, { local: '', visitante: '', hora: '' }])}
+                      onClick={() => {
+                        setEditandoPartidoEdicion(editPartidos.length)
+                        setEditPartidos(prev => [...prev, { local: '', visitante: '', hora: '' }])
+                      }}
                       style={{ width: '100%', padding: '10px', border: '1.5px dashed var(--border-strong)', background: 'transparent', borderRadius: 'var(--radius-sm)', cursor: 'pointer', color: 'var(--muted)', fontSize: 13, fontWeight: 600, marginTop: 10 }}
                     >
                       + Agregar partido manualmente
@@ -3758,7 +3844,7 @@ function QuinielaCard({ q, conteos, onGestionar, dueno }) {
     ? { label: 'Jugándose', bg: 'var(--yellow-bg)', color: 'var(--yellow)' }
     : cerrada
       ? { label: 'Finalizada', bg: 'var(--neutral-bg)', color: 'var(--muted)' }
-      : { label: 'Activa', bg: 'var(--green-bg)', color: 'var(--green)' }
+      : { label: 'Abierta', bg: 'var(--green-bg)', color: 'var(--green)' }
 
   return (
     <div style={{

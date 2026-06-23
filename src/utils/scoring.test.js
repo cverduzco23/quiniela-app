@@ -5,6 +5,7 @@ import {
   getPickResultado,
   getEfectivo,
   calcularPuntos,
+  calcularRacha,
 } from './scoring'
 
 describe('goalsToResultado', () => {
@@ -167,5 +168,74 @@ describe('calcularPuntos', () => {
     const liveScores = { a: { state: 'in', local: '1', visitante: '0' } }
     const r = calcularPuntos(picks, {}, liveScores, partidos)
     expect(r).toEqual({ puntos: 3, aciertos: 1, exactos: 1 })
+  })
+})
+
+describe('calcularRacha', () => {
+  const partidos = [
+    { espnId: 'a' },
+    { espnId: 'b' },
+    { espnId: 'c' },
+    { espnId: 'd' },
+  ]
+
+  it('cuenta los últimos correctos consecutivos y se detiene en el primer fallo', () => {
+    const picks = {
+      0: { local: '0', visitante: '3' }, // falla
+      1: { local: '1', visitante: '1' }, // correcto, no exacto
+      2: { local: '2', visitante: '0' }, // correcto, exacto
+      3: { local: '0', visitante: '1' }, // correcto, exacto
+    }
+    const resultados = {
+      0: { local: '1', visitante: '0' },
+      1: { local: '2', visitante: '2' },
+      2: { local: '2', visitante: '0' },
+      3: { local: '0', visitante: '1' },
+    }
+    expect(calcularRacha(picks, resultados, {}, partidos)).toEqual({ correctas: 3, exactas: 2 })
+  })
+
+  it('la racha de exactos se detiene en el primer correcto-no-exacto, aunque la de correctos siga', () => {
+    const picks = {
+      1: { local: '1', visitante: '1' }, // correcto, no exacto
+      2: { local: '2', visitante: '0' }, // correcto, exacto
+      3: { local: '0', visitante: '1' }, // correcto, exacto
+    }
+    const resultados = {
+      1: { local: '2', visitante: '2' },
+      2: { local: '2', visitante: '0' },
+      3: { local: '0', visitante: '1' },
+    }
+    expect(calcularRacha(picks, resultados, {}, partidos)).toEqual({ correctas: 3, exactas: 2 })
+  })
+
+  it('un partido en vivo al final no cuenta todavía, pero no rompe la racha de los ya finalizados', () => {
+    const picks = {
+      0: { local: '2', visitante: '0' },
+      1: { local: '0', visitante: '1' },
+    }
+    const resultados = {
+      0: { local: '2', visitante: '0' },
+      1: { local: '0', visitante: '1' },
+    }
+    const liveScores = { d: { state: 'in', local: '1', visitante: '0' } }
+    expect(calcularRacha(picks, resultados, liveScores, partidos)).toEqual({ correctas: 2, exactas: 2 })
+  })
+
+  it('los partidos cancelados se saltan sin romper la racha', () => {
+    const picks = {
+      0: { local: '2', visitante: '0' },
+      2: { local: '0', visitante: '1' },
+    }
+    const resultados = {
+      0: { local: '2', visitante: '0' },
+      1: { cancelado: true },
+      2: { local: '0', visitante: '1' },
+    }
+    expect(calcularRacha(picks, resultados, {}, partidos.slice(0, 3))).toEqual({ correctas: 2, exactas: 2 })
+  })
+
+  it('sin partidos finalizados, la racha es 0', () => {
+    expect(calcularRacha({}, {}, {}, partidos)).toEqual({ correctas: 0, exactas: 0 })
   })
 })

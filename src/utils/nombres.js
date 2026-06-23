@@ -6,6 +6,8 @@ export function normalizarNombre(nombre) {
   return String(nombre)
     .trim()
     .replace(/\s+/g, ' ')
+    // Quita signos de puntuación sueltos al final (puntos, comas, signos, etc.)
+    .replace(/[\s.,;:!?¡¿'"´`*_/\\]+$/u, '')
     .toLocaleLowerCase('es-MX')
     .replace(/(^|[\s-])(\p{L})/gu, (_, sep, letra) => sep + letra.toLocaleUpperCase('es-MX'))
 }
