@@ -439,10 +439,10 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                   cursor: cerrada ? 'pointer' : 'default',
                 }}
               >
-                <span style={{ fontSize: medalla ? 18 : 14, fontWeight: 700, color: medalla ? 'var(--yellow)' : 'var(--muted)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 28, gap: 3 }}>
+                <span style={{ position: 'relative', fontSize: medalla ? 18 : 14, fontWeight: 700, color: medalla ? 'var(--yellow)' : 'var(--muted)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 28 }}>
                   {medalla ?? `${pos}`}
-                  {cambio === 'subio' && <span style={{ fontSize: 11, color: 'var(--green)', fontWeight: 800 }} aria-label="Subió de posición">▲</span>}
-                  {cambio === 'bajo'  && <span style={{ fontSize: 11, color: 'var(--red)',   fontWeight: 800 }} aria-label="Bajó de posición">▼</span>}
+                  {cambio === 'subio' && <span style={{ position: 'absolute', top: -3, right: -3, fontSize: 9, color: 'var(--green)', fontWeight: 800, lineHeight: 1 }} aria-label="Subió de posición">▲</span>}
+                  {cambio === 'bajo'  && <span style={{ position: 'absolute', top: -3, right: -3, fontSize: 9, color: 'var(--red)',   fontWeight: 800, lineHeight: 1 }} aria-label="Bajó de posición">▼</span>}
                 </span>
                 <div style={{ minWidth: 0 }}>
                   <span style={{ fontSize: 13, fontWeight: esLider ? 700 : 500, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
