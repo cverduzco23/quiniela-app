@@ -13,11 +13,13 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-// experimentalAutoDetectLongPolling: en redes móviles/proxies donde el WebSocket
-// de Firestore se "cuelga" sin fallar, el SDK detecta el problema y cambia solo a
-// long-polling (que sí pasa). Evita el spinner infinito de "Cargando ranking…".
+// experimentalForceLongPolling: forzamos long-polling directamente en vez de
+// auto-detectarlo. La auto-detección "sondea" la red en la primera conexión y
+// eso añade varios segundos de "Cargando…" en frío (luego, ya caliente, va rápido).
+// Forzar long-polling conecta de inmediato (sin sondeo) y es el transporte más
+// confiable en móvil, donde el WebSocket de Firestore se cuelga en algunas redes.
 export const db = initializeFirestore(app, {
-  experimentalAutoDetectLongPolling: true,
+  experimentalForceLongPolling: true,
 });
 export const auth = getAuth(app);
 
