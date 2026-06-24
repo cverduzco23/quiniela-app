@@ -1,5 +1,5 @@
 import { initializeApp, deleteApp } from "firebase/app";
-import { getFirestore } from "firebase/firestore";
+import { initializeFirestore } from "firebase/firestore";
 import { getAuth, createUserWithEmailAndPassword, signOut } from "firebase/auth";
 import { getAnalytics, isSupported, logEvent } from "firebase/analytics";
 
@@ -13,7 +13,12 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app);
+// experimentalAutoDetectLongPolling: en redes móviles/proxies donde el WebSocket
+// de Firestore se "cuelga" sin fallar, el SDK detecta el problema y cambia solo a
+// long-polling (que sí pasa). Evita el spinner infinito de "Cargando ranking…".
+export const db = initializeFirestore(app, {
+  experimentalAutoDetectLongPolling: true,
+});
 export const auth = getAuth(app);
 
 // ── Analytics ─────────────────────────────────────────────────

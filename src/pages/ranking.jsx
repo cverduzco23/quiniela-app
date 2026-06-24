@@ -27,28 +27,57 @@ export default function Ranking() {
   const [actualizando, setActualizando] = useState(false)
 
   // ── Firebase ────────────────────────────────────────────────────
+  // `intento` se incrementa para forzar una reconexión (timeout de carga o
+  // regreso de una pestaña congelada por el navegador).
+  const [intento, setIntento] = useState(0)
   useEffect(() => {
     if (!quinielaId) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setCargando(false); setError('no-id'); return
     }
 
+    let respondio = false
+
     const unsubQ = onSnapshot(
       doc(db, 'quinielas', quinielaId),
       snap => {
+        respondio = true
         if (!snap.exists()) { setError('not-found'); setCargando(false); return }
         setQuiniela({ id: snap.id, ...snap.data() })
         setCargando(false)
       },
-      () => { setError('error'); setCargando(false) }
+      () => { respondio = true; setError('error'); setCargando(false) }
     )
     const unsubP = onSnapshot(
       query(collection(db, 'predicciones'), where('quinielaId', '==', quinielaId)),
       snap => setPredicciones(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
       () => {}
     )
-    return () => { unsubQ(); unsubP() }
-  }, [quinielaId])
+
+    // Salvavidas anti-spinner-infinito: si Firebase no respondió en 8s (conexión
+    // colgada en una red móvil), reintentamos una vez reabriendo los escuchas.
+    // Si tras un par de intentos sigue sin responder, mostramos la pantalla de error.
+    const timeout = setTimeout(() => {
+      if (respondio) return
+      if (intento < 2) setIntento(n => n + 1)
+      else { setError('timeout'); setCargando(false) }
+    }, 8000)
+
+    return () => { clearTimeout(timeout); unsubQ(); unsubP() }
+  }, [quinielaId, intento])
+
+  // ── Reconexión al volver de una pestaña "congelada" ──────────────
+  // Safari/Chrome móvil congelan las pestañas en segundo plano (bfcache). Al
+  // volver al enlace, la conexión a Firebase puede estar muerta y el escucha
+  // nunca se reactiva → spinner pegado. Al detectar el regreso, forzamos
+  // reconexión reabriendo los escuchas.
+  useEffect(() => {
+    const onPageShow = (e) => {
+      if (e.persisted) { setCargando(true); setError(null); setIntento(n => n + 1) }
+    }
+    window.addEventListener('pageshow', onPageShow)
+    return () => window.removeEventListener('pageshow', onPageShow)
+  }, [])
 
   // ── Polling ESPN ────────────────────────────────────────────────
   const fetchLiveData = async (quinielaData) => {
@@ -255,15 +284,33 @@ export default function Ranking() {
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '5rem 1.5rem', color: 'var(--muted)' }}>
       <div style={{ maxWidth: 360 }}>
         <div style={{ fontSize: 52, marginBottom: 20 }}>⚠️</div>
-        <p style={{ fontSize: 18, fontWeight: 600, color: 'var(--text)', marginBottom: 24 }}>No se pudo cargar el ranking</p>
-        <a href="/" style={{
-          display: 'inline-block', padding: '11px 24px', borderRadius: 'var(--radius-md)',
-          background: 'linear-gradient(135deg, var(--green), var(--green-light))',
-          color: '#07120A', fontWeight: 800, fontSize: 14, textDecoration: 'none',
-          boxShadow: 'var(--shadow-green)', letterSpacing: 0.2,
-        }}>
-          ← Ver quinielas activas
-        </a>
+        <p style={{ fontSize: 18, fontWeight: 600, color: 'var(--text)', marginBottom: 8 }}>No se pudo cargar el ranking</p>
+        {error === 'timeout' && (
+          <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 24, lineHeight: 1.5 }}>
+            La conexión está tardando más de lo normal. Revisa tu internet e inténtalo de nuevo.
+          </p>
+        )}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: error === 'timeout' ? 0 : 24 }}>
+          {(error === 'timeout' || error === 'error') && (
+            <button onClick={() => { setError(null); setCargando(true); setIntento(n => n + 1) }} style={{
+              padding: '11px 24px', borderRadius: 'var(--radius-md)', border: 'none', cursor: 'pointer',
+              background: 'linear-gradient(135deg, var(--green), var(--green-light))',
+              color: '#07120A', fontWeight: 800, fontSize: 14,
+              boxShadow: 'var(--shadow-green)', letterSpacing: 0.2,
+            }}>
+              ↻ Reintentar
+            </button>
+          )}
+          <a href="/" style={{
+            display: 'inline-block', padding: '11px 24px', borderRadius: 'var(--radius-md)',
+            background: (error === 'timeout' || error === 'error') ? 'transparent' : 'linear-gradient(135deg, var(--green), var(--green-light))',
+            color: (error === 'timeout' || error === 'error') ? 'var(--muted)' : '#07120A',
+            fontWeight: 800, fontSize: 14, textDecoration: 'none',
+            boxShadow: (error === 'timeout' || error === 'error') ? 'none' : 'var(--shadow-green)', letterSpacing: 0.2,
+          }}>
+            ← Ver quinielas activas
+          </a>
+        </div>
       </div>
     </div>
   )
