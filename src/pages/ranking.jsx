@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams, useParams } from 'react-router-dom'
-import { doc, onSnapshot, collection, query, where, updateDoc } from 'firebase/firestore'
+import { doc, getDoc, getDocs, collection, query, where, updateDoc } from 'firebase/firestore'
 import { db, track } from '../firebase'
 import { getResultado } from '../utils/scoring'
 import { findEventByTeamsAndDate } from '../utils/espn'
@@ -26,51 +26,57 @@ export default function Ranking() {
   const [ultimaAct, setUltimaAct]       = useState(null)
   const [actualizando, setActualizando] = useState(false)
 
-  // ── Firebase ────────────────────────────────────────────────────
-  // `intento` se incrementa para forzar una reconexión (timeout de carga o
-  // regreso de una pestaña congelada por el navegador).
+  // ── Carga de datos (lectura puntual, no escucha permanente) ──────
+  // Usamos getDoc/getDocs (una sola lectura) en vez de onSnapshot. Una escucha
+  // en tiempo real mantiene una conexión ABIERTA por pestaña; iOS —donde todos
+  // los navegadores (incluido Chrome) usan el motor de Safari— limita las
+  // conexiones por sitio (~6), así que al abrir varias pestañas del mismo enlace
+  // la siguiente se quedaba "Cargando…" sin conexión libre. Con lecturas
+  // puntuales cada pestaña pide los datos, los recibe y suelta la conexión.
+  // Los marcadores en vivo vienen de ESPN cada 90s (no de Firebase), así que no
+  // perdemos nada de "tiempo real"; los datos se refrescan en ese mismo ciclo.
+  const cargarDatos = async () => {
+    if (!quinielaId) return false
+    const [snapQ, snapP] = await Promise.all([
+      getDoc(doc(db, 'quinielas', quinielaId)),
+      getDocs(query(collection(db, 'predicciones'), where('quinielaId', '==', quinielaId))),
+    ])
+    if (!snapQ.exists()) { setError('not-found'); setCargando(false); return false }
+    setQuiniela({ id: snapQ.id, ...snapQ.data() })
+    setPredicciones(snapP.docs.map(d => ({ id: d.id, ...d.data() })))
+    setError(null)
+    setCargando(false)
+    return true
+  }
+
+  // ── Carga inicial + reintento ────────────────────────────────────
+  // `intento` se incrementa para forzar una recarga (timeout o regreso de una
+  // pestaña congelada por el navegador).
   const [intento, setIntento] = useState(0)
   useEffect(() => {
     if (!quinielaId) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setCargando(false); setError('no-id'); return
     }
-
+    let activo = true
     let respondio = false
+    cargarDatos().then(ok => { if (ok) respondio = true }).catch(() => {})
 
-    const unsubQ = onSnapshot(
-      doc(db, 'quinielas', quinielaId),
-      snap => {
-        respondio = true
-        if (!snap.exists()) { setError('not-found'); setCargando(false); return }
-        setQuiniela({ id: snap.id, ...snap.data() })
-        setCargando(false)
-      },
-      () => { respondio = true; setError('error'); setCargando(false) }
-    )
-    const unsubP = onSnapshot(
-      query(collection(db, 'predicciones'), where('quinielaId', '==', quinielaId)),
-      snap => setPredicciones(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
-      () => {}
-    )
-
-    // Salvavidas anti-spinner-infinito: si Firebase no respondió en 8s (conexión
-    // colgada en una red móvil), reintentamos una vez reabriendo los escuchas.
-    // Si tras un par de intentos sigue sin responder, mostramos la pantalla de error.
+    // Salvavidas anti-spinner-infinito: si en 8s no llegaron los datos (conexión
+    // colgada o saturada), reintentamos; tras un par de intentos mostramos error.
     const timeout = setTimeout(() => {
-      if (respondio) return
+      if (!activo || respondio) return
       if (intento < 2) setIntento(n => n + 1)
       else { setError('timeout'); setCargando(false) }
     }, 8000)
 
-    return () => { clearTimeout(timeout); unsubQ(); unsubP() }
+    return () => { activo = false; clearTimeout(timeout) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [quinielaId, intento])
 
-  // ── Reconexión al volver de una pestaña "congelada" ──────────────
+  // ── Recarga al volver de una pestaña "congelada" ─────────────────
   // Safari/Chrome móvil congelan las pestañas en segundo plano (bfcache). Al
-  // volver al enlace, la conexión a Firebase puede estar muerta y el escucha
-  // nunca se reactiva → spinner pegado. Al detectar el regreso, forzamos
-  // reconexión reabriendo los escuchas.
+  // volver al enlace recargamos los datos para no mostrar algo viejo o pegado.
   useEffect(() => {
     const onPageShow = (e) => {
       if (e.persisted) { setCargando(true); setError(null); setIntento(n => n + 1) }
@@ -213,7 +219,7 @@ export default function Ranking() {
     // Polling 90s, pausa cuando la pestaña no está visible
     // (ahorro de ancho de banda + cuota ESPN cuando hay muchos clientes abiertos)
     let interval = null
-    const tick = () => fetchLiveData(quiniela)
+    const tick = () => { cargarDatos().catch(() => {}); fetchLiveData(quiniela) }
     const start = () => {
       if (interval) return
       tick()
@@ -270,7 +276,7 @@ export default function Ranking() {
   const handleRefresh = async () => {
     if (actualizando || !quiniela) return
     setActualizando(true)
-    try { await fetchLiveData(quiniela) }
+    try { await Promise.all([cargarDatos().catch(() => {}), fetchLiveData(quiniela)]) }
     finally { setActualizando(false) }
   }
 
