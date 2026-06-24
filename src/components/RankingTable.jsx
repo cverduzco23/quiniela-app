@@ -43,10 +43,6 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
   const [feedbackShare, setFeedbackShare] = useState('')
   const [busqueda, setBusqueda]                 = useState('')
 
-  // Detección de cambios de posición para animar las filas afectadas
-  const prevPosicionesRef = useRef(null)
-  const [cambios, setCambios] = useState(new Map())
-
   // Detección de goles nuevos (comparando contra el polling anterior) para
   // disparar un festejo en pantalla, igual al de "picks completos".
   const prevLiveScoresRef = useRef(null)
@@ -119,30 +115,6 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
   const shown     = filtrados.slice(0, visibles)
   const restantes = filtrados.length - shown.length
   const mostrarBuscador = jugadores.length > UMBRAL_BUSQUEDA
-
-  // Detectar cambios de posición entre renders (típicamente al llegar nuevos scores)
-  // y disparar animación de 1.8s. No animamos en el primer render.
-  useEffect(() => {
-    if (jugadores.length === 0) return
-    const nueva = new Map()
-    jugadores.forEach((j, i) => nueva.set(j.nombre, posiciones[i]))
-    const prev = prevPosicionesRef.current
-    prevPosicionesRef.current = nueva
-    if (!prev) return // primer render: solo guardamos snapshot, no animamos
-    const detectados = new Map()
-    nueva.forEach((pos, nombre) => {
-      const posAnt = prev.get(nombre)
-      if (posAnt !== undefined && posAnt !== pos) {
-        detectados.set(nombre, pos < posAnt ? 'subio' : 'bajo')
-      }
-    })
-    if (detectados.size > 0) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setCambios(detectados)
-      const t = setTimeout(() => setCambios(new Map()), 1800)
-      return () => clearTimeout(t)
-    }
-  })
 
   // Detectar goles nuevos entre un polling y el siguiente, para festejar en
   // pantalla. Solo cuenta mientras el partido está en vivo (evita festejar
@@ -424,7 +396,6 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
           const pos = j._pos
           const esLider = pos === 1 && hayResultados
           const medalla = pos <= 3 ? medals[pos - 1] : null
-          const cambio = cambios.get(j.nombre)
 
           return (
             <div key={j.nombre} style={{ borderBottom: i < shown.length - 1 ? '1px solid var(--border)' : 'none' }}>
@@ -439,10 +410,8 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                   cursor: cerrada ? 'pointer' : 'default',
                 }}
               >
-                <span style={{ position: 'relative', fontSize: medalla ? 18 : 14, fontWeight: 700, color: medalla ? 'var(--yellow)' : 'var(--muted)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 28 }}>
+                <span style={{ fontSize: medalla ? 18 : 14, fontWeight: 700, color: medalla ? 'var(--yellow)' : 'var(--muted)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 28 }}>
                   {medalla ?? `${pos}`}
-                  {cambio === 'subio' && <span style={{ position: 'absolute', top: -3, right: -3, fontSize: 9, color: 'var(--green)', fontWeight: 800, lineHeight: 1 }} aria-label="Subió de posición">▲</span>}
-                  {cambio === 'bajo'  && <span style={{ position: 'absolute', top: -3, right: -3, fontSize: 9, color: 'var(--red)',   fontWeight: 800, lineHeight: 1 }} aria-label="Bajó de posición">▼</span>}
                 </span>
                 <div style={{ minWidth: 0 }}>
                   <span style={{ fontSize: 13, fontWeight: esLider ? 700 : 500, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
