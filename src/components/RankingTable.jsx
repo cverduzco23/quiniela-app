@@ -46,6 +46,7 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
   // Detección de goles nuevos (comparando contra el polling anterior) para
   // disparar un festejo en pantalla, igual al de "picks completos".
   const prevLiveScoresRef = useRef(null)
+  const golTimerRef = useRef(null)
   const [golFestejo, setGolFestejo] = useState(null) // { equipo } | null
 
   const toggleExpandido = (nombre) => {
@@ -135,11 +136,18 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
         const equipo = Number(ahora.local) > Number(antes.local) ? partido.local : partido.visitante
         // eslint-disable-next-line react-hooks/set-state-in-effect
         setGolFestejo({ equipo })
-        const t = setTimeout(() => setGolFestejo(null), 1800)
-        return () => clearTimeout(t)
+        // Reiniciamos el temporizador en un ref para que el siguiente polling
+        // (que vuelve a correr este efecto) no cancele el ocultamiento del
+        // festejo. Antes se devolvía un cleanup y el re-render lo borraba.
+        if (golTimerRef.current) clearTimeout(golTimerRef.current)
+        golTimerRef.current = setTimeout(() => setGolFestejo(null), 1800)
+        return
       }
     }
   }, [liveScores, partidos])
+
+  // Al desmontar, cancelamos cualquier temporizador de festejo pendiente.
+  useEffect(() => () => { if (golTimerRef.current) clearTimeout(golTimerRef.current) }, [])
 
   const conPremio = tienePremio(quiniela)
   const { ganadores, premioPorNombre, bote } = calcularGanadores(jugadores, quiniela, jugadores.length)
