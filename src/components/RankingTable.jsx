@@ -22,7 +22,11 @@ function pickDisplay(pick) {
   return { home: 'Local', draw: 'Empate', away: 'Visitante' }[pick] ?? pick
 }
 
-const medals = ['🥇', '🥈', '🥉']
+// Colores del podio (oro / plata / bronce) para el número de posición
+const medalColors = ['var(--yellow)', '#B8BCC4', '#C17F45']
+// Relleno metálico (oro/plata/bronce) un poco apagado y su texto, para los badges del podio
+const medalBadgeBg = ['#DBB43E', '#B8BCC4', '#C2854F']
+const medalBadgeText = ['#4A3B00', '#33363C', '#3D2410']
 const resultColor = {
   home: { bg: 'var(--green-bg)',   color: 'var(--green)' },
   draw: { bg: 'var(--neutral-bg)', color: 'var(--muted)' },
@@ -188,11 +192,11 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
       )}
 
       {/* Reglas */}
-      <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'nowrap' }}>
         {[{ pts: '1 pt', desc: 'Resultado correcto' }, { pts: '+2 pts', desc: 'Marcador exacto' }].map(r => (
-          <div key={r.desc} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--card)', borderRadius: 'var(--radius-sm)', padding: '6px 12px', border: '1px solid var(--border)', flex: '1 1 auto' }}>
-            <span style={{ fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 700, color: 'var(--green)' }}>{r.pts}</span>
-            <span style={{ fontSize: 12, color: 'var(--muted)' }}>{r.desc}</span>
+          <div key={r.desc} style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'var(--card)', borderRadius: 'var(--radius-sm)', padding: '6px 10px', border: '1px solid var(--border)', flex: '1 1 auto', minWidth: 0 }}>
+            <span style={{ fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 700, color: 'var(--green)', flexShrink: 0 }}>{r.pts}</span>
+            <span style={{ fontSize: 11.5, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.desc}</span>
           </div>
         ))}
       </div>
@@ -260,19 +264,19 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                 onClick={tieneAlgo ? () => togglePartido(i) : undefined}
                 style={{ borderBottom: i < partidos.length - 1 ? '1px solid var(--border)' : 'none', background: esVivo ? 'rgba(250,204,21,0.06)' : 'transparent', cursor: tieneAlgo ? 'pointer' : 'default' }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: p.hora ? '9px 16px 2px' : '11px 16px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: p.hora ? '9px 12px 2px' : '11px 12px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 5, flex: 1, minWidth: 0 }}>
                     {p.escudoLocal && <img src={p.escudoLocal} alt="" style={{ width: 20, height: 20, objectFit: 'contain', flexShrink: 0 }} onError={e => { e.target.style.display = 'none' }} />}
-                    <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.local}</span>
+                    <span style={{ fontSize: 11.5, fontWeight: 500, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.local}</span>
                   </div>
-                  <span style={{ fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 700, color: cancelado ? 'var(--muted)' : esVivo ? '#FCA5A5' : 'var(--text-strong)', padding: '3px 8px', background: esVivo ? 'var(--red-bg)' : 'var(--card-light)', borderRadius: 'var(--radius-sm)', margin: '0 6px', minWidth: 46, textAlign: 'center', flexShrink: 0, textDecoration: cancelado ? 'line-through' : 'none' }}>
+                  <span style={{ fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 700, color: cancelado ? 'var(--muted)' : esVivo ? '#FCA5A5' : 'var(--text-strong)', padding: '3px 8px', background: esVivo ? 'var(--red-bg)' : 'var(--card-light)', borderRadius: 'var(--radius-sm)', margin: '0 5px', minWidth: 46, textAlign: 'center', flexShrink: 0, textDecoration: cancelado ? 'line-through' : 'none' }}>
                     {scoreLocal}–{scoreVisitante}
                   </span>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 5, flex: 1, minWidth: 0 }}>
-                    <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.visitante}</span>
+                    <span style={{ fontSize: 11.5, fontWeight: 500, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.visitante}</span>
                     {p.escudoVisitante && <img src={p.escudoVisitante} alt="" style={{ width: 20, height: 20, objectFit: 'contain', flexShrink: 0 }} onError={e => { e.target.style.display = 'none' }} />}
                   </div>
-                  <div style={{ marginLeft: 10, minWidth: 70, textAlign: 'right' }}>
+                  <div style={{ marginLeft: 8, minWidth: 62, textAlign: 'right' }}>
                     {cancelado ? (
                       <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 'var(--radius-full)', background: 'var(--neutral-bg)', color: 'var(--muted)', border: '1px solid var(--border-strong)' }}>Cancelado</span>
                     ) : esVivo ? (
@@ -287,13 +291,17 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                       <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 'var(--radius-full)', background: 'var(--neutral-bg)', color: 'var(--muted)' }}>Pendiente</span>
                     )}
                     {tieneAlgo && (
-                      <span style={{ display: 'block', fontSize: 10, color: 'var(--muted)', marginTop: 4 }}>
-                        📊 {partidoAbierto ? '▲' : '▼'}
+                      <span style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 4 }}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22, borderRadius: 'var(--radius-sm)', background: 'var(--card-light)', color: 'var(--muted)' }} aria-hidden="true">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: partidoAbierto ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s ease' }}>
+                            <polyline points="6 9 12 15 18 9" />
+                          </svg>
+                        </span>
                       </span>
                     )}
                   </div>
                 </div>
-                {p.hora && <p style={{ fontSize: 10, color: 'var(--muted)', padding: '0 16px 8px', margin: 0 }}>{formatFecha(p.hora)}</p>}
+                {p.hora && <p style={{ fontSize: 10, color: 'var(--muted)', padding: '0 12px 8px', margin: 0 }}>{formatFecha(p.hora)}</p>}
 
                 {/* Panel de estadísticas */}
                 {tieneAlgo && partidoAbierto && (
@@ -403,7 +411,7 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
           const abierto = expandido.has(j.nombre)
           const pos = j._pos
           const esLider = pos === 1 && hayResultados
-          const medalla = pos <= 3 ? medals[pos - 1] : null
+          const medalColor = pos <= 3 ? medalColors[pos - 1] : null
 
           return (
             <div key={j.nombre} style={{ borderBottom: i < shown.length - 1 ? '1px solid var(--border)' : 'none' }}>
@@ -418,8 +426,8 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                   cursor: cerrada ? 'pointer' : 'default',
                 }}
               >
-                <span style={{ fontSize: medalla ? 18 : 14, fontWeight: 700, color: medalla ? 'var(--yellow)' : 'var(--muted)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 28 }}>
-                  {medalla ?? `${pos}`}
+                <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', width: '100%' }}>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: medalColor || 'var(--muted)' }}>{pos}</span>
                 </span>
                 <div style={{ minWidth: 0 }}>
                   <span style={{ fontSize: 13, fontWeight: esLider ? 700 : 500, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
@@ -445,7 +453,13 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                     {cumpleaneros.includes(j.id) && (
                       <span title="¡Hoy está de cumpleaños! 🎉" aria-label="Cumpleaños" style={{ flexShrink: 0 }}>🎂</span>
                     )}
-                    {cerrada && <span style={{ fontSize: 11, color: 'var(--muted)' }}>{abierto ? '▲' : '▼'}</span>}
+                    {cerrada && (
+                      <span style={{ display: 'inline-flex', color: 'var(--muted)', flexShrink: 0 }} aria-hidden="true">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: abierto ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s ease' }}>
+                          <polyline points="6 9 12 15 18 9" />
+                        </svg>
+                      </span>
+                    )}
                   </span>
                 </div>
                 <span style={{ fontSize: 13, color: 'var(--muted)', textAlign: 'center' }}>{j.aciertos}</span>
@@ -853,7 +867,6 @@ function SinPremioBanner() {
 }
 
 function PremioBanner({ quiniela, bote, ganadores, finalizada, hayResultados }) {
-  const medalla = (pos) => pos === 1 ? '🥇' : pos === 2 ? '🥈' : pos === 3 ? '🥉' : ''
   const grupos = ganadores.reduce((acc, g) => {
     (acc[g.posicion] ??= []).push(g)
     return acc
@@ -903,7 +916,7 @@ function PremioBanner({ quiniela, bote, ganadores, finalizada, hayResultados }) 
     )
   }
 
-  const titulo = finalizada ? '🏆 Ganadores' : '📊 Si terminara ahora'
+  const titulo = finalizada ? 'Ganadores' : 'Si terminara ahora'
   return (
     <div style={{
       background: finalizada
@@ -913,7 +926,21 @@ function PremioBanner({ quiniela, bote, ganadores, finalizada, hayResultados }) 
       borderRadius: 'var(--radius-md)', padding: '14px 16px', marginBottom: 16,
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, marginBottom: 10 }}>
-        <span style={{ fontSize: 12, fontWeight: 800, color: finalizada ? 'var(--yellow)' : 'var(--green)', letterSpacing: 0.4 }}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 800, color: finalizada ? 'var(--yellow)' : 'var(--green)', letterSpacing: 0.4 }}>
+          {finalizada ? (
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M8 21h8" />
+              <path d="M12 17v4" />
+              <path d="M7 4h10v5a5 5 0 0 1-10 0V4z" />
+              <path d="M7 6H4v1a3 3 0 0 0 3 3" />
+              <path d="M17 6h3v1a3 3 0 0 1-3 3" />
+            </svg>
+          ) : (
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="9" />
+              <path d="M12 7.5V12l3 2" />
+            </svg>
+          )}
           {titulo}
         </span>
         <span style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600 }}>
@@ -928,7 +955,12 @@ function PremioBanner({ quiniela, bote, ganadores, finalizada, hayResultados }) 
             border: '1px solid var(--border)',
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
-              <span style={{ fontSize: 18, flexShrink: 0 }}>{medalla(Number(pos))}</span>
+              <span style={{ position: 'relative', overflow: 'hidden', width: 17, height: 17, borderRadius: '50%', background: medalBadgeBg[Number(pos) - 1] || 'var(--card-light)', color: medalBadgeText[Number(pos) - 1] || 'var(--muted)', fontSize: 10, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                {Number(pos) <= 3 && (
+                  <span aria-hidden="true" style={{ position: 'absolute', inset: 0, background: 'linear-gradient(115deg, transparent 38%, rgba(255,255,255,0.6) 50%, transparent 62%)', animation: `medal-shine 4.5s ease-in-out ${Number(pos) * 0.5}s infinite` }} />
+                )}
+                <span style={{ position: 'relative' }}>{pos}</span>
+              </span>
               <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {gs.map(g => nombreCorto(g.nombre)).join(', ')}
               </span>

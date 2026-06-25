@@ -248,6 +248,12 @@ a:focus-visible {
   0%, 100% { opacity: 1; transform: scale(1); }
   50%      { opacity: 0.3; transform: scale(0.65); }
 }
+/* Reflejo metálico que cruza los badges del podio */
+@keyframes medal-shine {
+  0%   { transform: translateX(-160%); }
+  18%  { transform: translateX(160%); }
+  100% { transform: translateX(160%); }
+}
 
 /* Hero responsive */
 .hero-pad {

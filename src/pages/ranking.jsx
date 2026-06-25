@@ -324,20 +324,27 @@ export default function Ranking() {
   const partidos   = quiniela.partidos ?? []
   const resultados = quiniela.resultados ?? {}
   const enVivo     = Object.values(liveScores).some(l => l.state === 'in')
-  const terminados = partidos.filter((_, i) => {
+  // Finalizada: nada en vivo y todos los partidos ya con resultado o cancelados.
+  // En ese estado no hay nada que "actualizar".
+  const finalizada = partidos.length > 0 && !enVivo && partidos.every((_, i) => {
     const r = resultados[i] ?? resultados[String(i)]
-    if (r?.cancelado) return false
-    return getResultado(r) !== null
-  }).length
+    return r?.cancelado || getResultado(r) !== null
+  })
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
       {/* Hero */}
       <div className="hero-pad" style={{ background: 'var(--hero-gradient)', color: 'var(--text)', borderBottom: '1px solid var(--border)' }}>
         <div style={{ maxWidth: 480, margin: '0 auto' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+            <a href="/" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32, background: 'rgba(255,255,255,0.06)', color: 'var(--text)', borderRadius: '50%', lineHeight: 1, textDecoration: 'none', border: '1px solid rgba(255,255,255,0.35)', flexShrink: 0 }} aria-label="Ir a inicio" title="Inicio">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M3 11.5 12 4l9 7.5" />
+                <path d="M5 10v9a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-9" />
+                <path d="M9.5 20v-5.5a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1V20" />
+              </svg>
+            </a>
             <a href="/" style={{ fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', color: 'var(--green-light)', fontWeight: 700, textDecoration: 'none' }}>⚽ QuinielApp · Ranking</a>
-            <a href="/" style={{ background: 'var(--neutral-bg)', color: 'var(--text)', padding: '6px 12px', borderRadius: 'var(--radius-sm)', fontSize: 12, fontWeight: 600, textDecoration: 'none', border: '1px solid var(--border)' }} aria-label="Volver a inicio">← Inicio</a>
           </div>
           <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 700, lineHeight: 1.2, marginBottom: 10, letterSpacing: '-0.01em' }}>{quiniela.nombre}</h1>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -351,17 +358,18 @@ export default function Ranking() {
                 🏢 {quiniela.empresa}
               </span>
             )}
-            <span style={{
-              display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600,
-              padding: '4px 12px', borderRadius: 'var(--radius-full)',
-              background: enVivo ? 'var(--red-bg-strong)' : 'var(--neutral-bg)',
-              border: `1px solid ${enVivo ? 'var(--red)' : 'var(--border)'}`,
-              animation: enVivo ? 'pulse-badge 1.4s ease-in-out infinite' : 'none',
-            }}>
-              {enVivo && <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#FCA5A5', display: 'inline-block' }} />}
-              {enVivo ? 'EN VIVO' : terminados === 0 ? 'Sin resultados aún' : `${terminados}/${partidos.length} partidos terminados`}
-            </span>
-            {ultimaAct && Object.keys(liveScores).length > 0 && (
+            {enVivo && (
+              <span style={{
+                display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 10.5, fontWeight: 600,
+                padding: '3px 9px', borderRadius: 'var(--radius-full)',
+                background: 'var(--red-bg-strong)', border: '1px solid var(--red)',
+                animation: 'pulse-badge 1.4s ease-in-out infinite',
+              }}>
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#FCA5A5', display: 'inline-block' }} />
+                EN VIVO
+              </span>
+            )}
+            {ultimaAct && Object.keys(liveScores).length > 0 && !finalizada && (
               <span style={{ fontSize: 11, color: 'var(--muted)' }}>
                 Actualizado {ultimaAct.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
               </span>
@@ -376,7 +384,7 @@ export default function Ranking() {
                 🎉 Solo por diversión
               </span>
             )}
-            <button
+            {!finalizada && <button
               onClick={handleRefresh}
               disabled={actualizando}
               aria-label="Actualizar resultados"
@@ -388,7 +396,7 @@ export default function Ranking() {
               }}
             >
               {actualizando ? '…' : '↻ Actualizar'}
-            </button>
+            </button>}
           </div>
         </div>
       </div>
