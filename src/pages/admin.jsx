@@ -2036,9 +2036,19 @@ export default function Admin() {
               </button>
             )}
           </div>
+          {soySuper ? (
+            <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginTop: 16 }}>
+              <button onClick={abrirNuevaQuiniela} style={{ ...greenCtaStyle(false), padding: '8px 16px' }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  <AdminIcon name="plus" size={14} />
+                  Nueva quiniela
+                </span>
+              </button>
+            </div>
+          ) : (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', gap: 8, marginTop: 16 }}>
             <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
-              {vista !== 'lista' && !soySuper && (
+              {vista !== 'lista' && (
                 <button
                   onClick={() => {
                     setVista('lista')
@@ -2056,10 +2066,10 @@ export default function Admin() {
             <a
               href="/"
               style={{
-                background: soySuper ? 'linear-gradient(135deg, var(--green), var(--green-light))' : 'var(--neutral-bg)',
-                border: soySuper ? 'none' : '1px solid var(--border)',
-                color: soySuper ? '#07120A' : 'var(--text)',
-                padding: soySuper ? '8px 16px' : '7px 14px',
+                background: 'var(--neutral-bg)',
+                border: '1px solid var(--border)',
+                color: 'var(--text)',
+                padding: '7px 14px',
                 borderRadius: 'var(--radius-md)',
                 fontSize: 13,
                 fontWeight: 800,
@@ -2069,23 +2079,20 @@ export default function Admin() {
                 alignItems: 'center',
                 justifyContent: 'center',
                 whiteSpace: 'nowrap',
-                boxShadow: soySuper ? 'var(--shadow-green)' : 'none',
               }}
             >
-              {soySuper && <AdminIcon name="home" size={14} style={{ marginRight: 6 }} />}
               Inicio
             </a>
             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-              {!soySuper && (
-                <button
-                  onClick={() => setAyudaAbierta(true)}
-                  style={{ background: 'var(--neutral-bg)', border: '1px solid var(--border)', color: 'var(--text)', padding: '7px 14px', borderRadius: 'var(--radius-sm)', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
-                >
-                  ❓ Ayuda
-                </button>
-              )}
+              <button
+                onClick={() => setAyudaAbierta(true)}
+                style={{ background: 'var(--neutral-bg)', border: '1px solid var(--border)', color: 'var(--text)', padding: '7px 14px', borderRadius: 'var(--radius-sm)', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
+              >
+                ❓ Ayuda
+              </button>
             </div>
           </div>
+          )}
         </div>
       </div>
 
@@ -2097,16 +2104,14 @@ export default function Admin() {
         {/* ── Vista: Lista ────────────────────────────────────────────────── */}
         {vista === 'lista' && (
           <>
-            {!(soySuper && superModulo) && <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginBottom: 14 }}>
+            {!soySuper && <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginBottom: 14 }}>
               <div style={{ display: 'flex', gap: 8 }}>
-                {!soySuper && (
-                  <button
-                    onClick={abrirMiCuenta}
-                    style={{ background: 'var(--neutral-bg)', border: '1px solid var(--border)', color: 'var(--text)', padding: '7px 14px', borderRadius: 'var(--radius-sm)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
-                  >
-                    👤 Mi cuenta
-                  </button>
-                )}
+                <button
+                  onClick={abrirMiCuenta}
+                  style={{ background: 'var(--neutral-bg)', border: '1px solid var(--border)', color: 'var(--text)', padding: '7px 14px', borderRadius: 'var(--radius-sm)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+                >
+                  👤 Mi cuenta
+                </button>
                 <button onClick={abrirNuevaQuiniela} style={{ ...greenCtaStyle(false), padding: '9px 18px' }}>
                   + Nueva quiniela
                 </button>
@@ -2541,9 +2546,6 @@ export default function Admin() {
                     </button>
                     {misAb && (
                       <div style={{ marginTop: 8 }}>
-                        <button onClick={abrirNuevaQuiniela} style={{ ...greenCtaStyle(false), width: '100%', padding: '11px 14px', marginBottom: 12 }}>
-                          + Nueva quiniela
-                        </button>
                         {misFlat.length === 0 ? (
                           <div style={{ textAlign: 'center', padding: '1.5rem 0' }}>
                             <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 12 }}>Aún no has creado quinielas.</p>

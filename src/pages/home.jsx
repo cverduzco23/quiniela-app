@@ -708,7 +708,7 @@ export default function Home() {
             {enJuego.map(q => {
               const enVivo = hayPartidoEnVivo(q)
               return (
-              <div key={q.id} style={{ background: 'var(--card)', borderRadius: 'var(--radius-lg)', padding: 'var(--home-card-padding, 1.25rem 1.5rem)', border: `1px solid ${enVivo ? 'var(--red)' : 'var(--yellow-soft)'}`, marginBottom: 10 }}>
+              <div key={q.id} style={{ background: 'var(--card)', borderRadius: 'var(--radius-lg)', padding: 'var(--home-card-padding, 1.25rem 1.5rem)', border: '1px solid var(--yellow-soft)', marginBottom: 10 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
                   <p style={{ fontSize: 'var(--home-live-title-size, 16px)', fontWeight: 600, color: 'var(--text)' }}>{q.nombre}</p>
                   {enVivo ? (
