@@ -86,17 +86,54 @@ function drawBrandMark(ctx, x, y, size) {
 }
 
 function drawBrandHeader(ctx, x, y) {
-  const markSize = 28
+  const markSize = 30
   drawBrandMark(ctx, x, y, markSize)
 
   ctx.textBaseline = 'middle'
-  ctx.font = '900 19px Inter'
+  ctx.font = '900 21px Inter'
   const textX = x + markSize + 10
   const textY = y + markSize / 2
   ctx.fillStyle = COLORS.textStrong
   ctx.fillText('Quiniel', textX, textY)
   ctx.fillStyle = COLORS.green
   ctx.fillText('App', textX + ctx.measureText('Quiniel').width, textY)
+  return markSize
+}
+
+function drawHeaderIcon(ctx, name, x, y, size = 16, color = COLORS.muted) {
+  ctx.save()
+  ctx.translate(x, y)
+  ctx.strokeStyle = color
+  ctx.fillStyle = color
+  ctx.lineWidth = Math.max(1.6, size * 0.13)
+  ctx.lineCap = 'round'
+  ctx.lineJoin = 'round'
+
+  if (name === 'check') {
+    ctx.beginPath()
+    ctx.moveTo(size * 0.18, size * 0.52)
+    ctx.lineTo(size * 0.42, size * 0.76)
+    ctx.lineTo(size * 0.84, size * 0.24)
+    ctx.stroke()
+  } else if (name === 'target') {
+    ctx.beginPath()
+    ctx.arc(size / 2, size / 2, size * 0.39, 0, Math.PI * 2)
+    ctx.stroke()
+    ctx.beginPath()
+    ctx.arc(size / 2, size / 2, size * 0.15, 0, Math.PI * 2)
+    ctx.stroke()
+    ctx.beginPath()
+    ctx.moveTo(size / 2, 0)
+    ctx.lineTo(size / 2, size * 0.18)
+    ctx.moveTo(size / 2, size * 0.82)
+    ctx.lineTo(size / 2, size)
+    ctx.moveTo(0, size / 2)
+    ctx.lineTo(size * 0.18, size / 2)
+    ctx.moveTo(size * 0.82, size / 2)
+    ctx.lineTo(size, size / 2)
+    ctx.stroke()
+  }
+  ctx.restore()
 }
 
 // Dos primeros tokens del nombre (para el banner de ganador/es).
@@ -159,7 +196,7 @@ function calcularLayout(jugadores, miNombre) {
 }
 
 function calcularAltura({ top, vecinos, separadorN, restoFinal, banner }) {
-  let h = PAD + 110 // título + estado
+  let h = PAD + 144 // título + estado
   if (banner) h += 96
   h += 50 // header tabla
   h += top.length * ROW_H + 12
@@ -235,14 +272,14 @@ export async function generarImagenRanking({
   let y = PAD
 
   // ── Header: marca + nombre + estado
-  drawBrandHeader(ctx, PAD, y)
-  y += 38
+  const brandH = drawBrandHeader(ctx, PAD, y)
+  y += brandH + 30
 
   ctx.fillStyle = COLORS.textStrong
-  ctx.font = '700 34px Rajdhani'
+  ctx.font = '750 32px Rajdhani'
   const nombreLine = truncate(ctx, quiniela.nombre || 'Quiniela', W - PAD * 2)
   ctx.fillText(nombreLine, PAD, y)
-  y += 44
+  y += 54
 
   // Badges de estado
   const badgeTexto = enVivo ? '🔴 EN VIVO' : finalizada ? '🏆 FINALIZADA' : 'EN CURSO'
@@ -320,8 +357,8 @@ export async function generarImagenRanking({
   ctx.fillText('#', colNum, y + 20)
   ctx.fillText('JUGADOR', colNom, y + 20)
   ctx.textAlign = 'center'
-  ctx.fillText('RES.', colAci, y + 20)
-  ctx.fillText('EX.', colEx, y + 20)
+  drawHeaderIcon(ctx, 'check', colAci - 8, y + 12, 16, COLORS.muted)
+  drawHeaderIcon(ctx, 'target', colEx - 8, y + 12, 16, COLORS.muted)
   ctx.fillText('PTS', colPts, y + 20)
   if (conPremio) {
     ctx.textAlign = 'right'
@@ -330,13 +367,9 @@ export async function generarImagenRanking({
   ctx.textAlign = 'left'
   y += 50
 
-  // ── Filas — dibujo común aplicado a top y vecinos
-  const medals = ['🥇', '🥈', '🥉']
-
   const dibujarFila = (j) => {
     const pos     = j._pos
     const esLider = pos === 1 && (terminados > 0 || enVivo)
-    const medalla = pos <= 3 ? medals[pos - 1] : null
     const esTu    = !!miNombreNorm && j.nombre === miNombreNorm
 
     // Fondo: si es la fila del user, banda verde más visible que la del líder
@@ -366,19 +399,12 @@ export async function generarImagenRanking({
     ctx.lineTo(W - PAD - 12, y + ROW_H - 8)
     ctx.stroke()
 
-    // Posición / medalla
+    // Posición
     ctx.textBaseline = 'middle'
-    if (medalla) {
-      ctx.fillStyle = COLORS.textStrong
-      ctx.font = '700 28px Inter'
-      ctx.textAlign = 'center'
-      ctx.fillText(medalla, colNum + 4, y + 30)
-    } else {
-      ctx.fillStyle = esTu ? COLORS.green : COLORS.muted
-      ctx.font = '700 17px Inter'
-      ctx.textAlign = 'center'
-      ctx.fillText(`${pos}`, colNum + 4, y + 30)
-    }
+    ctx.fillStyle = pos === 1 ? COLORS.yellow : pos === 2 ? '#B8BCC4' : pos === 3 ? '#C17F45' : esTu ? COLORS.green : COLORS.muted
+    ctx.font = pos <= 3 ? '800 20px Inter' : '700 17px Inter'
+    ctx.textAlign = 'center'
+    ctx.fillText(`${pos}`, colNum + 4, y + 30)
 
     // Nombre (con racha/cumpleaños y "TÚ" si aplica). El nombre va completo;
     // junto a él se muestra 🔥/🎯 (racha) y/o 🎂 (cumpleaños) del jugador.

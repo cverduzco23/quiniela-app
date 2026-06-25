@@ -446,9 +446,9 @@ export default function Home() {
       <div className="hero-pad home-hero-pad" style={{ background: 'var(--hero-gradient)', color: 'var(--text)', textAlign: 'center', borderBottom: '1px solid var(--border)' }}>
         <div style={{ maxWidth: 560, margin: '0 auto' }}>
           <div className="home-brand-lockup" style={{ marginBottom: 14 }}>
-            <BrandWordmark markSize={32} fontSize={26} />
+            <BrandWordmark markSize={36} fontSize={30} />
           </div>
-          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--home-title-size, clamp(28px, 7vw, 40px))', fontWeight: 700, lineHeight: 1.05, marginBottom: 0, letterSpacing: '-0.02em' }}>
+          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--home-title-size, clamp(26px, 6.2vw, 34px))', fontWeight: 650, lineHeight: 1.08, marginBottom: 0, letterSpacing: 0, color: 'var(--text)' }}>
             Predice. Compite. <span style={{ color: 'var(--green)' }}>Gana.</span>
           </h1>
         </div>

@@ -501,6 +501,9 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
               scoreLocal = stored.local ?? '–'; scoreVisitante = stored.visitante ?? '–'
               resDisplay = getResultado(stored)
             }
+            const pendiente = !cancelado && !resDisplay && !esVivo && !esFinish
+            const scoreLocalDisplay = pendiente ? 'vs' : scoreLocal
+            const scoreVisitanteDisplay = pendiente ? '' : scoreVisitante
             const tieneStats = !!p.espnId
             const partidoAbierto = expandidoPartido.has(i)
             const st = liveStats[p.espnId]
@@ -513,50 +516,105 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
               <div
                 key={i}
                 onClick={tieneAlgo ? () => togglePartido(i) : undefined}
-                style={{ borderBottom: i < partidos.length - 1 ? '1px solid var(--border)' : 'none', background: esVivo ? 'rgba(250,204,21,0.06)' : 'transparent', cursor: tieneAlgo ? 'pointer' : 'default' }}
+                className={`ranking-match-row${esVivo ? ' is-live' : ''}${tieneAlgo ? ' is-clickable' : ''}`}
+                style={{ borderBottom: i < partidos.length - 1 ? '1px solid var(--border)' : 'none' }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: p.hora ? '9px 12px 2px' : '11px 12px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 5, flex: 1, minWidth: 0 }}>
-                    {p.escudoLocal && <img src={p.escudoLocal} alt="" style={{ width: 20, height: 20, objectFit: 'contain', flexShrink: 0 }} onError={e => { e.target.style.display = 'none' }} />}
-                    <span style={{ fontSize: 11.5, fontWeight: 500, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.local}</span>
+                <div className="ranking-match-body">
+                  <div className="ranking-match-desktop-teams">
+                    <div className="ranking-match-side is-home">
+                      {p.escudoLocal && <img className="ranking-match-crest" src={p.escudoLocal} alt="" onError={e => { e.target.style.display = 'none' }} />}
+                      <span className="ranking-match-name">{p.local}</span>
+                    </div>
+                    <span
+                      className={`ranking-match-score is-desktop${pendiente ? ' is-pending' : ''}`}
+                      style={{ color: cancelado ? 'var(--muted)' : esVivo ? '#FCA5A5' : 'var(--text-strong)', background: esVivo ? 'var(--red-bg)' : 'var(--card-light)', textDecoration: cancelado ? 'line-through' : 'none' }}
+                    >
+                      {pendiente ? 'vs' : `${scoreLocal}–${scoreVisitante}`}
+                    </span>
+                    <div className="ranking-match-side is-away">
+                      <span className="ranking-match-name">{p.visitante}</span>
+                      {p.escudoVisitante && <img className="ranking-match-crest" src={p.escudoVisitante} alt="" onError={e => { e.target.style.display = 'none' }} />}
+                    </div>
                   </div>
-                  <span style={{ fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 700, color: cancelado ? 'var(--muted)' : esVivo ? '#FCA5A5' : 'var(--text-strong)', padding: '3px 8px', background: esVivo ? 'var(--red-bg)' : 'var(--card-light)', borderRadius: 'var(--radius-sm)', margin: '0 5px', minWidth: 46, textAlign: 'center', flexShrink: 0, textDecoration: cancelado ? 'line-through' : 'none' }}>
-                    {scoreLocal}–{scoreVisitante}
-                  </span>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 5, flex: 1, minWidth: 0 }}>
-                    <span style={{ fontSize: 11.5, fontWeight: 500, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.visitante}</span>
-                    {p.escudoVisitante && <img src={p.escudoVisitante} alt="" style={{ width: 20, height: 20, objectFit: 'contain', flexShrink: 0 }} onError={e => { e.target.style.display = 'none' }} />}
+                  <div className="ranking-match-mobile-teams">
+                    <div className="ranking-match-team">
+                      {p.escudoLocal && <img className="ranking-match-crest" src={p.escudoLocal} alt="" onError={e => { e.target.style.display = 'none' }} />}
+                      <span className="ranking-match-name">{p.local}</span>
+                      <span
+                        className={`ranking-match-score${pendiente ? ' is-pending is-mobile-pending' : ''}`}
+                        style={{ color: cancelado ? 'var(--muted)' : esVivo ? '#FCA5A5' : 'var(--text-strong)', background: esVivo ? 'var(--red-bg)' : 'var(--card-light)', textDecoration: cancelado ? 'line-through' : 'none' }}
+                      >
+                        {pendiente ? 'Pendiente' : scoreLocalDisplay}
+                      </span>
+                    </div>
+                    <div className="ranking-match-team">
+                      {p.escudoVisitante && <img className="ranking-match-crest" src={p.escudoVisitante} alt="" onError={e => { e.target.style.display = 'none' }} />}
+                      <span className="ranking-match-name">{p.visitante}</span>
+                      <span
+                        className={`ranking-match-score${scoreVisitanteDisplay === '' ? ' is-empty' : ''}`}
+                        style={{ color: cancelado ? 'var(--muted)' : esVivo ? '#FCA5A5' : 'var(--text-strong)', background: esVivo ? 'var(--red-bg)' : 'var(--card-light)', textDecoration: cancelado ? 'line-through' : 'none' }}
+                      >
+                        {scoreVisitanteDisplay}
+                      </span>
+                    </div>
                   </div>
-                  <div style={{ marginLeft: 8, minWidth: 62, textAlign: 'right' }}>
+                  <div className="ranking-match-meta">
+                    {p.hora && <p className="ranking-match-date">{formatFecha(p.hora)}</p>}
+                    <div className="ranking-match-actions">
                     {cancelado ? (
-                      <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 'var(--radius-full)', background: 'var(--neutral-bg)', color: 'var(--muted)', border: '1px solid var(--border-strong)' }}>Cancelado</span>
+                      <span className="ranking-match-badge" style={{ background: 'var(--neutral-bg)', color: 'var(--muted)', borderColor: 'var(--border-strong)' }}>Cancelado</span>
                     ) : esVivo ? (
-                      <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 7px', borderRadius: 'var(--radius-full)', background: 'var(--red-bg-strong)', color: '#FCA5A5', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-                        <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--red)', display: 'inline-block', animation: 'pulse-dot 1.2s ease-in-out infinite' }} />{live.halftime ? 'Descanso' : live.clock || 'EN VIVO'}
+                      <span className="ranking-match-badge" style={{ background: 'var(--red-bg-strong)', color: '#FCA5A5', borderColor: 'transparent' }}>
+                        <span className="ranking-match-live-dot" />{live.halftime ? 'Descanso' : live.clock || 'EN VIVO'}
                       </span>
                     ) : resDisplay ? (
-                      <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 'var(--radius-full)', background: resultColor[resDisplay].bg, color: resultColor[resDisplay].color, whiteSpace: 'nowrap' }}>
+                      <span className="ranking-match-badge" style={{ background: resultColor[resDisplay].bg, color: resultColor[resDisplay].color, borderColor: 'transparent' }}>
                         {resultLabel[resDisplay]}
                       </span>
                     ) : (
-                      <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 'var(--radius-full)', background: 'var(--neutral-bg)', color: 'var(--muted)' }}>Pendiente</span>
+                      <span className="ranking-match-badge is-pending-badge" style={{ background: 'var(--neutral-bg)', color: 'var(--muted)', borderColor: 'transparent' }}>Pendiente</span>
                     )}
                     {tieneAlgo && (
-                      <span style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 4 }}>
-                        <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22, borderRadius: 'var(--radius-sm)', background: 'var(--card-light)', color: 'var(--muted)' }} aria-hidden="true">
+                      <span className="ranking-match-toggle ranking-match-toggle-mobile">
+                        <span className="ranking-match-toggle-icon" aria-hidden="true">
                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: partidoAbierto ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s ease' }}>
                             <polyline points="6 9 12 15 18 9" />
                           </svg>
                         </span>
                       </span>
                     )}
+                    </div>
                   </div>
                 </div>
-                {p.hora && <p style={{ fontSize: 10, color: 'var(--muted)', padding: '0 12px 8px', margin: 0 }}>{formatFecha(p.hora)}</p>}
+                {(p.hora || tieneAlgo) && (
+                  <div className="ranking-match-date-desktop">
+                    {p.hora && <span>{formatFecha(p.hora)}</span>}
+                    {tieneAlgo && (
+                      <span className="ranking-match-toggle ranking-match-toggle-desktop">
+                        <span className="ranking-match-toggle-icon" aria-hidden="true">
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.75" strokeLinecap="round" strokeLinejoin="round" style={{ transform: partidoAbierto ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s ease' }}>
+                            <polyline points="6 9 12 15 18 9" />
+                          </svg>
+                        </span>
+                      </span>
+                    )}
+                  </div>
+                )}
 
                 {/* Panel de estadísticas */}
                 {tieneAlgo && partidoAbierto && (
                   <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg-soft)', borderTop: '1px solid var(--border)', padding: '12px 16px' }}>
+                    <div className="ranking-match-detail-teams" aria-hidden="true">
+                      <div className="ranking-match-detail-team is-home">
+                        {p.escudoLocal && <img src={p.escudoLocal} alt="" onError={e => { e.target.style.display = 'none' }} />}
+                        <span>{p.local}</span>
+                      </div>
+                      <span className="ranking-match-detail-vs">vs</span>
+                      <div className="ranking-match-detail-team is-away">
+                        <span>{p.visitante}</span>
+                        {p.escudoVisitante && <img src={p.escudoVisitante} alt="" onError={e => { e.target.style.display = 'none' }} />}
+                      </div>
+                    </div>
                     {hayStats && (
                       <>
                         <div style={{ marginBottom: 10 }}>
@@ -577,9 +635,9 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                           { label: 'Faltas',         h: st.home.faltas,       a: st.away.faltas       },
                         ].map(({ label, h, a }) => (
                           <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0', borderTop: '1px solid var(--border)' }}>
-                            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', width: 36, textAlign: 'right' }}>{h}</span>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--green)', width: 36, textAlign: 'right' }}>{h}</span>
                             <span style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.5, flex: 1, textAlign: 'center' }}>{label}</span>
-                            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', width: 36 }}>{a}</span>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--yellow)', width: 36 }}>{a}</span>
                           </div>
                         ))}
                       </>
@@ -1069,8 +1127,6 @@ function EscenariosUltimoPartido({ sim, conPremio, liveScores = {} }) {
   const exactas   = filas.filter(f => f.esc.tipo === 'exacto')
   const genericas = filas.filter(f => f.esc.tipo === 'generico')
 
-  // Ancho común del chip (marcadores y genéricos) para que todo quede alineado.
-  const CHIP_W = 60
   // Contenido del chip genérico: "Gana" + escudo del equipo, o "Empate".
   const contenidoGenerico = (esc) =>
     esc.resultado === 'draw'
@@ -1089,41 +1145,15 @@ function EscenariosUltimoPartido({ sim, conPremio, liveScores = {} }) {
   const hayExactaActual = enVivo && exactas.some(f => f.esc.local === curL && f.esc.visitante === curV)
   const marcadorActual = enVivo ? `${curL}–${curV}` : ''
 
-  // Una fila compacta: marcador a la izquierda, ganador(es) a la derecha.
-  // `actual` resalta la fila del marcador en vivo; `imposible` tacha la fila de
-  // un marcador exacto que ya no se puede alcanzar (los goles solo suben).
   const Fila = ({ marcador, esExacto, fila, ultima, actual, imposible }) => (
-    <div style={{
-      display: 'flex', alignItems: 'center', gap: 10, padding: '7px 8px', margin: '0 -8px',
-      borderBottom: ultima ? 'none' : '1px solid var(--border)',
-      background: actual ? 'var(--red-bg)' : 'transparent',
-      borderRadius: actual ? 'var(--radius-sm)' : 0,
-      opacity: imposible ? 0.4 : 1,
-    }}>
-      <span style={{
-        display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: esExacto ? 0 : 3,
-        fontFamily: esExacto ? 'var(--font-display)' : 'inherit',
-        fontSize: esExacto ? 13 : 10.5, fontWeight: esExacto ? 800 : 700,
-        color: actual ? '#FCA5A5' : imposible ? 'var(--muted)' : 'var(--text-strong)',
-        background: actual ? 'var(--red-bg-strong)' : 'var(--neutral-bg)',
-        border: `1px solid ${actual ? 'var(--red)' : 'var(--border-strong)'}`,
-        borderRadius: 'var(--radius-sm)', padding: '2px 3px', width: CHIP_W, flexShrink: 0,
-        textDecoration: imposible ? 'line-through' : 'none', whiteSpace: 'nowrap',
-      }}>{marcador}</span>
-      <span style={{
-        fontSize: 13, fontWeight: 700, lineHeight: 1.3, flex: 1, minWidth: 0,
-        color: imposible ? 'var(--muted)' : 'var(--green)',
-        textDecoration: imposible ? 'line-through' : 'none',
-      }}>
+    <div className={`oracle-row${actual ? ' is-current' : ''}${imposible ? ' is-impossible' : ''}${ultima ? ' is-last' : ''}`}>
+      <span className={`oracle-score${esExacto ? ' is-exact' : ' is-generic'}`}>{marcador}</span>
+      <span className="oracle-winners">
         {fila.lideres.map(nombreCorto).join(', ')}
       </span>
       {actual && (
-        <span style={{
-          marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 4, flexShrink: 0,
-          fontSize: 10, fontWeight: 800, color: '#FCA5A5',
-          background: 'var(--red-bg-strong)', borderRadius: 'var(--radius-full)', padding: '2px 8px', whiteSpace: 'nowrap',
-        }}>
-          <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--red)', display: 'inline-block', animation: 'pulse-dot 1.2s ease-in-out infinite' }} />
+        <span className="oracle-live-pill">
+          <span className="oracle-live-dot" />
           {marcadorActual}
         </span>
       )}
@@ -1131,53 +1161,37 @@ function EscenariosUltimoPartido({ sim, conPremio, liveScores = {} }) {
   )
 
   return (
-    <div style={{
-      background: 'linear-gradient(135deg, rgba(168,85,247,0.12), rgba(168,85,247,0.04))',
-      border: '1px solid var(--purple, #A855F7)', borderRadius: 'var(--radius-md)',
-      padding: '12px 14px', marginBottom: 16,
-      // Parpadeo morado solo cuando está colapsado (para invitar a tocarlo).
-      animation: abierto ? 'none' : 'pulse-morado 1.6s ease-in-out infinite',
-    }}>
-      <style>{`@keyframes pulse-morado{0%,100%{box-shadow:0 0 0 0 rgba(168,85,247,0)}50%{box-shadow:0 0 0 4px rgba(168,85,247,0.28)}}`}</style>
-
-      {/* Encabezado: toda la barra es el botón para expandir/colapsar */}
+    <div className="oracle-card">
       <button
         onClick={() => setAbierto(a => !a)}
         aria-expanded={abierto}
-        style={{
-          width: '100%', background: 'transparent', border: 'none', padding: 0,
-          cursor: 'pointer', textAlign: 'left',
-          display: 'flex', alignItems: 'center', gap: 8,
-        }}
+        className="oracle-header"
       >
-        <span style={{ display: 'inline-flex', color: 'var(--purple, #A855F7)' }} aria-hidden="true">
+        <span className="oracle-icon" aria-hidden="true">
           <SvgIcon name="sparkles" size={18} />
         </span>
-        <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--text-strong)', letterSpacing: 0.2, flex: 1 }}>
-          ¿Quién gana según el marcador?
+        <span className="oracle-heading">
+          <span className="oracle-kicker">Oráculo del último partido</span>
+          <span className="oracle-title">¿Quién gana según el marcador?</span>
         </span>
-        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--purple, #A855F7)', whiteSpace: 'nowrap' }}>
-          {abierto ? 'Ocultar ▲' : 'Ver ▼'}
+        <span className="oracle-toggle">
+          {abierto ? 'Ocultar' : 'Ver'}
         </span>
       </button>
 
       {abierto && (
         <>
-          <p style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.5, margin: '8px 0 10px' }}>
-            <strong style={{ color: 'var(--text)' }}>{local} vs {visitante}</strong> define la quiniela.
-            Esto es quién se lleva el 1° lugar{conPremio ? ' y el premio' : ''} según cómo quede:
+          <p className="oracle-copy">
+            <strong>{local} vs {visitante}</strong> define quién queda en 1° lugar{conPremio ? ' y se lleva el premio' : ''}.
           </p>
 
-          <div style={{ background: 'var(--card)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', padding: '2px 12px' }}>
-            {/* Encabezado: escudos de los equipos (marcan la orientación local–visitante) y "Ganadores" */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--border-strong)' }}>
-              <span style={{ width: 52, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, flexShrink: 0 }}>
+          <div className="oracle-table">
+            <div className="oracle-table-head">
+              <span className="oracle-teams">
                 <EscudoEquipo url={partido.escudoLocal} nombre={local} />
                 <EscudoEquipo url={partido.escudoVisitante} nombre={visitante} />
               </span>
-              <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.8 }}>
-                Ganadores
-              </span>
+              <span>Ganadores posibles</span>
             </div>
             {exactas.map((f, i) => (
               <Fila key={i} esExacto marcador={`${f.esc.local}–${f.esc.visitante}`} fila={f}
@@ -1186,11 +1200,8 @@ function EscenariosUltimoPartido({ sim, conPremio, liveScores = {} }) {
                 imposible={enVivo && (f.esc.local < curL || f.esc.visitante < curV)} />
             ))}
             {genericas.length > 0 && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 0 5px' }}>
-                <span style={{ fontSize: 9.5, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.8, whiteSpace: 'nowrap' }}>
-                  Cualquier otro marcador
-                </span>
-                <span style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+              <div className="oracle-divider">
+                <span>Cualquier otro marcador</span>
               </div>
             )}
             {genericas.map((f, i) => (
@@ -1200,7 +1211,7 @@ function EscenariosUltimoPartido({ sim, conPremio, liveScores = {} }) {
             ))}
           </div>
 
-          <p style={{ fontSize: 10, color: 'var(--muted)', marginTop: 8, lineHeight: 1.5 }}>
+          <p className="oracle-note">
             Con los {numJugadores} participantes. En empate de puntos, comparten el 1° lugar.
           </p>
         </>

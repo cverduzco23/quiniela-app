@@ -8,7 +8,7 @@ import { Paywall } from '../components/Paywall'
 import { ComoFunciona } from '../components/ComoFunciona'
 import { TourBienvenida } from '../components/TourBienvenida'
 import { MedidorPassword } from '../components/MedidorPassword'
-import { BrandWordmark } from '../components/Brand'
+import { BrandMark, BrandWordmark } from '../components/Brand'
 import { evaluarPassword } from '../utils/password'
 import { puedeCrearQuiniela, quinielasRestantes, temporadaVigente } from '../utils/entitlements'
 import { waLink, MENSAJES_WA } from '../utils/whatsapp'
@@ -124,6 +124,44 @@ function DateTimeWrap({ vacio, texto = '📅 Elige fecha y hora', children }) {
       )}
     </div>
   )
+}
+
+function AdminIcon({ name, size = 14, style }) {
+  const common = {
+    width: size,
+    height: size,
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: 2,
+    strokeLinecap: 'round',
+    strokeLinejoin: 'round',
+    style: { display: 'inline-block', flexShrink: 0, ...style },
+    'aria-hidden': 'true',
+  }
+  if (name === 'arrow-left') return <svg {...common}><path d="M19 12H5" /><path d="m12 19-7-7 7-7" /></svg>
+  if (name === 'home') return <svg {...common}><path d="m3 10.5 9-7 9 7" /><path d="M5 10v10h14V10" /><path d="M9 20v-6h6v6" /></svg>
+  if (name === 'settings') return <svg {...common}><path d="M12 15.5A3.5 3.5 0 1 0 12 8a3.5 3.5 0 0 0 0 7.5Z" /><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.6 8.6a1.7 1.7 0 0 0-.34-1.88l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3a2 2 0 1 1 4 0v.09A1.7 1.7 0 0 0 15.4 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9c.2.5.6.9 1 1 .34.14.7.2 1.1.2H21a2 2 0 1 1 0 4h-.09A1.7 1.7 0 0 0 19.4 15Z" /></svg>
+  if (name === 'wallet') return <svg {...common}><path d="M20 7H5a3 3 0 0 0 0 6h15v7H5a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3h13v3" /><path d="M16 13h.01" /></svg>
+  if (name === 'users') return <svg {...common}><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
+  if (name === 'user') return <svg {...common}><path d="M20 21a8 8 0 0 0-16 0" /><circle cx="12" cy="7" r="4" /></svg>
+  if (name === 'plus') return <svg {...common}><path d="M12 5v14" /><path d="M5 12h14" /></svg>
+  if (name === 'list') return <svg {...common}><path d="M8 6h13" /><path d="M8 12h13" /><path d="M8 18h13" /><path d="M3 6h.01" /><path d="M3 12h.01" /><path d="M3 18h.01" /></svg>
+  if (name === 'mail') return <svg {...common}><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m3 7 9 6 9-6" /></svg>
+  if (name === 'key') return <svg {...common}><circle cx="7.5" cy="15.5" r="3.5" /><path d="m10 13 9-9" /><path d="m15 4 5 5" /><path d="m17 6-2 2" /></svg>
+  if (name === 'copy') return <svg {...common}><rect x="9" y="9" width="13" height="13" rx="2" /><rect x="2" y="2" width="13" height="13" rx="2" /></svg>
+  if (name === 'message') return <svg {...common}><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4v8Z" /></svg>
+  if (name === 'ball') return <svg {...common}><circle cx="12" cy="12" r="9" /><path d="m12 7 4 3-1.5 5h-5L8 10l4-3Z" /><path d="M12 7V3" /><path d="m16 10 4-1.5" /><path d="m14.5 15 2.5 3.5" /><path d="m9.5 15-2.5 3.5" /><path d="M8 10 4 8.5" /></svg>
+  if (name === 'trash') return <svg {...common}><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="m19 6-1 14H6L5 6" /><path d="M10 11v5" /><path d="M14 11v5" /></svg>
+  if (name === 'pause') return <svg {...common}><rect x="6" y="4" width="4" height="16" rx="1" /><rect x="14" y="4" width="4" height="16" rx="1" /></svg>
+  if (name === 'play') return <svg {...common} fill="currentColor" stroke="none"><path d="M8 5v14l11-7-11-7Z" /></svg>
+  if (name === 'note') return <svg {...common}><path d="M4 4h16v16H4z" /><path d="M8 8h8" /><path d="M8 12h8" /><path d="M8 16h5" /></svg>
+  if (name === 'chart') return <svg {...common}><path d="M3 3v18h18" /><rect x="7" y="12" width="3" height="5" /><rect x="12" y="8" width="3" height="9" /><rect x="17" y="5" width="3" height="12" /></svg>
+  if (name === 'lock') return <svg {...common}><rect x="4" y="10" width="16" height="10" rx="2" /><path d="M8 10V7a4 4 0 0 1 8 0v3" /></svg>
+  if (name === 'building') return <svg {...common}><path d="M4 21V5a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v16" /><path d="M9 21v-5h3v5" /><path d="M8 7h1" /><path d="M12 7h1" /><path d="M8 11h1" /><path d="M12 11h1" /><path d="M3 21h18" /></svg>
+  if (name === 'external') return <svg {...common}><path d="M15 3h6v6" /><path d="M10 14 21 3" /><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /></svg>
+  if (name === 'logout') return <svg {...common}><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><path d="m16 17 5-5-5-5" /><path d="M21 12H9" /></svg>
+  return <svg {...common}><circle cx="12" cy="12" r="9" /></svg>
 }
 
 function formatFecha(value) {
@@ -581,6 +619,7 @@ export default function Admin() {
 
   // ─── Estado principal ─────────────────────────────────────────────────────
   const [vista, setVista]                 = useState('lista')
+  const [superModulo, setSuperModulo]     = useState(null)
   const [quinielas, setQuinielas]         = useState([])
   const [loadingLista, setLoadingLista]   = useState(true)
   const [quinielaActual, setQuinielaActual] = useState(null)
@@ -1241,6 +1280,7 @@ export default function Admin() {
 
   // Abre el formulario de nueva quiniela, pre-llenando un código de acceso editable.
   const abrirNuevaQuiniela = () => {
+    setSuperModulo(null)
     if (!codigoAcceso.trim()) setCodigoAcceso(generarCodigoAcceso())
     setVista('nueva')
   }
@@ -1306,6 +1346,7 @@ export default function Admin() {
       const nueva = { id: ref.id, ...base }
       setQuinielaActual(nueva)
       setResultados({})
+      setSuperModulo(null)
       setVista('gestionar')
       setTab('compartir')
       cargarQuinielas()
@@ -1325,6 +1366,7 @@ export default function Admin() {
 
   // ─── Seleccionar quiniela existente ──────────────────────────────────────
   const gestionarQuiniela = (q) => {
+    setSuperModulo(null)
     setQuinielaActual(q)
     const resInit = {}
     Object.entries(q.resultados ?? {}).forEach(([idx, r]) => {
@@ -1939,29 +1981,64 @@ export default function Admin() {
       <div className="hero-pad" style={{ background: 'var(--hero-gradient)', color: 'var(--text)', borderBottom: '1px solid var(--border)' }}>
         <div style={{ maxWidth: 580, margin: '0 auto' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
-          <div>
-            <a href="/" style={{ marginBottom: 8, textDecoration: 'none', display: 'inline-flex' }}>
-              <BrandWordmark markSize={22} fontSize={18} />
-            </a>
-            <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, letterSpacing: '-0.01em' }}>
-              {soySuper ? 'Panel de Súper Administrador' : 'Panel de Administrador'}
-            </h1>
-            {!soySuper && adminDoc?.nombre && (
-              <p style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 4 }}>
-                👤 {adminDoc.nombre}{adminDoc.empresa ? ` · ${adminDoc.empresa}` : ''}
-              </p>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, minWidth: 0 }}>
+              {soySuper && (
+                <button
+                  className="app-back-button"
+                  onClick={() => {
+                    if (superModulo && vista === 'lista') {
+                      setSuperModulo(null)
+                    } else if (vista === 'lista') {
+                      window.location.href = '/'
+                    } else {
+                      setVista('lista')
+                      setSuperModulo(null)
+                      setQuinielaActual(null)
+                      setFixtures([])
+                      setSeleccionados([])
+                      setCajaNombre(null)
+                    }
+                  }}
+                  aria-label="Atrás"
+                  title="Atrás"
+                  style={{ marginTop: 0 }}
+                >
+                  <AdminIcon name="arrow-left" size={15} />
+                </button>
+              )}
+              <div>
+                <a href="/" style={{ marginBottom: 8, textDecoration: 'none', display: 'inline-flex' }}>
+                  {soySuper ? (
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, color: 'var(--text)', fontWeight: 800, fontSize: 18 }}>
+                      <BrandMark size={22} />
+                      Quiniel<span style={{ color: 'var(--green)', marginLeft: -8 }}>App</span>
+                    </span>
+                  ) : (
+                    <BrandWordmark markSize={22} fontSize={18} />
+                  )}
+                </a>
+                <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, letterSpacing: '-0.01em' }}>
+                  {soySuper ? 'Panel de Súper Administrador' : 'Panel de Administrador'}
+                </h1>
+                {!soySuper && adminDoc?.nombre && (
+                  <p style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 4 }}>
+                    👤 {adminDoc.nombre}{adminDoc.empresa ? ` · ${adminDoc.empresa}` : ''}
+                  </p>
+                )}
+              </div>
+            </div>
+            {!soySuper && (
+              <button
+                onClick={salir}
+                style={{ background: 'transparent', border: '1px solid var(--border-strong)', color: 'var(--muted)', padding: '7px 14px', borderRadius: 'var(--radius-sm)', fontSize: 13, fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}
+              >
+                Salir
+              </button>
             )}
-          </div>
-            <button
-              onClick={salir}
-              style={{ background: 'transparent', border: '1px solid var(--border-strong)', color: 'var(--muted)', padding: '7px 14px', borderRadius: 'var(--radius-sm)', fontSize: 13, fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}
-            >
-              Salir
-            </button>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', gap: 8, marginTop: 16 }}>
             <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
-              {vista !== 'lista' && (
+              {vista !== 'lista' && !soySuper && (
                 <button
                   onClick={() => {
                     setVista('lista')
@@ -1978,17 +2055,35 @@ export default function Admin() {
             </div>
             <a
               href="/"
-              style={{ background: 'var(--neutral-bg)', border: '1px solid var(--border)', color: 'var(--text)', padding: '7px 14px', borderRadius: 'var(--radius-sm)', fontSize: 13, fontWeight: 600, cursor: 'pointer', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', whiteSpace: 'nowrap' }}
+              style={{
+                background: soySuper ? 'linear-gradient(135deg, var(--green), var(--green-light))' : 'var(--neutral-bg)',
+                border: soySuper ? 'none' : '1px solid var(--border)',
+                color: soySuper ? '#07120A' : 'var(--text)',
+                padding: soySuper ? '8px 16px' : '7px 14px',
+                borderRadius: 'var(--radius-md)',
+                fontSize: 13,
+                fontWeight: 800,
+                cursor: 'pointer',
+                textDecoration: 'none',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                whiteSpace: 'nowrap',
+                boxShadow: soySuper ? 'var(--shadow-green)' : 'none',
+              }}
             >
-              🏠 Inicio
+              {soySuper && <AdminIcon name="home" size={14} style={{ marginRight: 6 }} />}
+              Inicio
             </a>
             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-              <button
-                onClick={() => setAyudaAbierta(true)}
-                style={{ background: 'var(--neutral-bg)', border: '1px solid var(--border)', color: 'var(--text)', padding: '7px 14px', borderRadius: 'var(--radius-sm)', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
-              >
-                ❓ Ayuda
-              </button>
+              {!soySuper && (
+                <button
+                  onClick={() => setAyudaAbierta(true)}
+                  style={{ background: 'var(--neutral-bg)', border: '1px solid var(--border)', color: 'var(--text)', padding: '7px 14px', borderRadius: 'var(--radius-sm)', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                >
+                  ❓ Ayuda
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -2002,7 +2097,7 @@ export default function Admin() {
         {/* ── Vista: Lista ────────────────────────────────────────────────── */}
         {vista === 'lista' && (
           <>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginBottom: 14 }}>
+            {!(soySuper && superModulo) && <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginBottom: 14 }}>
               <div style={{ display: 'flex', gap: 8 }}>
                 {!soySuper && (
                   <button
@@ -2016,7 +2111,7 @@ export default function Admin() {
                   + Nueva quiniela
                 </button>
               </div>
-            </div>
+            </div>}
 
             {/* Aviso de plan para clientes (el super admin no tiene cuota). */}
             {!soySuper && adminDoc && (
@@ -2036,8 +2131,8 @@ export default function Admin() {
             )}
 
             {/* Secciones del inicio (solo super admin): mostrar/ocultar y reordenar bloques del home. */}
-            {soySuper && (() => {
-              const abierto = verTodo['home-config']
+            {soySuper && superModulo === 'home' && (() => {
+              const abierto = true
               const orden = ordenSeccionesHome(homeConfig)
               const flecha = (clave, dir, deshabilitada) => (
                 <button
@@ -2058,23 +2153,17 @@ export default function Admin() {
               return (
                 <div style={{ ...card, padding: '0.9rem 1.1rem' }}>
                   <button
-                    onClick={() => setVerTodo(v => ({ ...v, 'home-config': !v['home-config'] }))}
+                    onClick={() => {}}
                     style={{
                       display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%',
-                      padding: 0, background: 'transparent', border: 'none', cursor: 'pointer',
+                      padding: 0, background: 'transparent', border: 'none', cursor: 'default',
                     }}
-                  >
+                    >
                     <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, fontWeight: 700, color: 'var(--text-strong)' }}>
-                      🏠 Secciones del inicio
+                      <AdminIcon name="settings" size={15} />
+                      Secciones del inicio
                     </span>
-                    <span style={{
-                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                      width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
-                      border: `1.5px solid ${abierto ? 'var(--green)' : 'var(--border-strong)'}`,
-                      color: abierto ? 'var(--green)' : 'var(--muted)',
-                      fontSize: 18, fontWeight: 300, lineHeight: 1,
-                      background: abierto ? 'var(--green-bg)' : 'transparent',
-                    }}>{abierto ? '−' : '+'}</span>
+                    <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--green)', textTransform: 'uppercase', letterSpacing: 0.6 }}>Config</span>
                   </button>
                   {abierto && (
                     <div style={{ marginTop: 12 }}>
@@ -2129,6 +2218,37 @@ export default function Admin() {
                 const secBtn = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', padding: 0, background: 'transparent', border: 'none', cursor: 'pointer' }
                 const secLabel = { display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, fontWeight: 700, color: 'var(--text-strong)' }
                 const secCard = { ...card, marginTop: 12, padding: '0.9rem 1.1rem' }
+                const titleWithIcon = (icon, label, extra = null) => (
+                  <span style={secLabel}>
+                    <AdminIcon name={icon} size={15} />
+                    {label}
+                    {extra}
+                  </span>
+                )
+                const inlineIconLabel = (icon, label, color = 'currentColor') => (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color }}>
+                    <AdminIcon name={icon} size={13} />
+                    {label}
+                  </span>
+                )
+                const moduleCard = ({ modulo, icon, title, meta, desc }) => (
+                  <button
+                    key={modulo}
+                    className="super-module-tile"
+                    onClick={() => setSuperModulo(modulo)}
+                  >
+                    <span className="super-module-icon">
+                      <AdminIcon name={icon} size={22} />
+                    </span>
+                    <span className="super-module-copy">
+                      <span className="super-module-title">
+                        {title}
+                        {meta && <span className="super-module-meta">{meta}</span>}
+                      </span>
+                      <span className="super-module-desc">{desc}</span>
+                    </span>
+                  </button>
+                )
                 // Botón circular +/− para secciones principales
                 const toggle = (ab) => (
                   <span style={{
@@ -2159,7 +2279,7 @@ export default function Admin() {
                   return (
                     <>
                       {visible.map(q => (
-                        <QuinielaCard key={q.id} q={q} conteos={conteos} onGestionar={gestionarQuiniela} dueno={conDueno ? labelDueno(q) : undefined} />
+                        <QuinielaCard key={q.id} q={q} conteos={conteos} onGestionar={gestionarQuiniela} dueno={conDueno ? labelDueno(q) : undefined} superCompact={soySuper} />
                       ))}
                       {flat.length > 3 && (
                         <button
@@ -2174,12 +2294,12 @@ export default function Admin() {
                 }
 
                 // ── Caja ───────────────────────────────────────────────────────
-                const cajaAb = verTodo['caja-inline']
+                const cajaAb = superModulo === 'caja' || verTodo['caja-inline']
                 const cajaSection = (
                   <div style={secCard}>
-                    <button onClick={() => setVerTodo(v => ({ ...v, 'caja-inline': !cajaAb }))} style={secBtn}>
-                      <span style={secLabel}>💰 Caja</span>
-                      {toggle(cajaAb)}
+                    <button onClick={() => superModulo ? null : setVerTodo(v => ({ ...v, 'caja-inline': !cajaAb }))} style={{ ...secBtn, cursor: superModulo ? 'default' : 'pointer' }}>
+                      {titleWithIcon('wallet', 'Caja')}
+                      {!superModulo && toggle(cajaAb)}
                     </button>
                     {cajaAb && (
                       <div style={{ marginTop: 12 }}>
@@ -2255,26 +2375,23 @@ export default function Admin() {
                 )
 
                 // ── Clientes ───────────────────────────────────────────────────
-                const clientesAb = verTodo['clientes-bloque']
+                const clientesAb = superModulo === 'clientes' || verTodo['clientes-bloque']
                 const crearAb = verTodo['clientes-crear']
                 const listaAb = verTodo['clientes-lista']
                 const todosAb = verTodo['clientes-todos']
                 const clientesMostrados = todosAb ? clientes : clientes.slice(0, 5)
                 const clientesSection = (
                   <div style={secCard}>
-                    <button onClick={() => setVerTodo(v => ({ ...v, 'clientes-bloque': !clientesAb }))} style={secBtn}>
-                      <span style={secLabel}>
-                        👥 Clientes
-                        {clientes.length > 0 && <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>({clientes.length})</span>}
-                      </span>
-                      {toggle(clientesAb)}
+                    <button onClick={() => superModulo ? null : setVerTodo(v => ({ ...v, 'clientes-bloque': !clientesAb }))} style={{ ...secBtn, cursor: superModulo ? 'default' : 'pointer' }}>
+                      {titleWithIcon('users', 'Clientes', clientes.length > 0 && <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>({clientes.length})</span>)}
+                      {!superModulo && toggle(clientesAb)}
                     </button>
                     {clientesAb && (
                       <div style={{ marginTop: 12 }}>
                         {/* Dar de alta */}
                         <div style={{ marginBottom: 8 }}>
                           <button onClick={() => setVerTodo(v => ({ ...v, 'clientes-crear': !crearAb }))} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', minHeight: 52, padding: '14px 14px', background: crearAb ? 'var(--green-bg)' : 'var(--neutral-bg)', border: `1px solid ${crearAb ? 'var(--green)' : 'var(--border)'}`, borderRadius: 'var(--radius-sm)', cursor: 'pointer' }}>
-                            <span style={{ fontSize: 13, fontWeight: 700, color: crearAb ? 'var(--green)' : 'var(--text)' }}>➕ Dar de alta un cliente</span>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: crearAb ? 'var(--green)' : 'var(--text)' }}>{inlineIconLabel('plus', 'Dar de alta un cliente')}</span>
                             {subChevron(crearAb)}
                           </button>
                           {crearAb && (
@@ -2304,20 +2421,22 @@ export default function Admin() {
                               </button>
                               {clienteCreado && (
                                 <div style={{ marginTop: 14, padding: '1rem', borderRadius: 'var(--radius-sm)', background: 'var(--green-bg)', border: '1px solid var(--green)' }}>
-                                  <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-strong)', marginBottom: 8 }}>✅ Cuenta creada — comparte estos accesos:</p>
+                                  <p style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, color: 'var(--text-strong)', marginBottom: 8 }}>
+                                    <AdminIcon name="plus" size={13} /> Cuenta creada — comparte estos accesos:
+                                  </p>
                                   <p style={{ fontSize: 13, color: 'var(--text)', fontFamily: 'monospace', lineHeight: 1.7, wordBreak: 'break-all' }}>
-                                    📧 {clienteCreado.email}<br />
-                                    🔑 {clienteCreado.password}
+                                    <AdminIcon name="mail" size={13} style={{ verticalAlign: '-2px', marginRight: 4 }} />{clienteCreado.email}<br />
+                                    <AdminIcon name="key" size={13} style={{ verticalAlign: '-2px', marginRight: 4 }} />{clienteCreado.password}
                                   </p>
                                   <p style={{ fontSize: 11, color: 'var(--muted)', margin: '8px 0 12px' }}>
-                                    ⚠️ Guarda o envía la contraseña ahora: por seguridad no se vuelve a mostrar.
+                                    Guarda o envía la contraseña ahora: por seguridad no se vuelve a mostrar.
                                   </p>
                                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                                     <button
                                       onClick={() => { navigator.clipboard?.writeText(mensajeAccesos(clienteCreado.email, clienteCreado.password)); }}
                                       style={{ flex: '1 1 140px', padding: '10px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-strong)', background: 'var(--neutral-bg)', color: 'var(--text)', fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}
                                     >
-                                      📋 Copiar mensaje
+                                      {inlineIconLabel('copy', 'Copiar mensaje')}
                                     </button>
                                     {telParaWa(clienteCreado.telefono) && (
                                       <a
@@ -2325,7 +2444,7 @@ export default function Admin() {
                                         target="_blank" rel="noreferrer"
                                         style={{ flex: '1 1 140px', textAlign: 'center', padding: '10px', borderRadius: 'var(--radius-sm)', textDecoration: 'none', background: '#25D366', color: '#06140B', fontSize: 12.5, fontWeight: 800 }}
                                       >
-                                        💬 Enviar por WhatsApp
+                                        {inlineIconLabel('message', 'Enviar por WhatsApp')}
                                       </a>
                                     )}
                                   </div>
@@ -2341,7 +2460,7 @@ export default function Admin() {
                         {/* Clientes existentes */}
                         <div>
                           <button onClick={() => setVerTodo(v => ({ ...v, 'clientes-lista': !listaAb }))} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', minHeight: 52, padding: '14px 14px', background: listaAb ? 'var(--green-bg)' : 'var(--neutral-bg)', border: `1px solid ${listaAb ? 'var(--green)' : 'var(--border)'}`, borderRadius: 'var(--radius-sm)', cursor: 'pointer' }}>
-                            <span style={{ fontSize: 13, fontWeight: 700, color: listaAb ? 'var(--green)' : 'var(--text)' }}>📋 Clientes existentes</span>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: listaAb ? 'var(--green)' : 'var(--text)' }}>{inlineIconLabel('list', 'Clientes existentes')}</span>
                             {subChevron(listaAb)}
                           </button>
                           {listaAb && (
@@ -2366,28 +2485,28 @@ export default function Admin() {
                                             <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-strong)' }}>
                                               {c.nombre || '(sin nombre)'}{c.empresa ? <span style={{ fontWeight: 500, color: 'var(--muted)' }}> · {c.empresa}</span> : null}
                                             </p>
-                                            <p style={{ fontSize: 12, color: 'var(--muted)', wordBreak: 'break-all' }}>{c.email}{c.telefono ? ` · 📱 ${c.telefono}` : ''}</p>
+                                            <p style={{ fontSize: 12, color: 'var(--muted)', wordBreak: 'break-all' }}>{c.email}{c.telefono ? ` · ${c.telefono}` : ''}</p>
                                           </div>
                                           <span style={{ flexShrink: 0, fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 'var(--radius-full)', background: c.activo ? 'var(--green-bg)' : 'var(--neutral-bg)', color: c.activo ? 'var(--green)' : 'var(--muted)' }}>
                                             {c.activo ? 'Activo' : 'Inactivo'}
                                           </span>
                                         </div>
                                         <p style={{ fontSize: 12, color: 'var(--text)', marginBottom: 12 }}>
-                                          {enPase ? `🏆 Pase Mundial — ilimitadas hasta ${paseFecha}` : `📊 ${usadas}/${permitidas} quinielas usadas`}
-                                          {c.debeCambiarPassword ? <span style={{ color: 'var(--yellow)' }}> · 🔑 contraseña sin cambiar</span> : null}
-                                          {c.notas ? <span style={{ color: 'var(--muted)' }}><br />📝 {c.notas}</span> : null}
+                                          {enPase ? `Pase Mundial — ilimitadas hasta ${paseFecha}` : `${usadas}/${permitidas} quinielas usadas`}
+                                          {c.debeCambiarPassword ? <span style={{ color: 'var(--yellow)' }}> · contraseña sin cambiar</span> : null}
+                                          {c.notas ? <span style={{ color: 'var(--muted)' }}><br />{c.notas}</span> : null}
                                         </p>
                                         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                                          <button onClick={() => darQuinielaExtra(c)} style={accionBtn}>➕ +1 quiniela ($49)</button>
-                                          <button onClick={() => darPaseMundial(c)} style={accionBtn}>🏆 Pase Mundial ($199)</button>
-                                          <button onClick={() => toggleActivoCliente(c)} style={accionBtn}>{c.activo ? '⏸ Desactivar' : '▶️ Activar'}</button>
-                                          <button onClick={() => editarNotasCliente(c)} style={accionBtn}>📝 Notas</button>
+                                          <button onClick={() => darQuinielaExtra(c)} style={accionBtn}>{inlineIconLabel('plus', '+1 quiniela ($49)')}</button>
+                                          <button onClick={() => darPaseMundial(c)} style={accionBtn}>{inlineIconLabel('ball', 'Pase Mundial ($199)')}</button>
+                                          <button onClick={() => toggleActivoCliente(c)} style={accionBtn}>{inlineIconLabel(c.activo ? 'pause' : 'play', c.activo ? 'Desactivar' : 'Activar')}</button>
+                                          <button onClick={() => editarNotasCliente(c)} style={accionBtn}>{inlineIconLabel('note', 'Notas')}</button>
                                           <button
                                             onClick={() => eliminarCliente(c)}
                                             disabled={eliminandoCliente === c.id}
                                             style={{ ...accionBtn, color: 'var(--red)', borderColor: 'var(--red)' }}
                                           >
-                                            {eliminandoCliente === c.id ? 'Eliminando…' : '🗑 Eliminar'}
+                                            {eliminandoCliente === c.id ? 'Eliminando…' : inlineIconLabel('trash', 'Eliminar')}
                                           </button>
                                         </div>
                                       </div>
@@ -2413,24 +2532,21 @@ export default function Admin() {
 
                 // ── Mis quinielas ──────────────────────────────────────────────
                 const misFlat = [...mias.activas, ...mias.enJuego, ...mias.finalizadas]
-                const misAb = verTodo['mis-quinielas']
+                const misAb = superModulo === 'mis' || verTodo['mis-quinielas']
                 const misQuinielasSection = (
                   <div style={secCard}>
-                    <button onClick={() => setVerTodo(v => ({ ...v, 'mis-quinielas': !misAb }))} style={secBtn}>
-                      <span style={secLabel}>
-                        ⚽ Mis quinielas
-                        {misFlat.length > 0 && <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>({misFlat.length})</span>}
-                      </span>
-                      {toggle(misAb)}
+                    <button onClick={() => superModulo ? null : setVerTodo(v => ({ ...v, 'mis-quinielas': !misAb }))} style={{ ...secBtn, cursor: superModulo ? 'default' : 'pointer' }}>
+                      {titleWithIcon('ball', 'Mis quinielas', misFlat.length > 0 && <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>({misFlat.length})</span>)}
+                      {!superModulo && toggle(misAb)}
                     </button>
                     {misAb && (
                       <div style={{ marginTop: 8 }}>
+                        <button onClick={abrirNuevaQuiniela} style={{ ...greenCtaStyle(false), width: '100%', padding: '11px 14px', marginBottom: 12 }}>
+                          + Nueva quiniela
+                        </button>
                         {misFlat.length === 0 ? (
                           <div style={{ textAlign: 'center', padding: '1.5rem 0' }}>
                             <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 12 }}>Aún no has creado quinielas.</p>
-                            <button onClick={abrirNuevaQuiniela} style={{ ...greenCtaStyle(false), padding: '9px 18px' }}>
-                              + Nueva quiniela
-                            </button>
                           </div>
                         ) : renderFlat(misFlat, 'mis-q-flat')}
                       </div>
@@ -2457,15 +2573,12 @@ export default function Admin() {
                     flat: [...sub.activas, ...sub.enJuego, ...sub.finalizadas],
                   }
                 })
-                const otrosAb = verTodo['otros-bloque']
+                const otrosAb = superModulo === 'otros' || verTodo['otros-bloque']
                 const otrosSection = quinielasOtras.length > 0 ? (
                   <div style={secCard}>
-                    <button onClick={() => setVerTodo(v => ({ ...v, 'otros-bloque': !otrosAb }))} style={secBtn}>
-                      <span style={secLabel}>
-                        👤 Quinielas de otros admins
-                        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>({quinielasOtras.length})</span>
-                      </span>
-                      {toggle(otrosAb)}
+                    <button onClick={() => superModulo ? null : setVerTodo(v => ({ ...v, 'otros-bloque': !otrosAb }))} style={{ ...secBtn, cursor: superModulo ? 'default' : 'pointer' }}>
+                      {titleWithIcon('user', 'Quinielas de otros admins', <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>({quinielasOtras.length})</span>)}
+                      {!superModulo && toggle(otrosAb)}
                     </button>
                     {otrosAb && (
                       <div style={{ marginTop: 12 }}>
@@ -2507,10 +2620,64 @@ export default function Admin() {
 
                 return (
                   <>
-                    {cajaSection}
-                    {clientesSection}
-                    {misQuinielasSection}
-                    {otrosSection}
+                    {!superModulo && (
+                      <div className="super-module-grid">
+                        {moduleCard({ modulo: 'caja', icon: 'wallet', title: 'Caja', meta: saldos.length ? `${saldos.length}` : null, desc: 'Saldos y movimientos por participante.' })}
+                        {moduleCard({ modulo: 'clientes', icon: 'users', title: 'Clientes', meta: clientes.length ? `${clientes.length}` : null, desc: 'Altas, planes, notas y estado de clientes.' })}
+                        {moduleCard({ modulo: 'mis', icon: 'ball', title: 'Mis quinielas', meta: misFlat.length ? `${misFlat.length}` : null, desc: 'Quinielas creadas desde la cuenta principal.' })}
+                        {quinielasOtras.length > 0 && moduleCard({ modulo: 'otros', icon: 'user', title: 'Otros admins', meta: `${quinielasOtras.length}`, desc: 'Quinielas agrupadas por cliente administrador.' })}
+                        {moduleCard({ modulo: 'home', icon: 'settings', title: 'Inicio público', desc: 'Mostrar, ocultar y ordenar bloques del home.' })}
+                        {moduleCard({ modulo: 'cuenta', icon: 'key', title: 'Mi cuenta', desc: 'Accesos, seguridad y herramientas externas.' })}
+                      </div>
+                    )}
+                    {superModulo === 'caja' && cajaSection}
+                    {superModulo === 'clientes' && clientesSection}
+                    {superModulo === 'mis' && misQuinielasSection}
+                    {superModulo === 'otros' && otrosSection}
+                    {superModulo === 'cuenta' && (
+                      <div style={secCard}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+                          <AdminIcon name="key" size={16} />
+                          <p style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-strong)' }}>Mi cuenta</p>
+                        </div>
+                        <div style={{ display: 'grid', gap: 10 }}>
+                          <div style={{ padding: 12, borderRadius: 'var(--radius-sm)', background: 'var(--bg-soft)', border: '1px solid var(--border)' }}>
+                            <p style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.8, fontWeight: 800, marginBottom: 6 }}>Sesión</p>
+                            <p style={{ fontSize: 13, color: 'var(--text)', wordBreak: 'break-all' }}>{auth.currentUser?.email || 'Super admin'}</p>
+                          </div>
+                          <button onClick={() => setSeguridadAbierta(v => !v)} style={{ ...accionBtn, width: '100%', justifyContent: 'center', padding: '11px' }}>
+                            {inlineIconLabel('key', seguridadAbierta ? 'Ocultar cambio de contraseña' : 'Cambiar contraseña')}
+                          </button>
+                          {seguridadAbierta && (
+                            <div style={{ padding: 12, borderRadius: 'var(--radius-sm)', background: 'var(--bg-soft)', border: '1px solid var(--border)' }}>
+                              <label htmlFor="super-p1" style={lbl}>Nueva contraseña</label>
+                              <input id="super-p1" type="password" placeholder="Mínimo 8 caracteres" value={cuentaP1} onChange={e => { setCuentaP1(e.target.value); setCuentaPassMsg(null) }} style={{ marginBottom: 8 }} />
+                              <MedidorPassword pwd={cuentaP1} />
+                              <label htmlFor="super-p2" style={{ ...lbl, marginTop: 12 }}>Confirmar contraseña</label>
+                              <input id="super-p2" type="password" placeholder="Repite tu contraseña" value={cuentaP2} onChange={e => { setCuentaP2(e.target.value); setCuentaPassMsg(null) }} style={{ marginBottom: 10 }} />
+                              {cuentaPassMsg && <p style={{ fontSize: 12, color: cuentaPassMsg.tipo === 'ok' ? 'var(--green)' : 'var(--red)', marginBottom: 10 }}>{cuentaPassMsg.texto}</p>}
+                              <button onClick={cambiarMiPassword} disabled={cambiandoPass} style={greenCtaStyle(cambiandoPass)}>
+                                {cambiandoPass ? 'Guardando…' : 'Guardar contraseña'}
+                              </button>
+                            </div>
+                          )}
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                            {[
+                              ['GitHub', 'https://github.com/cverduzco23/quiniela-app', 'external'],
+                              ['Vercel', 'https://vercel.com', 'external'],
+                              ['Firebase', 'https://console.firebase.google.com/project/quiniela-app-24896/overview', 'external'],
+                            ].map(([label, href, icon]) => (
+                              <a key={label} href={href} target="_blank" rel="noreferrer" style={{ ...accionBtn, textDecoration: 'none', justifyContent: 'center', padding: '11px 8px' }}>
+                                {inlineIconLabel(icon, label)}
+                              </a>
+                            ))}
+                          </div>
+                          <button onClick={salir} style={{ ...accionBtn, color: 'var(--red)', borderColor: 'var(--red)', width: '100%', justifyContent: 'center', padding: '11px' }}>
+                            {inlineIconLabel('logout', 'Cerrar sesión')}
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </>
                 )
               })()
@@ -3882,7 +4049,7 @@ export default function Admin() {
 }
 
 // ─── Componente de card de quiniela en la lista ───────────────────────────────
-function QuinielaCard({ q, conteos, onGestionar, dueno }) {
+function QuinielaCard({ q, conteos, onGestionar, dueno, superCompact = false }) {
   const cerrada = esCerradaQ(q)
   const enJuego = cerrada && !esFinalizadaQ(q)
   const n = conteos[q.id] ?? 0
@@ -3899,7 +4066,11 @@ function QuinielaCard({ q, conteos, onGestionar, dueno }) {
     <div style={{
       background: 'var(--card)', borderRadius: 'var(--radius-md)', padding: '1rem 1.25rem', marginBottom: 10,
       border: '1px solid var(--border)',
-      display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+      display: 'flex',
+      flexDirection: superCompact ? 'column' : 'row',
+      alignItems: superCompact ? 'stretch' : 'center',
+      justifyContent: 'space-between',
+      gap: superCompact ? 12 : 12,
     }}>
       <div style={{ flex: 1, minWidth: 0 }}>
         <p style={{ fontWeight: 600, fontSize: 15, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: 6 }}>
@@ -3917,7 +4088,7 @@ function QuinielaCard({ q, conteos, onGestionar, dueno }) {
               fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 'var(--radius-full)', flexShrink: 0,
               background: 'var(--yellow-bg)', color: 'var(--yellow)',
             }}>
-              ⭐ Principal
+              {superCompact ? 'Principal' : '⭐ Principal'}
             </span>
           )}
           {pagosPendientes > 0 && (
@@ -3925,7 +4096,7 @@ function QuinielaCard({ q, conteos, onGestionar, dueno }) {
               fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 'var(--radius-full)', flexShrink: 0,
               background: 'var(--yellow-bg)', color: 'var(--yellow)',
             }}>
-              ⏳ {pagosPendientes} pago{pagosPendientes !== 1 ? 's' : ''}
+              {pagosPendientes} pago{pagosPendientes !== 1 ? 's' : ''}
             </span>
           )}
           {(q.privada || q.codigoAcceso) && (
@@ -3933,18 +4104,18 @@ function QuinielaCard({ q, conteos, onGestionar, dueno }) {
               fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 'var(--radius-full)', flexShrink: 0,
               background: 'var(--neutral-bg)', color: 'var(--text)', border: '1px solid var(--border-strong)',
             }}>
-              🔒 Privada
+              {superCompact ? 'Privada' : '🔒 Privada'}
             </span>
           )}
         </div>
         {dueno && (
           <p style={{ fontSize: 11, color: 'var(--green-light)', marginBottom: 4, fontWeight: 700 }}>
-            👤 {dueno}
+            {superCompact ? dueno : `👤 ${dueno}`}
           </p>
         )}
         {q.empresa && (
           <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4, fontWeight: 600 }}>
-            🏢 {q.empresa}
+            {superCompact ? q.empresa : `🏢 ${q.empresa}`}
           </p>
         )}
         <p style={{ fontSize: 12, color: 'var(--muted)' }}>
@@ -3953,13 +4124,13 @@ function QuinielaCard({ q, conteos, onGestionar, dueno }) {
             <>
               {' · '}
               <span style={{ color: 'var(--green)', fontWeight: 700 }}>
-                💰 {formatearMXN(calcularBote(q, n))}
+                {superCompact ? formatearMXN(calcularBote(q, n)) : `💰 ${formatearMXN(calcularBote(q, n))}`}
               </span>
             </>
           )}
         </p>
       </div>
-      <button onClick={() => onGestionar(q)} style={{ ...greenCtaStyle(false), whiteSpace: 'nowrap', flexShrink: 0 }}>
+      <button onClick={() => onGestionar(q)} style={{ ...greenCtaStyle(false), whiteSpace: 'nowrap', flexShrink: 0, width: superCompact ? '100%' : undefined, padding: superCompact ? '10px 12px' : undefined }}>
         Gestionar
       </button>
     </div>
