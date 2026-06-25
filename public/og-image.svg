@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-labelledby="title desc">
+  <title id="title">QuinielApp</title>
+  <desc id="desc">QuinielApp, quinielas privadas para tu equipo.</desc>
+  <rect width="1200" height="630" fill="#0B1220"/>
+  <circle cx="120" cy="80" r="300" fill="#22C55E" opacity="0.14"/>
+  <circle cx="1080" cy="40" r="260" fill="#FACC15" opacity="0.10"/>
+  <g transform="translate(110 176)">
+    <rect width="136" height="136" rx="34" fill="#0B1220"/>
+    <rect x="2" y="2" width="132" height="132" rx="32" fill="none" stroke="#FFFFFF" stroke-opacity="0.06" stroke-width="4"/>
+    <circle cx="68" cy="68" r="40" fill="none" stroke="#22C55E" stroke-width="12"/>
+    <circle cx="68" cy="68" r="20" fill="none" stroke="#FACC15" stroke-width="9"/>
+    <circle cx="68" cy="68" r="8" fill="#22C55E"/>
+  </g>
+  <text x="280" y="254" fill="#F9FAFB" font-family="Inter, Arial, sans-serif" font-size="76" font-weight="900" letter-spacing="-3">Quiniel</text>
+  <text x="658" y="254" fill="#22C55E" font-family="Inter, Arial, sans-serif" font-size="76" font-weight="900" letter-spacing="-3">App</text>
+  <text x="110" y="390" fill="#F9FAFB" font-family="Inter, Arial, sans-serif" font-size="42" font-weight="800">Quinielas privadas para tu equipo</text>
+  <text x="110" y="452" fill="#9CA3AF" font-family="Inter, Arial, sans-serif" font-size="28" font-weight="600">Predice los partidos, compite con tu grupo y sigue el ranking en vivo.</text>
+</svg>

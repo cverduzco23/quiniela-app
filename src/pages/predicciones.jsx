@@ -5,10 +5,10 @@ import { db, track } from '../firebase'
 import { cierreToDate, quinielaCerrada, tiempoRestante } from '../utils/cierre'
 import { tienePremio, tieneCuota, descripcionRegla, calcularBote, desglosePremio, TIPO_PREMIO, formatearMXN } from '../utils/premios'
 import { normalizarNombre, tieneNombreYApellido } from '../utils/nombres'
-import { PromoCTA } from '../components/PromoCTA'
 import { CuentaRegresiva } from '../components/CuentaRegresiva'
 import { Footer } from '../components/Footer'
 import { useDialog } from '../components/Dialogs'
+import { BrandWordmark } from '../components/Brand'
 
 function formatFecha(value) {
   const d = cierreToDate(value)
@@ -39,20 +39,168 @@ const resultadoInfo = (res, local, visitante) => ({
 }[res])
 
 const ctaPrimary = (disabled) => ({
-  width: '100%', padding: '15px', borderRadius: 'var(--radius-md)', border: 'none',
-  background: disabled ? 'var(--card-light)' : 'linear-gradient(135deg, var(--green), var(--green-light))',
-  color: disabled ? 'var(--muted)' : '#07120A', fontSize: 15, fontWeight: 800, letterSpacing: 0.3,
+  position: 'relative', overflow: 'hidden',
+  width: '100%', padding: 'var(--pred-cta-padding, 15px)', borderRadius: 'var(--radius-md)', border: 'none',
+  background: disabled ? 'var(--card-light)' : 'linear-gradient(135deg, #22C55E 0%, #4ADE80 52%, #20B85A 100%)',
+  color: disabled ? 'var(--muted)' : '#07120A', fontSize: 'var(--pred-cta-size, 15px)', fontWeight: 800, letterSpacing: 0.3,
   cursor: disabled ? 'not-allowed' : 'pointer',
-  boxShadow: disabled ? 'none' : 'var(--shadow-green)',
+  boxShadow: disabled ? 'none' : 'inset 0 1px 0 rgba(255,255,255,0.18), inset 0 -1px 2px rgba(6,78,39,0.14), var(--shadow-green)',
 })
 
 const card = {
   background: 'var(--card)', borderRadius: 'var(--radius-md)',
-  padding: '1.1rem 1.25rem', marginBottom: 10,
+  padding: 'var(--pred-card-padding, 1.1rem 1.25rem)', marginBottom: 'var(--pred-card-gap, 10px)',
   border: '1px solid var(--border)',
 }
 
 const lbl = { fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 8 }
+
+function PredIcon({ name, size = 16, style }) {
+  const common = {
+    width: size,
+    height: size,
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: 2,
+    strokeLinecap: 'round',
+    strokeLinejoin: 'round',
+    style: { display: 'inline-block', flexShrink: 0, ...style },
+    'aria-hidden': 'true',
+  }
+  if (name === 'arrow-left') {
+    return (
+      <svg {...common}>
+        <path d="M19 12H5" />
+        <path d="m12 19-7-7 7-7" />
+      </svg>
+    )
+  }
+  if (name === 'warning') {
+    return (
+      <svg {...common}>
+        <path d="M10.3 4.1 2.8 17a2 2 0 0 0 1.7 3h15a2 2 0 0 0 1.7-3L13.7 4.1a2 2 0 0 0-3.4 0Z" />
+        <path d="M12 9v4" />
+        <path d="M12 17h.01" />
+      </svg>
+    )
+  }
+  if (name === 'lock') {
+    return (
+      <svg {...common}>
+        <rect x="5" y="11" width="14" height="10" rx="2" />
+        <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+      </svg>
+    )
+  }
+  if (name === 'building') {
+    return (
+      <svg {...common}>
+        <path d="M4 21V5a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v16" />
+        <path d="M9 21v-5h3v5" />
+        <path d="M8 7h1" />
+        <path d="M12 7h1" />
+        <path d="M8 11h1" />
+        <path d="M12 11h1" />
+        <path d="M3 21h18" />
+      </svg>
+    )
+  }
+  if (name === 'clock') {
+    return (
+      <svg {...common}>
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 7v5l3 2" />
+      </svg>
+    )
+  }
+  if (name === 'ball') {
+    return (
+      <svg {...common}>
+        <circle cx="12" cy="12" r="9" />
+        <path d="m12 7 4 3-1.5 5h-5L8 10l4-3Z" />
+        <path d="M12 7V3" />
+        <path d="m16 10 4-1.5" />
+        <path d="m14.5 15 2.5 3.5" />
+        <path d="m9.5 15-2.5 3.5" />
+        <path d="M8 10 4 8.5" />
+      </svg>
+    )
+  }
+  if (name === 'globe') {
+    return (
+      <svg {...common}>
+        <circle cx="12" cy="12" r="9" />
+        <path d="M3 12h18" />
+        <path d="M12 3a14 14 0 0 1 0 18" />
+        <path d="M12 3a14 14 0 0 0 0 18" />
+      </svg>
+    )
+  }
+  if (name === 'money') {
+    return (
+      <svg {...common}>
+        <rect x="3" y="6" width="18" height="12" rx="2" />
+        <circle cx="12" cy="12" r="3" />
+        <path d="M6 9v.01" />
+        <path d="M18 15v.01" />
+      </svg>
+    )
+  }
+  if (name === 'party') {
+    return (
+      <svg {...common}>
+        <path d="m5 19 4-12 8 8-12 4Z" />
+        <path d="m9 7 8 8" />
+        <path d="M14 5h.01" />
+        <path d="M18 3v3" />
+        <path d="M20 4.5h-4" />
+      </svg>
+    )
+  }
+  if (name === 'check') {
+    return (
+      <svg {...common}>
+        <path d="m20 6-11 11-5-5" />
+      </svg>
+    )
+  }
+  if (name === 'target') {
+    return (
+      <svg {...common}>
+        <circle cx="12" cy="12" r="8" />
+        <circle cx="12" cy="12" r="3" />
+        <path d="M12 2v3" />
+        <path d="M12 19v3" />
+        <path d="M2 12h3" />
+        <path d="M19 12h3" />
+      </svg>
+    )
+  }
+  if (name === 'ranking') {
+    return (
+      <svg {...common}>
+        <path d="M5 19V9" />
+        <path d="M12 19V5" />
+        <path d="M19 19v-7" />
+        <path d="M3 19h18" />
+      </svg>
+    )
+  }
+  return (
+    <svg {...common}>
+      <circle cx="12" cy="12" r="3" fill="currentColor" stroke="none" />
+    </svg>
+  )
+}
+
+function BackHomeButton() {
+  return (
+    <a href="/" className="app-back-button" aria-label="Ir a inicio" title="Inicio">
+      <PredIcon name="arrow-left" size={15} />
+    </a>
+  )
+}
 
 export default function Predicciones() {
   const { alerta } = useDialog()
@@ -124,7 +272,6 @@ export default function Predicciones() {
     try {
       const guardado = lsAccesoKey ? localStorage.getItem(lsAccesoKey) : null
       if (guardado && guardado === codigoReq) {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
         setAccesoOk(true)
       }
     } catch { /* localStorage no disponible */ }
@@ -297,9 +444,11 @@ export default function Predicciones() {
   )
 
   if (error) return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '5rem 1.5rem', color: 'var(--muted)' }}>
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '5rem 1.5rem', color: 'var(--muted)' }}>
       <div style={{ textAlign: 'center', maxWidth: 360 }}>
-        <div style={{ fontSize: 52, marginBottom: 20 }}>⚠️</div>
+        <div style={{ display: 'inline-flex', color: 'var(--yellow)', marginBottom: 20 }}>
+          <PredIcon name="warning" size={52} />
+        </div>
         <p style={{ fontSize: 18, fontWeight: 600, color: 'var(--text)', marginBottom: 8 }}>
           {error === 'not-found' ? 'Quiniela no encontrada' : 'Error de conexión'}
         </p>
@@ -318,52 +467,60 @@ export default function Predicciones() {
 
   if (enviado) return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
-      <div className="hero-pad" style={{ background: 'var(--hero-gradient)', color: 'var(--text)', borderBottom: '1px solid var(--border)' }}>
-        <div style={{ maxWidth: 560, margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <a href="/" style={{ fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', color: 'var(--green-light)', fontWeight: 700, textDecoration: 'none' }}>⚽ QuinielApp</a>
-          <a href="/" style={{ background: 'var(--neutral-bg)', color: 'var(--text)', padding: '6px 12px', borderRadius: 'var(--radius-sm)', fontSize: 12, fontWeight: 600, textDecoration: 'none', border: '1px solid var(--border)' }} aria-label="Volver a inicio">← Inicio</a>
+      <div className="hero-pad pred-hero-pad" style={{ background: 'var(--hero-gradient)', color: 'var(--text)', borderBottom: '1px solid var(--border)' }}>
+        <div className="pred-brand-row" style={{ maxWidth: 560, margin: '0 auto', display: 'flex', alignItems: 'center', gap: 12 }}>
+          <BackHomeButton />
+          <a className="pred-brand-link" href="/" style={{ textDecoration: 'none' }}>
+            <BrandWordmark markSize={24} fontSize={20} />
+          </a>
         </div>
       </div>
-      <div style={{ maxWidth: 560, margin: '0 auto', padding: '1.5rem 1rem 3rem' }}>
+      <div className="pred-content" style={{ maxWidth: 560, margin: '0 auto', padding: 'var(--pred-content-padding, 1.5rem 1rem 3rem)' }}>
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
           <div style={{
             width: 72, height: 72, borderRadius: '50%',
             background: 'linear-gradient(135deg, var(--green), var(--green-light))',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            margin: '0 auto 16px', fontSize: 36, color: '#07120A',
+            margin: '0 auto 16px', color: '#07120A',
             boxShadow: 'var(--shadow-green)',
-          }}>✓</div>
+          }}>
+            <PredIcon name="check" size={36} />
+          </div>
           <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 700, marginBottom: 8, color: 'var(--text-strong)' }}>¡Listo, {nombre}!</h2>
           <p style={{ color: 'var(--muted)', fontSize: 14 }}>Tus predicciones fueron registradas.</p>
         </div>
 
         {/* Resumen de picks */}
-        <div style={{ background: 'var(--card)', borderRadius: 'var(--radius-lg)', padding: '1.25rem', marginBottom: 12, border: '1px solid var(--green)', boxShadow: 'var(--shadow-md)' }}>
+        <div style={{ background: 'var(--card)', borderRadius: 'var(--radius-lg)', padding: 'var(--pred-large-card-padding, 1.25rem)', marginBottom: 12, border: '1px solid var(--green)', boxShadow: 'var(--shadow-md)' }}>
           <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 14 }}>
             Tu quiniela · {quiniela.nombre}
           </p>
-          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) auto minmax(0,1fr) auto', alignItems: 'center', columnGap: 8 }}>
+          <div style={{ display: 'grid', gap: 'var(--pred-review-gap, 10px)', maxWidth: 'var(--pred-review-max-width, 420px)', margin: '0 auto' }}>
             {partidos.map((p, i) => {
               const pick = picks[i]
               const res  = getPickResultado(pick)
               const info = res ? resultadoInfo(res, p.local, p.visitante) : null
               return (
                 <Fragment key={i}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0, padding: '8px 0' }}>
-                    {p.escudoLocal && <img src={p.escudoLocal} alt="" style={{ width: 18, height: 18, objectFit: 'contain', flexShrink: 0 }} onError={e => { e.target.style.display = 'none' }} />}
-                    <span style={{ fontSize: 13, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.local}</span>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto minmax(0, 1fr)', alignItems: 'center', columnGap: 'var(--pred-review-column-gap, 10px)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 'var(--pred-review-team-gap, 5px)', minWidth: 0 }}>
+                      {p.escudoLocal && <img src={p.escudoLocal} alt="" style={{ width: 'var(--pred-review-crest-size, 18px)', height: 'var(--pred-review-crest-size, 18px)', objectFit: 'contain', flexShrink: 0 }} onError={e => { e.target.style.display = 'none' }} />}
+                      <span style={{ fontSize: 'var(--pred-review-team-size, 13px)', color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.local}</span>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 'var(--pred-review-center-gap, 5px)' }}>
+                      <span style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--pred-review-score-size, 18px)', fontWeight: 700, color: 'var(--text-strong)', padding: 'var(--pred-review-score-padding, 2px 12px)', minWidth: 'var(--pred-review-score-min-width, 58px)', textAlign: 'center', background: 'var(--green-bg)', borderRadius: 'var(--radius-sm)' }}>
+                        {pick?.local ?? '?'}–{pick?.visitante ?? '?'}
+                      </span>
+                      <span style={{ fontSize: 'var(--pred-review-badge-size, 10px)', fontWeight: 700, padding: 'var(--pred-review-badge-padding, 2px 8px)', borderRadius: 'var(--radius-full)', background: info?.bg ?? 'transparent', color: info?.color ?? 'transparent', whiteSpace: 'nowrap', textAlign: 'center' }}>
+                        {info?.label ?? ''}
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--pred-review-team-gap, 5px)', minWidth: 0 }}>
+                      <span style={{ fontSize: 'var(--pred-review-team-size, 13px)', color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.visitante}</span>
+                      {p.escudoVisitante && <img src={p.escudoVisitante} alt="" style={{ width: 'var(--pred-review-crest-size, 18px)', height: 'var(--pred-review-crest-size, 18px)', objectFit: 'contain', flexShrink: 0 }} onError={e => { e.target.style.display = 'none' }} />}
+                    </div>
                   </div>
-                  <span style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 700, color: 'var(--text-strong)', padding: '2px 12px', background: 'var(--green-bg)', borderRadius: 'var(--radius-sm)' }}>
-                    {pick?.local ?? '?'}–{pick?.visitante ?? '?'}
-                  </span>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
-                    <span style={{ fontSize: 13, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.visitante}</span>
-                    {p.escudoVisitante && <img src={p.escudoVisitante} alt="" style={{ width: 18, height: 18, objectFit: 'contain', flexShrink: 0 }} onError={e => { e.target.style.display = 'none' }} />}
-                  </div>
-                  <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 'var(--radius-full)', background: info?.bg ?? 'transparent', color: info?.color ?? 'transparent', whiteSpace: 'nowrap', textAlign: 'center' }}>
-                    {info?.label ?? ''}
-                  </span>
-                  {i < partidos.length - 1 && <div style={{ gridColumn: '1 / -1', borderBottom: '1px solid var(--border)' }} />}
+                  {i < partidos.length - 1 && <div style={{ borderBottom: '1px solid var(--border)' }} />}
                 </Fragment>
               )
             })}
@@ -373,7 +530,6 @@ export default function Predicciones() {
         {navigator.share ? (
           <button
             onClick={() => navigator.share?.({
-              title: `Quiniela ${quiniela.nombre}`,
               text: `Te invito a participar en la quiniela "${quiniela.nombre}". Registra tus predicciones aquí: ${window.location.origin}/quiniela/${quinielaId}`,
             }).catch(() => {})}
             style={{ ...ctaPrimary(false), marginBottom: 10 }}
@@ -392,15 +548,19 @@ export default function Predicciones() {
         <a
           href={`/ranking/${quinielaId}`}
           style={{
-            display: 'block', textAlign: 'center', padding: '12px 28px', borderRadius: 'var(--radius-md)',
-            background: 'var(--card-light)', color: 'var(--muted)',
-            fontWeight: 700, fontSize: 14, textDecoration: 'none', border: '1px solid var(--border-strong)',
+            display: 'block', textAlign: 'center', padding: 'var(--home-secondary-cta-padding, 12px)', borderRadius: 'var(--radius-md)',
+            background: 'linear-gradient(135deg, rgba(34,197,94,0.14), rgba(34,197,94,0.06))',
+            border: '1px solid rgba(34,197,94,0.42)',
+            color: 'var(--green-light)', fontWeight: 700, fontSize: 'var(--home-secondary-cta-size, 14px)', textDecoration: 'none',
+            boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05), 0 0 0 1px rgba(34,197,94,0.04)',
           }}
         >
-          Ver ranking →
+          <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}>
+            <PredIcon name="ranking" size={15} />
+            Ver ranking
+          </span>
         </a>
 
-        <PromoCTA />
         <Footer />
       </div>
     </div>
@@ -420,7 +580,8 @@ export default function Predicciones() {
             animation: 'pop 0.5s ease-out',
             display: 'flex', alignItems: 'center', gap: 8,
           }}>
-            🎉 ¡Picks completos!
+            <PredIcon name="party" size={19} />
+            Picks completos
           </div>
           {Array.from({ length: 28 }).map((_, k) => {
             const colors = ['var(--green)', 'var(--green-light)', 'var(--yellow)', '#FCA5A5']
@@ -440,13 +601,15 @@ export default function Predicciones() {
       )}
 
       {/* Hero */}
-      <div className="hero-pad" style={{ background: 'var(--hero-gradient)', color: 'var(--text)', borderBottom: '1px solid var(--border)' }}>
+      <div className="hero-pad pred-hero-pad" style={{ background: 'var(--hero-gradient)', color: 'var(--text)', borderBottom: '1px solid var(--border)' }}>
         <div style={{ maxWidth: 560, margin: '0 auto' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-            <a href="/" style={{ fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', color: 'var(--green-light)', fontWeight: 700, textDecoration: 'none' }}>⚽ QuinielApp</a>
-            <a href="/" style={{ background: 'var(--neutral-bg)', color: 'var(--text)', padding: '6px 12px', borderRadius: 'var(--radius-sm)', fontSize: 12, fontWeight: 600, textDecoration: 'none', border: '1px solid var(--border)' }}>← Inicio</a>
+          <div className="pred-brand-row" style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+            <BackHomeButton />
+            <a className="pred-brand-link" href="/" style={{ textDecoration: 'none' }}>
+              <BrandWordmark markSize={24} fontSize={20} />
+            </a>
           </div>
-          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 700, lineHeight: 1.2, marginBottom: 10, letterSpacing: '-0.01em' }}>{quiniela.nombre}</h1>
+          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--pred-title-size, 24px)', fontWeight: 700, lineHeight: 1.2, marginBottom: 'var(--pred-title-gap, 10px)', letterSpacing: '-0.01em' }}>{quiniela.nombre}</h1>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
             {quiniela.empresa && (
               <span style={{
@@ -455,7 +618,8 @@ export default function Predicciones() {
                 background: 'var(--neutral-bg)', color: 'var(--green-light)',
                 border: '1px solid var(--green)', letterSpacing: 0.2,
               }}>
-                🏢 {quiniela.empresa}
+                <PredIcon name="building" size={12} />
+                {quiniela.empresa}
               </span>
             )}
             {quiniela.cierre && (() => {
@@ -469,7 +633,10 @@ export default function Predicciones() {
                     background: 'var(--red-bg-strong)', color: '#FCA5A5',
                     border: '1px solid var(--red)',
                   }}>
-                    🔒 Quiniela cerrada
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                      <PredIcon name="lock" size={12} />
+                      Quiniela cerrada
+                    </span>
                   </span>
                 )
               }
@@ -484,7 +651,10 @@ export default function Predicciones() {
                   background: 'var(--neutral-bg)', color: 'var(--text)',
                   border: '1px solid var(--border)',
                 }}>
-                  ⏳ Cierre: {formatFecha(quiniela.cierre)}
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                    <PredIcon name="clock" size={12} />
+                    Cierre: {formatFecha(quiniela.cierre)}
+                  </span>
                 </span>
               )
             })()}
@@ -492,12 +662,14 @@ export default function Predicciones() {
         </div>
       </div>
 
-      <div style={{ maxWidth: 560, margin: '0 auto', padding: '1.25rem 1rem 3rem' }}>
+      <div className="pred-content" style={{ maxWidth: 560, margin: '0 auto', padding: 'var(--pred-content-padding, 1.25rem 1rem 3rem)' }}>
 
         {/* ── Quiniela cerrada ────────────────────────────────────────── */}
         {cerrada ? (
-          <div style={{ textAlign: 'center', padding: '3rem 1.5rem' }}>
-            <div style={{ fontSize: 48, marginBottom: 16 }}>⚽</div>
+          <div style={{ textAlign: 'center', padding: 'var(--pred-closed-padding, 3rem 1.5rem)' }}>
+            <div style={{ display: 'inline-flex', color: 'var(--green)', marginBottom: 16 }}>
+              <PredIcon name="ball" size={48} />
+            </div>
             <p style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-strong)', marginBottom: 8 }}>
               ¡Los partidos están en juego!
             </p>
@@ -520,11 +692,13 @@ export default function Predicciones() {
           <div>
             <div style={{
               background: 'var(--card)', borderRadius: 'var(--radius-lg)',
-              padding: '1.75rem 1.5rem', marginBottom: 14,
+              padding: 'var(--pred-large-card-padding, 1.75rem 1.5rem)', marginBottom: 'var(--pred-large-card-gap, 14px)',
               border: '1.5px solid var(--border)', boxShadow: 'var(--shadow-md)', textAlign: 'center',
             }}>
-              <div style={{ fontSize: 40, marginBottom: 8 }}>🔒</div>
-              <p style={{ fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 700, color: 'var(--text-strong)', marginBottom: 6 }}>
+              <div style={{ display: 'inline-flex', color: 'var(--yellow)', marginBottom: 8 }}>
+                <PredIcon name="lock" size={40} />
+              </div>
+              <p style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--pred-card-title-size, 20px)', fontWeight: 700, color: 'var(--text-strong)', marginBottom: 6 }}>
                 Quiniela privada
               </p>
               <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 18, lineHeight: 1.5 }}>
@@ -548,8 +722,9 @@ export default function Predicciones() {
                 }}
               />
               {codigoError && (
-                <p style={{ fontSize: 12, color: '#FCA5A5', marginBottom: 12, textAlign: 'left' }}>
-                  ⚠️ {codigoError}
+                <p style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#FCA5A5', marginBottom: 12, textAlign: 'left' }}>
+                  <PredIcon name="warning" size={13} />
+                  {codigoError}
                 </p>
               )}
               <button
@@ -579,17 +754,19 @@ export default function Predicciones() {
           <div>
             <div style={{
               background: 'var(--card)', borderRadius: 'var(--radius-lg)',
-              padding: '1.75rem 1.5rem', marginBottom: 14,
+              padding: 'var(--pred-large-card-padding, 1.75rem 1.5rem)', marginBottom: 'var(--pred-large-card-gap, 14px)',
               border: '1.5px solid var(--green)', boxShadow: 'var(--shadow-md)', textAlign: 'center',
             }}>
               <div style={{
                 width: 64, height: 64, borderRadius: '50%',
                 background: 'linear-gradient(135deg, var(--green), var(--green-light))',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                margin: '0 auto 14px', fontSize: 30, color: '#07120A',
+                margin: '0 auto 14px', color: '#07120A',
                 boxShadow: 'var(--shadow-green)',
-              }}>✓</div>
-              <p style={{ fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 700, color: 'var(--text-strong)', marginBottom: 6 }}>
+              }}>
+                <PredIcon name="check" size={30} />
+              </div>
+              <p style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--pred-card-title-size, 20px)', fontWeight: 700, color: 'var(--text-strong)', marginBottom: 6 }}>
                 Ya enviaste tu predicción
               </p>
               <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 18, lineHeight: 1.5 }}>
@@ -631,10 +808,12 @@ export default function Predicciones() {
           <div>
             <div style={{
               background: 'var(--card)', borderRadius: 'var(--radius-lg)',
-              padding: '1.75rem 1.5rem', marginBottom: 14,
+              padding: 'var(--pred-large-card-padding, 1.75rem 1.5rem)', marginBottom: 'var(--pred-large-card-gap, 14px)',
               border: '1.5px solid var(--green)', boxShadow: 'var(--shadow-md)', textAlign: 'center',
             }}>
-              <div style={{ fontSize: 40, marginBottom: 8 }}>💰</div>
+              <div style={{ display: 'inline-flex', color: 'var(--green)', marginBottom: 8 }}>
+                <PredIcon name="money" size={40} />
+              </div>
               {(() => {
                 const desglose = desglosePremio(quiniela, conteoParticipantes)
                 const boteTotal = calcularBote(quiniela, conteoParticipantes)
@@ -646,11 +825,11 @@ export default function Predicciones() {
                         {cuotaNum > 0 ? 'Cuota para participar' : 'Premio de esta quiniela'}
                       </p>
                       {cuotaNum > 0 && (
-                        <p style={{ fontFamily: 'var(--font-display)', fontSize: 34, fontWeight: 800, color: 'var(--green)', marginBottom: 6, letterSpacing: '-0.01em' }}>
+                        <p style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--pred-amount-size, 34px)', fontWeight: 800, color: 'var(--green)', marginBottom: 6, letterSpacing: '-0.01em' }}>
                           {formatearMXN(cuotaNum)}
                         </p>
                       )}
-                      <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 4, lineHeight: 1.5 }}>
+                      <p style={{ fontSize: 'var(--pred-body-size, 12px)', color: 'var(--muted)', marginBottom: 4, lineHeight: 1.5 }}>
                         Premio total: <strong style={{ color: 'var(--text)' }}>{formatearMXN(boteTotal)}</strong> ({conteoParticipantes} {conteoParticipantes === 1 ? 'participante' : 'participantes'})
                       </p>
                       {desglose.fijo > 0 && desglose.cuota > 0 && (
@@ -672,7 +851,7 @@ export default function Predicciones() {
                       {quiniela.tipoPremio === TIPO_PREMIO.BOTE ? 'Cuota para participar' : 'Premio de esta quiniela'}
                     </p>
                     {quiniela.tipoPremio === TIPO_PREMIO.BOTE && (
-                      <p style={{ fontFamily: 'var(--font-display)', fontSize: 34, fontWeight: 800, color: 'var(--green)', marginBottom: 6, letterSpacing: '-0.01em' }}>
+                      <p style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--pred-amount-size, 34px)', fontWeight: 800, color: 'var(--green)', marginBottom: 6, letterSpacing: '-0.01em' }}>
                         {formatearMXN(Number(quiniela.cuota) || 0)}
                       </p>
                     )}
@@ -689,24 +868,27 @@ export default function Predicciones() {
               })()}
               <div style={{
                 background: 'var(--bg-soft)', borderRadius: 'var(--radius-sm)',
-                padding: '12px 14px', marginTop: 14, marginBottom: 4,
+                padding: 'var(--pred-info-box-padding, 12px 14px)', marginTop: 'var(--pred-info-box-gap, 14px)', marginBottom: 4,
                 border: '1px solid var(--border)', textAlign: 'left',
               }}>
                 <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>
                   Cómo se reparte
                 </p>
-                <p style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.5 }}>
+                <p style={{ fontSize: 'var(--pred-info-size, 13px)', color: 'var(--text)', lineHeight: 1.5 }}>
                   {descripcionRegla(quiniela)}
                 </p>
               </div>
             </div>
             {tieneCuota(quiniela) && (
               <p style={{
-                fontSize: 12, color: 'var(--yellow-soft)', lineHeight: 1.5,
+                fontSize: 'var(--pred-body-size, 12px)', color: 'var(--yellow-soft)', lineHeight: 1.5,
                 background: 'var(--yellow-bg)', border: '1px solid var(--yellow-soft)',
-                borderRadius: 'var(--radius-sm)', padding: '10px 12px', marginBottom: 12,
+                borderRadius: 'var(--radius-sm)', padding: 'var(--pred-warning-padding, 10px 12px)', marginBottom: 'var(--pred-card-gap, 12px)',
               }}>
-                ⚠️ <strong>Realiza tu pago primero.</strong> Al continuar declaras que <strong>ya realizaste tu pago</strong> (transferencia o efectivo). Toda predicción sin pago confirmado se elimina automáticamente.
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  <PredIcon name="warning" size={14} />
+                  <span><strong>Realiza tu pago primero.</strong> Al continuar declaras que <strong>ya realizaste tu pago</strong> (transferencia o efectivo). Toda predicción sin pago confirmado se elimina automáticamente.</span>
+                </span>
               </p>
             )}
             <button
@@ -726,7 +908,9 @@ export default function Predicciones() {
                 border: '1px dashed var(--border-strong)',
                 display: 'flex', alignItems: 'center', gap: 12,
               }}>
-                <span style={{ fontSize: 24, lineHeight: 1 }} aria-hidden="true">🎉</span>
+                <span style={{ display: 'inline-flex', color: 'var(--yellow)', flexShrink: 0 }} aria-hidden="true">
+                  <PredIcon name="party" size={24} />
+                </span>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 2 }}>
                     Solo por diversión
@@ -739,18 +923,21 @@ export default function Predicciones() {
             )}
 
             {/* Reglas de puntos */}
-            <div style={{ display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: 6, marginBottom: 'var(--pred-rules-margin-bottom, 16px)', flexWrap: 'nowrap' }}>
               {[
-                { pts: '1 pt',   desc: 'Resultado correcto' },
-                { pts: '+2 pts', desc: 'Marcador exacto' },
+                { pts: '1 pt', desc: 'resultado', icon: 'check', color: 'var(--green)' },
+                { pts: '+2 pts', desc: 'exacto', icon: 'target', color: 'var(--yellow)' },
               ].map(r => (
                 <div key={r.desc} style={{
-                  display: 'flex', alignItems: 'center', gap: 6,
-                  background: 'var(--card)', borderRadius: 'var(--radius-sm)', padding: '6px 12px',
-                  border: '1px solid var(--border)', flex: '1 1 auto',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                  background: 'var(--card)', borderRadius: 'var(--radius-sm)', padding: 'var(--pred-rule-padding, 6px 10px)',
+                  border: '1px solid var(--border)', flex: '1 1 auto', minWidth: 0, textAlign: 'center',
                 }}>
-                  <span style={{ fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 700, color: 'var(--green)' }}>{r.pts}</span>
-                  <span style={{ fontSize: 12, color: 'var(--muted)' }}>{r.desc}</span>
+                  <span style={{ display: 'inline-flex', color: r.color, flexShrink: 0 }}>
+                    <PredIcon name={r.icon} size={13} />
+                  </span>
+                  <span style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--pred-rule-points-size, 13px)', fontWeight: 700, color: 'var(--text-strong)', flexShrink: 0 }}>{r.pts}</span>
+                  <span style={{ fontSize: 'var(--pred-rule-desc-size, 11.5px)', color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.desc}</span>
                 </div>
               ))}
             </div>
@@ -758,38 +945,42 @@ export default function Predicciones() {
             {/* ── Pantalla de resumen ─────────────────────────────────── */}
             {mostrarResumen ? (
           <div>
-            <div style={{ background: 'var(--card)', borderRadius: 'var(--radius-lg)', padding: '1.5rem', marginBottom: 10, border: '1px solid var(--green)', boxShadow: 'var(--shadow-md)' }}>
+            <div style={{ background: 'var(--card)', borderRadius: 'var(--radius-lg)', padding: 'var(--pred-large-card-padding, 1.5rem)', marginBottom: 10, border: '1px solid var(--green)', boxShadow: 'var(--shadow-md)' }}>
               <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>
                 Revisa tus picks
               </p>
               <p style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-strong)', marginBottom: 16 }}>{nombre}</p>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) auto minmax(0,1fr) auto', alignItems: 'center', columnGap: 8 }}>
+              <div style={{ display: 'grid', gap: 'var(--pred-review-gap, 10px)', maxWidth: 'var(--pred-review-max-width, 420px)', margin: '0 auto' }}>
                 {partidos.map((p, i) => {
                   const pick = picks[i]
                   const res  = getPickResultado(pick)
                   const info = res ? resultadoInfo(res, p.local, p.visitante) : null
                   return (
                     <Fragment key={i}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0, padding: '10px 0' }}>
-                        {p.escudoLocal && (
-                          <img src={p.escudoLocal} alt="" style={{ width: 18, height: 18, objectFit: 'contain', flexShrink: 0 }} onError={e => { e.target.style.display = 'none' }} />
-                        )}
-                        <span style={{ fontSize: 13, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.local}</span>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto minmax(0, 1fr)', alignItems: 'center', columnGap: 'var(--pred-review-column-gap, 10px)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 'var(--pred-review-team-gap, 5px)', minWidth: 0 }}>
+                          {p.escudoLocal && (
+                            <img src={p.escudoLocal} alt="" style={{ width: 'var(--pred-review-crest-size, 18px)', height: 'var(--pred-review-crest-size, 18px)', objectFit: 'contain', flexShrink: 0 }} onError={e => { e.target.style.display = 'none' }} />
+                          )}
+                          <span style={{ fontSize: 'var(--pred-review-team-size, 13px)', color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.local}</span>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 'var(--pred-review-center-gap, 5px)' }}>
+                          <span style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--pred-review-score-size, 20px)', fontWeight: 700, color: 'var(--text-strong)', padding: 'var(--pred-review-score-padding, 2px 14px)', minWidth: 'var(--pred-review-score-min-width, 64px)', textAlign: 'center', background: 'var(--green-bg)', borderRadius: 'var(--radius-sm)' }}>
+                            {pick?.local ?? '?'} – {pick?.visitante ?? '?'}
+                          </span>
+                          <span style={{ fontSize: 'var(--pred-review-badge-size, 10px)', fontWeight: 700, padding: 'var(--pred-review-badge-padding, 2px 8px)', borderRadius: 'var(--radius-full)', background: info?.bg ?? 'transparent', color: info?.color ?? 'transparent', whiteSpace: 'nowrap', textAlign: 'center' }}>
+                            {info?.label ?? ''}
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--pred-review-team-gap, 5px)', minWidth: 0 }}>
+                          <span style={{ fontSize: 'var(--pred-review-team-size, 13px)', color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.visitante}</span>
+                          {p.escudoVisitante && (
+                            <img src={p.escudoVisitante} alt="" style={{ width: 'var(--pred-review-crest-size, 18px)', height: 'var(--pred-review-crest-size, 18px)', objectFit: 'contain', flexShrink: 0 }} onError={e => { e.target.style.display = 'none' }} />
+                          )}
+                        </div>
                       </div>
-                      <span style={{ fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 700, color: 'var(--text-strong)', padding: '2px 14px', background: 'var(--green-bg)', borderRadius: 'var(--radius-sm)' }}>
-                        {pick?.local ?? '?'} – {pick?.visitante ?? '?'}
-                      </span>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
-                        <span style={{ fontSize: 13, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.visitante}</span>
-                        {p.escudoVisitante && (
-                          <img src={p.escudoVisitante} alt="" style={{ width: 18, height: 18, objectFit: 'contain', flexShrink: 0 }} onError={e => { e.target.style.display = 'none' }} />
-                        )}
-                      </div>
-                      <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 'var(--radius-full)', background: info?.bg ?? 'transparent', color: info?.color ?? 'transparent', whiteSpace: 'nowrap', textAlign: 'center' }}>
-                        {info?.label ?? ''}
-                      </span>
-                      {i < partidos.length - 1 && <div style={{ gridColumn: '1 / -1', borderBottom: '1px solid var(--border)' }} />}
+                      {i < partidos.length - 1 && <div style={{ borderBottom: '1px solid var(--border)' }} />}
                     </Fragment>
                   )
                 })}
@@ -802,12 +993,27 @@ export default function Predicciones() {
                 background: 'var(--red-bg)', border: '1px solid var(--red)',
                 fontSize: 13, color: '#FCA5A5', lineHeight: 1.5,
               }}>
-                ⚠️ {nombreError}
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  <PredIcon name="warning" size={14} />
+                  <span>{nombreError}</span>
+                </span>
               </div>
             )}
 
-            <button onClick={enviar} disabled={enviando} style={{ ...ctaPrimary(enviando), marginBottom: 10 }}>
-              {enviando ? 'Enviando…' : 'Confirmar y enviar →'}
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+              marginBottom: 10, padding: 'var(--pred-final-note-padding, 9px 12px)',
+              borderRadius: 'var(--radius-md)', border: '1px solid var(--green)',
+              background: 'var(--green-bg)', color: 'var(--green-light)',
+              fontSize: 'var(--pred-final-note-size, 12.5px)', fontWeight: 800, textAlign: 'center',
+            }}>
+              <PredIcon name="check" size={14} />
+              Último paso: toca el botón verde.
+            </div>
+            <button onClick={enviar} disabled={enviando} className={enviando ? undefined : 'green-shine-button'} style={{ ...ctaPrimary(enviando), marginBottom: 10 }}>
+              <span style={{ position: 'relative', zIndex: 1 }}>
+                {enviando ? 'Enviando…' : 'Enviar predicciones ahora →'}
+              </span>
             </button>
             <button
               onClick={() => setMostrarResumen(false)}
@@ -842,7 +1048,7 @@ export default function Predicciones() {
                 value={nombre}
                 maxLength={40}
                 onChange={e => { setNombre(e.target.value); setNombreError('') }}
-                style={{ fontSize: 15, borderColor: nombreError ? 'var(--red)' : undefined }}
+                style={{ fontSize: 'var(--pred-input-size, 15px)', padding: 'var(--pred-input-padding, 10px 12px)', borderColor: nombreError ? 'var(--red)' : undefined }}
               />
               {nombreError && (
                 <p style={{ fontSize: 12, color: 'var(--red)', marginTop: 8 }}>{nombreError}</p>
@@ -857,7 +1063,7 @@ export default function Predicciones() {
 
               return (
                 <div key={i} style={card}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--pred-match-header-gap, 16px)' }}>
                     <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', letterSpacing: 1, textTransform: 'uppercase' }}>
                       Partido {i + 1}
                     </span>
@@ -865,13 +1071,13 @@ export default function Predicciones() {
                   </div>
 
                   {/* Score inputs */}
-                  <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'center', gap: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'center', gap: 'var(--pred-score-gap, 12px)' }}>
                     {/* Local */}
                     <div style={{ textAlign: 'center' }}>
                       {p.escudoLocal && (
-                        <img src={p.escudoLocal} alt="" style={{ width: 36, height: 36, objectFit: 'contain', display: 'block', margin: '0 auto 4px' }} onError={e => { e.target.style.display = 'none' }} />
+                        <img src={p.escudoLocal} alt="" style={{ width: 'var(--pred-team-crest-size, 36px)', height: 'var(--pred-team-crest-size, 36px)', objectFit: 'contain', display: 'block', margin: '0 auto var(--pred-team-crest-gap, 4px)' }} onError={e => { e.target.style.display = 'none' }} />
                       )}
-                      <span style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text)', marginBottom: 6, maxWidth: 80, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <span style={{ display: 'block', fontSize: 'var(--pred-team-name-size, 12px)', fontWeight: 700, color: 'var(--text)', marginBottom: 'var(--pred-team-name-gap, 6px)', maxWidth: 'var(--pred-team-name-width, 80px)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {p.local}
                       </span>
                       <input
@@ -887,8 +1093,8 @@ export default function Predicciones() {
                         }}
                         placeholder="–"
                         style={{
-                          width: 68, textAlign: 'center', fontFamily: 'var(--font-display)', fontSize: 30, fontWeight: 700,
-                          padding: '10px 4px', borderRadius: 'var(--radius-md)',
+                          width: 'var(--pred-score-input-width, 68px)', textAlign: 'center', fontFamily: 'var(--font-display)', fontSize: 'var(--pred-score-input-size, 30px)', fontWeight: 700,
+                          padding: 'var(--pred-score-input-padding, 10px 4px)', borderRadius: 'var(--radius-md)',
                           border: pickValido({ local: pick?.local, visitante: '0' }) ? '2px solid var(--green)' : '1.5px solid var(--border)',
                           background: pick?.local !== undefined && pick?.local !== '' ? 'var(--green-bg)' : 'var(--card-light)',
                           color: 'var(--text-strong)',
@@ -896,14 +1102,14 @@ export default function Predicciones() {
                       />
                     </div>
 
-                    <span style={{ fontSize: 22, color: 'var(--muted-dim)', fontWeight: 700, paddingBottom: 12 }}>–</span>
+                    <span style={{ fontSize: 'var(--pred-score-separator-size, 22px)', color: 'var(--muted-dim)', fontWeight: 700, paddingBottom: 'var(--pred-score-separator-pad, 12px)' }}>–</span>
 
                     {/* Visitante */}
                     <div style={{ textAlign: 'center' }}>
                       {p.escudoVisitante && (
-                        <img src={p.escudoVisitante} alt="" style={{ width: 36, height: 36, objectFit: 'contain', display: 'block', margin: '0 auto 4px' }} onError={e => { e.target.style.display = 'none' }} />
+                        <img src={p.escudoVisitante} alt="" style={{ width: 'var(--pred-team-crest-size, 36px)', height: 'var(--pred-team-crest-size, 36px)', objectFit: 'contain', display: 'block', margin: '0 auto var(--pred-team-crest-gap, 4px)' }} onError={e => { e.target.style.display = 'none' }} />
                       )}
-                      <span style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text)', marginBottom: 6, maxWidth: 80, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <span style={{ display: 'block', fontSize: 'var(--pred-team-name-size, 12px)', fontWeight: 700, color: 'var(--text)', marginBottom: 'var(--pred-team-name-gap, 6px)', maxWidth: 'var(--pred-team-name-width, 80px)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {p.visitante}
                       </span>
                       <input
@@ -918,8 +1124,8 @@ export default function Predicciones() {
                         }}
                         placeholder="–"
                         style={{
-                          width: 68, textAlign: 'center', fontFamily: 'var(--font-display)', fontSize: 30, fontWeight: 700,
-                          padding: '10px 4px', borderRadius: 'var(--radius-md)',
+                          width: 'var(--pred-score-input-width, 68px)', textAlign: 'center', fontFamily: 'var(--font-display)', fontSize: 'var(--pred-score-input-size, 30px)', fontWeight: 700,
+                          padding: 'var(--pred-score-input-padding, 10px 4px)', borderRadius: 'var(--radius-md)',
                           border: pickValido({ local: '0', visitante: pick?.visitante }) ? '2px solid var(--green)' : '1.5px solid var(--border)',
                           background: pick?.visitante !== undefined && pick?.visitante !== '' ? 'var(--green-bg)' : 'var(--card-light)',
                           color: 'var(--text-strong)',
@@ -929,7 +1135,7 @@ export default function Predicciones() {
                   </div>
 
                   {/* Resultado derivado */}
-                  <div style={{ textAlign: 'center', marginTop: 12, minHeight: 24 }}>
+                  <div style={{ textAlign: 'center', marginTop: 'var(--pred-result-margin-top, 12px)', minHeight: 'var(--pred-result-min-height, 24px)' }}>
                     {info && (
                       <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 12px', borderRadius: 'var(--radius-full)', background: info.bg, color: info.color }}>
                         {info.label}
@@ -941,7 +1147,7 @@ export default function Predicciones() {
             })}
 
             {/* Progreso */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '14px 0' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: 'var(--pred-progress-margin, 14px 0)' }}>
               <div style={{ flex: 1, height: 5, background: 'var(--card-light)', borderRadius: 'var(--radius-full)', overflow: 'hidden' }}>
                 <div style={{ height: '100%', borderRadius: 'var(--radius-full)', background: 'linear-gradient(90deg, var(--green), var(--green-light))', width: `${pct}%`, transition: 'width 0.25s' }} />
               </div>
@@ -959,7 +1165,7 @@ export default function Predicciones() {
               Revisar predicciones →
             </button>
             {!completado && (
-              <p style={{ fontSize: 12, color: 'var(--muted)', textAlign: 'center', marginTop: 8 }}>
+              <p style={{ fontSize: 'var(--pred-helper-size, 12px)', color: 'var(--muted)', textAlign: 'center', marginTop: 'var(--pred-helper-margin-top, 8px)' }}>
                 {!nombre.trim() && progreso < partidos.length
                   ? `Falta tu nombre y ${partidos.length - progreso} partido${partidos.length - progreso !== 1 ? 's' : ''}`
                   : !nombre.trim()
@@ -968,7 +1174,7 @@ export default function Predicciones() {
                 }
               </p>
             )}
-            <p style={{ fontSize: 12, color: 'var(--muted)', textAlign: 'center', marginTop: 14 }}>
+            <p style={{ fontSize: 'var(--pred-helper-size, 12px)', color: 'var(--muted)', textAlign: 'center', marginTop: 'var(--pred-ranking-link-margin-top, 14px)' }}>
               ¿Solo quieres ver el ranking?{' '}
               <a
                 href={`/ranking/${quinielaId}`}

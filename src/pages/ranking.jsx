@@ -9,6 +9,7 @@ import { quinielaCerrada, cierreToDate, tiempoRestante } from '../utils/cierre'
 import { RankingTable } from '../components/RankingTable'
 import { CuentaRegresiva } from '../components/CuentaRegresiva'
 import { Footer } from '../components/Footer'
+import { BrandMark } from '../components/Brand'
 
 export default function Ranking() {
   const [searchParams] = useSearchParams()
@@ -169,13 +170,13 @@ export default function Ranking() {
             const teamId = dt.team?.id
             const lado = teamId === home?.team?.id ? 'home' : teamId === away?.team?.id ? 'away' : null
             const jugador = dt.athletesInvolved?.[0]?.shortName || dt.athletesInvolved?.[0]?.displayName || ''
-            let emoji = '•'
-            if (dt.scoringPlay) emoji = '⚽'
-            else if (dt.redCard) emoji = '🟥'
-            else if (dt.yellowCard) emoji = '🟨'
-            else if (/substitution/i.test(dt.type?.text || '')) emoji = '🔄'
+            let tipo = 'default'
+            if (dt.scoringPlay) tipo = 'goal'
+            else if (dt.redCard) tipo = 'red-card'
+            else if (dt.yellowCard) tipo = 'yellow-card'
+            else if (/substitution/i.test(dt.type?.text || '')) tipo = 'substitution'
             return {
-              emoji,
+              tipo,
               minuto: dt.clock?.displayValue || '',
               lado,
               jugador,
@@ -250,7 +251,7 @@ export default function Ranking() {
   }, [quinielaId])
 
   // ── Detectar si este dispositivo ya envió predicción ─────────────
-  // (para esconder el CTA de "Hacer mi predicción")
+  // (para esconder el CTA de "Entrar a la quiniela")
   const [yaEnvió, setYaEnvió] = useState(false)
   useEffect(() => {
     if (!quinielaId) return
@@ -289,7 +290,13 @@ export default function Ranking() {
   if (error || !quiniela) return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '5rem 1.5rem', color: 'var(--muted)' }}>
       <div style={{ maxWidth: 360 }}>
-        <div style={{ fontSize: 52, marginBottom: 20 }}>⚠️</div>
+        <div style={{ display: 'inline-flex', color: 'var(--yellow)', marginBottom: 20 }}>
+          <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M10.4 3.1 2.4 17a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3l-8-13.9a2 2 0 0 0-3.4 0Z" />
+            <path d="M12 8v5" />
+            <path d="M12 17h.01" />
+          </svg>
+        </div>
         <p style={{ fontSize: 18, fontWeight: 600, color: 'var(--text)', marginBottom: 8 }}>No se pudo cargar el ranking</p>
         {error === 'timeout' && (
           <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 24, lineHeight: 1.5 }}>
@@ -324,29 +331,37 @@ export default function Ranking() {
   const partidos   = quiniela.partidos ?? []
   const resultados = quiniela.resultados ?? {}
   const enVivo     = Object.values(liveScores).some(l => l.state === 'in')
+  const hayPartidosActualizables = partidos.some(p => p.espnId && p.ligaId)
   // Finalizada: nada en vivo y todos los partidos ya con resultado o cancelados.
   // En ese estado no hay nada que "actualizar".
   const finalizada = partidos.length > 0 && !enVivo && partidos.every((_, i) => {
     const r = resultados[i] ?? resultados[String(i)]
     return r?.cancelado || getResultado(r) !== null
   })
+  const mostrarControlesActualizacion = hayPartidosActualizables && quinielaCerrada(quiniela) && !finalizada
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
       {/* Hero */}
-      <div className="hero-pad" style={{ background: 'var(--hero-gradient)', color: 'var(--text)', borderBottom: '1px solid var(--border)' }}>
+      <div className="hero-pad ranking-hero-pad" style={{ background: 'var(--hero-gradient)', color: 'var(--text)', borderBottom: '1px solid var(--border)' }}>
         <div style={{ maxWidth: 480, margin: '0 auto' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
-            <a href="/" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32, background: 'rgba(255,255,255,0.06)', color: 'var(--text)', borderRadius: '50%', lineHeight: 1, textDecoration: 'none', border: '1px solid rgba(255,255,255,0.35)', flexShrink: 0 }} aria-label="Ir a inicio" title="Inicio">
+          <div className="ranking-brand-row" style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 'var(--ranking-brand-margin-bottom, 8px)' }}>
+            <a href="/" className="app-back-button" aria-label="Ir a inicio" title="Inicio">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="M3 11.5 12 4l9 7.5" />
-                <path d="M5 10v9a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-9" />
-                <path d="M9.5 20v-5.5a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1V20" />
+                <path d="M19 12H5" />
+                <path d="m12 19-7-7 7-7" />
               </svg>
             </a>
-            <a href="/" style={{ fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', color: 'var(--green-light)', fontWeight: 700, textDecoration: 'none' }}>⚽ QuinielApp · Ranking</a>
+            <a href="/" className="ranking-brand-link" aria-label="QuinielApp Ranking">
+              <BrandMark size={22} />
+              <span className="ranking-brand-name">
+                Quiniel<span style={{ color: 'var(--green)' }}>App</span>
+              </span>
+              <span className="ranking-brand-dot" aria-hidden="true" />
+              <span className="ranking-brand-label">Ranking</span>
+            </a>
           </div>
-          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 700, lineHeight: 1.2, marginBottom: 10, letterSpacing: '-0.01em' }}>{quiniela.nombre}</h1>
+          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--ranking-title-size, 24px)', fontWeight: 700, lineHeight: 1.2, marginBottom: 'var(--ranking-title-margin-bottom, 10px)', letterSpacing: '-0.01em' }}>{quiniela.nombre}</h1>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             {quiniela.empresa && (
               <span style={{
@@ -355,7 +370,16 @@ export default function Ranking() {
                 background: 'var(--neutral-bg)', color: 'var(--green-light)',
                 border: '1px solid var(--green)', letterSpacing: 0.2,
               }}>
-                🏢 {quiniela.empresa}
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M4 21V5a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v16" />
+                  <path d="M9 21v-5h3v5" />
+                  <path d="M8 7h1" />
+                  <path d="M12 7h1" />
+                  <path d="M8 11h1" />
+                  <path d="M12 11h1" />
+                  <path d="M3 21h18" />
+                </svg>
+                {quiniela.empresa}
               </span>
             )}
             {enVivo && (
@@ -369,7 +393,7 @@ export default function Ranking() {
                 EN VIVO
               </span>
             )}
-            {ultimaAct && Object.keys(liveScores).length > 0 && !finalizada && (
+            {mostrarControlesActualizacion && ultimaAct && (
               <span style={{ fontSize: 11, color: 'var(--muted)' }}>
                 Actualizado {ultimaAct.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
               </span>
@@ -381,71 +405,84 @@ export default function Ranking() {
                 background: 'var(--neutral-bg)', color: 'var(--muted)',
                 border: '1px dashed var(--border-strong)',
               }}>
-                🎉 Solo por diversión
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M12 2v20" />
+                  <path d="m17 5-5 3-5-3" />
+                  <path d="m19 12-7 4-7-4" />
+                </svg>
+                Solo por diversión
               </span>
             )}
-            {!finalizada && <button
+            {mostrarControlesActualizacion && <button
               onClick={handleRefresh}
               disabled={actualizando}
               aria-label="Actualizar resultados"
               style={{
-                background: 'var(--neutral-bg)', border: '1px solid var(--border-strong)',
-                color: 'var(--text)', padding: '4px 12px', borderRadius: 'var(--radius-full)', fontSize: 11,
+                background: actualizando ? 'var(--green-bg)' : 'var(--neutral-bg)',
+                border: `1px solid ${actualizando ? 'var(--green)' : 'var(--border-strong)'}`,
+                color: actualizando ? 'var(--green)' : 'var(--text)',
+                padding: '4px 12px', borderRadius: 'var(--radius-full)', fontSize: 11,
                 fontWeight: 700, cursor: actualizando ? 'not-allowed' : 'pointer',
-                opacity: actualizando ? 0.6 : 1,
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                transition: 'color 0.2s ease, border-color 0.2s ease, background 0.2s ease',
               }}
             >
-              {actualizando ? '…' : '↻ Actualizar'}
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.4"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+                style={{ animation: actualizando ? 'refresh-spin 0.95s linear infinite' : 'none' }}
+              >
+                <path d="M21 12a9 9 0 1 1-2.6-6.4" />
+                <path d="M21 4v6h-6" />
+              </svg>
+              Actualizar
             </button>}
           </div>
         </div>
       </div>
 
-      <div style={{ maxWidth: 480, margin: '0 auto', padding: '1.25rem 1rem 3rem' }}>
+      <div className="ranking-content" style={{ maxWidth: 480, margin: '0 auto', padding: 'var(--ranking-content-padding, 1.25rem 1rem 3rem)' }}>
         {/* CTA para registrar predicción — solo si la quiniela sigue abierta y este dispositivo aún no envió */}
         {!quinielaCerrada(quiniela) && !yaEnvió && (() => {
           const tr = tiempoRestante(quiniela.cierre)
           // Tono del banner según urgencia
-          const border = tr?.nivel === 'critico' ? 'var(--red)' : tr?.nivel === 'urgente' ? 'var(--yellow)' : 'var(--green)'
-          // El timer (CuentaRegresiva) solo aparece en las últimas 24h. Cuando está,
-          // el subtítulo "antes del cierre" sobra: dejamos título + timer + botón.
-          const hayTimer = tr?.nivel === 'critico' || tr?.nivel === 'urgente'
-          const titulo = tr?.nivel === 'critico'
-            ? '⏰ ¡Último momento para entrar!'
-            : '¿Aún no haces tu predicción?'
-          const subtitulo = hayTimer ? null : 'Regístrate antes del cierre para aparecer en este ranking.'
-          const cta = tr?.nivel === 'critico' ? 'Registrar ahora →' : 'Hacer mi predicción →'
+          const border = tr?.nivel === 'critico' ? 'var(--red)' : 'var(--green)'
           return (
-            <div style={{
-              background: 'var(--card)', borderRadius: 'var(--radius-lg)',
-              padding: '1rem 1.25rem', marginBottom: 14,
+            <div className="ranking-entry-card" style={{
+              background: 'linear-gradient(135deg, rgba(21,31,50,0.98), rgba(15,23,42,0.96))',
+              borderRadius: 'var(--radius-lg)',
+              padding: 'var(--ranking-entry-card-padding, 16px)', marginBottom: 'var(--ranking-section-gap, 16px)',
               border: `1.5px solid ${border}`, boxShadow: 'var(--shadow-md)',
-              display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
             }}>
-              <div style={{ flex: '1 1 200px', minWidth: 0 }}>
-                <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-strong)', marginBottom: subtitulo ? 4 : 0 }}>
-                  {titulo}
-                </p>
-                {subtitulo && (
-                  <p style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.4 }}>
-                    {subtitulo}
-                  </p>
-                )}
-                <div style={{ marginTop: 10 }}>
-                  <CuentaRegresiva cierre={quiniela.cierre} />
-                </div>
-              </div>
+              <CuentaRegresiva cierre={quiniela.cierre} umbralHoras={24 * 365} prefijo="Cierra en" variante="panel" />
+              <p style={{ fontSize: 'var(--ranking-entry-text-size, 12px)', color: 'var(--muted)', lineHeight: 1.5, marginTop: 'var(--ranking-entry-text-margin-top, 12px)', marginBottom: 'var(--ranking-entry-text-margin-bottom, 14px)' }}>
+                Regístrate antes del cierre para participar.
+              </p>
               <a
                 href={`/quiniela/${quinielaId}`}
                 style={{
-                  padding: '11px 20px', borderRadius: 'var(--radius-md)',
-                  background: 'linear-gradient(135deg, var(--green), var(--green-light))',
-                  color: '#07120A', fontWeight: 800, fontSize: 14, textDecoration: 'none',
-                  boxShadow: 'var(--shadow-green)', letterSpacing: 0.2,
-                  whiteSpace: 'nowrap', flexShrink: 0,
+                  position: 'relative', overflow: 'hidden',
+                  display: 'block', width: '100%', textAlign: 'center',
+                  padding: 'var(--ranking-entry-button-padding, 13px 16px)', borderRadius: 'var(--radius-md)',
+                  background: 'linear-gradient(135deg, #22C55E 0%, #4ADE80 52%, #20B85A 100%)',
+                  color: '#07120A', fontWeight: 800, fontSize: 'var(--ranking-entry-button-size, 14px)', textDecoration: 'none',
+                  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.18), inset 0 -1px 2px rgba(6,78,39,0.14), var(--shadow-green)',
+                  letterSpacing: 0.2,
                 }}
               >
-                {cta}
+                <span aria-hidden="true" style={{
+                  position: 'absolute', inset: '-20% -35%', pointerEvents: 'none',
+                  background: 'linear-gradient(115deg, transparent 36%, rgba(255,255,255,0.20) 46%, rgba(255,255,255,0.48) 50%, rgba(255,255,255,0.18) 56%, transparent 66%)',
+                  animation: 'cta-button-shine 9.5s ease-in-out infinite',
+                }} />
+                <span style={{ position: 'relative' }}>Entrar a la quiniela →</span>
               </a>
             </div>
           )

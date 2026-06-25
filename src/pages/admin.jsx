@@ -8,6 +8,7 @@ import { Paywall } from '../components/Paywall'
 import { ComoFunciona } from '../components/ComoFunciona'
 import { TourBienvenida } from '../components/TourBienvenida'
 import { MedidorPassword } from '../components/MedidorPassword'
+import { BrandWordmark } from '../components/Brand'
 import { evaluarPassword } from '../utils/password'
 import { puedeCrearQuiniela, quinielasRestantes, temporadaVigente } from '../utils/entitlements'
 import { waLink, MENSAJES_WA } from '../utils/whatsapp'
@@ -433,7 +434,7 @@ export default function Admin() {
 
   // Sin emojis a propósito: algunos dispositivos los muestran como "�" en wa.me.
   const mensajeAccesos = (email, password) =>
-    `¡Listo! Estos son tus accesos a Quinielapp:\n` +
+    `¡Listo! Estos son tus accesos a QuinielApp:\n` +
     `Entrar: https://quinielapp.fun/admin\n` +
     `Correo: ${email}\n` +
     `Contraseña temporal: ${password}\n\n` +
@@ -1692,7 +1693,9 @@ export default function Admin() {
         <div style={{ textAlign: 'center', marginBottom: 28 }}>
           <div style={{ fontSize: 40, marginBottom: 12 }}>🔐</div>
           <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, color: 'var(--text-strong)', letterSpacing: '-0.01em' }}>Panel de Administrador</h2>
-          <p style={{ fontSize: 13, color: 'var(--green-light)', marginTop: 4, fontWeight: 600 }}>⚽ QuinielApp</p>
+          <div style={{ display: 'flex', justifyContent: 'center', marginTop: 8 }}>
+            <BrandWordmark markSize={24} fontSize={20} />
+          </div>
         </div>
         <div style={card}>
           <label htmlFor="admin-email" style={lbl}>Correo electrónico</label>
@@ -1937,7 +1940,9 @@ export default function Admin() {
         <div style={{ maxWidth: 580, margin: '0 auto' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
           <div>
-            <a href="/" style={{ fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', color: 'var(--green-light)', marginBottom: 6, fontWeight: 700, textDecoration: 'none', display: 'block' }}>⚽ QuinielApp</a>
+            <a href="/" style={{ marginBottom: 8, textDecoration: 'none', display: 'inline-flex' }}>
+              <BrandWordmark markSize={22} fontSize={18} />
+            </a>
             <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, letterSpacing: '-0.01em' }}>
               {soySuper ? 'Panel de Súper Administrador' : 'Panel de Administrador'}
             </h1>

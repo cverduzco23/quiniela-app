@@ -1,4 +1,4 @@
-# QuinielApp ⚽
+# QuinielApp
 
 Quinielas privadas de futbol para equipos, empresas y grupos de amigos.
 Los participantes entran **sin cuenta** con un código de acceso, registran sus

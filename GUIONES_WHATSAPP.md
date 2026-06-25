@@ -14,7 +14,7 @@ crear su quiniela y su cuenta.
 
 ## 1️⃣ El cliente te escribe (automático, desde el botón del home)
 
-> *"¡Hola! Quiero crear mi propia quiniela en Quinielapp.fun. ¿Me ayudas a empezar?"*
+> *"¡Hola! Quiero crear mi propia quiniela en QuinielApp.fun. ¿Me ayudas a empezar?"*
 
 ---
 
@@ -23,7 +23,7 @@ crear su quiniela y su cuenta.
 ```
 ¡Hola! Claro, con gusto te ayudo 🙌
 
-Quinielapp es para armar tu quiniela privada con tu equipo, amigos o empresa. Tú la creas y administras; tus participantes entran con un enlace y un código, sin instalar nada.
+QuinielApp es para armar tu quiniela privada con tu equipo, amigos o empresa. Tú la creas y administras; tus participantes entran con un enlace y un código, sin instalar nada.
 
 La primera quiniela va por nuestra cuenta (gratis). Después: $49 por quiniela, o $299 el Pase Mundial (quinielas ilimitadas durante el Mundial).
 
@@ -43,7 +43,7 @@ Después de que te den sus datos, créalos en el panel: **pestaña Clientes → 
 El panel genera la contraseña temporal y muestra el botón **"enviar accesos por WhatsApp"**,
 que envía solito este mensaje:
 
-> *"¡Listo! Estos son tus accesos a Quinielapp: Entrar: https://quinielapp.fun/admin · Correo: … · Contraseña temporal: … Al entrar la primera vez te pedirá cambiar tu contraseña…"*
+> *"¡Listo! Estos son tus accesos a QuinielApp: Entrar: https://quinielapp.fun/admin · Correo: … · Contraseña temporal: … Al entrar la primera vez te pedirá cambiar tu contraseña…"*
 
 👉 **No lo escribas tú, solo dale al botón.**
 

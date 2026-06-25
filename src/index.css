@@ -248,20 +248,451 @@ a:focus-visible {
   0%, 100% { opacity: 1; transform: scale(1); }
   50%      { opacity: 0.3; transform: scale(0.65); }
 }
+@keyframes refresh-spin {
+  100% { transform: rotate(360deg); }
+}
+@keyframes leader-row-shine {
+  0%   { transform: translateX(-115%); opacity: 0; }
+  12%  { opacity: 0; }
+  24%  { opacity: 1; }
+  52%  { transform: translateX(115%); opacity: 1; }
+  68%  { opacity: 0; }
+  100% { transform: translateX(115%); opacity: 0; }
+}
+@keyframes cta-button-shine {
+  0%   { transform: translateX(-120%); opacity: 0; }
+  16%  { opacity: 0; }
+  28%  { opacity: 1; }
+  48%  { transform: translateX(120%); opacity: 1; }
+  62%  { opacity: 0; }
+  100% { transform: translateX(120%); opacity: 0; }
+}
+@keyframes prize-banner-shine {
+  0%   { transform: translateX(-170%) skewX(-18deg); opacity: 0; }
+  14%  { opacity: 0; }
+  28%  { opacity: 0.85; }
+  52%  { transform: translateX(360%) skewX(-18deg); opacity: 0.85; }
+  68%  { opacity: 0; }
+  100% { transform: translateX(360%) skewX(-18deg); opacity: 0; }
+}
+@keyframes home-juggle-ball {
+  0%, 100% { transform: translate(0, 0); }
+  50%      { transform: translate(-1px, -5px); }
+}
+@keyframes home-juggle-kick {
+  0%, 100% { transform: rotate(0deg); }
+  50%      { transform: rotate(-11deg) translateX(1px); }
+}
+@keyframes home-pencil-body {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  50%      { transform: translate(1.5px, -1px) rotate(-2deg); }
+}
+@keyframes home-pencil-write {
+  0%, 100% { transform: scaleX(0.72); opacity: 0.45; }
+  50%      { transform: scaleX(1); opacity: 1; }
+}
+.home-section-icon {
+  display: inline-flex;
+  color: var(--green);
+  flex-shrink: 0;
+}
+.home-section-icon svg {
+  overflow: visible;
+}
+.home-juggle-ball {
+  stroke: var(--yellow);
+  animation: home-juggle-ball 0.9s ease-in-out infinite;
+}
+.home-juggle-leg {
+  animation: home-juggle-kick 0.9s ease-in-out infinite;
+  transform-origin: 12.5px 17.9px;
+  transform-box: fill-box;
+}
+.home-pencil-body {
+  animation: home-pencil-body 1.05s ease-in-out infinite;
+  transform-origin: 15px 18px;
+  transform-box: fill-box;
+}
+.home-pencil-tip {
+  stroke: var(--yellow);
+}
+.home-pencil-line {
+  stroke: var(--green-light);
+  animation: home-pencil-write 1.05s ease-in-out infinite;
+  transform-origin: 7px 18.5px;
+  transform-box: fill-box;
+}
 /* Reflejo metálico que cruza los badges del podio */
 @keyframes medal-shine {
-  0%   { transform: translateX(-160%); }
-  18%  { transform: translateX(160%); }
-  100% { transform: translateX(160%); }
+  0%   { transform: translateX(-130%); opacity: 0; }
+  8%   { opacity: 0; }
+  18%  { opacity: 1; }
+  42%  { transform: translateX(130%); opacity: 1; }
+  58%  { opacity: 0; }
+  100% { transform: translateX(130%); opacity: 0; }
 }
 
 /* Hero responsive */
 .hero-pad {
   padding: 2rem 1.25rem 1.75rem;
 }
+.app-back-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  background: rgba(15,23,42,0.45);
+  color: var(--text-strong);
+  border-radius: 50%;
+  line-height: 1;
+  text-decoration: none;
+  border: 1px solid rgba(148,163,184,0.34);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
+  flex-shrink: 0;
+}
+.ranking-brand-row {
+  min-height: 34px;
+}
+.ranking-brand-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  height: 34px;
+  line-height: 1;
+  text-decoration: none;
+}
+.ranking-brand-name {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  font-size: 17px;
+  font-weight: 900;
+  line-height: 22px;
+  color: var(--text-strong);
+  white-space: nowrap;
+}
+.ranking-brand-dot {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--muted);
+  opacity: 0.75;
+  flex-shrink: 0;
+}
+.ranking-brand-label {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--green-light);
+  font-weight: 700;
+  line-height: 22px;
+  white-space: nowrap;
+  transform: translateY(1px);
+}
+.pred-brand-row {
+  min-height: 34px;
+}
+.pred-brand-link {
+  display: inline-flex;
+  align-items: center;
+  transform: translateY(2px);
+}
+.ranking-hero-pad {
+  padding-bottom: 1.35rem;
+}
 @media (max-width: 480px) {
   .hero-pad {
     padding: 1.25rem 1rem 1rem;
+  }
+  .ranking-hero-pad {
+    padding-bottom: 0.85rem;
+  }
+}
+
+@media (max-width: 380px) {
+  .pred-hero-pad {
+    --pred-title-size: 21px;
+    --pred-title-gap: 8px;
+    padding: 0.95rem 1rem 0.85rem;
+  }
+  .pred-content {
+    --pred-content-padding: 1rem 0.95rem 1.65rem;
+    --pred-card-padding: 0.95rem 1rem;
+    --pred-card-gap: 9px;
+    --pred-large-card-padding: 1.25rem 1rem;
+    --pred-large-card-gap: 12px;
+    --pred-closed-padding: 2.2rem 1rem;
+    --pred-card-title-size: 18px;
+    --pred-amount-size: 30px;
+    --pred-body-size: 11.5px;
+    --pred-info-size: 12px;
+    --pred-info-box-padding: 10px 12px;
+    --pred-info-box-gap: 12px;
+    --pred-warning-padding: 9px 10px;
+    --pred-cta-padding: 13px;
+    --pred-cta-size: 14px;
+  }
+}
+
+@media (max-width: 380px) and (max-height: 780px) {
+  .pred-hero-pad {
+    --pred-title-size: 20px;
+    --pred-title-gap: 6px;
+    padding: 0.85rem 0.95rem 0.75rem;
+  }
+  .pred-content {
+    --pred-content-padding: 0.85rem 0.9rem 2.2rem;
+    --pred-card-padding: 0.82rem 0.95rem;
+    --pred-card-gap: 8px;
+    --pred-large-card-padding: 1.05rem 0.9rem;
+    --pred-rules-margin-bottom: 12px;
+    --pred-rule-padding: 5px 8px;
+    --pred-rule-points-size: 12.5px;
+    --pred-rule-desc-size: 11px;
+    --pred-input-size: 14px;
+    --pred-input-padding: 8px 11px;
+    --pred-match-header-gap: 12px;
+    --pred-team-crest-size: 30px;
+    --pred-team-crest-gap: 3px;
+    --pred-team-name-size: 11.5px;
+    --pred-team-name-gap: 5px;
+    --pred-team-name-width: 78px;
+    --pred-score-gap: 10px;
+    --pred-score-input-width: 62px;
+    --pred-score-input-size: 26px;
+    --pred-score-input-padding: 8px 4px;
+    --pred-score-separator-size: 20px;
+    --pred-score-separator-pad: 10px;
+    --pred-result-margin-top: 8px;
+    --pred-result-min-height: 18px;
+    --pred-progress-margin: 10px 0;
+    --pred-cta-padding: 12px;
+    --pred-cta-size: 14px;
+    --pred-helper-size: 11.5px;
+    --pred-helper-margin-top: 7px;
+    --pred-ranking-link-margin-top: 12px;
+    --pred-review-gap: 8px;
+    --pred-review-column-gap: 6px;
+    --pred-review-team-gap: 4px;
+    --pred-review-crest-size: 16px;
+    --pred-review-team-size: 12px;
+    --pred-review-center-gap: 3px;
+    --pred-review-score-size: 18px;
+    --pred-review-score-padding: 2px 10px;
+    --pred-review-score-min-width: 54px;
+    --pred-review-badge-size: 9.5px;
+    --pred-review-badge-padding: 2px 7px;
+    --pred-final-note-padding: 7px 10px;
+    --pred-final-note-size: 11.5px;
+  }
+}
+
+@media (max-width: 380px) {
+  .home-hero-pad {
+    --home-title-size: 21px;
+    --home-subtitle-size: 12.5px;
+    padding: 0.8rem 0.9rem 0.75rem;
+  }
+  .home-brand-lockup {
+    transform: scale(0.84);
+    transform-origin: center;
+    margin-bottom: 8px !important;
+  }
+  .home-content {
+    --home-content-padding: 0.85rem 0.9rem 1.6rem;
+    --home-section-gap: 14px;
+    --home-card-padding: 0.9rem 1rem;
+    --home-featured-card-padding: 0.95rem 1rem;
+    --home-empty-padding: 2rem 1.25rem;
+    --home-section-title-size: 9.5px;
+    --home-section-heading-gap: 8px;
+    --home-card-title-size: 13.5px;
+    --home-main-title-size: 16px;
+    --home-live-title-size: 14.5px;
+    --home-list-title-size: 12.5px;
+    --home-meta-size: 11.5px;
+    --home-step-padding: 10px 5px;
+    --home-step-title-size: 10.5px;
+    --home-step-sub-size: 9.5px;
+    --home-cta-padding: 11px;
+    --home-secondary-cta-padding: 8.5px;
+    --home-cta-size: 13.5px;
+    --home-secondary-cta-size: 12.5px;
+    --home-code-input-size: 14px;
+    --home-code-button-size: 12.5px;
+    --home-action-padding: 11px;
+    --home-secondary-action-padding: 8.5px 10px;
+    --home-close-padding: 8px 9px;
+    --home-close-gap: 8px;
+    --home-close-inner-gap: 7px;
+    --home-close-icon-size: 24px;
+    --home-close-label-size: 8.5px;
+    --home-card-icon-size: 30px;
+  }
+}
+
+@media (max-width: 420px) {
+  .home-other-card {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+    padding: 0.8rem 0.95rem !important;
+  }
+  .home-other-main {
+    width: 100%;
+  }
+  .home-other-title {
+    max-width: 100%;
+  }
+  .home-other-actions {
+    width: 100%;
+    justify-content: space-between !important;
+    gap: 8px !important;
+    padding-top: 7px;
+    border-top: 1px solid var(--border);
+  }
+  .home-other-link {
+    flex: 1 1 0;
+    text-align: center;
+    padding: 6.5px 8px !important;
+    border-radius: var(--radius-sm);
+    background: var(--neutral-bg);
+  }
+  .home-other-link-primary {
+    background: var(--green-bg);
+  }
+}
+
+.ranking-stats-grid {
+  gap: var(--ranking-stats-gap, 10px);
+  margin-bottom: var(--ranking-section-gap, 16px);
+}
+.ranking-stat-card {
+  padding: 14px 10px;
+}
+.ranking-prize-banner {
+  padding: 14px 16px;
+}
+.ranking-prize-header {
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.ranking-prize-row {
+  padding: 8px 12px;
+}
+.ranking-open-prize-shine {
+  position: absolute;
+  top: -70%;
+  left: 0;
+  width: 34%;
+  height: 240%;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.10) 38%, rgba(255,255,255,0.36) 50%, rgba(255,255,255,0.11) 62%, transparent 100%);
+  filter: blur(0.4px);
+  animation: prize-banner-shine 8.8s ease-in-out infinite;
+}
+.green-shine-button::before {
+  content: "";
+  position: absolute;
+  inset: -20% -35%;
+  pointer-events: none;
+  background: linear-gradient(115deg, transparent 36%, rgba(255,255,255,0.20) 46%, rgba(255,255,255,0.48) 50%, rgba(255,255,255,0.18) 56%, transparent 66%);
+  animation: cta-button-shine 9.5s ease-in-out infinite;
+}
+
+@media (max-width: 380px) {
+  :root {
+    --ranking-grid-cols: 26px minmax(0, 1fr) 29px 29px 37px;
+    --ranking-row-pad-x: 11px;
+    --ranking-name-size: 12.5px;
+    --ranking-stat-cell-size: 12px;
+    --ranking-points-size: 17px;
+    --ranking-detail-pad-x: 11px;
+    --ranking-picks-cols: minmax(0, 1fr) 34px 38px 25px;
+    --ranking-picks-gap: 4px;
+    --ranking-pick-pad-x: 9px;
+    --ranking-pick-team-size: 11.5px;
+    --ranking-pick-score-size: 12.5px;
+    --ranking-pick-pts-size: 11.5px;
+  }
+  .ranking-stats-grid {
+    --ranking-stat-value-size: 23px;
+    --ranking-stat-label-size: 9.5px;
+    --ranking-stat-label-spacing: 0.35px;
+    gap: 8px;
+  }
+  .ranking-stat-card {
+    padding: 12px 6px;
+  }
+  .ranking-prize-banner {
+    --ranking-prize-title-size: 11.5px;
+    --ranking-prize-bote-size: 10.5px;
+    --ranking-prize-name-size: 12px;
+    --ranking-prize-amount-size: 13px;
+    --ranking-prize-note-size: 10.5px;
+    padding: 12px;
+  }
+  .ranking-prize-header {
+    gap: 8px;
+    margin-bottom: 9px;
+  }
+  .ranking-prize-row {
+    padding: 7px 9px;
+  }
+}
+
+@media (max-width: 380px) and (max-height: 780px) {
+  .ranking-hero-pad {
+    --ranking-title-size: 22px;
+    --ranking-title-margin-bottom: 7px;
+    --ranking-brand-margin-bottom: 7px;
+    padding: 0.95rem 0.95rem 0.75rem;
+  }
+  .app-back-button {
+    width: 32px;
+    height: 32px;
+  }
+  .ranking-brand-row,
+  .ranking-brand-link {
+    min-height: 32px;
+    height: 32px;
+  }
+  .ranking-content {
+    --ranking-content-padding: 1rem 0.9rem 2.35rem;
+    --ranking-section-gap: 14px;
+    --ranking-stats-gap: 8px;
+    --ranking-rule-padding: 5px 8px;
+    --ranking-rule-points-size: 12.5px;
+    --ranking-rule-desc-size: 11px;
+    --ranking-entry-card-padding: 14px;
+    --ranking-entry-text-size: 11.5px;
+    --ranking-entry-text-margin-top: 10px;
+    --ranking-entry-text-margin-bottom: 12px;
+    --ranking-entry-button-padding: 12px 14px;
+    --ranking-entry-button-size: 13.5px;
+    --ranking-open-prize-padding: 8px 12px;
+    --ranking-open-prize-label-size: 9px;
+    --ranking-open-prize-amount-size: 24px;
+    --ranking-open-prize-side-size: 10.5px;
+  }
+  .ranking-entry-card {
+    --timer-panel-title-size: 9.5px;
+    --timer-panel-title-gap: 6px;
+    --timer-panel-number-size: 31px;
+    --timer-panel-unit-size: 8.5px;
+    --timer-panel-label-gap: 6px;
+    --timer-panel-column-gap: 5px;
+    --timer-panel-separator-height: 29px;
+    --timer-panel-separator-gap: 6px;
+    --timer-panel-dot-size: 3px;
+  }
+  .ranking-stat-card {
+    padding: 10px 6px;
   }
 }
 

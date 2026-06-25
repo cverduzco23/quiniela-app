@@ -219,7 +219,7 @@ Se arman como links `https://wa.me/<NUMERO>?text=<mensaje-encodeado>`.
 > constante `WHATSAPP_NUMERO` en `src/utils/whatsapp.js`.
 
 **A) Desde el home — "Quiero crear mi quiniela":**
-> ¡Hola! 👋 Quiero crear mi propia quiniela en Quinielapp.fun. ¿Me ayudas a empezar?
+> ¡Hola! 👋 Quiero crear mi propia quiniela en QuinielApp.fun. ¿Me ayudas a empezar?
 
 **B) Plantilla que César responde (manual, para tener lista) — datos + alta:**
 > ¡Hola! Con gusto te creamos tu quiniela 🎉
@@ -229,7 +229,7 @@ Se arman como links `https://wa.me/<NUMERO>?text=<mensaje-encodeado>`.
 > Te creo tu cuenta y te paso tus accesos. Tu primera quiniela es **gratis** 🙌
 
 **C) César entrega accesos (manual):**
-> ¡Listo! 🥳 Estos son tus accesos a Quinielapp:
+> ¡Listo! 🥳 Estos son tus accesos a QuinielApp:
 > 🔗 Entrar: https://quinielapp.fun/admin
 > 📧 Correo: ____
 > 🔑 Contraseña temporal: ____
@@ -237,10 +237,10 @@ Se arman como links `https://wa.me/<NUMERO>?text=<mensaje-encodeado>`.
 > mini-tour y creas tu primera quiniela. ¡Cualquier duda, aquí estoy!
 
 **D) Desde el paywall — "Por quiniela":**
-> ¡Hola! Quiero adquirir **una quiniela más** en Quinielapp. ¿Me pasas el link de pago?
+> ¡Hola! Quiero adquirir **una quiniela más** en QuinielApp. ¿Me pasas el link de pago?
 
 **E) Desde el paywall — "Pase de temporada":**
-> ¡Hola! Quiero el **pase de temporada** de Quinielapp (quinielas ilimitadas). ¿Me pasas el link de pago?
+> ¡Hola! Quiero el **pase de temporada** de QuinielApp (quinielas ilimitadas). ¿Me pasas el link de pago?
 
 ---
 

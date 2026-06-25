@@ -1,26 +1,27 @@
-/**
- * Footer global discreto.
- * Aparece al final de las páginas principales (home, predicciones, ranking)
- * con un link sutil a la home pública. Evita pop-ups y banners agresivos.
- */
+import { BrandMark } from './Brand'
+
 export function Footer() {
+  const year = new Date().getFullYear()
+
   return (
     <footer style={{
-      maxWidth: 560, margin: '24px auto 0', padding: '20px 1rem 24px',
+      maxWidth: 560, margin: '24px auto 0', padding: '18px 0 6px',
       borderTop: '1px solid var(--border)',
-      textAlign: 'center',
     }}>
-      <p style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.6, letterSpacing: 0.2 }}>
-        ¿Quieres una quiniela así para tu equipo?{' '}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
         <a
           href="https://quinielapp.fun"
           target="_blank"
           rel="noreferrer"
-          style={{ color: 'var(--green-light)', fontWeight: 700, textDecoration: 'none' }}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 10, color: 'var(--muted)', fontSize: 13, fontWeight: 700, textDecoration: 'none' }}
         >
+          <BrandMark size={18} />
           quinielapp.fun
         </a>
-      </p>
+        <span style={{ color: 'var(--muted)', opacity: 0.75, fontSize: 12 }}>
+          © {year}
+        </span>
+      </div>
     </footer>
   )
 }

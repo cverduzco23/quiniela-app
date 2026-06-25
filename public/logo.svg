@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 72" role="img" aria-labelledby="title desc">
+  <title id="title">QuinielApp</title>
+  <desc id="desc">Logo de QuinielApp con símbolo circular verde y amarillo.</desc>
+  <rect width="260" height="72" rx="14" fill="#0B1220"/>
+  <g transform="translate(16 12)">
+    <rect width="48" height="48" rx="12" fill="#0B1220"/>
+    <rect x="1" y="1" width="46" height="46" rx="11" fill="none" stroke="#FFFFFF" stroke-opacity="0.05" stroke-width="2"/>
+    <circle cx="24" cy="24" r="14.5" fill="none" stroke="#22C55E" stroke-width="4.5"/>
+    <circle cx="24" cy="24" r="7.2" fill="none" stroke="#FACC15" stroke-width="3.8"/>
+    <circle cx="24" cy="24" r="2.9" fill="#22C55E"/>
+  </g>
+  <text x="76" y="44" fill="#F9FAFB" font-family="Inter, Arial, sans-serif" font-size="28" font-weight="900" letter-spacing="-1.2">Quiniel</text>
+  <text x="178" y="44" fill="#22C55E" font-family="Inter, Arial, sans-serif" font-size="28" font-weight="900" letter-spacing="-1.2">App</text>
+</svg>

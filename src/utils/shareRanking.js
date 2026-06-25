@@ -55,6 +55,50 @@ function truncate(ctx, text, maxWidth) {
   return text.slice(0, Math.max(0, lo - 1)) + '…'
 }
 
+function drawBrandMark(ctx, x, y, size) {
+  roundRect(ctx, x, y, size, size, size * 0.25)
+  ctx.fillStyle = COLORS.bg
+  ctx.fill()
+  ctx.strokeStyle = 'rgba(255,255,255,0.06)'
+  ctx.lineWidth = 1
+  roundRect(ctx, x + 0.5, y + 0.5, size - 1, size - 1, size * 0.24)
+  ctx.stroke()
+
+  const cx = x + size / 2
+  const cy = y + size / 2
+  ctx.lineCap = 'round'
+  ctx.strokeStyle = COLORS.green
+  ctx.lineWidth = size * 0.1
+  ctx.beginPath()
+  ctx.arc(cx, cy, size * 0.3, 0, Math.PI * 2)
+  ctx.stroke()
+
+  ctx.strokeStyle = COLORS.yellow
+  ctx.lineWidth = size * 0.08
+  ctx.beginPath()
+  ctx.arc(cx, cy, size * 0.15, 0, Math.PI * 2)
+  ctx.stroke()
+
+  ctx.fillStyle = COLORS.green
+  ctx.beginPath()
+  ctx.arc(cx, cy, size * 0.055, 0, Math.PI * 2)
+  ctx.fill()
+}
+
+function drawBrandHeader(ctx, x, y) {
+  const markSize = 28
+  drawBrandMark(ctx, x, y, markSize)
+
+  ctx.textBaseline = 'middle'
+  ctx.font = '900 19px Inter'
+  const textX = x + markSize + 10
+  const textY = y + markSize / 2
+  ctx.fillStyle = COLORS.textStrong
+  ctx.fillText('Quiniel', textX, textY)
+  ctx.fillStyle = COLORS.green
+  ctx.fillText('App', textX + ctx.measureText('Quiniel').width, textY)
+}
+
 // Dos primeros tokens del nombre (para el banner de ganador/es).
 function dosTokens(nombre) {
   return String(nombre || '').trim().split(/\s+/).slice(0, 2).join(' ')
@@ -190,12 +234,9 @@ export async function generarImagenRanking({
 
   let y = PAD
 
-  // ── Header: nombre + estado
-  ctx.fillStyle = COLORS.green
-  ctx.font = '700 13px Inter'
-  ctx.textBaseline = 'top'
-  ctx.fillText('⚽ QUINIELAPP', PAD, y)
-  y += 22
+  // ── Header: marca + nombre + estado
+  drawBrandHeader(ctx, PAD, y)
+  y += 38
 
   ctx.fillStyle = COLORS.textStrong
   ctx.font = '700 34px Rajdhani'

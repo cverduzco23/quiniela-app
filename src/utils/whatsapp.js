@@ -29,17 +29,17 @@ export const MENSAJES_WA = {
   // Desde el home: quiere dar de alta su quiniela.
   // Sin emojis a propósito: algunos dispositivos los muestran como "�" en wa.me.
   crearQuiniela:
-    '¡Hola! Quiero crear mi propia quiniela en Quinielapp.fun. ¿Me ayudas a empezar?',
+    '¡Hola! Quiero crear mi propia quiniela en QuinielApp.fun. ¿Me ayudas a empezar?',
 
   // Desde el paywall (Fase B): comprar una quiniela adicional ($49).
   comprarQuiniela:
-    '¡Hola! Quiero adquirir una quiniela más en Quinielapp ($49). ¿Me pasas el link de pago?',
+    '¡Hola! Quiero adquirir una quiniela más en QuinielApp ($49). ¿Me pasas el link de pago?',
 
   // Desde el paywall (Fase B): Pase Mundial ($199, quinielas ilimitadas durante el torneo).
   paseMundial:
-    '¡Hola! Quiero el Pase Mundial de Quinielapp ($199, quinielas ilimitadas durante el Mundial). ¿Me pasas el link de pago?',
+    '¡Hola! Quiero el Pase Mundial de QuinielApp ($199, quinielas ilimitadas durante el Mundial). ¿Me pasas el link de pago?',
 
   // Soporte genérico.
   soporte:
-    '¡Hola! Tengo una duda sobre Quinielapp.',
+    '¡Hola! Tengo una duda sobre QuinielApp.',
 }
