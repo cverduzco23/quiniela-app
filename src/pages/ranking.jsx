@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useSearchParams, useParams } from 'react-router-dom'
 import { doc, getDoc, getDocs, collection, query, where, updateDoc } from 'firebase/firestore'
 import { db, track } from '../firebase'
+import { registrarVisita, registrarVisitaQuiniela, registrarEnVivo } from '../utils/analytics'
 import { getResultado } from '../utils/scoring'
 import { findEventByTeamsAndDate } from '../utils/espn'
 import { tienePremio } from '../utils/premios'
@@ -247,8 +248,22 @@ export default function Ranking() {
 
   // ── Tracking: ranking visto ─────────────────────────────────────
   useEffect(() => {
-    if (quinielaId) track('ranking_visto', { quinielaId })
+    if (quinielaId) {
+      track('ranking_visto', { quinielaId })
+      registrarVisita()
+      registrarVisitaQuiniela(quinielaId)
+    }
   }, [quinielaId])
+
+  // ── Analítica: espectadores mientras un partido está EN VIVO ─────
+  // Cuando un partido marca state==='in', registramos al espectador una vez
+  // por sesión y partido (la función ya hace ese control internamente).
+  useEffect(() => {
+    if (!quinielaId) return
+    Object.entries(liveScores).forEach(([espnId, l]) => {
+      if (l?.state === 'in') registrarEnVivo(quinielaId, espnId)
+    })
+  }, [quinielaId, liveScores])
 
   // ── Detectar si este dispositivo ya envió predicción ─────────────
   // (para esconder el CTA de "Entrar a la quiniela")

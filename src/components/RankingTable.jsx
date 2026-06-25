@@ -4,6 +4,7 @@ import { goalsToResultado, getResultado, getPickResultado, getEfectivo, calcular
 import { tienePremio, calcularGanadores, formatearMXN, descripcionRegla } from '../utils/premios'
 import { simularUltimoPartido } from '../utils/escenarios'
 import { normalizarNombre } from '../utils/nombres'
+import { registrarApertura } from '../utils/analytics'
 import { compartirRanking } from '../utils/shareRanking'
 import { useDialog } from './Dialogs'
 
@@ -790,7 +791,13 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
           return (
             <div key={j.nombre} style={{ borderBottom: i < shown.length - 1 ? '1px solid var(--border)' : 'none' }}>
               <div
-                onClick={() => cerrada && toggleExpandido(j.nombre)}
+                onClick={() => {
+                  if (!cerrada) return
+                  // Analítica: registrar que abrieron las predicciones de este
+                  // participante (solo al abrir, una vez por sesión y participante).
+                  if (!abierto) registrarApertura(quiniela?.id, j.id)
+                  toggleExpandido(j.nombre)
+                }}
                 style={{
                   position: 'relative', overflow: 'hidden',
                   display: 'grid', gridTemplateColumns: 'var(--ranking-grid-cols, 30px 1fr 38px 38px 46px)',

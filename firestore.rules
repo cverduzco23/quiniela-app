@@ -144,5 +144,27 @@ service cloud.firestore {
       allow read: if true;
       allow write: if isSuperAdmin();
     }
+
+    // ──────────────────────────────────────────────────────────────
+    // analytics/  (estadísticas propias — solo contadores agregados)
+    // ──────────────────────────────────────────────────────────────
+    // Lectura: SOLO super admin. Los números nunca se filtran a los visitantes.
+    //
+    // Escritura: pública pero ACOTADA. Las páginas públicas suman +1 a contadores.
+    // Permitimos solo campos conocidos (hasOnly) y limitamos el tamaño de los
+    // mapas, de modo que nadie pueda crear campos basura ni inflar el documento
+    // para gastar cuota. App Check (cuando se active) bloquea además a los bots.
+    // Nota: por diseño un visitante podría inflar el VALOR de un contador; es una
+    // métrica de vanidad sin impacto en datos sensibles, y App Check lo cierra.
+    match /analytics/{docId} {
+      allow read: if isSuperAdmin();
+      allow write: if
+        request.resource.data.keys().hasOnly(
+          ['visitas', 'movil', 'escritorio', 'ios', 'android', 'horas', 'envios', 'aperturas', 'enVivo']
+        ) &&
+        (!('horas'     in request.resource.data) || request.resource.data.horas.size()     <= 24)  &&
+        (!('aperturas' in request.resource.data) || request.resource.data.aperturas.size() <= 500) &&
+        (!('enVivo'    in request.resource.data) || request.resource.data.enVivo.size()    <= 200);
+    }
   }
 }

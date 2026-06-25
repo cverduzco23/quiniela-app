@@ -18,6 +18,7 @@ import { normalizarNombre } from '../utils/nombres'
 import { detectarSimilares } from '../utils/duplicados'
 import { findEventByTeamsAndDate } from '../utils/espn'
 import { LABELS_SECCIONES_HOME, ordenSeccionesHome } from '../utils/homeSections'
+import { leerDias, leerQuiniela } from '../utils/analytics'
 import { EmojiPicker } from '../components/EmojiPicker'
 
 // UIDs con privilegios globales (ver/editar todas las quinielas).
@@ -620,6 +621,12 @@ export default function Admin() {
   // ─── Estado principal ─────────────────────────────────────────────────────
   const [vista, setVista]                 = useState('lista')
   const [superModulo, setSuperModulo]     = useState(null)
+  // Estadísticas (analítica propia, solo super admin).
+  const [statsDias, setStatsDias]         = useState(null)   // resumen últimos días
+  const [statsCargando, setStatsCargando] = useState(false)
+  const [statsQId, setStatsQId]           = useState('')     // quiniela elegida para el detalle
+  const [statsQData, setStatsQData]       = useState(null)   // doc analytics/q_<id>
+  const [statsQNombres, setStatsQNombres] = useState({})     // prediccionId → nombre
   const [quinielas, setQuinielas]         = useState([])
   const [loadingLista, setLoadingLista]   = useState(true)
   const [quinielaActual, setQuinielaActual] = useState(null)
@@ -790,6 +797,37 @@ export default function Admin() {
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { if (autenticado && authListo) cargarQuinielas() }, [autenticado, authListo])
+
+  // Estadísticas: carga el resumen de los últimos 7 días al abrir el módulo.
+  useEffect(() => {
+    if (!soySuper || superModulo !== 'estadisticas') return
+    let vivo = true
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setStatsCargando(true)
+    leerDias(7)
+      .then(d => { if (vivo) setStatsDias(d) })
+      .catch(() => { if (vivo) setStatsDias([]) })
+      .finally(() => { if (vivo) setStatsCargando(false) })
+    return () => { vivo = false }
+  }, [soySuper, superModulo])
+
+  // Estadísticas: carga el detalle (aperturas / en vivo) de la quiniela elegida.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (!statsQId) { setStatsQData(null); setStatsQNombres({}); return }
+    let vivo = true
+    Promise.all([
+      leerQuiniela(statsQId),
+      getDocs(query(collection(db, 'predicciones'), where('quinielaId', '==', statsQId))),
+    ]).then(([data, snap]) => {
+      if (!vivo) return
+      setStatsQData(data)
+      const m = {}
+      snap.docs.forEach(d => { m[d.id] = d.data().nombre })
+      setStatsQNombres(m)
+    }).catch(() => { if (vivo) { setStatsQData({}); setStatsQNombres({}) } })
+    return () => { vivo = false }
+  }, [statsQId])
 
   useEffect(() => {
     if (tab !== 'participantes' || !quinielaActual) return
@@ -1732,8 +1770,27 @@ export default function Admin() {
   if (!autenticado) return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ width: '100%', maxWidth: 360, padding: '0 1rem' }}>
+        <div style={{ marginBottom: 16 }}>
+          <a
+            href="/"
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              background: 'var(--neutral-bg)', border: '1px solid var(--border)',
+              color: 'var(--text)', padding: '7px 12px', borderRadius: 'var(--radius-sm)',
+              fontSize: 13, fontWeight: 700, textDecoration: 'none',
+            }}
+          >
+            <AdminIcon name="arrow-left" size={14} /> Inicio
+          </a>
+        </div>
         <div style={{ textAlign: 'center', marginBottom: 28 }}>
-          <div style={{ fontSize: 40, marginBottom: 12 }}>🔐</div>
+          <div style={{
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            width: 60, height: 60, borderRadius: '50%',
+            background: 'var(--green-bg)', color: 'var(--green)', marginBottom: 12,
+          }}>
+            <AdminIcon name="lock" size={28} />
+          </div>
           <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, color: 'var(--text-strong)', letterSpacing: '-0.01em' }}>Panel de Administrador</h2>
           <div style={{ display: 'flex', justifyContent: 'center', marginTop: 8 }}>
             <BrandWordmark markSize={24} fontSize={20} />
@@ -2620,6 +2677,152 @@ export default function Admin() {
                   </div>
                 ) : null
 
+                // ── Estadísticas ───────────────────────────────────────────────
+                const statsSection = (() => {
+                  const dias = statsDias ?? []
+                  const suma = (k) => dias.reduce((a, d) => a + (Number(d[k]) || 0), 0)
+                  const totVisitas = suma('visitas')
+                  const totEnvios  = suma('envios')
+                  const totMovil   = suma('movil')
+                  const totEscr    = suma('escritorio')
+                  const totIos     = suma('ios')
+                  const totAndroid = suma('android')
+                  const totDisp    = totMovil + totEscr
+                  const conversion = totVisitas > 0 ? Math.round((totEnvios / totVisitas) * 100) : 0
+                  const pct = (n, tot) => tot > 0 ? Math.round((n / tot) * 100) : 0
+
+                  // Hora pico (acumulando las horas de todos los días leídos).
+                  const horasAcum = {}
+                  dias.forEach(d => Object.entries(d.horas || {}).forEach(([h, n]) => {
+                    horasAcum[h] = (horasAcum[h] || 0) + (Number(n) || 0)
+                  }))
+                  const horaPicoEntry = Object.entries(horasAcum).sort((a, b) => b[1] - a[1])[0]
+                  const horaPico = horaPicoEntry ? `${String(horaPicoEntry[0]).padStart(2, '0')}:00` : '—'
+
+                  const maxDia = Math.max(1, ...dias.map(d => Number(d.visitas) || 0))
+                  const fmtDia = (date) => date.toLocaleDateString('es-MX', { weekday: 'short', day: 'numeric' })
+
+                  // Detalle de la quiniela elegida.
+                  const aperturas = statsQData?.aperturas || {}
+                  const topAperturas = Object.entries(aperturas)
+                    .map(([id, n]) => ({ nombre: statsQNombres[id] || 'Participante', n: Number(n) || 0 }))
+                    .sort((a, b) => b.n - a.n).slice(0, 5)
+                  const qObj = quinielas.find(q => q.id === statsQId)
+                  const etiquetaPartido = (espnId) => {
+                    const p = (qObj?.partidos || []).find(x => String(x.espnId) === String(espnId))
+                    return p ? `${p.local} vs ${p.visitante}` : 'Partido'
+                  }
+                  const topEnVivo = Object.entries(statsQData?.enVivo || {})
+                    .map(([espnId, n]) => ({ label: etiquetaPartido(espnId), n: Number(n) || 0 }))
+                    .sort((a, b) => b.n - a.n).slice(0, 5)
+
+                  const hayDatos = totVisitas > 0 || totEnvios > 0
+                  const statBox = { flex: 1, padding: '10px 12px', borderRadius: 'var(--radius-sm)', background: 'var(--bg-soft)', border: '1px solid var(--border)' }
+                  const statNum = { fontSize: 22, fontWeight: 800, color: 'var(--text-strong)', lineHeight: 1.1 }
+                  const statLbl = { fontSize: 11, color: 'var(--muted)', fontWeight: 700, marginTop: 2 }
+                  const filaRank = { display: 'flex', justifyContent: 'space-between', fontSize: 12.5, color: 'var(--text)', padding: '3px 0' }
+
+                  return (
+                    <div style={secCard}>
+                      <div style={{ ...secLabel, marginBottom: 4 }}>
+                        <AdminIcon name="chart" size={15} /> Estadísticas
+                      </div>
+                      <p style={{ fontSize: 11.5, color: 'var(--muted)', marginBottom: 14 }}>
+                        Últimos 7 días. Se actualiza solo conforme la gente entra a tus quinielas.
+                      </p>
+
+                      {statsCargando && !statsDias ? (
+                        <p style={{ fontSize: 13, color: 'var(--muted)', padding: '12px 0' }}>Cargando…</p>
+                      ) : !hayDatos ? (
+                        <div style={{ padding: 16, borderRadius: 'var(--radius-sm)', background: 'var(--bg-soft)', border: '1px dashed var(--border)', textAlign: 'center' }}>
+                          <p style={{ fontSize: 13, color: 'var(--text)', fontWeight: 700, marginBottom: 4 }}>Aún no hay datos 📊</p>
+                          <p style={{ fontSize: 12, color: 'var(--muted)' }}>Aparecerán aquí conforme la gente abra tus quinielas.</p>
+                        </div>
+                      ) : (
+                        <>
+                          <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                            <div style={statBox}><div style={statNum}>{totVisitas}</div><div style={statLbl}>Visitas</div></div>
+                            <div style={statBox}><div style={statNum}>{totEnvios}</div><div style={statLbl}>Jugaron</div></div>
+                            <div style={statBox}><div style={statNum}>{conversion}%</div><div style={statLbl}>Conversión</div></div>
+                          </div>
+
+                          <div style={{ marginBottom: 12 }}>
+                            <p style={lbl}>Dispositivos</p>
+                            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', fontSize: 12.5, color: 'var(--text)' }}>
+                              <span>📱 Celular {pct(totMovil, totDisp)}%</span>
+                              <span>💻 Computadora {pct(totEscr, totDisp)}%</span>
+                              {totIos > 0 && <span style={{ color: 'var(--muted)' }}>iPhone {pct(totIos, totDisp)}%</span>}
+                              {totAndroid > 0 && <span style={{ color: 'var(--muted)' }}>Android {pct(totAndroid, totDisp)}%</span>}
+                            </div>
+                          </div>
+
+                          <div style={{ marginBottom: 14 }}>
+                            <p style={lbl}>Hora con más actividad</p>
+                            <p style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-strong)' }}>
+                              {horaPico} <span style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--muted)' }}>— buen momento para mandar el WhatsApp</span>
+                            </p>
+                          </div>
+
+                          <div>
+                            <p style={lbl}>Visitas por día</p>
+                            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 84 }}>
+                              {dias.map(d => {
+                                const v = Number(d.visitas) || 0
+                                return (
+                                  <div key={d.id} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                                    <span style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 700 }}>{v || ''}</span>
+                                    <div style={{ width: '100%', height: Math.round((v / maxDia) * 56), minHeight: v > 0 ? 4 : 0, background: 'var(--green)', borderRadius: 3 }} />
+                                    <span style={{ fontSize: 9.5, color: 'var(--muted)' }}>{fmtDia(d.fecha)}</span>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        </>
+                      )}
+
+                      <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid var(--border)' }}>
+                        <p style={lbl}>Detalle por quiniela</p>
+                        <select
+                          value={statsQId}
+                          onChange={e => setStatsQId(e.target.value)}
+                          style={{ width: '100%', padding: '9px 10px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-strong)', background: 'var(--neutral-bg)', color: 'var(--text)', fontSize: 13, marginBottom: 12 }}
+                        >
+                          <option value="">Elige una quiniela…</option>
+                          {quinielas.map(q => <option key={q.id} value={q.id}>{q.nombre}</option>)}
+                        </select>
+
+                        {statsQId && (
+                          <>
+                            <div style={{ marginBottom: 14 }}>
+                              <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', marginBottom: 6 }}>👀 Participantes más abiertos</p>
+                              {topAperturas.length === 0 ? (
+                                <p style={{ fontSize: 12, color: 'var(--muted)', fontStyle: 'italic' }}>Nadie ha abierto predicciones todavía.</p>
+                              ) : topAperturas.map((a, i) => (
+                                <div key={i} style={filaRank}>
+                                  <span>{i + 1}. {a.nombre}</span>
+                                  <span style={{ fontWeight: 700, color: 'var(--muted)' }}>{a.n}</span>
+                                </div>
+                              ))}
+                            </div>
+                            <div>
+                              <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', marginBottom: 6 }}>🔴 Partidos con más conectados en vivo</p>
+                              {topEnVivo.length === 0 ? (
+                                <p style={{ fontSize: 12, color: 'var(--muted)', fontStyle: 'italic' }}>Sin datos de partidos en vivo todavía.</p>
+                              ) : topEnVivo.map((p, i) => (
+                                <div key={i} style={filaRank}>
+                                  <span>{i + 1}. {p.label}</span>
+                                  <span style={{ fontWeight: 700, color: 'var(--muted)' }}>{p.n}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })()
+
                 return (
                   <>
                     {!superModulo && (
@@ -2628,6 +2831,7 @@ export default function Admin() {
                         {moduleCard({ modulo: 'clientes', icon: 'users', title: 'Clientes', meta: clientes.length ? `${clientes.length}` : null, desc: 'Altas, planes, notas y estado de clientes.' })}
                         {moduleCard({ modulo: 'mis', icon: 'ball', title: 'Mis quinielas', meta: misFlat.length ? `${misFlat.length}` : null, desc: 'Quinielas creadas desde la cuenta principal.' })}
                         {quinielasOtras.length > 0 && moduleCard({ modulo: 'otros', icon: 'user', title: 'Otros admins', meta: `${quinielasOtras.length}`, desc: 'Quinielas agrupadas por cliente administrador.' })}
+                        {moduleCard({ modulo: 'estadisticas', icon: 'chart', title: 'Estadísticas', desc: 'Visitas, dispositivos y actividad de la gente.' })}
                         {moduleCard({ modulo: 'home', icon: 'settings', title: 'Inicio público', desc: 'Mostrar, ocultar y ordenar bloques del home.' })}
                         {moduleCard({ modulo: 'cuenta', icon: 'key', title: 'Mi cuenta', desc: 'Accesos, seguridad y herramientas externas.' })}
                       </div>
@@ -2636,6 +2840,7 @@ export default function Admin() {
                     {superModulo === 'clientes' && clientesSection}
                     {superModulo === 'mis' && misQuinielasSection}
                     {superModulo === 'otros' && otrosSection}
+                    {superModulo === 'estadisticas' && statsSection}
                     {superModulo === 'cuenta' && (
                       <div style={secCard}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>

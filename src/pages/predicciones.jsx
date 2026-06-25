@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, Fragment } from 'react'
 import { useSearchParams, useParams } from 'react-router-dom'
 import { doc, getDoc, addDoc, collection, getDocs, query, where } from 'firebase/firestore'
 import { db, track } from '../firebase'
+import { registrarVisita, registrarVisitaQuiniela, registrarEnvio } from '../utils/analytics'
 import { cierreToDate, quinielaCerrada, tiempoRestante } from '../utils/cierre'
 import { tienePremio, tieneCuota, descripcionRegla, calcularBote, desglosePremio, TIPO_PREMIO, formatearMXN } from '../utils/premios'
 import { normalizarNombre, tieneNombreYApellido } from '../utils/nombres'
@@ -252,6 +253,9 @@ export default function Predicciones() {
     getDocs(query(collection(db, 'predicciones'), where('quinielaId', '==', quinielaId)))
       .then(snap => setConteoParticipantes(snap.size))
       .catch(() => {})
+    // Analítica: cuenta la visita (una vez por sesión).
+    registrarVisita()
+    registrarVisitaQuiniela(quinielaId)
   }, [quinielaId])
 
   const partidos   = quiniela?.partidos ?? []
@@ -427,6 +431,7 @@ export default function Predicciones() {
         }))
       } catch { /* noop */ }
       track('prediccion_enviada', { quinielaId })
+      registrarEnvio()
       setEnviado(true)
     } catch (err) {
       console.error('Firestore error:', err)
