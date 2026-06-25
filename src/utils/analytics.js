@@ -55,10 +55,36 @@ async function escribir(idDoc, datos) {
   } catch { /* silencioso: la analítica nunca rompe la app */ }
 }
 
+// ── Exclusión del propio dispositivo ─────────────────────────────────────────
+// Si este navegador se marcó como "no contar" (típicamente el del admin), NINGUNA
+// métrica se registra desde aquí. Así las visitas no se inflan con tus pruebas.
+const FLAG_EXCLUIR     = 'qpa_no_contar'
+const FLAG_DISPOSITIVO = 'qpa_dispositivo_contado'
+
+export function estaExcluido() {
+  try { return localStorage.getItem(FLAG_EXCLUIR) === '1' } catch { return false }
+}
+
+export function marcarExcluido(excluir) {
+  try {
+    if (excluir) localStorage.setItem(FLAG_EXCLUIR, '1')
+    else localStorage.removeItem(FLAG_EXCLUIR)
+  } catch { /* noop */ }
+}
+
 // ── Registro de eventos (desde las páginas públicas) ─────────────────────────
 
 // Una visita a la app: cuenta visitas del día, dispositivo y hora. Una vez por sesión.
+// Además cuenta el dispositivo como "único" la primera vez en la vida del navegador.
 export function registrarVisita() {
+  if (estaExcluido()) return
+  // Dispositivo único: una sola vez por navegador (no por sesión).
+  try {
+    if (!localStorage.getItem(FLAG_DISPOSITIVO)) {
+      localStorage.setItem(FLAG_DISPOSITIVO, '1')
+      escribir('global', { dispositivos: increment(1) })
+    }
+  } catch { /* localStorage no disponible: omitimos el conteo único */ }
   if (!primeraVezEnSesion('an_visita')) return
   const { ios, android, movil } = clasificarDispositivo()
   const datos = {
@@ -73,13 +99,14 @@ export function registrarVisita() {
 
 // Visita a una quiniela concreta (para saber cuál es la más activa). Una vez por sesión.
 export function registrarVisitaQuiniela(quinielaId) {
-  if (!quinielaId || !primeraVezEnSesion('an_q_' + quinielaId)) return
+  if (estaExcluido() || !quinielaId) return
+  if (!primeraVezEnSesion('an_q_' + quinielaId)) return
   escribir('q_' + quinielaId, { visitas: increment(1) })
 }
 
 // Alguien abrió las predicciones de un participante. Una vez por sesión y participante.
 export function registrarApertura(quinielaId, prediccionId) {
-  if (!quinielaId || !prediccionId) return
+  if (estaExcluido() || !quinielaId || !prediccionId) return
   if (!primeraVezEnSesion('an_ap_' + quinielaId + '_' + prediccionId)) return
   escribir('q_' + quinielaId, { aperturas: { [prediccionId]: increment(1) } })
 }
@@ -87,13 +114,14 @@ export function registrarApertura(quinielaId, prediccionId) {
 // Un espectador viendo el ranking mientras un partido está EN VIVO.
 // Una vez por sesión y por partido.
 export function registrarEnVivo(quinielaId, espnId) {
-  if (!quinielaId || !espnId) return
+  if (estaExcluido() || !quinielaId || !espnId) return
   if (!primeraVezEnSesion('an_lv_' + quinielaId + '_' + espnId)) return
   escribir('q_' + quinielaId, { enVivo: { [String(espnId)]: increment(1) } })
 }
 
 // Una predicción enviada (alimenta la conversión miran → juegan).
 export function registrarEnvio() {
+  if (estaExcluido()) return
   escribir(idDiaHoy(), { envios: increment(1) })
 }
 
@@ -120,6 +148,16 @@ export async function leerDias(n = 7) {
 export async function leerQuiniela(quinielaId) {
   try {
     const snap = await getDoc(doc(db, 'analytics', 'q_' + quinielaId))
+    return snap.exists() ? snap.data() : {}
+  } catch {
+    return {}
+  }
+}
+
+// Lee el documento global (dispositivos únicos acumulados). Devuelve {} si no hay datos.
+export async function leerGlobal() {
+  try {
+    const snap = await getDoc(doc(db, 'analytics', 'global'))
     return snap.exists() ? snap.data() : {}
   } catch {
     return {}

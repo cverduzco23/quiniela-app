@@ -160,7 +160,7 @@ service cloud.firestore {
       allow read: if isSuperAdmin();
       allow write: if
         request.resource.data.keys().hasOnly(
-          ['visitas', 'movil', 'escritorio', 'ios', 'android', 'horas', 'envios', 'aperturas', 'enVivo']
+          ['visitas', 'movil', 'escritorio', 'ios', 'android', 'horas', 'envios', 'aperturas', 'enVivo', 'dispositivos']
         ) &&
         (!('horas'     in request.resource.data) || request.resource.data.horas.size()     <= 24)  &&
         (!('aperturas' in request.resource.data) || request.resource.data.aperturas.size() <= 500) &&

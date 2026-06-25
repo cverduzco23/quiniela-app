@@ -18,7 +18,7 @@ import { normalizarNombre } from '../utils/nombres'
 import { detectarSimilares } from '../utils/duplicados'
 import { findEventByTeamsAndDate } from '../utils/espn'
 import { LABELS_SECCIONES_HOME, ordenSeccionesHome } from '../utils/homeSections'
-import { leerDias, leerQuiniela } from '../utils/analytics'
+import { leerDias, leerQuiniela, leerGlobal, estaExcluido, marcarExcluido } from '../utils/analytics'
 import { EmojiPicker } from '../components/EmojiPicker'
 
 // UIDs con privilegios globales (ver/editar todas las quinielas).
@@ -162,6 +162,12 @@ function AdminIcon({ name, size = 14, style }) {
   if (name === 'building') return <svg {...common}><path d="M4 21V5a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v16" /><path d="M9 21v-5h3v5" /><path d="M8 7h1" /><path d="M12 7h1" /><path d="M8 11h1" /><path d="M12 11h1" /><path d="M3 21h18" /></svg>
   if (name === 'external') return <svg {...common}><path d="M15 3h6v6" /><path d="M10 14 21 3" /><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /></svg>
   if (name === 'logout') return <svg {...common}><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><path d="m16 17 5-5-5-5" /><path d="M21 12H9" /></svg>
+  if (name === 'device-mobile') return <svg {...common}><rect x="6" y="2" width="12" height="20" rx="2" /><path d="M12 18h.01" /></svg>
+  if (name === 'monitor') return <svg {...common}><rect x="2" y="3" width="20" height="14" rx="2" /><path d="M8 21h8" /><path d="M12 17v4" /></svg>
+  if (name === 'eye') return <svg {...common}><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" /></svg>
+  if (name === 'info') return <svg {...common}><circle cx="12" cy="12" r="10" /><path d="M12 16v-4" /><path d="M12 8h.01" /></svg>
+  if (name === 'clock') return <svg {...common}><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
+  if (name === 'trending-up') return <svg {...common}><path d="m3 17 6-6 4 4 8-8" /><path d="M17 7h4v4" /></svg>
   return <svg {...common}><circle cx="12" cy="12" r="9" /></svg>
 }
 
@@ -251,6 +257,20 @@ const accionBtn = {
   padding: '7px 11px', borderRadius: 'var(--radius-sm)',
   border: '1px solid var(--border-strong)', background: 'var(--neutral-bg)',
   color: 'var(--text)', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+}
+
+// Definiciones de cada estadística: qué mide, su alcance y sus excepciones.
+// Se muestran al tocar la tarjeta o el icono de info en el panel de estadísticas.
+const DEFINICIONES_STATS = {
+  visitas:      { t: 'Visitas', d: 'Cada vez que alguien abre el ranking o la página de predicciones de una quiniela. Se cuenta una sola vez por sesión: si refresca o navega dentro de la misma visita, no se suma otra vez. No mide cuánto tiempo se quedan ni los clics, y no incluye la página de inicio. Últimos 7 días.' },
+  dispositivos: { t: 'Dispositivos únicos', d: 'Aparatos distintos (celulares o computadoras) que han entrado alguna vez, en total. Se identifican con una marca anónima en el navegador, sin IP ni datos personales. Es aproximado: puede duplicarse si alguien borra el caché, usa modo incógnito, o entra desde otro navegador o aparato.' },
+  jugaron:      { t: 'Jugaron', d: 'Cuántas predicciones se enviaron de verdad (llenaron sus marcadores y le dieron enviar). No cuenta solo entrar ni escribir el código de acceso. Si una persona manda dos predicciones, cuentan dos. Últimos 7 días.' },
+  conversion:   { t: 'Conversión', d: 'De cada 100 visitas, cuántas terminaron enviando predicción (Jugaron ÷ Visitas). Te dice qué tanto de la gente que entra realmente juega. Es un estimado.' },
+  tipo:         { t: 'Tipo de dispositivo', d: 'De las visitas, qué porcentaje fue desde celular y qué porcentaje desde computadora (y dentro de celular, iPhone vs Android). Se detecta por el tipo de navegador. Últimos 7 días.' },
+  hora:         { t: 'Hora con más actividad', d: 'La hora del día (horario de México) en la que se registran más visitas, sumando los últimos 7 días. Útil para saber a qué hora conviene mandar el WhatsApp.' },
+  porDia:       { t: 'Visitas por día', d: 'Cuántas visitas hubo en cada uno de los últimos 7 días.' },
+  aperturas:    { t: 'Participantes más abiertos', d: 'En una quiniela ya cerrada, cuánta gente abrió las predicciones de cada participante (al tocar su fila en el ranking para ver sus pronósticos). Se cuenta una vez por sesión y participante.' },
+  enVivo:       { t: 'Partidos con más conectados en vivo', d: 'Cuántos espectadores estaban viendo el ranking mientras ese partido se jugaba en vivo. Se cuenta una vez por sesión y partido.' },
 }
 
 export default function Admin() {
@@ -623,10 +643,13 @@ export default function Admin() {
   const [superModulo, setSuperModulo]     = useState(null)
   // Estadísticas (analítica propia, solo super admin).
   const [statsDias, setStatsDias]         = useState(null)   // resumen últimos días
+  const [statsGlobal, setStatsGlobal]     = useState(null)   // doc analytics/global (dispositivos únicos)
   const [statsCargando, setStatsCargando] = useState(false)
   const [statsQId, setStatsQId]           = useState('')     // quiniela elegida para el detalle
   const [statsQData, setStatsQData]       = useState(null)   // doc analytics/q_<id>
   const [statsQNombres, setStatsQNombres] = useState({})     // prediccionId → nombre
+  const [noContarme, setNoContarme]       = useState(false)  // este dispositivo está excluido del conteo
+  const [infoStat, setInfoStat]           = useState(null)   // qué definición de métrica está abierta
   const [quinielas, setQuinielas]         = useState([])
   const [loadingLista, setLoadingLista]   = useState(true)
   const [quinielaActual, setQuinielaActual] = useState(null)
@@ -798,18 +821,40 @@ export default function Admin() {
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { if (autenticado && authListo) cargarQuinielas() }, [autenticado, authListo])
 
-  // Estadísticas: carga el resumen de los últimos 7 días al abrir el módulo.
+  // Estadísticas: carga el resumen (días + total de dispositivos) en la primera pantalla.
   useEffect(() => {
-    if (!soySuper || superModulo !== 'estadisticas') return
+    if (!soySuper || vista !== 'lista' || superModulo) return
     let vivo = true
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setStatsCargando(true)
-    leerDias(7)
-      .then(d => { if (vivo) setStatsDias(d) })
-      .catch(() => { if (vivo) setStatsDias([]) })
+    Promise.all([leerDias(7), leerGlobal()])
+      .then(([d, g]) => { if (vivo) { setStatsDias(d); setStatsGlobal(g) } })
+      .catch(() => { if (vivo) { setStatsDias([]); setStatsGlobal({}) } })
       .finally(() => { if (vivo) setStatsCargando(false) })
     return () => { vivo = false }
-  }, [soySuper, superModulo])
+  }, [soySuper, vista, superModulo])
+
+  // Al entrar al panel, marca este dispositivo como "no contar" la primera vez,
+  // para que tus propias visitas no inflen las estadísticas. La decisión se toma
+  // una sola vez: si luego lo apagas a mano, se respeta.
+  useEffect(() => {
+    if (!autenticado) return
+    try {
+      if (!localStorage.getItem('qpa_excluir_decidido')) {
+        marcarExcluido(true)
+        localStorage.setItem('qpa_excluir_decidido', '1')
+      }
+    } catch { /* noop */ }
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setNoContarme(estaExcluido())
+  }, [autenticado])
+
+  // Enciende/apaga la exclusión de este dispositivo desde el panel.
+  const toggleNoContarme = (valor) => {
+    marcarExcluido(valor)
+    try { localStorage.setItem('qpa_excluir_decidido', '1') } catch { /* noop */ }
+    setNoContarme(valor)
+  }
 
   // Estadísticas: carga el detalle (aperturas / en vivo) de la quiniela elegida.
   useEffect(() => {
@@ -1771,16 +1816,8 @@ export default function Admin() {
     <div style={{ minHeight: '100vh', background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ width: '100%', maxWidth: 360, padding: '0 1rem' }}>
         <div style={{ marginBottom: 16 }}>
-          <a
-            href="/"
-            style={{
-              display: 'inline-flex', alignItems: 'center', gap: 6,
-              background: 'var(--neutral-bg)', border: '1px solid var(--border)',
-              color: 'var(--text)', padding: '7px 12px', borderRadius: 'var(--radius-sm)',
-              fontSize: 13, fontWeight: 700, textDecoration: 'none',
-            }}
-          >
-            <AdminIcon name="arrow-left" size={14} /> Inicio
+          <a href="/" className="app-back-button" aria-label="Ir a inicio" title="Inicio">
+            <AdminIcon name="arrow-left" size={15} />
           </a>
         </div>
         <div style={{ textAlign: 'center', marginBottom: 28 }}>
@@ -2716,16 +2753,67 @@ export default function Admin() {
                     .map(([espnId, n]) => ({ label: etiquetaPartido(espnId), n: Number(n) || 0 }))
                     .sort((a, b) => b.n - a.n).slice(0, 5)
 
-                  const hayDatos = totVisitas > 0 || totEnvios > 0
-                  const statBox = { flex: 1, padding: '10px 12px', borderRadius: 'var(--radius-sm)', background: 'var(--bg-soft)', border: '1px solid var(--border)' }
-                  const statNum = { fontSize: 22, fontWeight: 800, color: 'var(--text-strong)', lineHeight: 1.1 }
+                  const totDispositivos = Number(statsGlobal?.dispositivos) || 0
+                  const hayDatos = totVisitas > 0 || totEnvios > 0 || totDispositivos > 0
+                  const statNum = { fontSize: 23, fontWeight: 800, color: 'var(--text-strong)', lineHeight: 1.1 }
                   const statLbl = { fontSize: 11, color: 'var(--muted)', fontWeight: 700, marginTop: 2 }
                   const filaRank = { display: 'flex', justifyContent: 'space-between', fontSize: 12.5, color: 'var(--text)', padding: '3px 0' }
+                  // Paleta por métrica (marca QuinielApp): azul, violeta, verde, ámbar.
+                  const C_VIS = '#38BDF8', C_DIS = '#A78BFA', C_JUG = '#22C55E', C_CONV = '#F59E0B'
+
+                  // Info de cada métrica: tocar la tarjeta o el icono ⓘ abre su definición.
+                  const toggleInfo = (k) => setInfoStat(p => p === k ? null : k)
+                  const infoBtn = (k) => (
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); toggleInfo(k) }}
+                      aria-label={`Qué significa ${DEFINICIONES_STATS[k]?.t ?? ''}`}
+                      style={{ background: 'none', border: 'none', padding: 2, cursor: 'pointer', display: 'inline-flex', color: infoStat === k ? 'var(--green)' : 'var(--muted)' }}
+                    >
+                      <AdminIcon name="info" size={13} />
+                    </button>
+                  )
+                  const defBox = (k) => (infoStat === k && DEFINICIONES_STATS[k]) ? (
+                    <div style={{ background: 'var(--green-bg)', border: '1px solid var(--green)', borderRadius: 'var(--radius-sm)', padding: '9px 11px', marginBottom: 12 }}>
+                      <p style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-strong)', marginBottom: 3 }}>{DEFINICIONES_STATS[k].t}</p>
+                      <p style={{ fontSize: 11.5, color: 'var(--text)', lineHeight: 1.5 }}>{DEFINICIONES_STATS[k].d}</p>
+                    </div>
+                  ) : null
+                  const metricCard = (k, valor, etiqueta, color, icon) => (
+                    <button
+                      type="button"
+                      onClick={() => toggleInfo(k)}
+                      style={{
+                        padding: 12, borderRadius: 'var(--radius-md)', cursor: 'pointer', textAlign: 'left', font: 'inherit',
+                        background: color + '14',
+                        border: `1px solid ${infoStat === k ? color : color + '33'}`,
+                        display: 'flex', flexDirection: 'column', gap: 8,
+                      }}
+                    >
+                      <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, borderRadius: 9, background: color + '26', color }}>
+                        <AdminIcon name={icon} size={16} />
+                      </span>
+                      <div>
+                        <div style={statNum}>{valor}</div>
+                        <div style={{ ...statLbl, display: 'flex', alignItems: 'center', gap: 4 }}>
+                          {etiqueta}
+                          <AdminIcon name="info" size={11} style={{ opacity: 0.5 }} />
+                        </div>
+                      </div>
+                    </button>
+                  )
+                  // Etiqueta de sección con su icono de info al lado.
+                  const tituloInfo = (k, texto) => (
+                    <div style={{ ...lbl, display: 'flex', alignItems: 'center', gap: 4 }}>{texto}{infoBtn(k)}</div>
+                  )
 
                   return (
                     <div style={secCard}>
                       <div style={{ ...secLabel, marginBottom: 4 }}>
-                        <AdminIcon name="chart" size={15} /> Estadísticas
+                        <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 26, borderRadius: 8, background: 'var(--green-bg)', color: 'var(--green)' }}>
+                          <AdminIcon name="chart" size={15} />
+                        </span>
+                        Estadísticas
                       </div>
                       <p style={{ fontSize: 11.5, color: 'var(--muted)', marginBottom: 14 }}>
                         Últimos 7 días. Se actualiza solo conforme la gente entra a tus quinielas.
@@ -2735,43 +2823,56 @@ export default function Admin() {
                         <p style={{ fontSize: 13, color: 'var(--muted)', padding: '12px 0' }}>Cargando…</p>
                       ) : !hayDatos ? (
                         <div style={{ padding: 16, borderRadius: 'var(--radius-sm)', background: 'var(--bg-soft)', border: '1px dashed var(--border)', textAlign: 'center' }}>
-                          <p style={{ fontSize: 13, color: 'var(--text)', fontWeight: 700, marginBottom: 4 }}>Aún no hay datos 📊</p>
+                          <div style={{ color: 'var(--muted)', marginBottom: 6 }}><AdminIcon name="chart" size={24} /></div>
+                          <p style={{ fontSize: 13, color: 'var(--text)', fontWeight: 700, marginBottom: 4 }}>Aún no hay datos</p>
                           <p style={{ fontSize: 12, color: 'var(--muted)' }}>Aparecerán aquí conforme la gente abra tus quinielas.</p>
                         </div>
                       ) : (
                         <>
-                          <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-                            <div style={statBox}><div style={statNum}>{totVisitas}</div><div style={statLbl}>Visitas</div></div>
-                            <div style={statBox}><div style={statNum}>{totEnvios}</div><div style={statLbl}>Jugaron</div></div>
-                            <div style={statBox}><div style={statNum}>{conversion}%</div><div style={statLbl}>Conversión</div></div>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8, marginBottom: 6 }}>
+                            {metricCard('visitas', totVisitas, 'Visitas', C_VIS, 'users')}
+                            {metricCard('dispositivos', totDispositivos, 'Dispositivos únicos', C_DIS, 'device-mobile')}
+                            {metricCard('jugaron', totEnvios, 'Jugaron', C_JUG, 'ball')}
+                            {metricCard('conversion', `${conversion}%`, 'Conversión', C_CONV, 'trending-up')}
                           </div>
+                          <p style={{ fontSize: 10.5, color: 'var(--muted)', marginBottom: 12, lineHeight: 1.4 }}>
+                            Toca cada dato para ver qué significa. Dispositivos únicos es el total histórico; lo demás, últimos 7 días.
+                          </p>
+                          {defBox('visitas')}
+                          {defBox('dispositivos')}
+                          {defBox('jugaron')}
+                          {defBox('conversion')}
 
                           <div style={{ marginBottom: 12 }}>
-                            <p style={lbl}>Dispositivos</p>
-                            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', fontSize: 12.5, color: 'var(--text)' }}>
-                              <span>📱 Celular {pct(totMovil, totDisp)}%</span>
-                              <span>💻 Computadora {pct(totEscr, totDisp)}%</span>
+                            {tituloInfo('tipo', 'Tipo de dispositivo')}
+                            {defBox('tipo')}
+                            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', fontSize: 12.5, color: 'var(--text)' }}>
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><AdminIcon name="device-mobile" size={14} /> Celular {pct(totMovil, totDisp)}%</span>
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><AdminIcon name="monitor" size={14} /> Computadora {pct(totEscr, totDisp)}%</span>
                               {totIos > 0 && <span style={{ color: 'var(--muted)' }}>iPhone {pct(totIos, totDisp)}%</span>}
                               {totAndroid > 0 && <span style={{ color: 'var(--muted)' }}>Android {pct(totAndroid, totDisp)}%</span>}
                             </div>
                           </div>
 
                           <div style={{ marginBottom: 14 }}>
-                            <p style={lbl}>Hora con más actividad</p>
-                            <p style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-strong)' }}>
+                            {tituloInfo('hora', 'Hora con más actividad')}
+                            {defBox('hora')}
+                            <p style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-strong)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <AdminIcon name="clock" size={15} style={{ color: C_CONV }} />
                               {horaPico} <span style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--muted)' }}>— buen momento para mandar el WhatsApp</span>
                             </p>
                           </div>
 
                           <div>
-                            <p style={lbl}>Visitas por día</p>
+                            {tituloInfo('porDia', 'Visitas por día')}
+                            {defBox('porDia')}
                             <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 84 }}>
                               {dias.map(d => {
                                 const v = Number(d.visitas) || 0
                                 return (
                                   <div key={d.id} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-                                    <span style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 700 }}>{v || ''}</span>
-                                    <div style={{ width: '100%', height: Math.round((v / maxDia) * 56), minHeight: v > 0 ? 4 : 0, background: 'var(--green)', borderRadius: 3 }} />
+                                    <span style={{ fontSize: 10, color: v > 0 ? C_VIS : 'var(--muted)', fontWeight: 700 }}>{v || ''}</span>
+                                    <div style={{ width: '100%', height: Math.round((v / maxDia) * 56), minHeight: v > 0 ? 4 : 0, background: v > 0 ? `linear-gradient(180deg, #7DD3FC, ${C_VIS})` : 'var(--border)', borderRadius: '4px 4px 2px 2px' }} />
                                     <span style={{ fontSize: 9.5, color: 'var(--muted)' }}>{fmtDia(d.fecha)}</span>
                                   </div>
                                 )
@@ -2795,7 +2896,10 @@ export default function Admin() {
                         {statsQId && (
                           <>
                             <div style={{ marginBottom: 14 }}>
-                              <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', marginBottom: 6 }}>👀 Participantes más abiertos</p>
+                              <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <AdminIcon name="eye" size={14} /> Participantes más abiertos {infoBtn('aperturas')}
+                              </p>
+                              {defBox('aperturas')}
                               {topAperturas.length === 0 ? (
                                 <p style={{ fontSize: 12, color: 'var(--muted)', fontStyle: 'italic' }}>Nadie ha abierto predicciones todavía.</p>
                               ) : topAperturas.map((a, i) => (
@@ -2806,7 +2910,10 @@ export default function Admin() {
                               ))}
                             </div>
                             <div>
-                              <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', marginBottom: 6 }}>🔴 Partidos con más conectados en vivo</p>
+                              <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: 'var(--red)', flexShrink: 0 }} aria-hidden="true" /> Partidos con más conectados en vivo {infoBtn('enVivo')}
+                              </p>
+                              {defBox('enVivo')}
                               {topEnVivo.length === 0 ? (
                                 <p style={{ fontSize: 12, color: 'var(--muted)', fontStyle: 'italic' }}>Sin datos de partidos en vivo todavía.</p>
                               ) : topEnVivo.map((p, i) => (
@@ -2819,6 +2926,21 @@ export default function Admin() {
                           </>
                         )}
                       </div>
+
+                      <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12.5, fontWeight: 600, color: 'var(--text)' }}>
+                          <input
+                            type="checkbox"
+                            checked={noContarme}
+                            onChange={e => toggleNoContarme(e.target.checked)}
+                            style={{ width: 16, height: 16, accentColor: 'var(--green)', cursor: 'pointer' }}
+                          />
+                          No contar mis visitas en este dispositivo
+                        </label>
+                        <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4, paddingLeft: 24, lineHeight: 1.4 }}>
+                          Así tus propias pruebas no inflan los números. Se activa solo la primera vez que entras al panel.
+                        </p>
+                      </div>
                     </div>
                   )
                 })()
@@ -2826,21 +2948,22 @@ export default function Admin() {
                 return (
                   <>
                     {!superModulo && (
-                      <div className="super-module-grid">
-                        {moduleCard({ modulo: 'caja', icon: 'wallet', title: 'Caja', meta: saldos.length ? `${saldos.length}` : null, desc: 'Saldos y movimientos por participante.' })}
-                        {moduleCard({ modulo: 'clientes', icon: 'users', title: 'Clientes', meta: clientes.length ? `${clientes.length}` : null, desc: 'Altas, planes, notas y estado de clientes.' })}
-                        {moduleCard({ modulo: 'mis', icon: 'ball', title: 'Mis quinielas', meta: misFlat.length ? `${misFlat.length}` : null, desc: 'Quinielas creadas desde la cuenta principal.' })}
-                        {quinielasOtras.length > 0 && moduleCard({ modulo: 'otros', icon: 'user', title: 'Otros admins', meta: `${quinielasOtras.length}`, desc: 'Quinielas agrupadas por cliente administrador.' })}
-                        {moduleCard({ modulo: 'estadisticas', icon: 'chart', title: 'Estadísticas', desc: 'Visitas, dispositivos y actividad de la gente.' })}
-                        {moduleCard({ modulo: 'home', icon: 'settings', title: 'Inicio público', desc: 'Mostrar, ocultar y ordenar bloques del home.' })}
-                        {moduleCard({ modulo: 'cuenta', icon: 'key', title: 'Mi cuenta', desc: 'Accesos, seguridad y herramientas externas.' })}
-                      </div>
+                      <>
+                        <div className="super-module-grid">
+                          {moduleCard({ modulo: 'caja', icon: 'wallet', title: 'Caja', meta: saldos.length ? `${saldos.length}` : null, desc: 'Saldos y movimientos por participante.' })}
+                          {moduleCard({ modulo: 'clientes', icon: 'users', title: 'Clientes', meta: clientes.length ? `${clientes.length}` : null, desc: 'Altas, planes, notas y estado de clientes.' })}
+                          {moduleCard({ modulo: 'mis', icon: 'ball', title: 'Mis quinielas', meta: misFlat.length ? `${misFlat.length}` : null, desc: 'Quinielas creadas desde la cuenta principal.' })}
+                          {quinielasOtras.length > 0 && moduleCard({ modulo: 'otros', icon: 'user', title: 'Otros admins', meta: `${quinielasOtras.length}`, desc: 'Quinielas agrupadas por cliente administrador.' })}
+                          {moduleCard({ modulo: 'home', icon: 'settings', title: 'Inicio público', desc: 'Mostrar, ocultar y ordenar bloques del home.' })}
+                          {moduleCard({ modulo: 'cuenta', icon: 'key', title: 'Mi cuenta', desc: 'Accesos, seguridad y herramientas externas.' })}
+                        </div>
+                        {statsSection}
+                      </>
                     )}
                     {superModulo === 'caja' && cajaSection}
                     {superModulo === 'clientes' && clientesSection}
                     {superModulo === 'mis' && misQuinielasSection}
                     {superModulo === 'otros' && otrosSection}
-                    {superModulo === 'estadisticas' && statsSection}
                     {superModulo === 'cuenta' && (
                       <div style={secCard}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
