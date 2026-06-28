@@ -948,6 +948,9 @@ export default function Predicciones() {
                 </div>
               ))}
             </div>
+            <p style={{ fontSize: 11, color: 'var(--muted)', textAlign: 'center', lineHeight: 1.5, marginTop: -6, marginBottom: 'var(--pred-rules-margin-bottom, 16px)' }}>
+              El resultado se toma del marcador al final del partido (incluye tiempo extra si lo hay). <strong style={{ color: 'var(--text)' }}>Los penales no cuentan.</strong>
+            </p>
 
             {/* ── Pantalla de resumen ─────────────────────────────────── */}
             {mostrarResumen ? (
@@ -1063,6 +1066,9 @@ export default function Predicciones() {
             </div>
 
             {/* Partidos */}
+            <p style={{ fontSize: 11, color: 'var(--muted)', textAlign: 'center', marginBottom: 12, lineHeight: 1.5 }}>
+              Anota el marcador con el que termina cada partido (tiempo extra incluido si lo hay). <strong style={{ color: 'var(--text)' }}>No cuentan los goles de penales.</strong>
+            </p>
             {partidos.map((p, i) => {
               const pick = picks[i]
               const res  = getPickResultado(pick)
