@@ -782,6 +782,7 @@ export default function Admin() {
   const [eliminandoPred, setEliminandoPred]             = useState(null)
   const [togglingPago, setTogglingPago]                 = useState(null)
   const [togglingCumple, setTogglingCumple]             = useState(null)
+  const [togglingOculto, setTogglingOculto]             = useState(null)
   const [busquedaParticipante, setBusquedaParticipante] = useState('')
 
   // ─── Compartir ───────────────────────────────────────────────────────────
@@ -1285,6 +1286,29 @@ export default function Admin() {
       alerta('Error al actualizar el cumpleaños.')
     } finally {
       setTogglingCumple(null)
+    }
+  }
+
+  // ─── Ocultar/mostrar una predicción del ranking público ───────────────────
+  // No la borra: solo deja de aparecer en /ranking (y de contar para el bote)
+  // mientras esté oculta. Se puede alternar en cualquier momento.
+  const toggleOculto = async (predId) => {
+    if (!quinielaActual || togglingOculto) return
+    setTogglingOculto(predId)
+    try {
+      const ocultosActuales = quinielaActual.ocultos ?? []
+      const yaOculto = ocultosActuales.includes(predId)
+      const nuevosOcultos = yaOculto
+        ? ocultosActuales.filter(id => id !== predId)
+        : [...ocultosActuales, predId]
+      await updateDoc(doc(db, 'quinielas', quinielaActual.id), { ocultos: nuevosOcultos })
+      const actualizado = { ...quinielaActual, ocultos: nuevosOcultos }
+      setQuinielaActual(actualizado)
+      setQuinielas(prev => prev.map(q => q.id === quinielaActual.id ? actualizado : q))
+    } catch {
+      alerta('Error al actualizar la visibilidad.')
+    } finally {
+      setTogglingOculto(null)
     }
   }
 
@@ -3312,20 +3336,24 @@ export default function Admin() {
                 if (!enEdicion) {
                   // ── Tarjeta colapsada (solo lectura) ──
                   return (
-                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', marginBottom: 10, background: 'var(--card-light)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }}>
-                      <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', flexShrink: 0 }}>{i + 1}</span>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
+                    <div key={i} style={{ padding: '10px 12px', marginBottom: 10, background: 'var(--card-light)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', flexShrink: 0 }}>{i + 1}</span>
                         {escudoMini(p.escudoLocal, p.local)}
                         <span style={{ fontSize: 13, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.local}</span>
                         <span style={{ fontSize: 11, color: 'var(--muted)', flexShrink: 0 }}>vs</span>
                         {escudoMini(p.escudoVisitante, p.visitante)}
                         <span style={{ fontSize: 13, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.visitante}</span>
                       </div>
-                      {p.hora && <span style={{ fontSize: 11, color: 'var(--muted)', flexShrink: 0 }}>{formatFixtureDate(p.hora)}</span>}
-                      <button onClick={() => setEditandoPartido(i)} aria-label="Editar partido" title="Editar" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, padding: '2px 4px', flexShrink: 0 }}>✏️</button>
-                      {partidos.length > 1 && (
-                        <button onClick={() => quitarPartido(i)} aria-label="Quitar partido" title="Quitar" style={{ background: 'none', border: 'none', color: 'var(--red)', cursor: 'pointer', fontSize: 13, fontWeight: 700, padding: '2px 4px', flexShrink: 0 }}>✕</button>
-                      )}
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginTop: 6 }}>
+                        <span style={{ fontSize: 11, color: 'var(--muted)' }}>{p.hora ? formatFixtureDate(p.hora) : ''}</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                          <button onClick={() => setEditandoPartido(i)} aria-label="Editar partido" title="Editar" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, padding: '2px 4px', flexShrink: 0 }}>✏️</button>
+                          {partidos.length > 1 && (
+                            <button onClick={() => quitarPartido(i)} aria-label="Quitar partido" title="Quitar" style={{ background: 'none', border: 'none', color: 'var(--red)', cursor: 'pointer', fontSize: 13, fontWeight: 700, padding: '2px 4px', flexShrink: 0 }}>✕</button>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   )
                 }
@@ -3824,6 +3852,7 @@ export default function Admin() {
                         {esTipoBote
                           ? 'Cuando confirmes el pago (transferencia o efectivo), pulsa el botón "⏳ Pendiente" del jugador para cambiarlo a "✓ Pagado". Eliminar lo quita del ranking.'
                           : 'Al eliminar una predicción el jugador podrá volver a registrarse con su nombre.'}
+                        {' '}Usa 👁️ para ocultar a alguien del ranking público (por ejemplo, mientras no haya pagado): su predicción sigue guardada y no cuenta para el bote, y puedes mostrarla de nuevo cuando quieras.
                       </p>
                       {/* Buscador — solo cuando hay suficientes participantes */}
                       {listaPredicciones.length > UMBRAL_BUSQUEDA_PARTICIPANTES && (
@@ -3881,6 +3910,19 @@ export default function Admin() {
                                     ⚠️ Similar
                                   </span>
                                 )}
+                                {(quinielaActual.ocultos ?? []).includes(pred.id) && (
+                                  <span
+                                    title="No se muestra en el ranking público ni cuenta para el bote mientras esté oculta"
+                                    aria-label="Predicción oculta"
+                                    style={{
+                                      fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 'var(--radius-full)',
+                                      background: 'var(--neutral-bg)', color: 'var(--muted)', flexShrink: 0,
+                                      border: '1px solid var(--border-strong)', cursor: 'help',
+                                    }}
+                                  >
+                                    🙈 Oculta
+                                  </span>
+                                )}
                               </div>
                               {(mapaSimilares.get(pred.nombre) ?? []).length > 0 && (
                                 <p style={{ fontSize: 10, color: 'var(--yellow-soft)', marginBottom: 2, fontStyle: 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -3909,6 +3951,28 @@ export default function Admin() {
                                   {togglingEste ? '…' : yaPagado ? '✓ Pagado' : '⏳ Pendiente'}
                                 </button>
                               )}
+                              {(() => {
+                                const estaOculto = (quinielaActual.ocultos ?? []).includes(pred.id)
+                                const togglingOcultoEste = togglingOculto === pred.id
+                                return (
+                                  <button
+                                    onClick={() => toggleOculto(pred.id)}
+                                    disabled={togglingOcultoEste}
+                                    title={estaOculto ? 'Mostrar de nuevo en el ranking público' : 'Ocultar del ranking público (no se borra; puedes mostrarla de nuevo cuando quieras)'}
+                                    aria-label={estaOculto ? 'Mostrar predicción' : 'Ocultar predicción'}
+                                    style={{
+                                      background: estaOculto ? 'var(--yellow-bg)' : 'transparent',
+                                      border: `1px solid ${estaOculto ? 'var(--yellow)' : 'var(--border-strong)'}`,
+                                      color: estaOculto ? 'var(--yellow)' : 'var(--muted)',
+                                      fontSize: 13, fontWeight: 700, padding: '5px 9px',
+                                      borderRadius: 'var(--radius-sm)', cursor: togglingOcultoEste ? 'not-allowed' : 'pointer',
+                                      opacity: togglingOcultoEste ? 0.5 : 1, lineHeight: 1,
+                                    }}
+                                  >
+                                    {togglingOcultoEste ? '…' : estaOculto ? '🙈' : '👁️'}
+                                  </button>
+                                )
+                              })()}
                               {(() => {
                                 const esCumple = (quinielaActual.cumpleaneros ?? []).includes(pred.id)
                                 const togglingCumpleEste = togglingCumple === pred.id
@@ -4383,6 +4447,7 @@ function QuinielaCard({ q, conteos, onGestionar, dueno, superCompact = false }) 
   const cerrada = esCerradaQ(q)
   const enJuego = cerrada && !esFinalizadaQ(q)
   const n = conteos[q.id] ?? 0
+  const nVisible = Math.max(0, n - (q.ocultos ?? []).length)
   const esTipoBote = (Number(q.cuota) > 0) || q.tipoPremio === TIPO_PREMIO.BOTE
   const pagosPendientes = esTipoBote ? Math.max(0, n - (q.pagados ?? []).length) : 0
 
@@ -4454,7 +4519,7 @@ function QuinielaCard({ q, conteos, onGestionar, dueno, superCompact = false }) 
             <>
               {' · '}
               <span style={{ color: 'var(--green)', fontWeight: 700 }}>
-                {superCompact ? formatearMXN(calcularBote(q, n)) : `💰 ${formatearMXN(calcularBote(q, n))}`}
+                {superCompact ? formatearMXN(calcularBote(q, nVisible)) : `💰 ${formatearMXN(calcularBote(q, nVisible))}`}
               </span>
             </>
           )}

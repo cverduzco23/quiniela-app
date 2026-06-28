@@ -221,7 +221,9 @@ export default function Predicciones() {
   const [mostrarResumen, setMostrarResumen] = useState(false)
   const [celebrando, setCelebrando]       = useState(false)
   const [confirmadoRegla, setConfirmadoRegla] = useState(false)
-  const [conteoParticipantes, setConteoParticipantes] = useState(0)
+  const [prediccionesIds, setPrediccionesIds] = useState([])
+  const ocultosIds = quiniela?.ocultos ?? []
+  const conteoParticipantes = prediccionesIds.filter(id => !ocultosIds.includes(id)).length
 
   // Gate de código de acceso (quinielas privadas)
   const [accesoOk, setAccesoOk]         = useState(false)
@@ -251,7 +253,7 @@ export default function Predicciones() {
       .catch(() => setError('error'))
       .finally(() => setCargando(false))
     getDocs(query(collection(db, 'predicciones'), where('quinielaId', '==', quinielaId)))
-      .then(snap => setConteoParticipantes(snap.size))
+      .then(snap => setPrediccionesIds(snap.docs.map(d => d.id)))
       .catch(() => {})
     // Analítica: cuenta la visita (una vez por sesión).
     registrarVisita()

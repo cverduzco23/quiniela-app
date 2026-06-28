@@ -44,8 +44,10 @@ export default function Ranking() {
       getDocs(query(collection(db, 'predicciones'), where('quinielaId', '==', quinielaId))),
     ])
     if (!snapQ.exists()) { setError('not-found'); setCargando(false); return false }
-    setQuiniela({ id: snapQ.id, ...snapQ.data() })
-    setPredicciones(snapP.docs.map(d => ({ id: d.id, ...d.data() })))
+    const datosQ = snapQ.data()
+    const ocultosIds = datosQ.ocultos ?? []
+    setQuiniela({ id: snapQ.id, ...datosQ })
+    setPredicciones(snapP.docs.map(d => ({ id: d.id, ...d.data() })).filter(p => !ocultosIds.includes(p.id)))
     setError(null)
     setCargando(false)
     return true
