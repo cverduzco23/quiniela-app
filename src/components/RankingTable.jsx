@@ -93,6 +93,14 @@ function SvgIcon({ name, size = 14, style }) {
       </svg>
     )
   }
+  if (name === 'x') {
+    return (
+      <svg {...common}>
+        <path d="M18 6 6 18" />
+        <path d="m6 6 12 12" />
+      </svg>
+    )
+  }
   if (name === 'target') {
     return (
       <svg {...common}>
@@ -227,7 +235,7 @@ function SvgIcon({ name, size = 14, style }) {
   )
 }
 
-export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStats = {}, liveEventos = {} }) {
+export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStats = {}, liveEventos = {}, livePenales = {} }) {
   const { alerta } = useDialog()
   const [expandido, setExpandido]               = useState(new Set())
   const [expandidoPartido, setExpandidoPartido] = useState(new Set())
@@ -509,6 +517,25 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
             const partidoAbierto = expandidoPartido.has(i)
             const st = liveStats[p.espnId]
             const eventos = liveEventos[p.espnId] ?? []
+            // Penales: los goles de la tanda llegan mezclados como "goal" en los
+            // eventos normales — los filtramos. La secuencia completa de la tanda
+            // (con anotados y fallados) viene aparte en livePenales.
+            const eventosNormales = eventos.filter(e => !e.penalShootout)
+            const penalesTanda    = livePenales[p.espnId] ?? []
+            // Agrupamos los penales por ronda (mismo turno = misma línea): local
+            // a la izquierda, visitante a la derecha. El orden es de arriba hacia
+            // abajo (ronda 1 primero).
+            const penalesRondas   = (() => {
+              const porRonda = {}
+              penalesTanda.forEach(k => { (porRonda[k.orden] ||= {})[k.lado] = k })
+              return Object.keys(porRonda)
+                .map(Number).sort((a, b) => a - b)
+                .map(n => ({ orden: n, home: porRonda[n].home, away: porRonda[n].away }))
+            })()
+            const penalLocal      = live?.localPen
+            const penalVisitante  = live?.visitantePen
+            const tienePenalScore = !cancelado && penalLocal != null && penalVisitante != null
+            const hayPenales      = !cancelado && (!!live?.penales || penalesTanda.length > 0)
             const hayStats = !!st && st.state !== 'pre'
             const hayResumen = tieneStats && (esFinish || !!stored) && !cancelado
             const tieneAlgo = hayStats || hayResumen
@@ -566,7 +593,7 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                       <span className="ranking-match-badge" style={{ background: 'var(--neutral-bg)', color: 'var(--muted)', borderColor: 'var(--border-strong)' }}>Cancelado</span>
                     ) : esVivo ? (
                       <span className="ranking-match-badge" style={{ background: 'var(--red-bg-strong)', color: '#FCA5A5', borderColor: 'transparent' }}>
-                        <span className="ranking-match-live-dot" />{live.halftime ? 'Descanso' : live.clock || 'EN VIVO'}
+                        <span className="ranking-match-live-dot" />{live.penalesEnVivo ? 'Penales' : live.halftime ? 'Descanso' : live.clock || 'EN VIVO'}
                       </span>
                     ) : resDisplay ? (
                       <span className="ranking-match-badge" style={{ background: resultColor[resDisplay].bg, color: resultColor[resDisplay].color, borderColor: 'transparent' }}>
@@ -643,10 +670,10 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                         ))}
                       </>
                     )}
-                    {eventos.length > 0 && (
+                    {eventosNormales.length > 0 && (
                       <div style={{ marginTop: hayStats ? 12 : 0, paddingTop: hayStats ? 10 : 0, borderTop: hayStats ? '1px solid var(--border)' : 'none' }}>
                         <p style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6, textAlign: 'center' }}>Últimos eventos</p>
-                        {[...eventos].reverse().map((ev, j) => {
+                        {[...eventosNormales].reverse().map((ev, j) => {
                           const izq = ev.lado === 'home'
                           return (
                             <div key={j} style={{ display: 'flex', alignItems: 'center', flexDirection: izq ? 'row' : 'row-reverse', gap: 6, padding: '3px 0' }}>
@@ -660,6 +687,42 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                             </div>
                           )
                         })}
+                      </div>
+                    )}
+                    {hayPenales && (
+                      <div style={{ marginTop: (hayStats || eventosNormales.length > 0) ? 12 : 0, paddingTop: (hayStats || eventosNormales.length > 0) ? 10 : 0, borderTop: (hayStats || eventosNormales.length > 0) ? '1px solid var(--border)' : 'none' }}>
+                        <p style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6, textAlign: 'center' }}>
+                          Tanda de penales{tienePenalScore ? ` · ${penalLocal}–${penalVisitante}` : ''}
+                        </p>
+                        {penalesRondas.length > 0 ? penalesRondas.map((r, j) => {
+                          const tiro = (k, alinear) => (
+                            <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', justifyContent: alinear, gap: 5 }}>
+                              {k ? (
+                                <>
+                                  {alinear === 'flex-end' && (
+                                    <span style={{ fontSize: 12, color: k.anotado ? 'var(--text)' : 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{k.jugador}</span>
+                                  )}
+                                  <span style={{ display: 'inline-flex', color: k.anotado ? 'var(--green)' : 'var(--red)', flexShrink: 0 }} aria-label={k.anotado ? 'Anotó' : 'Falló'}>
+                                    <SvgIcon name={k.anotado ? 'check' : 'x'} size={14} />
+                                  </span>
+                                  {alinear !== 'flex-end' && (
+                                    <span style={{ fontSize: 12, color: k.anotado ? 'var(--text)' : 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{k.jugador}</span>
+                                  )}
+                                </>
+                              ) : null}
+                            </div>
+                          )
+                          return (
+                            <div key={j} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '3px 0' }}>
+                              {tiro(r.home, 'flex-start')}
+                              {tiro(r.away, 'flex-end')}
+                            </div>
+                          )
+                        }) : (
+                          <p style={{ fontSize: 11, color: 'var(--muted)', textAlign: 'center', fontStyle: 'italic' }}>
+                            Se definió en penales.
+                          </p>
+                        )}
                       </div>
                     )}
                     {hayResumen && (

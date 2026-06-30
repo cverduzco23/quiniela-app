@@ -25,6 +25,7 @@ export default function Ranking() {
   const [liveScores, setLiveScores]     = useState({})
   const [liveStats, setLiveStats]       = useState({})
   const [liveEventos, setLiveEventos]   = useState({})
+  const [livePenales, setLivePenales]   = useState({})
   const [ultimaAct, setUltimaAct]       = useState(null)
   const [actualizando, setActualizando] = useState(false)
 
@@ -104,6 +105,8 @@ export default function Ranking() {
     const nuevos = {}
     const nuevosStats = {}
     const nuevosEventos = {}
+    const nuevosPenales = {}
+    const penaltyMatches = []   // {key, evId, liga, homeId, awayId} para traer la tanda completa
     const idsCorregidos = []
     // ESPN agrupa los eventos por fecha en hora del Este de EE.UU. Un partido que
     // arrancó tarde (ej. 10pm CDMX = 11pm ET) puede seguir "en vivo" pero ESPN ya
@@ -144,7 +147,27 @@ export default function Ranking() {
             nuevos[p.espnId] = { state, cancelado: true, halftime: false, local: '', visitante: '' }
             return
           }
-          nuevos[p.espnId] = { state, clock: ev.status?.displayClock ?? '', halftime: esHalftime, local: home?.score ?? '', visitante: away?.score ?? '' }
+          // Tanda de penales: ESPN reporta el global aparte en `shootoutScore`
+          // (el `score` regular se queda en el empate). Lo detectamos por el
+          // status o por la presencia del marcador de penales.
+          const homePen = home?.shootoutScore
+          const awayPen = away?.shootoutScore
+          const tienePenales = (homePen != null && awayPen != null) ||
+            statusName === 'STATUS_SHOOTOUT' || statusName === 'STATUS_FINAL_PEN'
+          const penalesEnVivo = state === 'in' &&
+            (statusName === 'STATUS_SHOOTOUT' || (homePen != null && awayPen != null))
+          nuevos[p.espnId] = {
+            state, clock: ev.status?.displayClock ?? '', halftime: esHalftime,
+            local: home?.score ?? '', visitante: away?.score ?? '',
+            penales: tienePenales, penalesEnVivo,
+            localPen: homePen ?? null, visitantePen: awayPen ?? null,
+          }
+          if (tienePenales) {
+            penaltyMatches.push({
+              key: p.espnId, evId: ev.id, liga,
+              homeId: home?.team?.id, awayId: away?.team?.id,
+            })
+          }
           nuevosStats[p.espnId] = {
             state,
             home: {
@@ -178,21 +201,51 @@ export default function Ranking() {
             else if (dt.redCard) tipo = 'red-card'
             else if (dt.yellowCard) tipo = 'yellow-card'
             else if (/substitution/i.test(dt.type?.text || '')) tipo = 'substitution'
+            // Penales de la tanda: vienen con `shootout: true`. Los separamos
+            // para no confundirlos con goles del partido (scoringPlay = anotado).
             return {
               tipo,
               minuto: dt.clock?.displayValue || '',
               lado,
               jugador,
               ownGoal: !!dt.ownGoal,
+              penalShootout: !!dt.shootout,
+              anotado: !!dt.scoringPlay,
             }
           })
           if (eventos.length > 0) nuevosEventos[p.espnId] = eventos
         })
       } catch { /* silencioso */ }
     }
+
+    // Tanda de penales completa: el scoreboard solo trae los penales ANOTADOS.
+    // Para mostrar también los fallados pedimos el `summary` del partido, que
+    // incluye la secuencia con `didScore`. Solo se consulta para los partidos
+    // que efectivamente fueron a penales (knockout), así que son pocas llamadas.
+    await Promise.all(penaltyMatches.map(async pm => {
+      try {
+        const r = await fetch(`https://site.api.espn.com/apis/site/v2/sports/soccer/${pm.liga}/summary?event=${pm.evId}`)
+        const d = await r.json()
+        const so = d.shootout
+        if (!Array.isArray(so)) return
+        const kicks = []
+        so.forEach(entry => {
+          const lado = String(entry.id) === String(pm.homeId) ? 'home'
+            : String(entry.id) === String(pm.awayId) ? 'away' : null
+          ;(entry.shots ?? []).forEach(s => kicks.push({
+            lado, jugador: s.player ?? '', anotado: !!s.didScore, orden: s.shotNumber ?? 0,
+          }))
+        })
+        // Ordenamos por ronda y, dentro de la ronda, local antes que visitante.
+        kicks.sort((a, b) => (a.orden - b.orden) || (a.lado === 'home' ? -1 : 1))
+        if (kicks.length > 0) nuevosPenales[pm.key] = kicks
+      } catch { /* silencioso */ }
+    }))
+
     setLiveScores(prev => ({ ...prev, ...nuevos }))
     setLiveStats(prev => ({ ...prev, ...nuevosStats }))
     setLiveEventos(prev => ({ ...prev, ...nuevosEventos }))
+    setLivePenales(prev => ({ ...prev, ...nuevosPenales }))
     setUltimaAct(new Date())
 
     if (idsCorregidos.length > 0) {
@@ -504,7 +557,7 @@ export default function Ranking() {
             </div>
           )
         })()}
-        <RankingTable quiniela={quiniela} predicciones={predicciones} liveScores={liveScores} liveStats={liveStats} liveEventos={liveEventos} />
+        <RankingTable quiniela={quiniela} predicciones={predicciones} liveScores={liveScores} liveStats={liveStats} liveEventos={liveEventos} livePenales={livePenales} />
         <Footer />
       </div>
     </div>

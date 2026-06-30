@@ -114,13 +114,13 @@ const ES_IOS = typeof navigator !== 'undefined' &&
 // Envuelve un <input datetime-local> y, solo en iOS y solo cuando está vacío,
 // muestra un texto-guía superpuesto (el nativo se ve en blanco). pointerEvents:
 // none deja que el toque llegue al input.
-function DateTimeWrap({ vacio, texto = '📅 Elige fecha y hora', children }) {
+function DateTimeWrap({ vacio, texto = 'Elige fecha y hora', children }) {
   return (
     <div style={{ position: 'relative' }}>
       {children}
       {ES_IOS && vacio && (
-        <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', fontSize: 16, color: 'var(--muted-soft)', pointerEvents: 'none' }}>
-          {texto}
+        <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', fontSize: 16, color: 'var(--muted-soft)', pointerEvents: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <AdminIcon name="calendar" size={15} />{texto}
         </span>
       )}
     </div>
@@ -168,6 +168,19 @@ function AdminIcon({ name, size = 14, style }) {
   if (name === 'info') return <svg {...common}><circle cx="12" cy="12" r="10" /><path d="M12 16v-4" /><path d="M12 8h.01" /></svg>
   if (name === 'clock') return <svg {...common}><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
   if (name === 'trending-up') return <svg {...common}><path d="m3 17 6-6 4 4 8-8" /><path d="M17 7h4v4" /></svg>
+  if (name === 'pencil') return <svg {...common}><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5Z" /></svg>
+  if (name === 'link') return <svg {...common}><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1.5 1.5" /><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1.5-1.5" /></svg>
+  if (name === 'bolt') return <svg {...common} fill="currentColor" stroke="none"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z" /></svg>
+  if (name === 'calendar') return <svg {...common}><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4" /><path d="M8 2v4" /><path d="M3 10h18" /></svg>
+  if (name === 'eye-off') return <svg {...common}><path d="M9.9 4.2A9.5 9.5 0 0 1 12 4c6.5 0 10 7 10 7a14 14 0 0 1-2.6 3.3" /><path d="M6.6 6.6A14 14 0 0 0 2 11s3.5 7 10 7a9.3 9.3 0 0 0 4.4-1.1" /><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" /><path d="m2 2 20 20" /></svg>
+  if (name === 'cake') return <svg {...common}><path d="M4 21h16" /><path d="M5 21v-7a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v7" /><path d="M4 16c1.2 0 1.2 1 2.5 1s1.3-1 2.5-1 1.2 1 2.5 1 1.3-1 2.5-1 1.2 1 2.5 1 1.3-1 2.5-1" /><path d="M12 8V5" /><path d="M12 5a1.5 1.5 0 1 0-1.5-1.5C10.5 4.5 12 5 12 5Z" /></svg>
+  if (name === 'pin') return <svg {...common}><path d="M12 17v5" /><path d="M9 10.8V4h6v6.8a2 2 0 0 0 .6 1.4L18 15H6l2.4-2.8a2 2 0 0 0 .6-1.4Z" /></svg>
+  if (name === 'unlock') return <svg {...common}><rect x="4" y="10" width="16" height="10" rx="2" /><path d="M8 10V7a4 4 0 0 1 7.5-2" /></svg>
+  if (name === 'trophy') return <svg {...common}><path d="M8 21h8" /><path d="M12 17v4" /><path d="M7 4h10v5a5 5 0 0 1-10 0V4Z" /><path d="M7 6H4v1a3 3 0 0 0 3 3" /><path d="M17 6h3v1a3 3 0 0 1-3 3" /></svg>
+  if (name === 'megaphone') return <svg {...common}><path d="m3 11 15-6v14l-15-6Z" /><path d="M3 11v4" /><path d="M8 13v5a2 2 0 0 0 4 0v-3" /></svg>
+  if (name === 'check') return <svg {...common}><path d="m20 6-11 11-5-5" /></svg>
+  if (name === 'undo') return <svg {...common}><path d="M3 7v6h6" /><path d="M3.5 13a8 8 0 1 1 1.9 5" /></svg>
+  if (name === 'banknote') return <svg {...common}><rect x="2" y="6" width="20" height="12" rx="2" /><circle cx="12" cy="12" r="2.5" /><path d="M6 9v.01" /><path d="M18 15v.01" /></svg>
   return <svg {...common}><circle cx="12" cy="12" r="9" /></svg>
 }
 
@@ -1473,7 +1486,8 @@ export default function Admin() {
 
   // ─── Seleccionar quiniela existente ──────────────────────────────────────
   const gestionarQuiniela = (q) => {
-    setSuperModulo(null)
+    // No reseteamos superModulo: así el botón Atrás regresa a la lista del
+    // módulo de origen ('mis' / 'otros') en vez de la cuadrícula de secciones.
     setQuinielaActual(q)
     const resInit = {}
     Object.entries(q.resultados ?? {}).forEach(([idx, r]) => {
@@ -1975,7 +1989,7 @@ export default function Admin() {
         {tienePremioLocal && (
           <div style={{ marginTop: 4, padding: '10px 12px', borderRadius: 'var(--radius-sm)', background: 'var(--bg-soft)', border: '1px solid var(--border)' }}>
             <p style={{ fontSize: 12, color: 'var(--text)', lineHeight: 1.55 }}>
-              🏆 <strong>Gana quien acumule más puntos.</strong> Si dos o más quedan empatados en puntos,
+              <AdminIcon name="trophy" size={13} style={{ verticalAlign: '-2px', marginRight: 4 }} /><strong>Gana quien acumule más puntos.</strong> Si dos o más quedan empatados en puntos,
               se reparten el premio en partes iguales.
             </p>
           </div>
@@ -2104,7 +2118,19 @@ export default function Admin() {
                 <button
                   className="app-back-button"
                   onClick={() => {
-                    if (superModulo && vista === 'lista') {
+                    if (vista === 'caja') {
+                      // Detalle de un jugador → regresa a la lista de participantes
+                      // (conserva superModulo='caja' para re-render del módulo Caja).
+                      setVista('lista')
+                      setCajaNombre(null)
+                    } else if (vista === 'gestionar') {
+                      // Gestión de una quiniela → regresa a la lista de su módulo
+                      // de origen ('mis' / 'otros'), que se conservó al entrar.
+                      setVista('lista')
+                      setQuinielaActual(null)
+                      setFixtures([])
+                      setSeleccionados([])
+                    } else if (superModulo && vista === 'lista') {
                       setSuperModulo(null)
                     } else if (vista === 'lista') {
                       window.location.href = '/'
@@ -2427,7 +2453,7 @@ export default function Admin() {
                     {cajaAb && (
                       <div style={{ marginTop: 12 }}>
                         <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 12, lineHeight: 1.5 }}>
-                          Registra y consulta depósitos, inscripciones, premios y retiros por participante. Es una herramienta interna de apoyo — próximamente disponible para todos los administradores.
+                          Registra y consulta depósitos, inscripciones, premios y retiros por participante. Es una herramienta interna de apoyo para administradores.
                         </p>
                         {saldos.length > 1 && (
                           <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 10 }}>
@@ -3376,7 +3402,7 @@ export default function Admin() {
                       <span style={{ color: 'var(--muted)', fontSize: 12, fontWeight: 700, textAlign: 'center' }}>VS</span>
                       <input type="text" placeholder="Equipo visitante" value={p.visitante} onChange={e => actualizarPartido(i, 'visitante', e.target.value)} />
                     </div>
-                    <DateTimeWrap vacio={!p.hora} texto="📅 Fecha y hora del partido">
+                    <DateTimeWrap vacio={!p.hora} texto="Fecha y hora del partido">
                       <input type="datetime-local" value={p.hora} onChange={e => actualizarPartido(i, 'hora', e.target.value)} />
                     </DateTimeWrap>
                     {!incompleto && (
@@ -3415,7 +3441,7 @@ export default function Admin() {
               </DateTimeWrap>
               {primeraHoraPartido(partidos) && (
                 <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 8, lineHeight: 1.5 }}>
-                  📅 Tu primer partido empieza el <strong style={{ color: 'var(--text)' }}>{formatFixtureDate(primeraHoraPartido(partidos))}</strong>. El cierre debe ser antes.{' '}
+                  <AdminIcon name="calendar" size={13} style={{ verticalAlign: '-2px', marginRight: 4 }} />Tu primer partido empieza el <strong style={{ color: 'var(--text)' }}>{formatFixtureDate(primeraHoraPartido(partidos))}</strong>. El cierre debe ser antes.{' '}
                   <button type="button" onClick={() => setCierre(cierreSugerido(partidos))} style={{ background: 'none', border: 'none', color: 'var(--green)', fontSize: 11, fontWeight: 700, cursor: 'pointer', textDecoration: 'underline', padding: 0 }}>
                     Cerrar 5 min antes
                   </button>
@@ -3497,7 +3523,12 @@ export default function Admin() {
                     color: toggling ? 'var(--muted)' : (estaCerrada ? '#07120A' : '#3F2700'),
                   }}
                 >
-                  {toggling ? '…' : estaCerrada ? '🔓 Reabrir' : '🔒 Cerrar'}
+                  {toggling ? '…' : (
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                      <AdminIcon name={estaCerrada ? 'unlock' : 'lock'} size={13} />
+                      {estaCerrada ? 'Reabrir' : 'Cerrar'}
+                    </span>
+                  )}
                 </button>
               </div>
 
@@ -3534,10 +3565,10 @@ export default function Admin() {
               {/* Tabs */}
               <div style={{ display: 'flex', gap: 4, background: 'var(--bg-soft)', borderRadius: 'var(--radius-sm)', padding: 4, marginBottom: 16, border: '1px solid var(--border)' }}>
                 {[
-                  { key: 'resultados',   label: '⚽ Resultados' },
-                  { key: 'participantes', label: `👥 ${conteos[quinielaActual.id] ?? 0}` },
-                  { key: 'editar',       label: '✏️ Editar' },
-                  { key: 'compartir',    label: '🔗 Compartir' },
+                  { key: 'resultados',   icon: 'ball',   label: 'Resultados' },
+                  { key: 'participantes', icon: 'users',  label: `${conteos[quinielaActual.id] ?? 0}` },
+                  { key: 'editar',       icon: 'pencil', label: 'Editar' },
+                  { key: 'compartir',    icon: 'link',   label: 'Compartir' },
                 ].map(t => (
                   <button
                     key={t.key} onClick={() => setTab(t.key)}
@@ -3547,8 +3578,10 @@ export default function Admin() {
                       background: tab === t.key ? 'var(--card-light)' : 'transparent',
                       color: tab === t.key ? 'var(--text-strong)' : 'var(--muted)',
                       transition: 'all 0.15s',
+                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5,
                     }}
                   >
+                    <AdminIcon name={t.icon} size={14} />
                     {t.label}
                   </button>
                 ))}
@@ -3642,7 +3675,12 @@ export default function Admin() {
                         aria-label="Sincronizar resultados"
                         style={{ ...greenCtaStyle(sincronizando), display: 'flex', alignItems: 'center', gap: 5 }}
                       >
-                        {sincronizando ? 'Sincronizando…' : '⚡ Sincronizar resultados'}
+                        {sincronizando ? 'Sincronizando…' : (
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                            <AdminIcon name="bolt" size={14} />
+                            Sincronizar resultados
+                          </span>
+                        )}
                       </button>
                       <button
                         onClick={iniciarGuardarResultados} disabled={guardandoRes}
@@ -3661,11 +3699,12 @@ export default function Admin() {
                         aria-label="Ver instrucciones de sincronizar resultados"
                         style={{
                           width: 28, height: 28, borderRadius: '50%', border: '1px solid var(--border-strong)',
-                          background: 'var(--card-light)', color: 'var(--muted)', fontSize: 13, fontWeight: 700,
+                          background: 'var(--card-light)', color: 'var(--muted)',
                           cursor: 'pointer', flexShrink: 0, lineHeight: 1,
+                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                         }}
                       >
-                        ⓘ
+                        <AdminIcon name="info" size={15} />
                       </button>
                     </div>
                   </div>
@@ -3690,8 +3729,8 @@ export default function Admin() {
                           </button>
                         </div>
                         <div style={{ fontSize: 12.5, color: 'var(--muted)', lineHeight: 1.6 }}>
-                          <p style={{ marginBottom: 8 }}>📌 <strong style={{ color: 'var(--text)' }}>Al terminar los partidos</strong>, espera unos minutos (a que se marquen como finalizados) y da <strong style={{ color: 'var(--green)' }}>⚡ Sincronizar resultados</strong> para dejarlos guardados.</p>
-                          <p style={{ marginBottom: 8 }}><strong style={{ color: 'var(--green)' }}>⚡ Sincronizar resultados</strong> — trae los marcadores reales para partidos que agregaste con el buscador. <strong style={{ color: 'var(--green)', background: 'var(--green-bg)', padding: '1px 6px', borderRadius: 'var(--radius-full)', fontSize: 11 }}>Recomendado</strong></p>
+                          <p style={{ marginBottom: 8 }}><AdminIcon name="pin" size={13} style={{ verticalAlign: '-2px', marginRight: 4 }} /><strong style={{ color: 'var(--text)' }}>Al terminar los partidos</strong>, espera unos minutos (a que se marquen como finalizados) y da <strong style={{ color: 'var(--green)' }}><AdminIcon name="bolt" size={12} style={{ verticalAlign: '-1px', marginRight: 2 }} />Sincronizar resultados</strong> para dejarlos guardados.</p>
+                          <p style={{ marginBottom: 8 }}><strong style={{ color: 'var(--green)' }}><AdminIcon name="bolt" size={12} style={{ verticalAlign: '-1px', marginRight: 2 }} />Sincronizar resultados</strong> — trae los marcadores reales para partidos que agregaste con el buscador. <strong style={{ color: 'var(--green)', background: 'var(--green-bg)', padding: '1px 6px', borderRadius: 'var(--radius-full)', fontSize: 11 }}>Recomendado</strong></p>
                           <p><strong style={{ color: 'var(--text)' }}>Guardar manual</strong> — guarda los marcadores que escribas tú. Úsalo solo para partidos que agregaste manualmente.</p>
                         </div>
                       </div>
@@ -3761,9 +3800,11 @@ export default function Admin() {
                                 background: cancelado ? 'var(--red-bg)' : 'transparent',
                                 color: cancelado ? '#FCA5A5' : 'var(--muted)',
                                 cursor: 'pointer',
+                                display: 'inline-flex', alignItems: 'center', gap: 4,
                               }}
                             >
-                              {cancelado ? '✓ Cancelado' : 'Marcar cancelado'}
+                              {cancelado && <AdminIcon name="check" size={12} />}
+                              {cancelado ? 'Cancelado' : 'Marcar cancelado'}
                             </button>
                           </div>
                         </div>
@@ -3777,8 +3818,9 @@ export default function Admin() {
                       background: 'var(--bg-soft)', borderRadius: 'var(--radius-md)',
                       border: '1px solid var(--border)',
                     }}>
-                      <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-strong)', marginBottom: 4 }}>
-                        {quinielaActual.boteDevuelto ? '💸 Bote marcado como devuelto' : 'Bote del premio'}
+                      <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-strong)', marginBottom: 4, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                        {quinielaActual.boteDevuelto && <AdminIcon name="banknote" size={14} />}
+                        {quinielaActual.boteDevuelto ? 'Bote marcado como devuelto' : 'Bote del premio'}
                       </p>
                       <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 12, lineHeight: 1.5 }}>
                         {quinielaActual.boteDevuelto
@@ -3797,7 +3839,12 @@ export default function Admin() {
                           opacity: toggleBote ? 0.5 : 1,
                         }}
                       >
-                        {toggleBote ? '…' : quinielaActual.boteDevuelto ? '↩ Reactivar premio' : '💸 Devolver bote'}
+                        {toggleBote ? '…' : (
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                            <AdminIcon name={quinielaActual.boteDevuelto ? 'undo' : 'banknote'} size={14} />
+                            {quinielaActual.boteDevuelto ? 'Reactivar premio' : 'Devolver bote'}
+                          </span>
+                        )}
                       </button>
                     </div>
                   )}
@@ -3813,7 +3860,7 @@ export default function Admin() {
                     <p style={{ fontSize: 13, color: 'var(--muted)', textAlign: 'center', padding: '1.5rem 0' }}>Cargando…</p>
                   ) : listaPredicciones.length === 0 ? (
                     <div style={{ textAlign: 'center', padding: '2rem 1rem' }}>
-                      <p style={{ fontSize: 36, marginBottom: 12 }}>📭</p>
+                      <div style={{ color: 'var(--muted)', marginBottom: 12, display: 'flex', justifyContent: 'center' }}><AdminIcon name="users" size={36} /></div>
                       <p style={{ fontSize: 14, color: 'var(--muted)' }}>Nadie ha registrado predicciones todavía.</p>
                     </div>
                   ) : (() => {
@@ -3832,9 +3879,12 @@ export default function Admin() {
                           borderRadius: 'var(--radius-sm)', padding: '8px 12px', marginBottom: 12,
                           fontSize: 12, color: pendientes > 0 ? 'var(--yellow-soft)' : 'var(--green-light)',
                         }}>
-                          {pendientes > 0
-                            ? `⏳ ${pendientes} pago${pendientes !== 1 ? 's' : ''} pendiente${pendientes !== 1 ? 's' : ''} de validar`
-                            : '✓ Todos los pagos confirmados'}
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                            <AdminIcon name={pendientes > 0 ? 'clock' : 'check'} size={13} />
+                            {pendientes > 0
+                              ? `${pendientes} pago${pendientes !== 1 ? 's' : ''} pendiente${pendientes !== 1 ? 's' : ''} de validar`
+                              : 'Todos los pagos confirmados'}
+                          </span>
                         </div>
                       )}
                       {nSospechosos > 0 && (
@@ -3844,21 +3894,21 @@ export default function Admin() {
                           borderRadius: 'var(--radius-sm)', padding: '8px 12px', marginBottom: 12,
                           fontSize: 12, color: 'var(--yellow-soft)', lineHeight: 1.5,
                         }}>
-                          ⚠️ {nSospechosos} posible{nSospechosos !== 1 ? 's' : ''} duplicado{nSospechosos !== 1 ? 's' : ''} detectado{nSospechosos !== 1 ? 's' : ''}.
-                          Revisa los nombres marcados con ⚠️ y elimina los que sean repetidos.
+                          <AdminIcon name="info" size={13} style={{ verticalAlign: '-2px', marginRight: 4 }} />{nSospechosos} posible{nSospechosos !== 1 ? 's' : ''} duplicado{nSospechosos !== 1 ? 's' : ''} detectado{nSospechosos !== 1 ? 's' : ''}.
+                          Revisa los nombres marcados como <strong>Similar</strong> y elimina los que sean repetidos.
                         </div>
                       )}
                       <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 12 }}>
                         {esTipoBote
-                          ? 'Cuando confirmes el pago (transferencia o efectivo), pulsa el botón "⏳ Pendiente" del jugador para cambiarlo a "✓ Pagado". Eliminar lo quita del ranking.'
+                          ? 'Cuando confirmes el pago (transferencia o efectivo), pulsa el botón Pendiente del jugador para cambiarlo a Pagado. Eliminar lo quita del ranking.'
                           : 'Al eliminar una predicción el jugador podrá volver a registrarse con su nombre.'}
-                        {' '}Usa 👁️ para ocultar a alguien del ranking público (por ejemplo, mientras no haya pagado): su predicción sigue guardada y no cuenta para el bote, y puedes mostrarla de nuevo cuando quieras.
+                        {' '}Usa el botón <AdminIcon name="eye" size={12} style={{ verticalAlign: '-2px' }} /> para ocultar a alguien del ranking público (por ejemplo, mientras no haya pagado): su predicción sigue guardada y no cuenta para el bote, y puedes mostrarla de nuevo cuando quieras.
                       </p>
                       {/* Buscador — solo cuando hay suficientes participantes */}
                       {listaPredicciones.length > UMBRAL_BUSQUEDA_PARTICIPANTES && (
                         <input
                           type="text"
-                          placeholder={`🔍 Buscar entre ${listaPredicciones.length} participantes…`}
+                          placeholder={`Buscar entre ${listaPredicciones.length} participantes…`}
                           value={busquedaParticipante}
                           onChange={e => setBusquedaParticipante(e.target.value)}
                           style={{ width: '100%', fontSize: 13, padding: '8px 12px', marginBottom: 10 }}
@@ -3905,9 +3955,10 @@ export default function Admin() {
                                       fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 'var(--radius-full)',
                                       background: 'var(--yellow-bg)', color: 'var(--yellow)', flexShrink: 0,
                                       border: '1px solid var(--yellow)', cursor: 'help',
+                                      display: 'inline-flex', alignItems: 'center', gap: 3,
                                     }}
                                   >
-                                    ⚠️ Similar
+                                    <AdminIcon name="info" size={10} /> Similar
                                   </span>
                                 )}
                                 {(quinielaActual.ocultos ?? []).includes(pred.id) && (
@@ -3918,9 +3969,10 @@ export default function Admin() {
                                       fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 'var(--radius-full)',
                                       background: 'var(--neutral-bg)', color: 'var(--muted)', flexShrink: 0,
                                       border: '1px solid var(--border-strong)', cursor: 'help',
+                                      display: 'inline-flex', alignItems: 'center', gap: 3,
                                     }}
                                   >
-                                    🙈 Oculta
+                                    <AdminIcon name="eye-off" size={10} /> Oculta
                                   </span>
                                 )}
                               </div>
@@ -3946,9 +3998,15 @@ export default function Admin() {
                                     fontSize: 12, fontWeight: 700, padding: '5px 10px',
                                     borderRadius: 'var(--radius-sm)', cursor: togglingEste ? 'not-allowed' : 'pointer',
                                     opacity: togglingEste ? 0.5 : 1,
+                                    display: 'inline-flex', alignItems: 'center', gap: 4,
                                   }}
                                 >
-                                  {togglingEste ? '…' : yaPagado ? '✓ Pagado' : '⏳ Pendiente'}
+                                  {togglingEste ? '…' : (
+                                    <>
+                                      <AdminIcon name={yaPagado ? 'check' : 'clock'} size={12} />
+                                      {yaPagado ? 'Pagado' : 'Pendiente'}
+                                    </>
+                                  )}
                                 </button>
                               )}
                               {(() => {
@@ -3967,9 +4025,10 @@ export default function Admin() {
                                       fontSize: 13, fontWeight: 700, padding: '5px 9px',
                                       borderRadius: 'var(--radius-sm)', cursor: togglingOcultoEste ? 'not-allowed' : 'pointer',
                                       opacity: togglingOcultoEste ? 0.5 : 1, lineHeight: 1,
+                                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                                     }}
                                   >
-                                    {togglingOcultoEste ? '…' : estaOculto ? '🙈' : '👁️'}
+                                    {togglingOcultoEste ? '…' : <AdminIcon name={estaOculto ? 'eye-off' : 'eye'} size={15} />}
                                   </button>
                                 )
                               })()}
@@ -3989,9 +4048,10 @@ export default function Admin() {
                                       fontSize: 14, fontWeight: 700, padding: '5px 9px',
                                       borderRadius: 'var(--radius-sm)', cursor: togglingCumpleEste ? 'not-allowed' : 'pointer',
                                       opacity: togglingCumpleEste ? 0.5 : 1, lineHeight: 1,
+                                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                                     }}
                                   >
-                                    {togglingCumpleEste ? '…' : '🎂'}
+                                    {togglingCumpleEste ? '…' : <AdminIcon name="cake" size={15} />}
                                   </button>
                                 )
                               })()}
@@ -4098,7 +4158,7 @@ export default function Admin() {
                             <span style={{ color: 'var(--muted)', fontSize: 12, fontWeight: 700, textAlign: 'center' }}>VS</span>
                             <input type="text" placeholder="Equipo visitante" value={p.visitante} onChange={e => actualizarEditPartido(i, 'visitante', e.target.value)} />
                           </div>
-                          <DateTimeWrap vacio={!p.hora} texto="📅 Fecha y hora del partido">
+                          <DateTimeWrap vacio={!p.hora} texto="Fecha y hora del partido">
                             <input type="datetime-local" value={p.hora} onChange={e => actualizarEditPartido(i, 'hora', e.target.value)} />
                           </DateTimeWrap>
                           {!incompleto && (
@@ -4138,7 +4198,7 @@ export default function Admin() {
                     </DateTimeWrap>
                     {primeraHoraPartido(editPartidos) && (
                       <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 8, lineHeight: 1.5 }}>
-                        📅 Tu primer partido empieza el <strong style={{ color: 'var(--text)' }}>{formatFixtureDate(primeraHoraPartido(editPartidos))}</strong>. El cierre debe ser antes.{' '}
+                        <AdminIcon name="calendar" size={13} style={{ verticalAlign: '-2px', marginRight: 4 }} />Tu primer partido empieza el <strong style={{ color: 'var(--text)' }}>{formatFixtureDate(primeraHoraPartido(editPartidos))}</strong>. El cierre debe ser antes.{' '}
                         <button type="button" onClick={() => setEditCierre(cierreSugerido(editPartidos))} style={{ background: 'none', border: 'none', color: 'var(--green)', fontSize: 11, fontWeight: 700, cursor: 'pointer', textDecoration: 'underline', padding: 0 }}>
                           Cerrar 5 min antes
                         </button>
@@ -4313,8 +4373,9 @@ export default function Admin() {
                     const mensaje = lineas.join('\n')
                     return (
                       <div style={card}>
-                        <p style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-strong)', marginBottom: 4 }}>
-                          📣 Mensaje listo para compartir
+                        <p style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-strong)', marginBottom: 4, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                          <AdminIcon name="megaphone" size={15} />
+                          Mensaje listo para compartir
                         </p>
                         <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 12 }}>
                           Copia y pega este mensaje en WhatsApp, Slack o correo para invitar a los participantes.
@@ -4338,7 +4399,10 @@ export default function Admin() {
                             transition: 'all 0.2s',
                           }}
                         >
-                          {copiado === 'mensaje' ? '✓ Copiado al portapapeles' : '📋 Copiar mensaje'}
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                            <AdminIcon name={copiado === 'mensaje' ? 'check' : 'copy'} size={14} />
+                            {copiado === 'mensaje' ? 'Copiado al portapapeles' : 'Copiar mensaje'}
+                          </span>
                         </button>
                       </div>
                     )
