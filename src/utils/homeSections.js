@@ -18,6 +18,7 @@ export const ORDEN_SECCIONES_HOME = [
   'mostrarActiva',
   'mostrarJugandose',
   'mostrarTerminada',
+  'mostrarFaq',
   'mostrarImagen',
   'mostrarPromo',
 ]
@@ -30,6 +31,7 @@ export const LABELS_SECCIONES_HOME = {
   mostrarActiva:        'Quiniela abierta',
   mostrarJugandose:     'Jugándose ahora',
   mostrarTerminada:     'Última quiniela terminada',
+  mostrarFaq:           'Preguntas frecuentes',
   mostrarImagen:        'Imagen decorativa',
   mostrarPromo:         '¿Quieres tu propia quiniela? (promo final)',
 }

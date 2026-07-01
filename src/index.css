@@ -322,6 +322,144 @@ a:focus-visible {
   transform-origin: 7px 18.5px;
   transform-box: fill-box;
 }
+
+.public-home-shell {
+  width: 100%;
+}
+.public-faq-item > summary::-webkit-details-marker {
+  display: none;
+}
+.public-faq-chevron {
+  transition: transform 0.18s ease, color 0.18s ease, background 0.18s ease;
+}
+.public-faq-item[open] .public-faq-chevron {
+  transform: rotate(180deg);
+  color: var(--green-light) !important;
+  background: var(--green-bg) !important;
+}
+
+@media (max-width: 920px) {
+  .public-home-hero {
+    grid-template-columns: 1fr !important;
+    gap: 28px !important;
+    padding-top: 32px !important;
+  }
+  .public-ranking-preview {
+    transform: none !important;
+    max-width: 520px;
+  }
+}
+
+@media (max-width: 640px) {
+  .public-home-nav {
+    padding: 12px 16px !important;
+  }
+  .public-home-links {
+    gap: 10px !important;
+  }
+  .public-home-links a[href="#como-funciona"],
+  .public-home-links a[href="#quinielas"] {
+    display: none;
+  }
+  .public-home-hero {
+    padding: 26px 16px 30px !important;
+  }
+  .public-home-main {
+    gap: 28px !important;
+    padding: 28px 0 30px !important;
+  }
+  .public-ranking-preview {
+    display: none !important;
+  }
+  .public-home-title-break {
+    display: none;
+  }
+  .public-home-code-row {
+    flex-direction: column;
+    max-width: none !important;
+  }
+  .public-home-code-row input {
+    flex: 0 0 auto !important;
+    height: 52px !important;
+    min-height: 52px !important;
+  }
+  .public-home-code-row button {
+    width: 100%;
+  }
+  .public-how-inner {
+    padding: 34px 22px !important;
+  }
+  .public-how-inner h2 {
+    margin-bottom: 18px !important;
+  }
+  .public-steps-grid {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+    max-width: 350px;
+    margin: 0 auto;
+  }
+  .public-step-item {
+    display: grid;
+    grid-template-columns: 42px minmax(0, 1fr);
+    align-items: center;
+    gap: 11px;
+    text-align: left !important;
+  }
+  .public-step-number {
+    width: 42px !important;
+    height: 42px !important;
+    border-radius: 11px !important;
+    margin-bottom: 0 !important;
+    font-size: 19px !important;
+  }
+  .public-step-copy p {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+  .public-step-copy p:first-child {
+    font-size: 14.5px !important;
+    line-height: 1.15 !important;
+    margin-bottom: 3px !important;
+  }
+  .public-step-text {
+    max-width: none !important;
+    font-size: 12.5px !important;
+    line-height: 1.3 !important;
+  }
+  .public-live-card {
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    align-items: center !important;
+    gap: 14px !important;
+  }
+  .public-card-status {
+    justify-self: end;
+  }
+  .public-live-ranking-link {
+    width: 100%;
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 380px) {
+  .public-home-nav {
+    padding: 11px 14px !important;
+  }
+  .public-home-nav [aria-label="QuinielApp"] {
+    transform: scale(0.88);
+    transform-origin: left center;
+  }
+  .public-home-links a[href="/admin"] {
+    min-height: 36px !important;
+    padding: 0 12px !important;
+    font-size: 12px !important;
+  }
+  .public-home-hero h1 {
+    font-size: 31px !important;
+  }
+  .public-home-hero p {
+    font-size: 13.5px !important;
+  }
+}
 /* Reflejo metálico que cruza los badges del podio */
 @keyframes medal-shine {
   0%   { transform: translateX(-130%); opacity: 0; }

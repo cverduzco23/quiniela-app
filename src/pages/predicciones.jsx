@@ -6,6 +6,7 @@ import { registrarVisita, registrarVisitaQuiniela, registrarEnvio } from '../uti
 import { cierreToDate, quinielaCerrada, tiempoRestante } from '../utils/cierre'
 import { tienePremio, tieneCuota, descripcionRegla, calcularBote, desglosePremio, TIPO_PREMIO, formatearMXN } from '../utils/premios'
 import { normalizarNombre, tieneNombreYApellido } from '../utils/nombres'
+import { recordarMiQuiniela } from '../utils/misQuinielas'
 import { CuentaRegresiva } from '../components/CuentaRegresiva'
 import { Footer } from '../components/Footer'
 import { useDialog } from '../components/Dialogs'
@@ -295,7 +296,7 @@ export default function Predicciones() {
     // Pequeño delay cosmético + comparación case-insensitive
     setTimeout(() => {
       if (ingresado.toLowerCase() === codigoReq.toLowerCase()) {
-        try { if (lsAccesoKey) localStorage.setItem(lsAccesoKey, codigoReq) } catch { /* noop */ }
+        recordarMiQuiniela({ id: quinielaId, codigoAcceso: codigoReq, nombre: quiniela?.nombre ?? '' })
         track('codigo_correcto', { quinielaId })
         setAccesoOk(true)
         setCodigoError('')

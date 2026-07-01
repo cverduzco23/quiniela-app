@@ -2060,59 +2060,74 @@ export default function Admin() {
   )
 
   if (!autenticado) return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ width: '100%', maxWidth: 360, padding: '0 1rem' }}>
-        <div style={{ marginBottom: 16 }}>
-          <a href="/" className="app-back-button" aria-label="Ir a inicio" title="Inicio">
-            <AdminIcon name="arrow-left" size={15} />
-          </a>
+    <div style={{
+      minHeight: '100vh',
+      background: 'radial-gradient(circle at 20% 0%, rgba(34,197,94,0.16), transparent 40%), radial-gradient(circle at 85% 10%, rgba(250,204,21,0.10), transparent 36%), linear-gradient(135deg, #08111F, #0B1220 55%, #111827)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '40px 18px',
+    }}>
+      <div style={{ width: '100%', maxWidth: 392 }}>
+        <a href="/" style={{ display: 'inline-flex', alignItems: 'center', gap: 7, color: 'var(--muted)', fontSize: 13, fontWeight: 750, textDecoration: 'none', marginBottom: 28 }}>
+          <AdminIcon name="arrow-left" size={15} />
+          Inicio
+        </a>
+        <div style={{ textAlign: 'center', marginBottom: 24 }}>
+          <BrandWordmark markSize={30} fontSize={20} />
         </div>
-        <div style={{ textAlign: 'center', marginBottom: 28 }}>
-          <div style={{
-            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-            width: 60, height: 60, borderRadius: '50%',
-            background: 'var(--green-bg)', color: 'var(--green)', marginBottom: 12,
-          }}>
-            <AdminIcon name="lock" size={28} />
-          </div>
-          <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, color: 'var(--text-strong)', letterSpacing: '-0.01em' }}>Panel de Administrador</h2>
-          <div style={{ display: 'flex', justifyContent: 'center', marginTop: 8 }}>
-            <BrandWordmark markSize={24} fontSize={20} />
-          </div>
-        </div>
-        <div style={card}>
-          <label htmlFor="admin-email" style={lbl}>Correo electrónico</label>
+        <div style={{
+          background: 'var(--card)',
+          border: '1px solid rgba(255,255,255,0.09)',
+          borderRadius: 16,
+          padding: '26px 24px',
+          boxShadow: '0 30px 70px rgba(0,0,0,0.45)',
+        }}>
+          <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 700, color: 'var(--text-strong)', marginBottom: 4, letterSpacing: 0 }}>Entrar al panel</h2>
+          <p style={{ fontSize: 12.5, color: 'var(--muted)', marginBottom: 22 }}>Para organizadores de quinielas.</p>
+          <label htmlFor="admin-email" style={lbl}>Correo</label>
           <input
             id="admin-email"
-            type="email" placeholder="correo@ejemplo.com" value={email}
+            type="email"
+            placeholder="tu@correo.com"
+            value={email}
             onChange={e => { setEmail(e.target.value); setLoginError('') }}
             onKeyDown={e => e.key === 'Enter' && entrar()}
-            style={{ marginBottom: 12, borderColor: loginError ? 'var(--red)' : undefined }}
+            style={{ marginBottom: 15, background: '#0F1A2C', borderColor: loginError ? 'var(--red)' : 'rgba(255,255,255,0.1)', borderRadius: 9, minHeight: 46 }}
           />
           <label htmlFor="admin-password" style={lbl}>Contraseña</label>
           <input
             id="admin-password"
-            type="password" placeholder="Tu contraseña" value={password}
+            type="password"
+            placeholder="Tu contraseña"
+            value={password}
             onChange={e => { setPassword(e.target.value); setLoginError('') }}
             onKeyDown={e => e.key === 'Enter' && entrar()}
-            style={{ marginBottom: 10, borderColor: loginError ? 'var(--red)' : undefined }}
+            style={{ marginBottom: 9, background: '#0F1A2C', borderColor: loginError ? 'var(--red)' : 'rgba(255,255,255,0.1)', borderRadius: 9, minHeight: 46 }}
           />
-          {loginError && <p style={{ fontSize: 12, color: 'var(--red)', marginBottom: 10 }}>{loginError}</p>}
-          <button onClick={entrar} disabled={loginLoading} style={{ ...greenCtaStyle(loginLoading), width: '100%', padding: '12px' }}>
-            {loginLoading ? 'Entrando…' : 'Entrar →'}
-          </button>
           <button
             onClick={recuperarPassword}
             style={{
-              width: '100%', marginTop: 12, padding: '4px', background: 'transparent',
-              border: 'none', color: 'var(--muted)', fontSize: 12, fontWeight: 600,
-              cursor: 'pointer', textDecoration: 'underline',
+              display: 'block',
+              marginLeft: 'auto',
+              marginBottom: 18,
+              padding: 0,
+              background: 'transparent',
+              border: 'none',
+              color: 'var(--green-light)',
+              fontSize: 12,
+              fontWeight: 750,
+              cursor: 'pointer',
             }}
           >
             ¿Olvidaste tu contraseña?
           </button>
+          {loginError && <p style={{ fontSize: 12, color: '#FCA5A5', marginBottom: 12 }}>{loginError}</p>}
+          <button onClick={entrar} disabled={loginLoading} style={{ ...greenCtaStyle(loginLoading), width: '100%', padding: '13px', borderRadius: 10 }}>
+            {loginLoading ? 'Entrando…' : 'Entrar'}
+          </button>
           {resetMsg && (
-            <p style={{ fontSize: 12, color: 'var(--green-light)', marginTop: 10, lineHeight: 1.5 }}>
+            <p style={{ fontSize: 12, color: 'var(--green-light)', marginTop: 12, lineHeight: 1.5 }}>
               {resetMsg}
             </p>
           )}
