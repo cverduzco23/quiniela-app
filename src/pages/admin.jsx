@@ -181,7 +181,207 @@ function AdminIcon({ name, size = 14, style }) {
   if (name === 'check') return <svg {...common}><path d="m20 6-11 11-5-5" /></svg>
   if (name === 'undo') return <svg {...common}><path d="M3 7v6h6" /><path d="M3.5 13a8 8 0 1 1 1.9 5" /></svg>
   if (name === 'banknote') return <svg {...common}><rect x="2" y="6" width="20" height="12" rx="2" /><circle cx="12" cy="12" r="2.5" /><path d="M6 9v.01" /><path d="M18 15v.01" /></svg>
+  if (name === 'refresh') return <svg {...common}><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" /><path d="M21 3v5h-5" /><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" /><path d="M8 16H3v5" /></svg>
+  if (name === 'search') return <svg {...common}><circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" /></svg>
+  if (name === 'chevron-right') return <svg {...common}><path d="m9 18 6-6-6-6" /></svg>
+  if (name === 'chevron-down') return <svg {...common}><path d="m6 9 6 6 6-6" /></svg>
+  if (name === 'star') return <svg {...common}><path d="m12 3 2.9 5.9 6.5.9-4.7 4.6 1.1 6.5L12 18.4 6.2 21.4l1.1-6.5L2.6 9.8l6.5-.9L12 3Z" /></svg>
   return <svg {...common}><circle cx="12" cy="12" r="9" /></svg>
+}
+
+// ─── Responsive: escritorio (≥960px) vs móvil (<960px) ──────────────────────────
+// Hook simple sobre matchMedia. El rediseño usa un layout ancho con barra lateral
+// en escritorio y el patrón móvil (tablero de módulos / pestañas) por debajo.
+const BREAKPOINT_ESCRITORIO = 960
+function useEsEscritorio() {
+  const [esEscritorio, setEsEscritorio] = useState(
+    typeof window !== 'undefined'
+      ? window.matchMedia(`(min-width: ${BREAKPOINT_ESCRITORIO}px)`).matches
+      : false,
+  )
+  useEffect(() => {
+    const mq = window.matchMedia(`(min-width: ${BREAKPOINT_ESCRITORIO}px)`)
+    const onChange = e => setEsEscritorio(e.matches)
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
+  return esEscritorio
+}
+
+// Iniciales para el avatar (de un correo o nombre). "cverduzco@…" → "CV".
+function iniciales(str) {
+  if (!str) return 'SA'
+  const base = str.includes('@') ? str.split('@')[0] : str
+  const partes = base.replace(/[._-]+/g, ' ').trim().split(/\s+/)
+  if (partes.length >= 2) return (partes[0][0] + partes[1][0]).toUpperCase()
+  return base.slice(0, 2).toUpperCase()
+}
+
+// ─── Barra lateral del Super Admin (solo escritorio ≥960px) ─────────────────────
+// Navega cambiando `superModulo`. Reusa AdminIcon y BrandMark. Refleja el prototipo
+// de escritorio (design_handoff_super_admin_panel): logo · sello SUPER ADMIN ·
+// nav agrupada (Gestión / Plataforma) · footer de usuario.
+function SidebarSuper({ activo, onNav, counts, email }) {
+  const item = (modulo, icon, label, badge) => {
+    const on = activo === modulo
+    return (
+      <button
+        onClick={() => onNav(modulo)}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 11, width: '100%', textAlign: 'left',
+          padding: '10px 12px', borderRadius: 9, border: 'none', cursor: 'pointer',
+          background: on ? 'var(--green-bg)' : 'transparent',
+          color: on ? 'var(--green-light)' : 'var(--muted)',
+          fontSize: 13, fontWeight: on ? 800 : 600,
+        }}
+      >
+        <AdminIcon name={icon} size={17} />
+        <span style={{ flex: 1 }}>{label}</span>
+        {badge ? (
+          <span style={{ fontSize: 10, fontWeight: 800, background: 'var(--neutral-bg)', color: 'var(--muted)', padding: '2px 7px', borderRadius: 'var(--radius-full)' }}>{badge}</span>
+        ) : null}
+      </button>
+    )
+  }
+  const group = (t) => (
+    <span style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--muted-dim)', padding: '14px 12px 6px' }}>{t}</span>
+  )
+  return (
+    <aside style={{
+      width: 256, flex: '0 0 auto', position: 'sticky', top: 0, alignSelf: 'flex-start',
+      height: '100vh', background: '#0E1626', borderRight: '1px solid var(--border)',
+      display: 'flex', flexDirection: 'column', padding: '22px 16px', overflowY: 'auto',
+    }}>
+      <a href="/" style={{ display: 'inline-flex', alignItems: 'center', gap: 9, padding: '0 6px 6px', textDecoration: 'none' }}>
+        <BrandMark size={28} />
+        <span style={{ fontSize: 19, fontWeight: 900, letterSpacing: '-0.03em', color: 'var(--text-strong)' }}>
+          Quiniel<span style={{ color: 'var(--green)' }}>App</span>
+        </span>
+      </a>
+      <span style={{ alignSelf: 'flex-start', margin: '0 0 16px 6px', fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em', padding: '3px 8px', borderRadius: 6, background: 'var(--yellow-bg)', color: 'var(--yellow-soft)' }}>
+        SUPER ADMIN
+      </span>
+      <nav style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        {item(null, 'home', 'Inicio')}
+        {group('Gestión')}
+        {item('clientes', 'users', 'Clientes', counts.clientes)}
+        {item('otros', 'user', 'Otros admins', counts.otros)}
+        {item('caja', 'wallet', 'Caja global')}
+        {item('mis', 'ball', 'Mis quinielas', counts.mis)}
+        {group('Plataforma')}
+        {item('estadisticas', 'chart', 'Estadísticas')}
+        {item('home', 'settings', 'Inicio público')}
+        {item('cuenta', 'key', 'Mi cuenta')}
+      </nav>
+      <div style={{ marginTop: 'auto', display: 'flex', alignItems: 'center', gap: 10, padding: '6px 4px' }}>
+        <span style={{ width: 34, height: 34, borderRadius: 'var(--radius-full)', background: 'linear-gradient(135deg, var(--yellow), var(--yellow-soft))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12.5, fontWeight: 800, color: '#3a2e05' }}>
+          {iniciales(email)}
+        </span>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <p style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-strong)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {email ? email.split('@')[0] : 'Super admin'}
+          </p>
+          <p style={{ fontSize: 10.5, color: 'var(--yellow-soft)', margin: '1px 0 0' }}>Dueño · super admin</p>
+        </div>
+      </div>
+    </aside>
+  )
+}
+
+// ─── Barra lateral del panel Cliente (escritorio ≥960px) ───────────────────────
+function SidebarCliente({ activo, onNav, adminDoc, onSalir }) {
+  const item = (tab, icon, label) => {
+    const on = activo === tab
+    return (
+      <button
+        onClick={() => onNav(tab)}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 11, width: '100%', textAlign: 'left',
+          padding: '10px 12px', borderRadius: 9, border: 'none', cursor: 'pointer',
+          background: on ? 'var(--green-bg)' : 'transparent',
+          color: on ? 'var(--green-light)' : 'var(--muted)',
+          fontSize: 13, fontWeight: on ? 800 : 600,
+        }}
+      >
+        <AdminIcon name={icon} size={17} />
+        <span style={{ flex: 1 }}>{label}</span>
+      </button>
+    )
+  }
+  const enPase = adminDoc ? temporadaVigente(adminDoc) : false
+  const restantes = adminDoc ? quinielasRestantes(adminDoc) : 0
+  return (
+    <aside style={{
+      width: 248, flex: '0 0 auto', position: 'sticky', top: 0, alignSelf: 'flex-start',
+      height: '100vh', background: '#0E1626', borderRight: '1px solid var(--border)',
+      display: 'flex', flexDirection: 'column', padding: '22px 16px', overflowY: 'auto',
+    }}>
+      <a href="/" style={{ display: 'inline-flex', alignItems: 'center', gap: 9, padding: '0 6px 18px', textDecoration: 'none' }}>
+        <BrandWordmark markSize={26} fontSize={18} />
+      </a>
+      <nav style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        {item('inicio', 'home', 'Inicio')}
+        {item('quinielas', 'ball', 'Quinielas')}
+        {item('caja', 'wallet', 'Caja')}
+        {item('stats', 'chart', 'Estadísticas')}
+        {item('cuenta', 'key', 'Mi cuenta')}
+        {item('soporte', 'message', 'Soporte')}
+      </nav>
+      <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div style={{ background: 'var(--yellow-bg)', border: '1px solid var(--yellow-bg-strong)', borderRadius: 10, padding: '11px 12px' }}>
+          <p style={{ fontSize: 11, fontWeight: 800, color: 'var(--yellow-soft)', margin: 0 }}>{enPase ? 'Pase Mundial activo' : 'Plan'}</p>
+          <p style={{ fontSize: 11.5, color: 'var(--muted)', margin: '3px 0 0' }}>
+            {enPase ? 'Quinielas ilimitadas' : `${restantes} quiniela${restantes === 1 ? '' : 's'} disponible${restantes === 1 ? '' : 's'}`}
+          </p>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '4px' }}>
+          <span style={{ width: 34, height: 34, borderRadius: 'var(--radius-full)', background: 'linear-gradient(135deg, var(--green), var(--green-light))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12.5, fontWeight: 800, color: '#07120A' }}>
+            {iniciales(adminDoc?.nombre || adminDoc?.email)}
+          </span>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <p style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-strong)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{adminDoc?.nombre || 'Mi cuenta'}</p>
+            {adminDoc?.empresa && <p style={{ fontSize: 10.5, color: 'var(--muted)', margin: '1px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{adminDoc.empresa}</p>}
+          </div>
+          <button onClick={onSalir} aria-label="Cerrar sesión" title="Cerrar sesión" style={{ background: 'transparent', border: 'none', color: 'var(--muted)', cursor: 'pointer', padding: 4, display: 'inline-flex' }}>
+            <AdminIcon name="logout" size={16} />
+          </button>
+        </div>
+      </div>
+    </aside>
+  )
+}
+
+// ─── Barra de pestañas inferior del panel Cliente (móvil <960px) ────────────────
+function TabBarCliente({ activo, onNav }) {
+  const item = (tab, icon, label) => {
+    const on = activo === tab
+    return (
+      <button
+        onClick={() => onNav(tab)}
+        style={{
+          flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
+          background: 'transparent', border: 'none', cursor: 'pointer', padding: '8px 2px',
+          color: on ? 'var(--green)' : 'var(--muted-soft)',
+        }}
+      >
+        <AdminIcon name={icon} size={19} />
+        <span style={{ fontSize: 9.5, fontWeight: 700 }}>{label}</span>
+      </button>
+    )
+  }
+  return (
+    <nav style={{
+      position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 900,
+      height: 60, background: 'rgba(11,18,32,0.96)', backdropFilter: 'blur(8px)',
+      borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'stretch',
+    }}>
+      {item('inicio', 'home', 'Inicio')}
+      {item('quinielas', 'ball', 'Quinielas')}
+      {item('caja', 'wallet', 'Caja')}
+      {item('stats', 'chart', 'Stats')}
+      {item('cuenta', 'key', 'Cuenta')}
+    </nav>
+  )
 }
 
 function formatFecha(value) {
@@ -289,6 +489,8 @@ const DEFINICIONES_STATS = {
 export default function Admin() {
   // Diálogos con diseño propio (reemplazan alert/confirm/prompt nativos).
   const { alerta, confirmar, pedirTexto } = useDialog()
+  // Escritorio (≥960px) → barra lateral; móvil → tablero de módulos.
+  const esEscritorio = useEsEscritorio()
   // ─── Autenticación ────────────────────────────────────────────────────────
   const [autenticado, setAutenticado] = useState(false)
   const [authListo, setAuthListo]     = useState(false)
@@ -476,6 +678,8 @@ export default function Admin() {
   const [errorCliente, setErrorCliente]       = useState('')
   // Datos de la cuenta recién creada para entregar por WhatsApp.
   const [clienteCreado, setClienteCreado]     = useState(null) // { email, password, telefono }
+  // Fila de cliente expandida en la tabla de escritorio (muestra sus acciones).
+  const [clienteExpandido, setClienteExpandido] = useState(null)
 
   const cargarClientes = async () => {
     setLoadingClientes(true)
@@ -654,6 +858,8 @@ export default function Admin() {
   // ─── Estado principal ─────────────────────────────────────────────────────
   const [vista, setVista]                 = useState('lista')
   const [superModulo, setSuperModulo]     = useState(null)
+  // Pestaña activa del panel cliente (nuevo shell escritorio/móvil): inicio | quinielas | caja | stats | cuenta | soporte
+  const [clienteTab, setClienteTab]       = useState('inicio')
   // Estadísticas (analítica propia, solo super admin).
   const [statsDias, setStatsDias]         = useState(null)   // resumen últimos días
   const [statsGlobal, setStatsGlobal]     = useState(null)   // doc analytics/global (dispositivos únicos)
@@ -810,6 +1016,8 @@ export default function Admin() {
   const [nuevaNota, setNuevaNota]                   = useState('')
   const [guardandoMov, setGuardandoMov]             = useState(false)
   const [buscarNombreCaja, setBuscarNombreCaja]     = useState('')
+  // Participante seleccionado en el panel "Registrar movimiento" (Caja de escritorio).
+  const [cajaMovNombre, setCajaMovNombre]           = useState('')
   // Orden de la lista de saldos en Caja: 'nombre' (A-Z) o 'monto' (mayor a menor).
   const [cajaOrden, setCajaOrden]                   = useState('monto')
 
@@ -1748,12 +1956,14 @@ export default function Admin() {
   }
 
   // ─── Caja: guardar / eliminar ─────────────────────────────────────────────
-  const guardarMovimiento = async () => {
-    if (!cajaNombre || !nuevoMonto || Number(nuevoMonto) <= 0) return
+  const guardarMovimiento = async (nombreOverride) => {
+    // nombreOverride puede venir de un handler onClick (evento) → solo lo usamos si es string.
+    const nombre = (typeof nombreOverride === 'string' && nombreOverride.trim()) ? nombreOverride.trim() : cajaNombre
+    if (!nombre || !nuevoMonto || Number(nuevoMonto) <= 0) return
     setGuardandoMov(true)
     try {
       const datos = {
-        nombre: cajaNombre,
+        nombre,
         tipo: nuevoTipo,
         monto: Number(nuevoMonto),
         nota: nuevaNota.trim(),
@@ -1804,7 +2014,6 @@ export default function Admin() {
   const quinielasMias     = quinielas.filter(esMia)
   const quinielasOtras    = soySuper ? quinielas.filter(q => !esMia(q)) : []
   const mias  = subdividirPorEstado(quinielasMias)
-  const otras = subdividirPorEstado(quinielasOtras)
 
   // Mapa uid → doc de admin, para etiquetar de quién es cada quiniela (vista super).
   const adminsPorUid = {}
@@ -2107,9 +2316,47 @@ export default function Admin() {
   )
 
   // ─── Render principal ─────────────────────────────────────────────────────
+  // En escritorio (≥960px) el super admin usa barra lateral fija + contenido ancho;
+  // en móvil se conserva el patrón actual (hero + tablero de módulos a pantalla completa).
+  const superDesktop = soySuper && esEscritorio
+  // La barra lateral cambia de módulo y sale de cualquier vista de detalle.
+  const navSuper = (modulo) => {
+    setVista('lista')
+    setQuinielaActual(null)
+    setFixtures([])
+    setSeleccionados([])
+    setCajaNombre(null)
+    setSuperModulo(modulo)
+  }
+  // ─── Cliente: nuevo shell (barra lateral escritorio / pestañas móvil) ─────────
+  const clienteShell = !soySuper                 // el cliente siempre usa el shell nuevo
+  const clienteDesktop = clienteShell && esEscritorio
+  const clienteMobile = clienteShell && !esEscritorio
+  const navCliente = (tab) => {
+    if (tab === 'cuenta') { abrirMiCuenta() }     // precarga el formulario y pone vista='cuenta'
+    else { setVista('lista') }
+    setQuinielaActual(null)
+    setFixtures([])
+    setSeleccionados([])
+    setCajaNombre(null)
+    setClienteTab(tab)
+  }
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--bg)', display: (superDesktop || clienteDesktop) ? 'flex' : 'block', alignItems: (superDesktop || clienteDesktop) ? 'stretch' : undefined }}>
+      {superDesktop && (
+        <SidebarSuper
+          activo={vista === 'lista' ? superModulo : null}
+          onNav={navSuper}
+          counts={{ clientes: clientes.length || null, otros: quinielasOtras.length || null, mis: quinielasMias.length || null }}
+          email={auth.currentUser?.email}
+        />
+      )}
+      {clienteDesktop && (
+        <SidebarCliente activo={clienteTab} onNav={navCliente} adminDoc={adminDoc} onSalir={salir} />
+      )}
+      <div style={{ flex: (superDesktop || clienteDesktop) ? 1 : undefined, minWidth: 0, paddingBottom: clienteMobile ? 68 : undefined }}>
       {/* Hero */}
+      {!superDesktop && !clienteShell && (
       <div className="hero-pad" style={{ background: 'var(--hero-gradient)', color: 'var(--text)', borderBottom: '1px solid var(--border)' }}>
         <div style={{ maxWidth: 580, margin: '0 auto' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
@@ -2239,16 +2486,17 @@ export default function Admin() {
           )}
         </div>
       </div>
+      )}
 
       {ayudaAbierta && <ComoFunciona onClose={() => setAyudaAbierta(false)} />}
       {tourAbierto && <TourBienvenida onClose={cerrarTour} />}
 
-      <div style={{ maxWidth: 580, margin: '0 auto', padding: '1.25rem 1rem 3rem' }}>
+      <div style={{ maxWidth: superDesktop ? 1200 : clienteDesktop ? 1040 : 580, margin: '0 auto', padding: (superDesktop || clienteDesktop) ? '26px 30px 48px' : '1.25rem 1rem 3rem' }}>
 
         {/* ── Vista: Lista ────────────────────────────────────────────────── */}
         {vista === 'lista' && (
           <>
-            {!soySuper && <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginBottom: 14 }}>
+            {!soySuper && !clienteShell && <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginBottom: 14 }}>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button
                   onClick={abrirMiCuenta}
@@ -2263,7 +2511,7 @@ export default function Admin() {
             </div>}
 
             {/* Aviso de plan para clientes (el super admin no tiene cuota). */}
-            {!soySuper && adminDoc && (
+            {!soySuper && !clienteShell && adminDoc && (
               <div style={{ ...card, padding: '0.9rem 1.1rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <span style={{ fontSize: 18, lineHeight: 1 }} aria-hidden="true">{temporadaVigente(adminDoc) ? '🏆' : '🎟️'}</span>
@@ -2299,6 +2547,65 @@ export default function Admin() {
                   {dir < 0 ? '↑' : '↓'}
                 </button>
               )
+              if (superDesktop) {
+                return (
+                  <div>
+                    <div style={{ marginBottom: 20 }}>
+                      <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 27, fontWeight: 700, color: 'var(--text-strong)', margin: 0, lineHeight: 1.1 }}>Inicio público</h2>
+                      <p style={{ fontSize: 12.5, color: 'var(--muted)', margin: '4px 0 0' }}>Controla qué bloques ve el visitante en quinielapp.fun y su orden. Los cambios aplican de inmediato.</p>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.05fr', gap: 16, alignItems: 'start' }}>
+                      {/* Config de secciones */}
+                      <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 13, padding: '16px 18px' }}>
+                        <p style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 14, fontWeight: 800, color: 'var(--text-strong)', margin: '0 0 6px' }}>
+                          <AdminIcon name="settings" size={15} /> Secciones del inicio
+                        </p>
+                        {homeConfig === null ? (
+                          <p style={{ fontSize: 13, color: 'var(--muted)' }}>Cargando…</p>
+                        ) : orden.map((clave, idx) => {
+                          const label = LABELS_SECCIONES_HOME[clave] ?? clave
+                          const visible = homeConfig?.[clave] !== false
+                          const cargando = guardandoHome === clave
+                          return (
+                            <div key={clave} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 0', borderTop: '1px solid var(--border)', opacity: cargando ? 0.6 : 1 }}>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                {flecha(clave, -1, idx === 0)}
+                                {flecha(clave, 1, idx === orden.length - 1)}
+                              </div>
+                              <label style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, cursor: cargando ? 'wait' : 'pointer', minHeight: 40 }}>
+                                <input type="checkbox" checked={visible} disabled={cargando} onChange={() => toggleSeccionHome(clave)} style={{ width: 18, height: 18, accentColor: 'var(--green)', cursor: 'inherit', flexShrink: 0 }} />
+                                <span style={{ fontSize: 13.5, color: visible ? 'var(--text)' : 'var(--muted)', flex: 1 }}>{label}</span>
+                                <span style={{ fontSize: 10.5, fontWeight: 800, padding: '3px 9px', borderRadius: 'var(--radius-full)', flexShrink: 0, background: visible ? 'var(--green-bg)' : 'var(--neutral-bg)', color: visible ? 'var(--green)' : 'var(--muted)' }}>
+                                  {visible ? 'Visible' : 'Oculta'}
+                                </span>
+                              </label>
+                            </div>
+                          )
+                        })}
+                      </div>
+                      {/* Vista previa */}
+                      <div>
+                        <p style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--muted-soft)', margin: '0 0 8px' }}>Vista previa</p>
+                        <div style={{ borderRadius: 12, overflow: 'hidden', border: '1px solid var(--border-strong)', background: 'var(--bg)' }}>
+                          <div style={{ height: 34, background: '#0E1626', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8, padding: '0 12px' }}>
+                            <span style={{ display: 'flex', gap: 5 }}>
+                              {['#FF5F57', '#FEBC2E', '#28C840'].map(c => <span key={c} style={{ width: 9, height: 9, borderRadius: '50%', background: c }} />)}
+                            </span>
+                            <span style={{ flex: 1, textAlign: 'center', fontSize: 11, color: 'var(--muted)' }}>quinielapp.fun</span>
+                          </div>
+                          <div style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 10, minHeight: 320 }}>
+                            {orden.filter(c => homeConfig?.[c] !== false).map(clave => (
+                              <div key={clave} style={{ borderRadius: 10, border: '1px solid var(--border)', background: 'linear-gradient(145deg, rgba(34,197,94,0.06), transparent 60%), var(--card)', padding: '16px 14px', textAlign: 'center' }}>
+                                <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text)' }}>{LABELS_SECCIONES_HOME[clave] ?? clave}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )
+              }
               return (
                 <div style={{ ...card, padding: '0.9rem 1.1rem' }}>
                   <button
@@ -2523,6 +2830,107 @@ export default function Admin() {
                   </div>
                 )
 
+                // ── Caja global (escritorio): KPIs + saldos + registrar ────────
+                const cajaNeto = saldos.reduce((a, s) => a + s.saldo, 0)
+                const cajaAFavor = saldos.filter(s => s.saldo > 0).reduce((a, s) => a + s.saldo, 0)
+                const cajaPorCobrar = saldos.filter(s => s.saldo < 0).reduce((a, s) => a + s.saldo, 0)
+                const filtroCaja = buscarNombreCaja.trim().toLowerCase()
+                const saldosFiltrados = filtroCaja ? saldos.filter(s => s.nombre.toLowerCase().includes(filtroCaja)) : saldos
+                const kpiCaja = (valor, label, color) => (
+                  <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 13, padding: '15px 16px' }}>
+                    <p style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 700, color, margin: 0, lineHeight: 1 }}>{valor}</p>
+                    <p style={{ fontSize: 11.5, color: 'var(--muted)', fontWeight: 700, margin: '5px 0 0' }}>{label}</p>
+                  </div>
+                )
+                const tiposMov = [
+                  { val: 'premio', label: 'Premio', signo: '+' },
+                  { val: 'deposito', label: 'Depósito', signo: '+' },
+                  { val: 'inscripcion', label: 'Inscripción', signo: '-' },
+                  { val: 'retiro', label: 'Retiro', signo: '-' },
+                ]
+                const cajaDesktop = (
+                  <div>
+                    <div style={{ marginBottom: 20 }}>
+                      <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 27, fontWeight: 700, color: 'var(--text-strong)', margin: 0, lineHeight: 1.1 }}>Caja global</h2>
+                      <p style={{ fontSize: 12.5, color: 'var(--muted)', margin: '4px 0 0' }}>Saldos y movimientos por participante. Herramienta interna.</p>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 20 }}>
+                      {kpiCaja(formatearMXN(cajaNeto), 'Saldo neto', 'var(--text-strong)')}
+                      {kpiCaja(`+${formatearMXN(cajaAFavor)}`, 'A favor', 'var(--green-light)')}
+                      {kpiCaja(formatearMXN(cajaPorCobrar), 'Por cobrar', 'var(--red)')}
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1.55fr 1fr', gap: 16, alignItems: 'start' }}>
+                      {/* Izquierda: saldos */}
+                      <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 13, padding: '14px 16px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                          <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, background: 'var(--bg-soft)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0 10px', height: 36 }}>
+                            <AdminIcon name="search" size={14} style={{ color: 'var(--muted)' }} />
+                            <input type="text" placeholder="Buscar participante…" value={buscarNombreCaja} onChange={e => setBuscarNombreCaja(e.target.value)} style={{ flex: 1, background: 'transparent', border: 'none', padding: 0, color: 'var(--text)', fontSize: 13 }} />
+                          </div>
+                          <select value={cajaOrden} onChange={e => setCajaOrden(e.target.value)} style={{ fontSize: 12, padding: '8px 10px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-strong)', background: 'var(--card-light)', color: 'var(--text)' }}>
+                            <option value="monto">Monto</option>
+                            <option value="nombre">A–Z</option>
+                          </select>
+                        </div>
+                        {loadingMovimientos ? (
+                          <p style={{ fontSize: 13, color: 'var(--muted)', padding: '8px 0' }}>Cargando…</p>
+                        ) : saldosFiltrados.length === 0 ? (
+                          <p style={{ fontSize: 13, color: 'var(--muted)', fontStyle: 'italic', padding: '8px 0' }}>{saldos.length === 0 ? 'Sin movimientos todavía.' : 'Sin coincidencias.'}</p>
+                        ) : saldosFiltrados.map(({ nombre, saldo }) => {
+                          const sel = cajaMovNombre === nombre
+                          return (
+                            <div
+                              key={nombre}
+                              onClick={() => setCajaMovNombre(nombre)}
+                              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '11px 12px', borderRadius: 'var(--radius-sm)', cursor: 'pointer', background: sel ? 'var(--green-bg)' : 'transparent', borderBottom: '1px solid var(--border)' }}
+                            >
+                              <span style={{ fontWeight: 600, fontSize: 13.5, color: 'var(--text)' }}>{nombre}</span>
+                              <span style={{ fontSize: 14, fontWeight: 700, color: saldo > 0 ? 'var(--green-light)' : saldo === 0 ? 'var(--muted)' : 'var(--red)' }}>
+                                {saldo >= 0 ? '+' : ''}{formatearMXN(saldo)}
+                              </span>
+                            </div>
+                          )
+                        })}
+                      </div>
+                      {/* Derecha: registrar movimiento */}
+                      <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 13, padding: '16px 18px' }}>
+                        <p style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 14, fontWeight: 800, color: 'var(--text-strong)', margin: '0 0 14px' }}>
+                          <AdminIcon name="wallet" size={15} /> Registrar movimiento
+                        </p>
+                        <label style={{ ...lbl, marginBottom: 6 }}>Tipo</label>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 12 }}>
+                          {tiposMov.map(op => {
+                            const activo = nuevoTipo === op.val
+                            const esPos = op.signo === '+'
+                            return (
+                              <button key={op.val} onClick={() => setNuevoTipo(op.val)} style={{ padding: '8px', borderRadius: 'var(--radius-sm)', cursor: 'pointer', background: activo ? (esPos ? 'var(--green-bg)' : 'var(--red-bg)') : 'var(--bg-soft)', border: `1.5px solid ${activo ? (esPos ? 'var(--green)' : 'var(--red)') : 'var(--border)'}`, color: activo ? (esPos ? 'var(--green)' : 'var(--red)') : 'var(--muted)', fontSize: 13, fontWeight: 700 }}>
+                                {op.signo} {op.label}
+                              </button>
+                            )
+                          })}
+                        </div>
+                        <label htmlFor="cd-part" style={{ ...lbl, marginBottom: 6 }}>Participante</label>
+                        <input id="cd-part" type="text" placeholder="Nombre del participante" value={cajaMovNombre} onChange={e => setCajaMovNombre(e.target.value)} style={{ marginBottom: 12 }} />
+                        <label htmlFor="cd-monto" style={{ ...lbl, marginBottom: 6 }}>Monto (MXN)</label>
+                        <input id="cd-monto" type="number" min="1" step="1" placeholder="Ej. 100" value={nuevoMonto} onChange={e => setNuevoMonto(e.target.value)} style={{ marginBottom: 10 }} />
+                        <label htmlFor="cd-nota" style={{ ...lbl, marginBottom: 6 }}>Nota (opcional)</label>
+                        <input id="cd-nota" type="text" placeholder="Ej. Quiniela Semis" value={nuevaNota} onChange={e => setNuevaNota(e.target.value)} style={{ marginBottom: 14 }} />
+                        <button
+                          onClick={async () => {
+                            const n = normalizarNombre(cajaMovNombre.trim())
+                            if (!n) return
+                            await guardarMovimiento(n)
+                          }}
+                          disabled={guardandoMov || !cajaMovNombre.trim() || !nuevoMonto || Number(nuevoMonto) <= 0}
+                          style={{ ...greenCtaStyle(guardandoMov || !cajaMovNombre.trim() || !nuevoMonto || Number(nuevoMonto) <= 0), width: '100%', padding: '12px' }}
+                        >
+                          {guardandoMov ? 'Guardando…' : 'Guardar movimiento'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )
+
                 // ── Clientes ───────────────────────────────────────────────────
                 const clientesAb = superModulo === 'clientes' || verTodo['clientes-bloque']
                 const crearAb = verTodo['clientes-crear']
@@ -2679,6 +3087,130 @@ export default function Admin() {
                   </div>
                 )
 
+                // ── Clientes (escritorio): dos columnas — tabla + alta ─────────
+                const cuentaCreadaCard = clienteCreado && (
+                  <div style={{ marginTop: 14, padding: '1rem', borderRadius: 'var(--radius-sm)', background: 'var(--green-bg)', border: '1px solid var(--green)' }}>
+                    <p style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, color: 'var(--text-strong)', marginBottom: 8 }}>
+                      <AdminIcon name="check" size={13} /> Cuenta creada — comparte estos accesos:
+                    </p>
+                    <p style={{ fontSize: 13, color: 'var(--text)', fontFamily: 'monospace', lineHeight: 1.7, wordBreak: 'break-all' }}>
+                      <AdminIcon name="mail" size={13} style={{ verticalAlign: '-2px', marginRight: 4 }} />{clienteCreado.email}<br />
+                      <AdminIcon name="key" size={13} style={{ verticalAlign: '-2px', marginRight: 4 }} />{clienteCreado.password}
+                    </p>
+                    <p style={{ fontSize: 11, color: 'var(--muted)', margin: '8px 0 12px' }}>
+                      Guarda o envía la contraseña ahora: por seguridad no se vuelve a mostrar.
+                    </p>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      <button
+                        onClick={() => { navigator.clipboard?.writeText(mensajeAccesos(clienteCreado.email, clienteCreado.password)); }}
+                        style={{ flex: '1 1 140px', padding: '10px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-strong)', background: 'var(--neutral-bg)', color: 'var(--text)', fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}
+                      >
+                        {inlineIconLabel('copy', 'Copiar mensaje')}
+                      </button>
+                      {telParaWa(clienteCreado.telefono) && (
+                        <a
+                          href={waLink(mensajeAccesos(clienteCreado.email, clienteCreado.password), telParaWa(clienteCreado.telefono))}
+                          target="_blank" rel="noreferrer"
+                          style={{ flex: '1 1 140px', textAlign: 'center', padding: '10px', borderRadius: 'var(--radius-sm)', textDecoration: 'none', background: '#25D366', color: '#06140B', fontSize: 12.5, fontWeight: 800 }}
+                        >
+                          {inlineIconLabel('message', 'WhatsApp')}
+                        </a>
+                      )}
+                    </div>
+                    <button onClick={() => setClienteCreado(null)}
+                      style={{ width: '100%', marginTop: 10, padding: '6px', background: 'transparent', border: 'none', color: 'var(--muted)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                      Cerrar
+                    </button>
+                  </div>
+                )
+                const clientesActivosN = clientes.filter(c => c.activo).length
+                const clientesDesktop = (
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, marginBottom: 20 }}>
+                      <div>
+                        <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 27, fontWeight: 700, color: 'var(--text-strong)', margin: 0, lineHeight: 1.1 }}>Clientes</h2>
+                        <p style={{ fontSize: 12.5, color: 'var(--muted)', margin: '4px 0 0' }}>{clientes.length} cliente{clientes.length !== 1 ? 's' : ''} · {clientesActivosN} activo{clientesActivosN !== 1 ? 's' : ''}</p>
+                      </div>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1.75fr 1fr', gap: 16, alignItems: 'start' }}>
+                      {/* Izquierda: tabla de clientes */}
+                      <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 13, overflow: 'hidden' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '2.2fr 1.3fr 0.9fr 28px', gap: 12, padding: '12px 18px', borderBottom: '1px solid var(--border)' }}>
+                          {['Cliente', 'Plan', 'Estado', ''].map((h, i) => (
+                            <span key={i} style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--muted-soft)' }}>{h}</span>
+                          ))}
+                        </div>
+                        {loadingClientes ? (
+                          <p style={{ fontSize: 13, color: 'var(--muted)', padding: '18px' }}>Cargando…</p>
+                        ) : clientes.length === 0 ? (
+                          <p style={{ fontSize: 13, color: 'var(--muted)', fontStyle: 'italic', padding: '18px' }}>Aún no hay clientes dados de alta.</p>
+                        ) : clientes.map(c => {
+                          const enPase = temporadaVigente(c)
+                          const usadas = c.quinielasCreadas ?? 0
+                          const permitidas = c.quinielasPermitidas ?? 0
+                          const abierto = clienteExpandido === c.id
+                          return (
+                            <div key={c.id} style={{ borderBottom: '1px solid var(--border)', opacity: c.activo ? 1 : 0.78 }}>
+                              <div
+                                onClick={() => setClienteExpandido(abierto ? null : c.id)}
+                                style={{ display: 'grid', gridTemplateColumns: '2.2fr 1.3fr 0.9fr 28px', gap: 12, padding: '14px 18px', alignItems: 'center', cursor: 'pointer', background: abierto ? 'var(--green-bg)' : 'transparent' }}
+                              >
+                                <div style={{ minWidth: 0 }}>
+                                  <p style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-strong)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.nombre || '(sin nombre)'}</p>
+                                  <p style={{ fontSize: 11.5, color: 'var(--muted)', margin: '2px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.email}{c.empresa ? ` · ${c.empresa}` : ''}</p>
+                                </div>
+                                <span style={{ fontSize: 12, color: 'var(--text)' }}>
+                                  {enPase ? <span style={{ color: 'var(--yellow-soft)', fontWeight: 700 }}>Pase Mundial</span> : `${usadas}/${permitidas} quinielas`}
+                                </span>
+                                <span>
+                                  <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 'var(--radius-full)', background: c.activo ? 'var(--green-bg)' : 'var(--neutral-bg)', color: c.activo ? 'var(--green)' : 'var(--muted)' }}>
+                                    {c.activo ? 'Activo' : 'Inactivo'}
+                                  </span>
+                                </span>
+                                <span style={{ color: 'var(--muted)', display: 'inline-flex', transform: abierto ? 'rotate(90deg)' : 'none', transition: 'transform .15s' }}>
+                                  <AdminIcon name="chevron-right" size={15} />
+                                </span>
+                              </div>
+                              {abierto && (
+                                <div style={{ padding: '0 18px 14px', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                                  {c.debeCambiarPassword && <span style={{ width: '100%', fontSize: 11.5, color: 'var(--yellow)', marginBottom: 2 }}>Contraseña sin cambiar</span>}
+                                  {c.notas && <span style={{ width: '100%', fontSize: 12, color: 'var(--muted)', marginBottom: 4 }}>{c.notas}</span>}
+                                  <button onClick={() => darQuinielaExtra(c)} style={accionBtn}>{inlineIconLabel('plus', '+1 quiniela ($49)')}</button>
+                                  <button onClick={() => darPaseMundial(c)} style={accionBtn}>{inlineIconLabel('ball', 'Pase Mundial ($199)')}</button>
+                                  <button onClick={() => toggleActivoCliente(c)} style={accionBtn}>{inlineIconLabel(c.activo ? 'pause' : 'play', c.activo ? 'Desactivar' : 'Activar')}</button>
+                                  <button onClick={() => editarNotasCliente(c)} style={accionBtn}>{inlineIconLabel('note', 'Notas')}</button>
+                                  <button onClick={() => eliminarCliente(c)} disabled={eliminandoCliente === c.id} style={{ ...accionBtn, color: 'var(--red)', borderColor: 'var(--red)' }}>
+                                    {eliminandoCliente === c.id ? 'Eliminando…' : inlineIconLabel('trash', 'Eliminar')}
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                      {/* Derecha: alta de cliente */}
+                      <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 13, padding: '16px 18px' }}>
+                        <p style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 14, fontWeight: 800, color: 'var(--text-strong)', margin: '0 0 14px' }}>
+                          <AdminIcon name="plus" size={15} /> Nuevo cliente
+                        </p>
+                        <label htmlFor="ncd-email" style={{ ...lbl, marginBottom: 4 }}>Correo <span style={{ color: 'var(--red)' }}>*</span></label>
+                        <input id="ncd-email" type="email" placeholder="correo@cliente.com" value={ncEmail} onChange={e => { setNcEmail(e.target.value); setErrorCliente('') }} style={{ marginBottom: 12 }} />
+                        <label htmlFor="ncd-nombre" style={{ ...lbl, marginBottom: 4 }}>Nombre <span style={{ color: 'var(--red)' }}>*</span></label>
+                        <input id="ncd-nombre" type="text" placeholder="Nombre de quien organiza" value={ncNombre} onChange={e => { setNcNombre(e.target.value); setErrorCliente('') }} style={{ marginBottom: 12 }} />
+                        <label htmlFor="ncd-empresa" style={{ ...lbl, marginBottom: 4 }}>Empresa</label>
+                        <input id="ncd-empresa" type="text" placeholder="(opcional)" value={ncEmpresa} onChange={e => setNcEmpresa(e.target.value)} style={{ marginBottom: 12 }} />
+                        <label htmlFor="ncd-tel" style={{ ...lbl, marginBottom: 4 }}>WhatsApp</label>
+                        <input id="ncd-tel" type="tel" placeholder="55 1234 5678" value={ncTel} onChange={e => setNcTel(e.target.value)} style={{ marginBottom: 12 }} />
+                        {errorCliente && <p style={{ fontSize: 12, color: 'var(--red)', marginBottom: 10 }}>{errorCliente}</p>}
+                        <button onClick={crearCliente} disabled={creandoCliente} style={{ ...greenCtaStyle(creandoCliente), width: '100%', padding: '12px' }}>
+                          {creandoCliente ? 'Creando…' : 'Crear cuenta'}
+                        </button>
+                        {cuentaCreadaCard}
+                      </div>
+                    </div>
+                  </div>
+                )
+
                 // ── Mis quinielas ──────────────────────────────────────────────
                 const misFlat = [...mias.activas, ...mias.enJuego, ...mias.finalizadas]
                 const misAb = superModulo === 'mis' || verTodo['mis-quinielas']
@@ -2696,6 +3228,42 @@ export default function Admin() {
                           </div>
                         ) : renderFlat(misFlat, 'mis-q-flat')}
                       </div>
+                    )}
+                  </div>
+                )
+
+                // ── Mis quinielas (escritorio): grupos por estado, grid 2× ─────
+                const grupoQ = (titulo, arr, color, dim = false) => arr.length > 0 ? (
+                  <div style={{ marginBottom: 22, opacity: dim ? 0.74 : 1 }}>
+                    <p style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, fontWeight: 800, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--muted-soft)', margin: '0 0 11px' }}>
+                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: color }} /> {titulo} <span style={{ color: 'var(--muted-dim)' }}>{arr.length}</span>
+                    </p>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12, alignItems: 'start' }}>
+                      {arr.map(q => <QuinielaCard key={q.id} q={q} conteos={conteos} onGestionar={gestionarQuiniela} superCompact />)}
+                    </div>
+                  </div>
+                ) : null
+                const misDesktop = (
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, marginBottom: 20 }}>
+                      <div>
+                        <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 27, fontWeight: 700, color: 'var(--text-strong)', margin: 0, lineHeight: 1.1 }}>Mis quinielas</h2>
+                        <p style={{ fontSize: 12.5, color: 'var(--muted)', margin: '4px 0 0' }}>
+                          {misFlat.length} quiniela{misFlat.length !== 1 ? 's' : ''} · {mias.activas.length} abierta{mias.activas.length !== 1 ? 's' : ''} · {mias.enJuego.length} jugándose
+                        </p>
+                      </div>
+                      <button onClick={abrirNuevaQuiniela} style={{ ...greenCtaStyle(false), height: 38, display: 'inline-flex', alignItems: 'center', gap: 7, padding: '0 18px', flexShrink: 0 }}>
+                        <AdminIcon name="plus" size={16} /> Nueva quiniela
+                      </button>
+                    </div>
+                    {misFlat.length === 0 ? (
+                      <p style={{ fontSize: 13, color: 'var(--muted)', fontStyle: 'italic' }}>Aún no has creado quinielas.</p>
+                    ) : (
+                      <>
+                        {grupoQ('Abiertas', mias.activas, 'var(--green)')}
+                        {grupoQ('Jugándose', mias.enJuego, 'var(--yellow)')}
+                        {grupoQ('Finalizadas', mias.finalizadas, 'var(--muted)', true)}
+                      </>
                     )}
                   </div>
                 )
@@ -2763,6 +3331,63 @@ export default function Admin() {
                     )}
                   </div>
                 ) : null
+
+                // ── Otros admins (escritorio): KPIs + tarjetas de admin ────────
+                const otrosActivas = adminsConQ.reduce((a, x) => a + x.activas, 0)
+                const otrosEnJuego = adminsConQ.reduce((a, x) => a + x.enJuego, 0)
+                const kpiOtros = (valor, label) => (
+                  <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 13, padding: '15px 16px' }}>
+                    <p style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 700, color: 'var(--text-strong)', margin: 0, lineHeight: 1 }}>{valor}</p>
+                    <p style={{ fontSize: 11.5, color: 'var(--muted)', fontWeight: 700, margin: '5px 0 0' }}>{label}</p>
+                  </div>
+                )
+                const otrosDesktop = (
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, marginBottom: 20 }}>
+                      <div>
+                        <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 27, fontWeight: 700, color: 'var(--text-strong)', margin: 0, lineHeight: 1.1 }}>Otros admins</h2>
+                        <p style={{ fontSize: 12.5, color: 'var(--muted)', margin: '4px 0 0' }}>{adminsConQ.length} cliente{adminsConQ.length !== 1 ? 's' : ''} admin · {quinielasOtras.length} quiniela{quinielasOtras.length !== 1 ? 's' : ''}</p>
+                      </div>
+                      <span style={{ flexShrink: 0, fontSize: 11, fontWeight: 700, padding: '5px 12px', borderRadius: 'var(--radius-full)', background: 'var(--neutral-bg)', color: 'var(--muted)', border: '1px solid var(--border-strong)' }}>Solo lectura</span>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 20 }}>
+                      {kpiOtros(quinielasOtras.length, 'Quinielas de otros')}
+                      {kpiOtros(otrosActivas, 'Activas')}
+                      {kpiOtros(otrosEnJuego, 'En juego')}
+                    </div>
+                    {adminsConQ.length === 0 ? (
+                      <p style={{ fontSize: 13, color: 'var(--muted)', fontStyle: 'italic' }}>No hay quinielas de otros admins.</p>
+                    ) : adminsConQ.map(adm => {
+                      const admAb = adminExpandido === adm.uid
+                      return (
+                        <div key={adm.uid} style={{ marginBottom: 10, background: 'var(--card)', border: `1px solid ${admAb ? 'var(--green)' : 'var(--border)'}`, borderLeft: admAb ? '3px solid var(--green)' : '1px solid var(--border)', borderRadius: 13, overflow: 'hidden' }}>
+                          <button
+                            onClick={() => setAdminExpandido(admAb ? null : adm.uid)}
+                            style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '14px 18px', background: admAb ? 'var(--green-bg)' : 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left' }}
+                          >
+                            <span style={{ width: 38, height: 38, flexShrink: 0, borderRadius: '50%', background: 'var(--card-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 800, color: 'var(--muted)' }}>{iniciales(adm.nombre)}</span>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <p style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-strong)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{adm.nombre}</p>
+                              <p style={{ fontSize: 11.5, color: 'var(--muted)', margin: '2px 0 0' }}>
+                                {adm.total} quiniela{adm.total !== 1 ? 's' : ''}{adm.activas > 0 ? ` · ${adm.activas} activa${adm.activas !== 1 ? 's' : ''}` : ''}{adm.enJuego > 0 ? ` · ${adm.enJuego} en juego` : ''}
+                              </p>
+                            </div>
+                            <span style={{ color: admAb ? 'var(--green)' : 'var(--muted)', display: 'inline-flex', transform: admAb ? 'rotate(90deg)' : 'none', transition: 'transform .15s' }}>
+                              <AdminIcon name="chevron-right" size={16} />
+                            </span>
+                          </button>
+                          {admAb && (
+                            <div style={{ padding: '4px 18px 14px' }}>
+                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12, alignItems: 'start' }}>
+                                {adm.flat.map(q => <QuinielaCard key={q.id} q={q} conteos={conteos} onGestionar={gestionarQuiniela} dueno={labelDueno(q)} superCompact />)}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )
 
                 // ── Estadísticas ───────────────────────────────────────────────
                 const statsSection = (() => {
@@ -2879,7 +3504,7 @@ export default function Admin() {
                         </div>
                       ) : (
                         <>
-                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8, marginBottom: 6 }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: superDesktop ? 'repeat(4, 1fr)' : 'repeat(2, 1fr)', gap: superDesktop ? 14 : 8, marginBottom: 6 }}>
                             {metricCard('visitas', totVisitas, 'Visitas', C_VIS, 'users')}
                             {metricCard('dispositivos', totDispositivos, 'Dispositivos únicos', C_DIS, 'device-mobile')}
                             {metricCard('jugaron', totEnvios, 'Jugaron', C_JUG, 'ball')}
@@ -2997,7 +3622,7 @@ export default function Admin() {
 
                 return (
                   <>
-                    {!superModulo && (
+                    {!superModulo && !superDesktop && (
                       <>
                         <div className="super-module-grid">
                           {moduleCard({ modulo: 'caja', icon: 'wallet', title: 'Caja', meta: saldos.length ? `${saldos.length}` : null, desc: 'Saldos y movimientos por participante.' })}
@@ -3010,11 +3635,164 @@ export default function Admin() {
                         {statsSection}
                       </>
                     )}
-                    {superModulo === 'caja' && cajaSection}
-                    {superModulo === 'clientes' && clientesSection}
-                    {superModulo === 'mis' && misQuinielasSection}
-                    {superModulo === 'otros' && otrosSection}
-                    {superModulo === 'cuenta' && (
+                    {!superModulo && superDesktop && (() => {
+                      // ── Inicio / tablero maestro (escritorio) ──────────────────
+                      const d7 = statsDias ?? []
+                      const sum = (k) => d7.reduce((a, d) => a + (Number(d[k]) || 0), 0)
+                      const visitas7 = sum('visitas')
+                      const mov = sum('movil'), esc = sum('escritorio')
+                      const celPct = (mov + esc) > 0 ? Math.round((mov / (mov + esc)) * 100) : 0
+                      const horasAcum = {}
+                      d7.forEach(d => Object.entries(d.horas || {}).forEach(([h, n]) => { horasAcum[h] = (horasAcum[h] || 0) + (Number(n) || 0) }))
+                      const hpEntry = Object.entries(horasAcum).sort((a, b) => b[1] - a[1])[0]
+                      const horaPico = hpEntry ? `${String(hpEntry[0]).padStart(2, '0')}:00` : '—'
+                      const maxV = Math.max(1, ...d7.map(d => Number(d.visitas) || 0))
+                      const idxPico = d7.reduce((best, d, i) => (Number(d.visitas) || 0) > (Number(d7[best]?.visitas) || 0) ? i : best, 0)
+                      const cajaNeto = saldos.reduce((a, s) => a + s.saldo, 0)
+                      const cliAct = clientes.filter(c => c.activo).length
+                      const saludo = auth.currentUser?.displayName || 'César'
+
+                      const kpi = ({ icon, color, tint, valor, sub, label }) => (
+                        <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 13, padding: '15px 16px' }}>
+                          <span style={{ display: 'inline-flex', width: 32, height: 32, borderRadius: 9, background: tint, color, alignItems: 'center', justifyContent: 'center', marginBottom: 10 }}>
+                            <AdminIcon name={icon} size={16} />
+                          </span>
+                          <p style={{ fontFamily: 'var(--font-display)', fontSize: 27, fontWeight: 700, color: 'var(--text-strong)', margin: 0, lineHeight: 1 }}>
+                            {valor}{sub && <span style={{ fontSize: 13, color: 'var(--muted-soft)' }}> {sub}</span>}
+                          </p>
+                          <p style={{ fontSize: 11.5, color: 'var(--muted)', fontWeight: 700, margin: '4px 0 0' }}>{label}</p>
+                        </div>
+                      )
+                      const deskModule = ({ modulo, icon, title, meta, desc }) => (
+                        <button
+                          key={modulo}
+                          onClick={() => setSuperModulo(modulo)}
+                          style={{
+                            textAlign: 'left', cursor: 'pointer',
+                            border: '1px solid var(--border)', borderRadius: 13,
+                            background: 'linear-gradient(145deg, rgba(34,197,94,0.10), transparent 45%), var(--card)',
+                            padding: '15px 16px',
+                          }}
+                        >
+                          <span style={{ display: 'inline-flex', width: 38, height: 38, borderRadius: 10, background: 'var(--green-bg)', color: 'var(--green-light)', alignItems: 'center', justifyContent: 'center', marginBottom: 11 }}>
+                            <AdminIcon name={icon} size={19} />
+                          </span>
+                          <p style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-strong)', margin: '0 0 4px', display: 'flex', alignItems: 'center', gap: 7 }}>
+                            {title}
+                            {meta && <span style={{ fontSize: 10, fontWeight: 800, background: 'var(--neutral-bg)', color: 'var(--muted)', padding: '1px 7px', borderRadius: 'var(--radius-full)' }}>{meta}</span>}
+                          </p>
+                          <p style={{ fontSize: 11.5, color: 'var(--muted)', margin: 0, lineHeight: 1.4 }}>{desc}</p>
+                        </button>
+                      )
+                      return (
+                        <div>
+                          {/* Header */}
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, marginBottom: 22 }}>
+                            <div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+                                <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 27, fontWeight: 700, color: 'var(--text-strong)', margin: 0, lineHeight: 1.1 }}>Hola, {saludo}</h2>
+                                <span style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: '0.06em', padding: '3px 8px', borderRadius: 6, background: 'var(--yellow-bg)', color: 'var(--yellow-soft)' }}>PANEL MAESTRO</span>
+                              </div>
+                              <p style={{ fontSize: 12.5, color: 'var(--muted)', margin: '4px 0 0' }}>Vista general de toda la plataforma</p>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+                              <button onClick={() => setSuperModulo('clientes')} style={{ ...greenCtaStyle(false), height: 38, display: 'inline-flex', alignItems: 'center', gap: 7, padding: '0 18px' }}>
+                                <AdminIcon name="plus" size={16} /> Nuevo cliente
+                              </button>
+                            </div>
+                          </div>
+                          {/* KPIs */}
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 20 }}>
+                            {kpi({ icon: 'users', color: 'var(--green-light)', tint: 'var(--green-bg)', valor: cliAct, sub: `/ ${clientes.length}`, label: 'Clientes activos' })}
+                            {kpi({ icon: 'list', color: '#93C5FD', tint: 'rgba(59,130,246,0.16)', valor: quinielas.length, label: 'Quinielas totales' })}
+                            {kpi({ icon: 'wallet', color: 'var(--green-light)', tint: 'var(--green-bg)', valor: formatearMXN(cajaNeto), label: 'Caja global' })}
+                            {kpi({ icon: 'trending-up', color: '#C4B5FD', tint: 'rgba(167,139,250,0.16)', valor: visitas7.toLocaleString('es-MX'), label: 'Visitas · 7 días' })}
+                          </div>
+                          {/* Módulos */}
+                          <p style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--muted-soft)', margin: '0 0 11px' }}>Módulos</p>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 13, marginBottom: 20 }}>
+                            {deskModule({ modulo: 'caja', icon: 'wallet', title: 'Caja global', desc: 'Saldos y movimientos de todos los participantes.' })}
+                            {deskModule({ modulo: 'clientes', icon: 'users', title: 'Clientes', meta: clientes.length || null, desc: 'Altas, planes, notas y estado de cuentas.' })}
+                            {quinielasOtras.length > 0 && deskModule({ modulo: 'otros', icon: 'user', title: 'Otros admins', meta: quinielasOtras.length, desc: 'Quinielas agrupadas por cliente.' })}
+                            {deskModule({ modulo: 'home', icon: 'settings', title: 'Inicio público', desc: 'Mostrar, ocultar y ordenar bloques del home.' })}
+                            {deskModule({ modulo: 'mis', icon: 'ball', title: 'Mis quinielas', meta: misFlat.length || null, desc: 'Quinielas creadas desde tu cuenta.' })}
+                            {deskModule({ modulo: 'cuenta', icon: 'key', title: 'Mi cuenta', desc: 'Accesos, seguridad y herramientas.' })}
+                          </div>
+                          {/* Actividad 7 días */}
+                          <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 13, padding: '16px 18px', display: 'flex', alignItems: 'center', gap: 26 }}>
+                            <div style={{ flex: '0 0 auto' }}>
+                              <p style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--muted-soft)', margin: '0 0 4px' }}>Actividad 7 días</p>
+                              <p style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 700, color: 'var(--text-strong)', margin: 0 }}>{visitas7.toLocaleString('es-MX')} visitas</p>
+                            </div>
+                            <div style={{ flex: 1, display: 'flex', alignItems: 'flex-end', gap: 6, height: 48 }}>
+                              {(d7.length ? d7 : Array.from({ length: 7 }, () => ({ visitas: 0 }))).map((d, i) => {
+                                const v = Number(d.visitas) || 0
+                                const h = Math.max(6, Math.round((v / maxV) * 100))
+                                return <span key={i} title={`${v} visitas`} style={{ flex: 1, height: `${h}%`, background: i === idxPico && v > 0 ? 'var(--green)' : 'var(--card-light)', borderRadius: 3 }} />
+                              })}
+                            </div>
+                            <div style={{ flex: '0 0 auto', display: 'flex', gap: 22, borderLeft: '1px solid var(--border)', paddingLeft: 24 }}>
+                              <div><p style={{ fontSize: 11.5, color: 'var(--muted)', margin: 0 }}>Celular</p><p style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-strong)', margin: '2px 0 0' }}>{celPct}%</p></div>
+                              <div><p style={{ fontSize: 11.5, color: 'var(--muted)', margin: 0 }}>Hora pico</p><p style={{ fontSize: 16, fontWeight: 800, color: 'var(--yellow-soft)', margin: '2px 0 0' }}>{horaPico}</p></div>
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })()}
+                    {superModulo === 'caja' && (superDesktop ? cajaDesktop : cajaSection)}
+                    {superModulo === 'clientes' && (superDesktop ? clientesDesktop : clientesSection)}
+                    {superModulo === 'mis' && (superDesktop ? misDesktop : misQuinielasSection)}
+                    {superModulo === 'otros' && (superDesktop ? otrosDesktop : otrosSection)}
+                    {superModulo === 'estadisticas' && statsSection}
+                    {superModulo === 'cuenta' && superDesktop && (
+                      <div style={{ maxWidth: 820, margin: '0 auto' }}>
+                        <div style={{ marginBottom: 20 }}>
+                          <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 27, fontWeight: 700, color: 'var(--text-strong)', margin: 0, lineHeight: 1.1 }}>Mi cuenta</h2>
+                          <p style={{ fontSize: 12.5, color: 'var(--muted)', margin: '4px 0 0' }}>Datos, seguridad y herramientas.</p>
+                        </div>
+                        {/* Tu cuenta */}
+                        <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 13, padding: '16px 18px', marginBottom: 14 }}>
+                          <p style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--text-strong)', margin: '0 0 12px' }}>Tu cuenta</p>
+                          <label style={{ ...lbl, marginBottom: 6 }}>Correo</label>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--bg-soft)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '10px 12px' }}>
+                            <AdminIcon name="lock" size={14} style={{ color: 'var(--muted)' }} />
+                            <span style={{ fontSize: 13, color: 'var(--text)', wordBreak: 'break-all' }}>{auth.currentUser?.email || 'Super admin'}</span>
+                          </div>
+                          <p style={{ fontSize: 11, color: 'var(--muted)', margin: '8px 0 0' }}>El correo no se puede cambiar.</p>
+                        </div>
+                        {/* Seguridad */}
+                        <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 13, padding: '16px 18px', marginBottom: 14 }}>
+                          <p style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--text-strong)', margin: '0 0 12px' }}>Seguridad</p>
+                          <label htmlFor="superd-p1" style={{ ...lbl, marginBottom: 6 }}>Nueva contraseña</label>
+                          <input id="superd-p1" type="password" placeholder="Mínimo 8 caracteres" value={cuentaP1} onChange={e => { setCuentaP1(e.target.value); setCuentaPassMsg(null) }} style={{ marginBottom: 8 }} />
+                          <MedidorPassword pwd={cuentaP1} />
+                          <label htmlFor="superd-p2" style={{ ...lbl, marginTop: 12, marginBottom: 6 }}>Confirmar contraseña</label>
+                          <input id="superd-p2" type="password" placeholder="Repite tu contraseña" value={cuentaP2} onChange={e => { setCuentaP2(e.target.value); setCuentaPassMsg(null) }} onKeyDown={e => e.key === 'Enter' && cambiarMiPassword()} style={{ marginBottom: 10 }} />
+                          {cuentaPassMsg && <p style={{ fontSize: 12, color: cuentaPassMsg.tipo === 'ok' ? 'var(--green)' : 'var(--red)', marginBottom: 10 }}>{cuentaPassMsg.texto}</p>}
+                          <button onClick={cambiarMiPassword} disabled={cambiandoPass} style={{ ...greenCtaStyle(cambiandoPass), padding: '11px 20px' }}>
+                            {cambiandoPass ? 'Guardando…' : 'Cambiar contraseña'}
+                          </button>
+                        </div>
+                        {/* Herramientas */}
+                        <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 13, padding: '8px 6px' }}>
+                          {[
+                            ['Consola de Firebase', 'https://console.firebase.google.com/project/quiniela-app-24896/overview', 'external', 'var(--text)'],
+                            ['Ver quinielapp.fun', 'https://quinielapp.fun', 'external', 'var(--text)'],
+                          ].map(([label, href, icon, color]) => (
+                            <a key={label} href={href} target="_blank" rel="noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '13px 14px', textDecoration: 'none', color, fontSize: 13.5, fontWeight: 600, borderRadius: 'var(--radius-sm)' }}>
+                              <AdminIcon name={icon} size={16} style={{ color: 'var(--muted)' }} />
+                              <span style={{ flex: 1 }}>{label}</span>
+                              <AdminIcon name="chevron-right" size={14} style={{ color: 'var(--muted)' }} />
+                            </a>
+                          ))}
+                          <button onClick={salir} style={{ display: 'flex', alignItems: 'center', gap: 11, width: '100%', padding: '13px 14px', background: 'transparent', border: 'none', color: 'var(--red)', fontSize: 13.5, fontWeight: 700, cursor: 'pointer', borderRadius: 'var(--radius-sm)', textAlign: 'left' }}>
+                            <AdminIcon name="logout" size={16} />
+                            <span style={{ flex: 1 }}>Cerrar sesión</span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    {superModulo === 'cuenta' && !superDesktop && (
                       <div style={secCard}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
                           <AdminIcon name="key" size={16} />
@@ -3061,50 +3839,153 @@ export default function Admin() {
                   </>
                 )
               })()
-            ) : (
-              // ── Vista de cliente normal ───────────────────────────────────────
-              quinielasMias.length === 0 ? (
-                <div style={{ ...card, textAlign: 'center', padding: '3rem 2rem' }}>
-                  <div style={{ fontSize: 48, marginBottom: 16 }}>📋</div>
-                  <p style={{ fontWeight: 600, fontSize: 16, color: 'var(--text)', marginBottom: 8 }}>Sin quinielas todavía</p>
-                  <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 20 }}>Crea tu primera quiniela para comenzar.</p>
-                  <button onClick={abrirNuevaQuiniela} style={{ ...greenCtaStyle(false) }}>
-                    Crear ahora →
-                  </button>
+            ) : (() => {
+              // ── Panel cliente (nuevo shell): router por pestaña ───────────────
+              const nombreCli = adminDoc?.nombre?.split(' ')[0] || 'admin'
+              const tituloGrupo = { fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }
+              const totalJugadores = quinielasMias.reduce((a, q) => a + (conteos[q.id] || 0), 0)
+              const headerCli = (titulo, sub, cta) => (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, marginBottom: 18 }}>
+                  <div>
+                    <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 700, color: 'var(--text-strong)', margin: 0, lineHeight: 1.1 }}>{titulo}</h2>
+                    {sub && <p style={{ fontSize: 12.5, color: 'var(--muted)', margin: '4px 0 0' }}>{sub}</p>}
+                  </div>
+                  {cta}
                 </div>
-              ) : (() => {
-                const tituloGrupo = { fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }
-                const renderGrupo = (items, titulo, clave, limite, marginTop) => {
-                  if (items.length === 0) return null
-                  const abierto = verTodo[clave]
-                  const visibles = abierto ? items : items.slice(0, limite)
-                  const ocultas = items.length - visibles.length
-                  return (
-                    <>
-                      <p style={{ ...tituloGrupo, marginTop }}>{titulo}</p>
-                      {visibles.map(q => (
-                        <QuinielaCard key={q.id} q={q} conteos={conteos} onGestionar={gestionarQuiniela} />
-                      ))}
-                      {items.length > limite && (
-                        <button
-                          onClick={() => setVerTodo(v => ({ ...v, [clave]: !abierto }))}
-                          style={{ display: 'block', width: '100%', padding: '8px', marginBottom: 4, background: 'transparent', border: '1px dashed var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--muted)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}
-                        >
-                          {abierto ? '▲ Mostrar menos' : `▼ Mostrar ${ocultas} más`}
-                        </button>
-                      )}
-                    </>
-                  )
-                }
+              )
+              const ctaNueva = clienteDesktop ? (
+                <button onClick={abrirNuevaQuiniela} style={{ ...greenCtaStyle(false), height: 38, display: 'inline-flex', alignItems: 'center', gap: 7, padding: '0 18px', flexShrink: 0 }}>
+                  <AdminIcon name="plus" size={16} /> Nueva quiniela
+                </button>
+              ) : null
+              const renderGrupo = (items, titulo, clave, limite, marginTop) => {
+                if (items.length === 0) return null
+                const abierto = verTodo[clave]
+                const visibles = abierto ? items : items.slice(0, limite)
+                const ocultas = items.length - visibles.length
                 return (
                   <>
-                    {renderGrupo(mias.activas, 'Activas', 'mias-activas', 2, 0)}
-                    {renderGrupo(mias.enJuego, 'Jugándose', 'mias-enjuego', 2, mias.activas.length > 0 ? 16 : 0)}
-                    {renderGrupo(mias.finalizadas, 'Finalizadas', 'mias-finalizadas', 0, (mias.activas.length > 0 || mias.enJuego.length > 0) ? 16 : 0)}
+                    <p style={{ ...tituloGrupo, marginTop }}>{titulo}</p>
+                    {clienteDesktop ? (
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12, alignItems: 'start' }}>
+                        {visibles.map(q => <QuinielaCard key={q.id} q={q} conteos={conteos} onGestionar={gestionarQuiniela} superCompact />)}
+                      </div>
+                    ) : (
+                      visibles.map(q => <QuinielaCard key={q.id} q={q} conteos={conteos} onGestionar={gestionarQuiniela} />)
+                    )}
+                    {items.length > limite && (
+                      <button
+                        onClick={() => setVerTodo(v => ({ ...v, [clave]: !abierto }))}
+                        style={{ display: 'block', width: '100%', padding: '8px', margin: '8px 0 4px', background: 'transparent', border: '1px dashed var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--muted)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}
+                      >
+                        {abierto ? '▲ Mostrar menos' : `▼ Mostrar ${ocultas} más`}
+                      </button>
+                    )}
                   </>
                 )
-              })()
-            )}
+              }
+              const listaQuinielas = quinielasMias.length === 0 ? (
+                <div style={{ ...card, textAlign: 'center', padding: '3rem 2rem' }}>
+                  <div style={{ color: 'var(--muted)', marginBottom: 12, display: 'flex', justifyContent: 'center' }}><AdminIcon name="ball" size={40} /></div>
+                  <p style={{ fontWeight: 700, fontSize: 16, color: 'var(--text)', marginBottom: 8 }}>Sin quinielas todavía</p>
+                  <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 20 }}>Crea tu primera quiniela para comenzar.</p>
+                  <button onClick={abrirNuevaQuiniela} style={{ ...greenCtaStyle(false) }}>Crear ahora →</button>
+                </div>
+              ) : (
+                <>
+                  {renderGrupo(mias.activas, 'Activas', 'mias-activas', clienteDesktop ? 6 : 2, 0)}
+                  {renderGrupo(mias.enJuego, 'Jugándose', 'mias-enjuego', clienteDesktop ? 6 : 2, mias.activas.length > 0 ? 20 : 0)}
+                  {renderGrupo(mias.finalizadas, 'Finalizadas', 'mias-finalizadas', clienteDesktop ? 4 : 0, (mias.activas.length > 0 || mias.enJuego.length > 0) ? 20 : 0)}
+                </>
+              )
+              const proximamente = (icon, titulo, desc) => (
+                <div style={{ ...card, textAlign: 'center', padding: '3rem 2rem' }}>
+                  <div style={{ color: 'var(--muted)', marginBottom: 12, display: 'flex', justifyContent: 'center' }}><AdminIcon name={icon} size={40} /></div>
+                  <span style={{ display: 'inline-block', fontSize: 10.5, fontWeight: 800, letterSpacing: '0.06em', padding: '3px 10px', borderRadius: 'var(--radius-full)', background: 'var(--yellow-bg)', color: 'var(--yellow-soft)', marginBottom: 12 }}>PRÓXIMAMENTE</span>
+                  <p style={{ fontWeight: 700, fontSize: 16, color: 'var(--text)', marginBottom: 8 }}>{titulo}</p>
+                  <p style={{ fontSize: 13, color: 'var(--muted)', maxWidth: 380, margin: '0 auto', lineHeight: 1.5 }}>{desc}</p>
+                </div>
+              )
+
+              // ── Router ──
+              if (clienteTab === 'quinielas') {
+                return (<>{headerCli('Quinielas', `${quinielasMias.length} en total · ${mias.activas.length} activa${mias.activas.length !== 1 ? 's' : ''}`, ctaNueva)}{listaQuinielas}</>)
+              }
+              if (clienteTab === 'caja') {
+                return (<>{headerCli('Caja', 'Depósitos, premios y saldos por participante')}{proximamente('wallet', 'Caja próximamente', 'Aquí podrás registrar depósitos, inscripciones, premios y retiros por participante, y ver el saldo de cada quiniela. Estamos afinando esta sección.')}</>)
+              }
+              if (clienteTab === 'stats') {
+                return (<>{headerCli('Estadísticas', 'Actividad de tus quinielas')}{proximamente('chart', 'Estadísticas próximamente', 'Aquí verás visitas, predicciones enviadas y participantes más activos de tus quinielas. Estamos afinando esta sección.')}</>)
+              }
+              if (clienteTab === 'soporte') {
+                return (
+                  <>
+                    {headerCli('Soporte', '¿Necesitas ayuda con tu panel?')}
+                    <div style={{ display: 'grid', gap: 10, maxWidth: 560 }}>
+                      <button onClick={() => setAyudaAbierta(true)} style={{ ...card, marginBottom: 0, display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', textAlign: 'left', width: '100%' }}>
+                        <AdminIcon name="info" size={18} style={{ color: 'var(--green)' }} />
+                        <span style={{ flex: 1 }}><span style={{ display: 'block', fontSize: 13.5, fontWeight: 700, color: 'var(--text-strong)' }}>Centro de ayuda</span><span style={{ fontSize: 12, color: 'var(--muted)' }}>Cómo funciona la app, paso a paso</span></span>
+                        <AdminIcon name="chevron-right" size={16} style={{ color: 'var(--muted)' }} />
+                      </button>
+                      <a href={waLink(MENSAJES_WA?.soporte || 'Hola, necesito ayuda con mi panel de QuinielApp.', '')} target="_blank" rel="noreferrer" style={{ ...card, marginBottom: 0, display: 'flex', alignItems: 'center', gap: 12, textDecoration: 'none' }}>
+                        <AdminIcon name="message" size={18} style={{ color: '#25D366' }} />
+                        <span style={{ flex: 1 }}><span style={{ display: 'block', fontSize: 13.5, fontWeight: 700, color: 'var(--text-strong)' }}>Soporte por WhatsApp</span><span style={{ fontSize: 12, color: 'var(--muted)' }}>Escríbenos y te ayudamos</span></span>
+                        <AdminIcon name="chevron-right" size={16} style={{ color: 'var(--muted)' }} />
+                      </a>
+                    </div>
+                  </>
+                )
+              }
+              // clienteTab === 'inicio' (default)
+              const abiertas = [...mias.activas, ...mias.enJuego].slice(0, 3)
+              return (
+                <>
+                  {headerCli(`Hola, ${nombreCli}`, adminDoc?.empresa || 'Tu panel de quinielas', ctaNueva)}
+                  {adminDoc && (
+                    <div style={{ ...card, padding: '0.9rem 1.1rem', marginBottom: 16 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <AdminIcon name={temporadaVigente(adminDoc) ? 'trophy' : 'megaphone'} size={18} style={{ color: 'var(--yellow)' }} />
+                        <p style={{ fontSize: 12.5, color: 'var(--text)', lineHeight: 1.4 }}>
+                          {temporadaVigente(adminDoc)
+                            ? 'Pase Mundial activo — puedes crear quinielas ilimitadas.'
+                            : quinielasRestantes(adminDoc) > 0
+                              ? `Tienes ${quinielasRestantes(adminDoc)} quiniela${quinielasRestantes(adminDoc) === 1 ? '' : 's'} disponible${quinielasRestantes(adminDoc) === 1 ? '' : 's'}.`
+                              : 'Ya usaste tus quinielas incluidas. Elige un plan para crear más.'}
+                        </p>
+                      </div>
+                      {renderUpsellPlan()}
+                    </div>
+                  )}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 20 }}>
+                    {[
+                      { v: mias.activas.length, l: 'Abiertas', c: 'var(--green-light)' },
+                      { v: mias.enJuego.length, l: 'Jugándose', c: 'var(--yellow-soft)' },
+                      { v: totalJugadores, l: 'Jugadores', c: 'var(--text-strong)' },
+                    ].map(s => (
+                      <div key={s.l} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 13, padding: '14px 16px' }}>
+                        <p style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 700, color: s.c, margin: 0, lineHeight: 1 }}>{s.v}</p>
+                        <p style={{ fontSize: 11.5, color: 'var(--muted)', fontWeight: 700, margin: '4px 0 0' }}>{s.l}</p>
+                      </div>
+                    ))}
+                  </div>
+                  {abiertas.length > 0 ? (
+                    <>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                        <p style={tituloGrupo}>Próximos cierres</p>
+                        <button onClick={() => navCliente('quinielas')} style={{ background: 'transparent', border: 'none', color: 'var(--green)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Ver todas ›</button>
+                      </div>
+                      {clienteDesktop ? (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12, alignItems: 'start' }}>
+                          {abiertas.map(q => <QuinielaCard key={q.id} q={q} conteos={conteos} onGestionar={gestionarQuiniela} superCompact />)}
+                        </div>
+                      ) : (
+                        abiertas.map(q => <QuinielaCard key={q.id} q={q} conteos={conteos} onGestionar={gestionarQuiniela} />)
+                      )}
+                    </>
+                  ) : quinielasMias.length === 0 ? listaQuinielas : null}
+                </>
+              )
+            })()}
           </>
         )}
 
@@ -3500,17 +4381,36 @@ export default function Admin() {
         {/* ── Vista: Gestionar quiniela ────────────────────────────────────── */}
         {vista === 'gestionar' && quinielaActual && (() => {
           const estaCerrada = esCerradaQ(quinielaActual)
+          const estaFinalizada = esFinalizadaQ(quinielaActual)
+          const estadoBadge = estaFinalizada
+            ? { label: 'Finalizada', bg: 'var(--neutral-bg)', color: 'var(--muted)' }
+            : estaCerrada
+              ? { label: 'Jugándose', bg: 'var(--yellow-bg)', color: 'var(--yellow)' }
+              : { label: 'Abierta', bg: 'var(--green-bg)', color: 'var(--green)' }
+          const volverAtras = () => { setVista('lista'); setQuinielaActual(null); setFixtures([]); setSeleccionados([]); setCajaNombre(null) }
           return (
             <>
+              {/* Volver (escritorio super o cualquier vista del cliente: el hero con su back está oculto) */}
+              {(superDesktop || clienteShell) && (
+                <button onClick={volverAtras} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: 'transparent', border: 'none', color: 'var(--muted)', fontSize: 13, fontWeight: 700, cursor: 'pointer', padding: 0, marginBottom: 14 }}>
+                  <AdminIcon name="arrow-left" size={15} /> {soySuper ? 'Mis quinielas' : 'Quinielas'}
+                </button>
+              )}
               {/* Encabezado */}
               <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 14 }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-strong)', marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <p style={{ fontFamily: superDesktop ? 'var(--font-display)' : undefined, fontSize: superDesktop ? 24 : 15, fontWeight: 700, color: 'var(--text-strong)', marginBottom: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {quinielaActual.nombre}
                   </p>
-                  <p style={{ fontSize: 12, color: 'var(--muted)' }}>
-                    {quinielaActual.partidos?.length ?? 0} partidos · Creada {formatFecha(quinielaActual.creada)}
-                  </p>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 10.5, fontWeight: 700, padding: '3px 9px', borderRadius: 'var(--radius-full)', background: estadoBadge.bg, color: estadoBadge.color }}>{estadoBadge.label}</span>
+                    {quinielaActual.destacada && !estaCerrada && (
+                      <span style={{ fontSize: 10.5, fontWeight: 700, padding: '3px 9px', borderRadius: 'var(--radius-full)', background: 'var(--yellow-bg)', color: 'var(--yellow)' }}>Principal</span>
+                    )}
+                    <span style={{ fontSize: 12, color: 'var(--muted)' }}>
+                      {quinielaActual.partidos?.length ?? 0} partidos · Creada {formatFecha(quinielaActual.creada)}
+                    </span>
+                  </div>
                 </div>
                 <button
                   onClick={toggleCerrar}
@@ -3531,7 +4431,6 @@ export default function Admin() {
                   )}
                 </button>
               </div>
-
               {!estaCerrada && !quinielaActual.cierre && (
                 <div style={{ background: 'var(--yellow-bg)', border: '1px solid var(--yellow)', borderRadius: 'var(--radius-sm)', padding: '8px 12px', marginBottom: 12, fontSize: 12, color: 'var(--yellow-soft)' }}>
                   ⚠️ Quiniela reabierta sin fecha de cierre. Ve a Editar para configurar una si la necesitas.
@@ -4502,6 +5401,25 @@ export default function Admin() {
           </div>
         </div>
       )}
+
+      {/* Panel cliente móvil: barra de pestañas + botón flotante para crear */}
+      {clienteMobile && <TabBarCliente activo={clienteTab} onNav={navCliente} />}
+      {clienteMobile && vista === 'lista' && (clienteTab === 'inicio' || clienteTab === 'quinielas') && (
+        <button
+          onClick={abrirNuevaQuiniela}
+          aria-label="Nueva quiniela"
+          style={{
+            position: 'fixed', bottom: 74, right: 16, zIndex: 901,
+            width: 52, height: 52, borderRadius: '50%', border: 'none', cursor: 'pointer',
+            background: 'linear-gradient(135deg, var(--green), var(--green-light))', color: '#07120A',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: 'var(--shadow-green)',
+          }}
+        >
+          <AdminIcon name="plus" size={24} />
+        </button>
+      )}
+      </div>
     </div>
   )
 }
