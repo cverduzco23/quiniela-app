@@ -338,6 +338,210 @@ a:focus-visible {
   background: var(--green-bg) !important;
 }
 
+/* ── Tarjetas "Tus quinielas" ── */
+.tq-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 18px;
+}
+.tq-card {
+  background: #151F32;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.4);
+}
+.tq-card-link {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+.tq-header {
+  padding: 16px 18px 14px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.tq-title {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 700;
+  color: #FFFFFF;
+  margin: 0 0 4px;
+}
+.tq-meta {
+  font-size: 12px;
+  color: #9CA3AF;
+  margin: 0;
+}
+.tq-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 800;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.tq-pulse-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: #EF4444;
+  flex-shrink: 0;
+  animation: tq-pulse-dot 1.2s infinite;
+}
+@keyframes tq-pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.35; transform: scale(0.7); }
+}
+.tq-banda {
+  margin: 0 18px;
+  border-radius: 12px;
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.tq-banda-num-col {
+  text-align: center;
+  flex-shrink: 0;
+}
+.tq-banda-num {
+  font-family: var(--font-display);
+  font-size: 30px;
+  font-weight: 700;
+  margin: 0;
+  line-height: 1;
+}
+.tq-banda-num--lg {
+  font-size: 34px;
+}
+.tq-banda-num-suf {
+  font-size: 15px;
+}
+.tq-banda-num--lg .tq-banda-num-suf {
+  font-size: 16px;
+}
+.tq-banda-sub {
+  font-size: 10px;
+  font-weight: 700;
+  color: #9CA3AF;
+  margin: 2px 0 0;
+  letter-spacing: 0.04em;
+}
+.tq-banda-divider {
+  width: 1px;
+  height: 38px;
+  background: rgba(255, 255, 255, 0.1);
+  flex-shrink: 0;
+}
+.tq-banda-label {
+  font-size: 11px;
+  font-weight: 700;
+  margin: 0 0 2px;
+  letter-spacing: 0.04em;
+}
+.tq-banda-value {
+  font-size: 14.5px;
+  font-weight: 800;
+  color: #FFFFFF;
+  margin: 0;
+}
+.tq-banda-value-pts {
+  font-family: var(--font-display);
+  font-size: 17px;
+}
+.tq-banda-side {
+  text-align: right;
+  flex-shrink: 0;
+}
+.tq-banda-subnota {
+  font-size: 11px;
+  color: #9CA3AF;
+  margin: 0;
+}
+.tq-banda-subnota--inline {
+  display: none;
+}
+.tq-banda--vacia {
+  justify-content: center;
+}
+.tq-banda-vacia-text {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #9CA3AF;
+  margin: 0;
+  text-align: center;
+}
+.tq-progress {
+  padding: 14px 18px 4px;
+}
+.tq-progress-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11.5px;
+  color: #9CA3AF;
+  margin-bottom: 6px;
+}
+.tq-bar {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+.tq-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+}
+.tq-actions {
+  padding: 14px 18px 18px;
+  display: flex;
+  gap: 10px;
+}
+.tq-cta {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 10px;
+  font-size: 13.5px;
+  font-weight: 800;
+  padding: 12px;
+  cursor: pointer;
+  text-decoration: none;
+  text-align: center;
+}
+.tq-cta--solid {
+  background: linear-gradient(135deg, #22C55E, #86EFAC);
+  color: #07120A;
+}
+.tq-cta--ghost {
+  border: 1px solid rgba(34, 197, 94, 0.4);
+  background: rgba(34, 197, 94, 0.1);
+  color: #86EFAC;
+}
+.tq-share {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: transparent;
+  color: #D1D5DB;
+  font-size: 13.5px;
+  font-weight: 700;
+  padding: 12px 16px;
+  border-radius: 10px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
 @media (max-width: 920px) {
   .public-home-hero {
     grid-template-columns: 1fr !important;
@@ -437,6 +641,88 @@ a:focus-visible {
   .public-live-ranking-link {
     width: 100%;
     grid-column: 1 / -1;
+  }
+  .tq-grid {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+  .tq-header {
+    padding: 14px 15px 12px;
+  }
+  .tq-title {
+    font-size: 16.5px;
+  }
+  .tq-meta {
+    font-size: 11.5px;
+  }
+  .tq-badge {
+    padding: 4px 9px;
+    font-size: 10px;
+  }
+  .tq-pulse-dot {
+    width: 5px;
+    height: 5px;
+  }
+  .tq-banda {
+    margin: 0 15px;
+    padding: 12px 14px;
+    gap: 13px;
+  }
+  .tq-banda-num {
+    font-size: 28px;
+  }
+  .tq-banda-num--lg {
+    font-size: 30px;
+  }
+  .tq-banda-num-suf {
+    font-size: 14px;
+  }
+  .tq-banda-num--lg .tq-banda-num-suf {
+    font-size: 15px;
+  }
+  .tq-banda-sub {
+    font-size: 9.5px;
+  }
+  .tq-banda-divider {
+    height: 34px;
+  }
+  .tq-banda-label {
+    font-size: 10.5px;
+  }
+  .tq-banda-value {
+    font-size: 13.5px !important;
+  }
+  .tq-banda-value-pts {
+    font-size: 15px;
+  }
+  .tq-banda-side {
+    display: none;
+  }
+  .tq-banda-subnota--inline {
+    display: block;
+    font-size: 10.5px;
+    margin: 1px 0 0;
+  }
+  .tq-progress {
+    padding: 12px 15px 4px;
+  }
+  .tq-progress-row {
+    font-size: 11px;
+  }
+  .tq-actions {
+    padding: 12px 15px 15px;
+    gap: 9px;
+  }
+  .tq-cta {
+    font-size: 13px;
+  }
+  .tq-share {
+    width: 44px;
+    flex-shrink: 0;
+    padding: 0;
+  }
+  .tq-share-label {
+    display: none;
   }
 }
 

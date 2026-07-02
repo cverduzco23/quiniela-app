@@ -10,6 +10,7 @@ import { waLink, MENSAJES_WA } from '../utils/whatsapp'
 import { ordenSeccionesHome } from '../utils/homeSections'
 import { leerMisQuinielasGuardadas, recordarMiQuiniela } from '../utils/misQuinielas'
 import { BrandWordmark } from '../components/Brand'
+import { TusQuinielaCard } from '../components/TusQuinielaCard'
 
 const esCerrada = quinielaCerrada
 const esFinalizada = quinielaFinalizada
@@ -317,7 +318,7 @@ function HomeQuinielaRow({ q, conteos, accent = 'green', empty = false }) {
   )
 }
 
-function TusQuinielasSection({ quinielas, conteos }) {
+function TusQuinielasSection({ quinielas, conteos, predicciones }) {
   if (quinielas.length === 0) return null
   return (
     <section className="public-section-mine" style={{ maxWidth: 1100, width: '100%', margin: '0 auto', padding: '0 24px' }}>
@@ -327,8 +328,10 @@ function TusQuinielasSection({ quinielas, conteos }) {
           <p style={{ fontSize: 12.5, color: 'var(--muted-soft)', marginTop: 3 }}>Guardadas en este dispositivo</p>
         </div>
       </div>
-      <div style={{ display: 'grid', gap: 12 }}>
-        {quinielas.slice(0, 4).map(q => <HomeQuinielaRow key={q.id} q={q} conteos={conteos} />)}
+      <div className="tq-grid">
+        {quinielas.slice(0, 4).map(q => (
+          <TusQuinielaCard key={q.id} q={q} predicciones={predicciones[q.id] ?? []} participantes={conteos[q.id] ?? 0} />
+        ))}
       </div>
     </section>
   )
@@ -428,6 +431,7 @@ function PromoCreateCard() {
 export default function Home() {
   const [quinielas, setQuinielas] = useState([])
   const [misQuinielas, setMisQuinielas] = useState([])
+  const [misPredicciones, setMisPredicciones] = useState({})
   const [conteos, setConteos] = useState({})
   const [cargando, setCargando] = useState(true)
   const [homeConfig, setHomeConfig] = useState({})
@@ -487,12 +491,20 @@ export default function Home() {
       getDocs(collection(db, 'predicciones')),
       Promise.all(guardadas.map(q => getDoc(doc(db, 'quinielas', q.id)).catch(() => null))),
     ]).then(([qSnap, pSnap, misSnaps]) => {
+      const guardadasIds = new Set(guardadas.map(q => q.id))
       const conteoMap = {}
+      const prediccionesMap = {}
       pSnap.docs.forEach(d => {
-        const qId = d.data().quinielaId
+        const data = d.data()
+        const qId = data.quinielaId
         conteoMap[qId] = (conteoMap[qId] ?? 0) + 1
+        if (guardadasIds.has(qId)) {
+          if (!prediccionesMap[qId]) prediccionesMap[qId] = []
+          prediccionesMap[qId].push(data)
+        }
       })
       setConteos(conteoMap)
+      setMisPredicciones(prediccionesMap)
       setQuinielas(qSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(q => !q.privada))
       const porId = new Map(guardadas.map((q, idx) => [q.id, { guardada: q, idx }]))
       const personales = misSnaps
@@ -601,7 +613,7 @@ export default function Home() {
 
         {misQuinielas.length > 0 && (
           <div style={{ order: ordenDe('mostrarJugandose') - 0.5 }}>
-            <TusQuinielasSection quinielas={misQuinielas} conteos={conteos} />
+            <TusQuinielasSection quinielas={misQuinielas} conteos={conteos} predicciones={misPredicciones} />
           </div>
         )}
 
