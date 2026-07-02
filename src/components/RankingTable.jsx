@@ -280,6 +280,12 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
   }).length
   const hayResultados = terminados > 0 || enVivo
   const vistaParticipantesAbierta = !cerrada && !hayResultados
+  let miNombreRanking = null
+  try {
+    const raw = quiniela?.id ? localStorage.getItem(`quiniela-${quiniela.id}-enviada`) : null
+    const data = raw ? JSON.parse(raw) : null
+    if (data?.nombre) miNombreRanking = normalizarNombre(data.nombre)
+  } catch { /* localStorage no disponible */ }
 
   const jugadores = predicciones
     .map(p => ({
@@ -823,9 +829,14 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
           <div style={{ padding: '2.5rem', textAlign: 'center', color: 'var(--muted)', fontSize: 14 }}>
             Sin resultados para "<strong style={{ color: 'var(--text)' }}>{busqueda}</strong>". Verifica el nombre o limpia la búsqueda.
           </div>
-        ) : vistaParticipantesAbierta ? shown.map((j, i) => (
+        ) : vistaParticipantesAbierta ? shown.map((j, i) => {
+          const esMiFila = !!miNombreRanking && j.nombre === miNombreRanking
+          return (
           <div key={j.nombre} style={{ borderBottom: i < shown.length - 1 ? '1px solid var(--border)' : 'none' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 16px' }}>
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 16px',
+              background: esMiFila ? 'linear-gradient(90deg, rgba(34,197,94,0.105), rgba(34,197,94,0.035) 54%, transparent 86%)' : 'transparent',
+            }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: '1 1 auto' }}>
                 <span aria-hidden="true" style={{
                   width: 29, height: 29, borderRadius: '50%', flexShrink: 0,
@@ -835,8 +846,17 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                 }}>
                   {inicialesPersona(j.nombre)}
                 </span>
-                <span style={{ fontSize: 13.5, color: 'var(--text)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {j.nombre}
+                <span style={{ fontSize: 13.5, color: 'var(--text)', fontWeight: esMiFila ? 650 : 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{j.nombre}</span>
+                  {esMiFila && (
+                    <span style={{
+                      flexShrink: 0, border: '1px solid rgba(34,197,94,0.42)', background: 'rgba(34,197,94,0.11)',
+                      color: 'var(--green)', borderRadius: 999, padding: '1px 6px 2px',
+                      fontSize: 10, fontWeight: 900, lineHeight: 1.2, letterSpacing: 0,
+                    }}>
+                      Tú
+                    </span>
+                  )}
                 </span>
               </div>
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: 'var(--green)', fontSize: 11.5, fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0 }}>
@@ -845,10 +865,12 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
               </span>
             </div>
           </div>
-        )) : shown.map((j, i) => {
+          )
+        }) : shown.map((j, i) => {
           const abierto = expandido.has(j.nombre)
           const pos = j._pos
           const esLider = pos === 1 && hayResultados
+          const esMiFila = !!miNombreRanking && j.nombre === miNombreRanking
           const medalColor = pos <= 3 ? medalColors[pos - 1] : null
 
           return (
@@ -865,7 +887,9 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                   position: 'relative', overflow: 'hidden',
                   display: 'grid', gridTemplateColumns: 'var(--ranking-grid-cols, 30px 1fr 38px 38px 46px)',
                   padding: '13px var(--ranking-row-pad-x, 16px)', alignItems: 'center',
-                  background: esLider
+                  background: esMiFila
+                    ? 'linear-gradient(90deg, rgba(34,197,94,0.105), rgba(34,197,94,0.035) 54%, transparent 86%)'
+                    : esLider
                     ? 'linear-gradient(90deg, rgba(250,204,21,0.18), rgba(250,204,21,0.06) 46%, transparent 78%)'
                     : 'transparent',
                   cursor: cerrada ? 'pointer' : 'default',
@@ -886,8 +910,17 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                   }}>{pos}</span>
                 </span>
                 <div style={{ position: 'relative', minWidth: 0 }}>
-                  <span style={{ fontSize: 'var(--ranking-name-size, 13px)', fontWeight: esLider ? 700 : 500, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                  <span style={{ fontSize: 'var(--ranking-name-size, 13px)', fontWeight: esLider || esMiFila ? 700 : 500, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
                     <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{nombresCortos.get(j.nombre) || nombreCorto(j.nombre)}</span>
+                    {esMiFila && (
+                      <span style={{
+                        flexShrink: 0, border: '1px solid rgba(34,197,94,0.42)', background: 'rgba(34,197,94,0.11)',
+                        color: 'var(--green)', borderRadius: 999, padding: '1px 6px 2px',
+                        fontSize: 10, fontWeight: 900, lineHeight: 1.2, letterSpacing: 0,
+                      }}>
+                        Tú
+                      </span>
+                    )}
                     {j.racha.exactas >= 3 ? (
                       <span title={`Racha de ${j.racha.exactas} marcadores exactos seguidos`} aria-label="Racha de marcadores exactos" style={{ display: 'inline-flex', color: 'var(--yellow)', flexShrink: 0 }}>
                         <SvgIcon name="target" size={14} />
