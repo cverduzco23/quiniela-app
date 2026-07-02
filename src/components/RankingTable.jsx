@@ -1,11 +1,11 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { cierreToDate, quinielaCerrada, quinielaFinalizada } from '../utils/cierre'
 import { goalsToResultado, getResultado, getPickResultado, getEfectivo, calcularPuntos, calcularRacha } from '../utils/scoring'
 import { tienePremio, calcularGanadores, formatearMXN, descripcionRegla } from '../utils/premios'
 import { simularUltimoPartido } from '../utils/escenarios'
 import { normalizarNombre } from '../utils/nombres'
 import { registrarApertura } from '../utils/analytics'
-import { compartirRanking } from '../utils/shareRanking'
+import { compartirOraculo, compartirRanking } from '../utils/shareRanking'
 import { useDialog } from './Dialogs'
 
 function formatFecha(value) {
@@ -241,6 +241,7 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
   const [expandidoPartido, setExpandidoPartido] = useState(new Set())
   const [visibles, setVisibles]                 = useState(PAGE_SIZE)
   const [compartiendo, setCompartiendo] = useState(false)
+  const [compartiendoOraculo, setCompartiendoOraculo] = useState(false)
   const [feedbackShare, setFeedbackShare] = useState('')
   const [busqueda, setBusqueda]                 = useState('')
   const [mostrarInfoPicks, setMostrarInfoPicks] = useState(false)
@@ -268,7 +269,7 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
     })
   }
 
-  const partidos   = quiniela.partidos ?? []
+  const partidos   = useMemo(() => quiniela.partidos ?? [], [quiniela.partidos])
   const resultados = quiniela.resultados ?? {}
   const cerrada    = quinielaCerrada(quiniela)
   const finalizada = quinielaFinalizada(quiniela)
@@ -360,7 +361,7 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
 
   const conPremio = tienePremio(quiniela)
   const { ganadores, premioPorNombre, bote } = calcularGanadores(jugadores, quiniela, jugadores.length)
-  const puedeCompartir = jugadores.length > 0
+  const puedeCompartir = vistaParticipantesAbierta || jugadores.length > 0
   const resumenStats = vistaParticipantesAbierta
     ? [
         { val: jugadores.length, label: 'Participantes' },
@@ -418,6 +419,28 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
   // Escenarios del último partido: solo tiene sentido cuando la quiniela ya
   // cerró (los picks son públicos) y queda exactamente un partido por definir.
   const simulacion = cerrada ? simularUltimoPartido(quiniela, predicciones, liveScores) : null
+
+  const handleCompartirOraculo = async () => {
+    if (compartiendoOraculo || !simulacion) return
+    setPanelActivo('share')
+    setCompartiendoOraculo(true)
+    setFeedbackShare('')
+    try {
+      const res = await compartirOraculo({ quiniela, simulacion, bote })
+      if (res?.copiado) {
+        setFeedbackShare('Oráculo copiado. Pégalo donde quieras.')
+        setTimeout(() => setFeedbackShare(''), 4000)
+      } else if (res?.descargado) {
+        setFeedbackShare('Oráculo descargado. Compártelo donde quieras.')
+        setTimeout(() => setFeedbackShare(''), 4000)
+      }
+    } catch (err) {
+      console.error('Error compartiendo oráculo:', err)
+      alerta('No se pudo generar el Oráculo. Intenta de nuevo.')
+    } finally {
+      setCompartiendoOraculo(false)
+    }
+  }
 
   return (
     <>
@@ -1132,29 +1155,50 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
             </span>
             <span style={{ fontSize: 11.5, color: 'var(--muted)', lineHeight: 1.5 }}>
               {panelActivo === 'share' && (
-                <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, width: '100%' }}>
                   <span style={{ flex: 1, minWidth: 0 }}>
-                    {compartiendo
-                      ? 'Generando imagen del ranking...'
+                    {compartiendo || compartiendoOraculo
+                      ? 'Generando imagen para compartir...'
                       : feedbackShare || 'Genera una imagen del ranking para compartirla con tu grupo.'}
                   </span>
-                  <button
-                    type="button"
-                    onClick={handleCompartirRanking}
-                    disabled={compartiendo || !puedeCompartir}
-                    style={{
-                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                      padding: '7px 10px', borderRadius: 'var(--radius-full)',
-                      border: '1px solid var(--green)',
-                      background: compartiendo ? 'var(--card-light)' : 'rgba(34,197,94,0.12)',
-                      color: compartiendo ? 'var(--muted)' : 'var(--green)',
-                      fontSize: 11, fontWeight: 800, whiteSpace: 'nowrap',
-                      cursor: compartiendo || !puedeCompartir ? 'not-allowed' : 'pointer',
-                    }}
-                  >
-                    <SvgIcon name="camera" size={13} />
-                    Generar
-                  </button>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                    {simulacion && (
+                      <button
+                        type="button"
+                        onClick={handleCompartirOraculo}
+                        disabled={compartiendoOraculo}
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                          padding: '7px 10px', borderRadius: 'var(--radius-full)',
+                          border: '1px solid #A855F7',
+                          background: compartiendoOraculo ? 'var(--card-light)' : 'rgba(168,85,247,0.14)',
+                          color: compartiendoOraculo ? 'var(--muted)' : '#C084FC',
+                          fontSize: 11, fontWeight: 800, whiteSpace: 'nowrap',
+                          cursor: compartiendoOraculo ? 'not-allowed' : 'pointer',
+                        }}
+                      >
+                        <SvgIcon name="sparkles" size={13} />
+                        Oráculo
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={handleCompartirRanking}
+                      disabled={compartiendo || !puedeCompartir}
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                        padding: '7px 10px', borderRadius: 'var(--radius-full)',
+                        border: '1px solid var(--green)',
+                        background: compartiendo ? 'var(--card-light)' : 'rgba(34,197,94,0.12)',
+                        color: compartiendo ? 'var(--muted)' : 'var(--green)',
+                        fontSize: 11, fontWeight: 800, whiteSpace: 'nowrap',
+                        cursor: compartiendo || !puedeCompartir ? 'not-allowed' : 'pointer',
+                      }}
+                    >
+                      <SvgIcon name="camera" size={13} />
+                      Generar
+                    </button>
+                  </span>
                 </span>
               )}
               {panelActivo === 'tie' && 'Empate en puntos: comparten posición y reparten el premio en partes iguales.'}
