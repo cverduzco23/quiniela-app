@@ -149,13 +149,17 @@ export default function Ranking() {
           }
           // Tanda de penales: ESPN reporta el global aparte en `shootoutScore`
           // (el `score` regular se queda en el empate). Lo detectamos por el
-          // status o por la presencia del marcador de penales.
+          // status, por el detalle ("AET-pens" / "FT-Pens", que es lo que ESPN
+          // realmente manda para soccer — STATUS_SHOOTOUT casi no aparece) o
+          // por la presencia del marcador de penales.
+          const statusDetail = (ev.status?.type?.shortDetail || ev.status?.type?.detail || '')
+          const enFaseDePenales = /pen/i.test(statusDetail)
           const homePen = home?.shootoutScore
           const awayPen = away?.shootoutScore
-          const tienePenales = (homePen != null && awayPen != null) ||
+          const tienePenales = enFaseDePenales || homePen != null || awayPen != null ||
             statusName === 'STATUS_SHOOTOUT' || statusName === 'STATUS_FINAL_PEN'
           const penalesEnVivo = state === 'in' &&
-            (statusName === 'STATUS_SHOOTOUT' || (homePen != null && awayPen != null))
+            (enFaseDePenales || statusName === 'STATUS_SHOOTOUT' || homePen != null || awayPen != null)
           nuevos[p.espnId] = {
             state, clock: ev.status?.displayClock ?? '', halftime: esHalftime,
             local: home?.score ?? '', visitante: away?.score ?? '',
