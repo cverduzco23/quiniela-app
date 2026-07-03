@@ -341,6 +341,18 @@ function drawStar(ctx, cx, cy, outer, inner, color) {
   ctx.restore()
 }
 
+function rowHeightForPos(pos) {
+  if (pos === 1) return 68
+  if (pos === 2) return 62
+  if (pos === 3) return 58
+  return 54
+}
+
+function rowHighlightForPos(pos) {
+  if (pos === 1) return ['rgba(250,204,21,0.08)', 'rgba(250,204,21,0.35)']
+  return null
+}
+
 function positionsByPoints(jugadores) {
   const pos = []
   jugadores.forEach((j, i) => {
@@ -361,7 +373,7 @@ function podiumGroups(jugadores) {
   return [groups[0], groups[1], groups[2]].filter(Boolean)
 }
 
-function drawPodiumStep(ctx, group, place, cx, baseY, width, miNombreNorm) {
+function drawPodiumStep(ctx, group, place, cx, baseY, width) {
   const cfg = medal[place - 1]
   const shown = (group?.jugadores ?? []).slice(0, group.jugadores.length > 1 ? 2 : 1)
   const avatarSize = place === 1 && shown.length === 1 ? 104 : shown.length > 1 ? 70 : 86
@@ -383,14 +395,6 @@ function drawPodiumStep(ctx, group, place, cx, baseY, width, miNombreNorm) {
   ctx.fillStyle = COLORS.strong
   const label = shown.length > 1 ? `Empate x${group.jugadores.length}` : shortName(shown[0]?.nombre)
   ctx.fillText(truncate(ctx, label, width - 14), cx, nameY)
-  if (shown.some(j => miNombreNorm && j.nombre === miNombreNorm)) {
-    ctx.font = '900 13px Inter'
-    const nameW = ctx.measureText(label).width
-    fillRound(ctx, cx + nameW / 2 + 10, nameY - 24, 42, 24, 999, COLORS.green)
-    ctx.fillStyle = '#052E16'
-    ctx.textBaseline = 'middle'
-    ctx.fillText('TU', cx + nameW / 2 + 31, nameY - 12)
-  }
   ctx.font = `900 ${place === 1 ? 24 : 21}px Rajdhani`
   ctx.fillStyle = place === 1 ? COLORS.yellowLight : COLORS.muted
   ctx.textBaseline = 'alphabetic'
@@ -408,6 +412,24 @@ function drawPodiumStep(ctx, group, place, cx, baseY, width, miNombreNorm) {
   ctx.textAlign = 'left'
 }
 
+function drawTableFrame(ctx, x, y, w, h) {
+  fillRound(ctx, x, y, w, h, 16, COLORS.card, COLORS.border)
+  ctx.fillStyle = '#18243A'
+  roundRect(ctx, x, y, w, 50, 16)
+  ctx.fill()
+
+  ctx.font = '900 12px Inter'
+  ctx.fillStyle = COLORS.dim
+  ctx.textBaseline = 'middle'
+  ctx.fillText('#', x + 54, y + 26)
+  ctx.fillText('JUGADOR', x + 104, y + 26)
+  ctx.textAlign = 'center'
+  drawTableIcon(ctx, 'target', x + w - 270, y + 26, 18)
+  drawTableIcon(ctx, 'check', x + w - 180, y + 26, 18)
+  ctx.fillText('PTS', x + w - 48, y + 26)
+  ctx.textAlign = 'left'
+}
+
 function drawRankingRows(ctx, jugadores, startY, miNombreNorm) {
   const y0 = startY
   const tableX = PAD
@@ -415,21 +437,7 @@ function drawRankingRows(ctx, jugadores, startY, miNombreNorm) {
   const tableH = 320
   const rowH = 54
   const sepH = 30
-  fillRound(ctx, tableX, y0, tableW, tableH, 16, COLORS.card, COLORS.border)
-  ctx.fillStyle = '#18243A'
-  roundRect(ctx, tableX, y0, tableW, 50, 16)
-  ctx.fill()
-
-  ctx.font = '900 12px Inter'
-  ctx.fillStyle = COLORS.dim
-  ctx.textBaseline = 'middle'
-  ctx.fillText('#', tableX + 54, y0 + 26)
-  ctx.fillText('JUGADOR', tableX + 104, y0 + 26)
-  ctx.textAlign = 'center'
-  drawTableIcon(ctx, 'target', tableX + tableW - 270, y0 + 26, 18)
-  drawTableIcon(ctx, 'check', tableX + tableW - 180, y0 + 26, 18)
-  ctx.fillText('PTS', tableX + tableW - 48, y0 + 26)
-  ctx.textAlign = 'left'
+  drawTableFrame(ctx, tableX, y0, tableW, tableH)
 
   const ranked = positionsByPoints(jugadores)
   const candidates = ranked.filter(j => j._pos > 3)
@@ -444,7 +452,7 @@ function drawRankingRows(ctx, jugadores, startY, miNombreNorm) {
 
   let y = y0 + 50
   rows.forEach((j) => {
-    drawRankingRow(ctx, j, tableX, y, tableW, miNombreNorm)
+    drawRankingRow(ctx, j, tableX, y, tableW)
     y += rowH
   })
 
@@ -457,45 +465,86 @@ function drawRankingRows(ctx, jugadores, startY, miNombreNorm) {
     ctx.textAlign = 'left'
     y += sepH
   }
-  if (extra && y + rowH <= y0 + tableH) drawRankingRow(ctx, extra, tableX, y, tableW, miNombreNorm)
+  if (extra && y + rowH <= y0 + tableH) drawRankingRow(ctx, extra, tableX, y, tableW)
 }
 
-function drawRankingRow(ctx, j, x, y, w, miNombreNorm) {
-  const esTu = miNombreNorm && j.nombre === miNombreNorm
-  if (esTu) fillRound(ctx, x + 16, y + 6, w - 32, 50, 10, 'rgba(34,197,94,0.14)', 'rgba(34,197,94,0.38)')
+function drawRankingRow(ctx, j, x, y, w) {
+  const rowH = rowHeightForPos(j._pos)
+  const hi = j._pos <= 3 ? rowHighlightForPos(j._pos) : null
+  if (hi) fillRound(ctx, x + 16, y + 6, w - 32, rowH - 4, 10, hi[0], hi[1])
   ctx.strokeStyle = 'rgba(255,255,255,0.06)'
   ctx.beginPath()
   ctx.moveTo(x + 16, y)
   ctx.lineTo(x + w - 16, y)
   ctx.stroke()
   ctx.textBaseline = 'middle'
+  const textY = y + Math.round(rowH / 2) + 2
   ctx.font = '900 20px Inter'
-  ctx.fillStyle = esTu ? COLORS.greenLight : COLORS.dim
+  ctx.fillStyle = j._pos <= 3 ? medal[j._pos - 1].fg : COLORS.dim
   ctx.textAlign = 'center'
-  ctx.fillText(String(j._pos), x + 58, y + 29)
+  ctx.fillText(String(j._pos), x + 58, textY)
   ctx.textAlign = 'left'
   ctx.font = '700 21px Inter'
   ctx.fillStyle = COLORS.text
   const name = truncate(ctx, shortName(j.nombre, 3), w - 435)
-  ctx.fillText(name, x + 104, y + 29)
-  if (esTu) {
+  ctx.fillText(name, x + 104, textY)
+  if (j._pos === 1) {
     const nameW = ctx.measureText(name).width
-    ctx.font = '900 12px Inter'
-    fillRound(ctx, x + 112 + nameW, y + 16, 38, 22, 999, COLORS.green)
-    ctx.fillStyle = '#052E16'
-    ctx.textAlign = 'center'
-    ctx.fillText('TU', x + 131 + nameW, y + 27)
-    ctx.textAlign = 'left'
+    drawStar(ctx, x + 104 + nameW + 20, textY - 2, 9, 4, COLORS.yellow)
   }
   ctx.font = '500 20px Inter'
   ctx.fillStyle = COLORS.muted
   ctx.textAlign = 'center'
-  ctx.fillText(String(j.exactos ?? 0), x + w - 270, y + 29)
-  ctx.fillText(String(j.aciertos ?? 0), x + w - 180, y + 29)
+  ctx.fillText(String(j.exactos ?? 0), x + w - 270, textY)
+  ctx.fillText(String(j.aciertos ?? 0), x + w - 180, textY)
   ctx.font = '900 31px Rajdhani'
   ctx.fillStyle = COLORS.text
-  ctx.fillText(String(j.puntos ?? 0), x + w - 48, y + 29)
+  ctx.fillText(String(j.puntos ?? 0), x + w - 48, textY)
   ctx.textAlign = 'left'
+  return rowH
+}
+
+function drawTiedRankingTable(ctx, jugadores, startY, tableH, miNombreNorm) {
+  const tableX = PAD
+  const tableW = W - PAD * 2
+  const sepH = 30
+  const headerH = 50
+  drawTableFrame(ctx, tableX, startY, tableW, tableH)
+
+  const ranked = positionsByPoints(jugadores)
+  const budget = tableH - headerH
+  let used = 0
+  let fitCount = 0
+  for (const j of ranked) {
+    const h = rowHeightForPos(j._pos)
+    if (used + h > budget) break
+    used += h
+    fitCount++
+  }
+  const maxFit = Math.max(1, fitCount)
+  const wantsCutLine = ranked.length > maxFit
+  let rows = ranked.slice(0, wantsCutLine ? maxFit - 1 : maxFit)
+
+  const miIdx = miNombreNorm ? ranked.findIndex(j => j.nombre === miNombreNorm) : -1
+  const miEnRows = miIdx >= 0 && rows.some(j => j.nombre === miNombreNorm)
+  const extra = miIdx >= 0 && !miEnRows ? ranked[miIdx] : null
+  if (extra && rows.length >= maxFit - 1) rows = rows.slice(0, Math.max(0, maxFit - 2))
+
+  let y = startY + headerH
+  rows.forEach((j) => {
+    y += drawRankingRow(ctx, j, tableX, y, tableW)
+  })
+
+  const hidden = Math.max(0, ranked.length - rows.length - (extra ? 1 : 0))
+  if (hidden > 0 && y + sepH <= startY + tableH) {
+    ctx.font = '800 15px Inter'
+    ctx.fillStyle = COLORS.dim
+    ctx.textAlign = 'center'
+    ctx.fillText(`y ${hidden} jugador${hidden === 1 ? '' : 'es'} más`, W / 2, y + 21)
+    ctx.textAlign = 'left'
+    y += sepH
+  }
+  if (extra && y + rowHeightForPos(extra._pos) <= startY + tableH) drawRankingRow(ctx, extra, tableX, y, tableW)
 }
 
 function countdownParts(cierre) {
@@ -642,12 +691,18 @@ function drawRankingImage(ctx, datos) {
 
   const miNombreNorm = miNombre ? normalizarNombre(miNombre) : null
   const groups = podiumGroups(jugadores)
-  const baseY = 786
-  if (groups[1]) drawPodiumStep(ctx, groups[1], 2, 228, baseY, 280, miNombreNorm)
-  if (groups[0]) drawPodiumStep(ctx, groups[0], 1, W / 2, baseY, 300, miNombreNorm)
-  if (groups[2]) drawPodiumStep(ctx, groups[2], 3, W - 228, baseY, 280, miNombreNorm)
+  const hasTie = groups.some(g => g.jugadores.length > 1)
 
-  drawRankingRows(ctx, jugadores, 870, miNombreNorm)
+  if (hasTie) {
+    drawTiedRankingTable(ctx, jugadores, 414, 786, miNombreNorm)
+  } else {
+    const baseY = 786
+    if (groups[1]) drawPodiumStep(ctx, groups[1], 2, 228, baseY, 280)
+    if (groups[0]) drawPodiumStep(ctx, groups[0], 1, W / 2, baseY, 300)
+    if (groups[2]) drawPodiumStep(ctx, groups[2], 3, W - 228, baseY, 280)
+    drawRankingRows(ctx, jugadores, 870, miNombreNorm)
+  }
+
   drawFooter(ctx, quiniela)
 }
 
