@@ -433,25 +433,46 @@ function FaqSection() {
         <a href={waLink(MENSAJES_WA.crearQuiniela)} target="_blank" rel="noreferrer" onClick={() => track('faq_whatsapp_crear')} style={{ color: 'var(--green-light)', fontWeight: 800, textDecoration: 'none' }}>
           contáctanos por WhatsApp
         </a>
-        {' '}para activar una quiniela nueva.
+        {' '}para activar tu cuenta.
       </>
     )],
   ]
+  const [abiertas, setAbiertas] = useState(() => new Set())
+  const toggle = (i) => {
+    setAbiertas(prev => {
+      const next = new Set(prev)
+      if (next.has(i)) next.delete(i)
+      else next.add(i)
+      return next
+    })
+  }
   return (
     <section className="public-faq-section" style={{ maxWidth: 1100, margin: '0 auto', padding: '0 24px' }}>
       <h2 style={sectionTitleStyle}>Preguntas frecuentes</h2>
       <div style={{ display: 'grid', gap: 10 }}>
-        {faq.map(([titulo, texto]) => (
-          <details key={titulo} className="public-faq-item" style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12, padding: '15px 18px' }}>
-            <summary style={{ cursor: 'pointer', listStyle: 'none', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, fontSize: 14.5, fontWeight: 850, color: 'var(--text-strong)' }}>
-              <span>{titulo}</span>
-              <span className="public-faq-chevron" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: '50%', flexShrink: 0, background: 'var(--neutral-bg)', color: 'var(--muted)' }}>
-                <HomeIcon name="chevron" size={15} />
-              </span>
-            </summary>
-            <p style={{ fontSize: 13, color: 'var(--muted)', marginTop: 10, lineHeight: 1.55, paddingRight: 44 }}>{texto}</p>
-          </details>
-        ))}
+        {faq.map(([titulo, texto], i) => {
+          const abierta = abiertas.has(i)
+          return (
+            <div key={titulo} className={`public-faq-item${abierta ? ' public-faq-item--open' : ''}`} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12, padding: '15px 18px' }}>
+              <button
+                type="button"
+                onClick={() => toggle(i)}
+                aria-expanded={abierta}
+                style={{ all: 'unset', boxSizing: 'border-box', width: '100%', fontFamily: 'inherit', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, fontSize: 14.5, fontWeight: 850, color: 'var(--text-strong)' }}
+              >
+                <span>{titulo}</span>
+                <span className="public-faq-chevron" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: '50%', flexShrink: 0, background: 'var(--neutral-bg)', color: 'var(--muted)' }}>
+                  <HomeIcon name="chevron" size={15} />
+                </span>
+              </button>
+              <div style={{ display: 'grid', gridTemplateRows: abierta ? '1fr' : '0fr', transition: 'grid-template-rows 0.25s ease' }}>
+                <div style={{ overflow: 'hidden' }}>
+                  <p style={{ fontSize: 13, color: 'var(--muted)', marginTop: 10, lineHeight: 1.55, paddingRight: 44 }}>{texto}</p>
+                </div>
+              </div>
+            </div>
+          )
+        })}
       </div>
     </section>
   )

@@ -326,13 +326,10 @@ a:focus-visible {
 .public-home-shell {
   width: 100%;
 }
-.public-faq-item > summary::-webkit-details-marker {
-  display: none;
-}
 .public-faq-chevron {
   transition: transform 0.18s ease, color 0.18s ease, background 0.18s ease;
 }
-.public-faq-item[open] .public-faq-chevron {
+.public-faq-item--open .public-faq-chevron {
   transform: rotate(180deg);
   color: var(--green-light) !important;
   background: var(--green-bg) !important;
