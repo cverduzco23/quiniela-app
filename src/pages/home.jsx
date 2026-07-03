@@ -1,14 +1,14 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { collection, getDocs, query, orderBy, limit, where, doc, getDoc } from 'firebase/firestore'
 import { db, track } from '../firebase'
-import { cierreToDate, quinielaCerrada, quinielaFinalizada, hayPartidoEnVivo } from '../utils/cierre'
+import { quinielaCerrada, quinielaFinalizada, hayPartidoEnVivo } from '../utils/cierre'
 import { tienePremio } from '../utils/premios'
-import { PromoCTA } from '../components/PromoCTA'
+import { datosTarjetaQuiniela } from '../utils/quinielaCard'
 import { Footer } from '../components/Footer'
 import { waLink, MENSAJES_WA } from '../utils/whatsapp'
 import { ordenSeccionesHome } from '../utils/homeSections'
-import { leerMisQuinielasGuardadas, recordarMiQuiniela } from '../utils/misQuinielas'
+import { leerMisQuinielasGuardadas, recordarMiQuiniela, olvidarMiQuiniela } from '../utils/misQuinielas'
 import { BrandWordmark } from '../components/Brand'
 import { TusQuinielaCard } from '../components/TusQuinielaCard'
 
@@ -71,6 +71,20 @@ const sectionTitleStyle = {
   margin: '0 0 16px',
 }
 
+// Bucket de orden para "Tus quinielas": urge tu atención primero, luego lo que
+// está pasando ahora, luego lo que ya resolviste, y al final el historial.
+const BUCKET_ABIERTA_SIN_ENVIAR = 0
+const BUCKET_JUGANDOSE = 1
+const BUCKET_ABIERTA_ENVIADA = 2
+const BUCKET_FINALIZADA = 3
+
+function bucketDe(q, predicciones, participantes) {
+  const d = datosTarjetaQuiniela(q, predicciones, participantes)
+  if (d.estado === 'abierta') return d.enviada ? BUCKET_ABIERTA_ENVIADA : BUCKET_ABIERTA_SIN_ENVIAR
+  if (d.estado === 'jugandose') return BUCKET_JUGANDOSE
+  return BUCKET_FINALIZADA
+}
+
 function HomeIcon({ name, size = 14, style }) {
   const common = {
     width: size,
@@ -117,15 +131,16 @@ function MetaItem({ icon, children }) {
   )
 }
 
-function HomeHeader() {
+function HomeHeader({ scrolled }) {
   return (
     <header style={{
       position: 'sticky',
       top: 0,
       zIndex: 20,
-      background: 'rgba(11,18,32,0.92)',
-      backdropFilter: 'blur(14px)',
-      borderBottom: '1px solid var(--border)',
+      background: scrolled ? 'rgba(11,18,32,0.92)' : 'transparent',
+      backdropFilter: scrolled ? 'blur(14px)' : 'none',
+      borderBottom: scrolled ? '1px solid var(--border)' : '1px solid transparent',
+      transition: 'background-color 0.25s ease, border-color 0.25s ease',
     }}>
       <div className="public-home-shell public-home-nav" style={{ maxWidth: 1100, margin: '0 auto', padding: '14px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 18 }}>
         <a href="/" aria-label="QuinielApp inicio" style={{ display: 'inline-flex', textDecoration: 'none', minWidth: 0 }}>
@@ -144,32 +159,40 @@ function HomeHeader() {
   )
 }
 
-function CodeEntry({ codigoBusqueda, setCodigoBusqueda, errorBusqueda, setErrorBusqueda, buscando, buscarPorCodigo }) {
+function CodeEntry({ codigoBusqueda, setCodigoBusqueda, errorBusqueda, setErrorBusqueda, buscando, buscarPorCodigo, codeRowRef }) {
   return (
-    <div>
+    <div className="public-code-card">
       <p style={{ fontSize: 10.5, fontWeight: 850, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--muted-soft)', marginBottom: 8 }}>
         Entra a tu quiniela
       </p>
-      <div className="public-home-code-row" style={{ display: 'flex', gap: 10, maxWidth: 430 }}>
-        <input
-          type="text"
-          placeholder="MX26GP"
-          value={codigoBusqueda}
-          onChange={e => { setCodigoBusqueda(e.target.value); setErrorBusqueda('') }}
-          onKeyDown={e => e.key === 'Enter' && buscarPorCodigo('predicciones')}
-          aria-label="Código de acceso"
-          style={{
-            flex: '1 1 180px',
-            minHeight: 52,
-            background: '#151F32',
-            borderColor: errorBusqueda ? 'var(--red)' : 'rgba(255,255,255,0.12)',
-            borderRadius: 11,
-            fontSize: 16,
-            letterSpacing: '0.12em',
-            fontWeight: 800,
-            textTransform: 'uppercase',
-          }}
-        />
+      <div ref={codeRowRef} className="public-home-code-row" style={{ display: 'flex', gap: 10, maxWidth: 430 }}>
+        <div className="public-code-input-wrap" style={{ position: 'relative', flex: '1 1 180px' }}>
+          <input
+            type="text"
+            placeholder="ej. MX26GP"
+            value={codigoBusqueda}
+            maxLength={10}
+            onChange={e => {
+              setCodigoBusqueda(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))
+              setErrorBusqueda('')
+            }}
+            onKeyDown={e => e.key === 'Enter' && buscarPorCodigo('predicciones')}
+            aria-label="Código de acceso"
+            style={{
+              width: '100%',
+              minHeight: 52,
+              background: '#151F32',
+              borderColor: errorBusqueda ? 'var(--red)' : 'rgba(255,255,255,0.12)',
+              borderRadius: 11,
+              fontSize: 16,
+              letterSpacing: '0.12em',
+              fontWeight: 800,
+              textTransform: 'uppercase',
+              caretColor: 'var(--green)',
+            }}
+          />
+          <span className="public-code-caret" aria-hidden="true" />
+        </div>
         <button
           onClick={() => buscarPorCodigo('predicciones')}
           disabled={buscando}
@@ -185,12 +208,14 @@ function CodeEntry({ codigoBusqueda, setCodigoBusqueda, errorBusqueda, setErrorB
           {!buscando && <HomeIcon name="arrow" size={16} />}
         </button>
       </div>
-      {errorBusqueda && (
-        <p style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: '#FCA5A5', marginTop: 11 }}>
-          <HomeIcon name="warning" size={13} />
-          {errorBusqueda}
-        </p>
-      )}
+      <div style={{ minHeight: 20, marginTop: 11 }}>
+        {errorBusqueda && (
+          <p style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: '#FCA5A5', margin: 0 }}>
+            <HomeIcon name="warning" size={13} />
+            {errorBusqueda}
+          </p>
+        )}
+      </div>
     </div>
   )
 }
@@ -263,24 +288,14 @@ function estadoQuiniela(q) {
   return { label: 'Abierta', color: 'var(--green-light)', bg: 'var(--green-bg)', href: `/quiniela/${q.id}`, cta: 'Jugar' }
 }
 
-function HomeQuinielaRow({ q, conteos, accent = 'green', empty = false }) {
-  if (empty) {
-    return (
-      <div style={{ background: 'var(--card)', borderRadius: 14, padding: '34px 24px', textAlign: 'center', border: '1px solid var(--border)' }}>
-        <div style={{ display: 'inline-flex', color: 'var(--green)', marginBottom: 14 }}><HomeIcon name="ball" size={42} /></div>
-        <p style={{ fontWeight: 800, fontSize: 16, color: 'var(--text)', marginBottom: 6 }}>No hay quinielas públicas abiertas</p>
-        <p style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.5 }}>Si te invitaron a una quiniela privada, ingresa el código arriba para entrar.</p>
-      </div>
-    )
-  }
+function HomeQuinielaRow({ q, conteos }) {
   const estado = estadoQuiniela(q)
-  const border = accent === 'yellow' ? 'rgba(250,204,21,0.45)' : accent === 'neutral' ? 'var(--border)' : 'rgba(34,197,94,0.28)'
   return (
     <div className="public-live-card" style={{
       background: 'var(--card)',
       borderRadius: 14,
       padding: '18px 20px',
-      border: `1px solid ${border}`,
+      border: '1px solid rgba(34,197,94,0.28)',
       display: 'grid',
       gridTemplateColumns: 'minmax(0, 1fr) auto auto',
       alignItems: 'center',
@@ -318,21 +333,63 @@ function HomeQuinielaRow({ q, conteos, accent = 'green', empty = false }) {
   )
 }
 
-function TusQuinielasSection({ quinielas, conteos, predicciones }) {
+function QuinielasPublicasSection({ quinielas, conteos }) {
   if (quinielas.length === 0) return null
   return (
-    <section className="public-section-mine" style={{ maxWidth: 1100, width: '100%', margin: '0 auto', padding: '0 24px' }}>
+    <section className="public-section-open" style={{ maxWidth: 1100, width: '100%', margin: '0 auto', padding: '0 24px' }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 16, marginBottom: 18 }}>
+        <div>
+          <h2 style={{ ...sectionTitleStyle, margin: 0 }}>Quinielas públicas</h2>
+          <p style={{ fontSize: 12.5, color: 'var(--muted-soft)', marginTop: 3 }}>Abiertas a cualquiera, sin código</p>
+        </div>
+      </div>
+      <div style={{ display: 'grid', gap: 12 }}>
+        {quinielas.map(q => <HomeQuinielaRow key={q.id} q={q} conteos={conteos} />)}
+      </div>
+    </section>
+  )
+}
+
+const MAX_TUS_QUINIELAS = 8
+
+function TusQuinielasSection({ quinielas, conteos, predicciones, onQuitar }) {
+  const [expandido, setExpandido] = useState(false)
+  if (quinielas.length === 0) return null
+  const ordenadas = [...quinielas]
+    .sort((a, b) => {
+      const bA = bucketDe(a, predicciones[a.id] ?? [], conteos[a.id] ?? 0)
+      const bB = bucketDe(b, predicciones[b.id] ?? [], conteos[b.id] ?? 0)
+      if (bA !== bB) return bA - bB
+      // Dentro de finalizadas: la quiniela creada más recientemente va arriba.
+      if (bA === BUCKET_FINALIZADA) return new Date(b.creada ?? 0) - new Date(a.creada ?? 0)
+      return 0
+    })
+    .slice(0, MAX_TUS_QUINIELAS)
+  return (
+    <section id="quinielas" className="public-section-mine" style={{ maxWidth: 1100, width: '100%', margin: '0 auto', padding: '0 24px' }}>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 16, marginBottom: 16 }}>
         <div>
           <h2 style={{ ...sectionTitleStyle, margin: 0 }}>Tus quinielas</h2>
           <p style={{ fontSize: 12.5, color: 'var(--muted-soft)', marginTop: 3 }}>Guardadas en este dispositivo</p>
         </div>
       </div>
-      <div className="tq-grid">
-        {quinielas.slice(0, 4).map(q => (
-          <TusQuinielaCard key={q.id} q={q} predicciones={predicciones[q.id] ?? []} participantes={conteos[q.id] ?? 0} />
+      <div className={`tq-grid${expandido ? '' : ' tq-grid--limitado'}`}>
+        {ordenadas.map(q => (
+          <TusQuinielaCard
+            key={q.id}
+            q={q}
+            predicciones={predicciones[q.id] ?? []}
+            participantes={conteos[q.id] ?? 0}
+            onQuitar={onQuitar}
+          />
         ))}
       </div>
+      {ordenadas.length > 3 && (
+        <button type="button" className="tq-vermas" onClick={() => setExpandido(v => !v)}>
+          {expandido ? 'Ver menos' : 'Ver más'}
+          <HomeIcon name="chevron" size={12} style={{ transform: expandido ? 'rotate(180deg)' : 'none' }} />
+        </button>
+      )}
     </section>
   )
 }
@@ -384,8 +441,8 @@ function FaqSection() {
     <section className="public-faq-section" style={{ maxWidth: 1100, margin: '0 auto', padding: '0 24px' }}>
       <h2 style={sectionTitleStyle}>Preguntas frecuentes</h2>
       <div style={{ display: 'grid', gap: 10 }}>
-        {faq.map(([titulo, texto], i) => (
-          <details key={titulo} className="public-faq-item" open={i === 0} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12, padding: '15px 18px' }}>
+        {faq.map(([titulo, texto]) => (
+          <details key={titulo} className="public-faq-item" style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12, padding: '15px 18px' }}>
             <summary style={{ cursor: 'pointer', listStyle: 'none', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, fontSize: 14.5, fontWeight: 850, color: 'var(--text-strong)' }}>
               <span>{titulo}</span>
               <span className="public-faq-chevron" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: '50%', flexShrink: 0, background: 'var(--neutral-bg)', color: 'var(--muted)' }}>
@@ -429,7 +486,7 @@ function PromoCreateCard() {
 }
 
 export default function Home() {
-  const [quinielas, setQuinielas] = useState([])
+  const [quinielasPublicas, setQuinielasPublicas] = useState([])
   const [misQuinielas, setMisQuinielas] = useState([])
   const [misPredicciones, setMisPredicciones] = useState({})
   const [conteos, setConteos] = useState({})
@@ -441,11 +498,34 @@ export default function Home() {
   const [codigoBusqueda, setCodigoBusqueda] = useState('')
   const [buscando, setBuscando] = useState(false)
   const [errorBusqueda, setErrorBusqueda] = useState('')
+  const codeRowRef = useRef(null)
+
+  const [scrolled, setScrolled] = useState(false)
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 8)
+    onScroll()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
+
+  const mostrarError = (msg) => {
+    setErrorBusqueda(msg)
+    const el = codeRowRef.current
+    if (el) {
+      el.style.animation = 'none'
+      void el.offsetWidth
+      el.style.animation = 'code-input-shake .4s'
+    }
+  }
 
   const buscarPorCodigo = async (destino = 'predicciones') => {
     const limpio = codigoBusqueda.trim()
     if (!limpio) {
-      setErrorBusqueda('Ingresa el código que te compartió el organizador.')
+      mostrarError('Ingresa el código que te compartió el organizador.')
+      return
+    }
+    if (limpio.length < 4) {
+      mostrarError('El código es muy corto.')
       return
     }
     setBuscando(true)
@@ -456,7 +536,7 @@ export default function Home() {
         where('codigoAccesoLower', '==', limpio.toLowerCase()),
       ))
       if (snap.empty) {
-        setErrorBusqueda('Código no encontrado. Verifica con quien te invitó.')
+        mostrarError('Código no encontrado. Verifica con quien te invitó.')
         track('codigo_busqueda_fallo')
         return
       }
@@ -466,10 +546,15 @@ export default function Home() {
       track('codigo_busqueda_exito', { quinielaId: docSnap.id, destino })
       navigate(destino === 'ranking' ? `/ranking/${docSnap.id}` : `/quiniela/${docSnap.id}`)
     } catch {
-      setErrorBusqueda('Error de conexión. Intenta de nuevo.')
+      mostrarError('Error de conexión. Intenta de nuevo.')
     } finally {
       setBuscando(false)
     }
+  }
+
+  const quitarMiQuiniela = (id) => {
+    olvidarMiQuiniela(id)
+    setMisQuinielas(prev => prev.filter(q => q.id !== id))
   }
 
   useEffect(() => {
@@ -505,7 +590,9 @@ export default function Home() {
       })
       setConteos(conteoMap)
       setMisPredicciones(prediccionesMap)
-      setQuinielas(qSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(q => !q.privada))
+      // Públicas: solo las que el super admin marcó explícitamente como tal.
+      // Todas las demás (incluidas las viejas sin este campo) son privadas por default.
+      setQuinielasPublicas(qSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(q => q.privada === false))
       const porId = new Map(guardadas.map((q, idx) => [q.id, { guardada: q, idx }]))
       const personales = misSnaps
         .filter(s => s?.exists?.())
@@ -523,82 +610,56 @@ export default function Home() {
     )
   }
 
-  const activas = quinielas.filter(q => !esCerrada(q))
-  const cerradas = quinielas.filter(q => esCerrada(q))
-  const enJuego = cerradas.filter(q => !esFinalizada(q))
-  const ultimaFinal = cerradas
-    .filter(q => esFinalizada(q))
-    .sort((a, b) => {
-      const tB = (b.finalizadaEn ? new Date(b.finalizadaEn).getTime() : null) ?? cierreToDate(b.cierre)?.getTime() ?? 0
-      const tA = (a.finalizadaEn ? new Date(a.finalizadaEn).getTime() : null) ?? cierreToDate(a.cierre)?.getTime() ?? 0
-      return tB - tA
-    })[0] ?? null
-  const principal = activas.find(q => q.destacada) ?? activas[0] ?? null
-  const otrasActivas = activas.filter(q => q.id !== principal?.id)
+  const publicasAbiertas = quinielasPublicas.filter(q => !esCerrada(q))
+  const principal = publicasAbiertas.find(q => q.destacada) ?? publicasAbiertas[0] ?? null
 
   const ordenHome = ordenSeccionesHome(homeConfig)
   const ordenDe = (clave) => ordenHome.indexOf(clave)
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
-      <HomeHeader />
+      <div style={{ background: 'var(--hero-gradient)' }}>
+        <HomeHeader scrolled={scrolled} />
 
-      <section style={{ background: 'var(--hero-gradient)', borderBottom: '1px solid var(--border)' }}>
-        <div className="public-home-hero public-home-shell" style={{
-          maxWidth: 1100,
-          margin: '0 auto',
-          padding: '56px 24px 58px',
-          display: 'grid',
-          gridTemplateColumns: '1.05fr 0.95fr',
-          gap: 46,
-          alignItems: 'center',
-        }}>
-          <div style={{ minWidth: 0 }}>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 11, fontWeight: 850, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--green-light)', padding: '5px 11px', border: '1px solid rgba(34,197,94,0.35)', borderRadius: 'var(--radius-full)', background: 'var(--green-bg)', marginBottom: 20 }}>
-              Gratis para jugar
-            </span>
-            <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(36px, 6vw, 56px)', fontWeight: 700, color: 'var(--text-strong)', margin: '0 0 14px', lineHeight: 1.02, letterSpacing: 0 }}>
-              Arma tu quiniela.<br className="public-home-title-break" /> Juega con tus amigos.
-            </h1>
-            <p style={{ fontSize: 15.5, color: 'var(--muted)', margin: '0 0 26px', lineHeight: 1.6, maxWidth: 470 }}>
-              Predice los marcadores, sube en el ranking en vivo y presume tus aciertos. Entra con el código que te compartieron, sin cuentas ni complicaciones.
-            </p>
-            {verSeccion('mostrarCodigo') && (
-              <CodeEntry
-                codigoBusqueda={codigoBusqueda}
-                setCodigoBusqueda={setCodigoBusqueda}
-                errorBusqueda={errorBusqueda}
-                setErrorBusqueda={setErrorBusqueda}
-                buscando={buscando}
-                buscarPorCodigo={buscarPorCodigo}
-              />
-            )}
-            <p style={{ fontSize: 12.5, color: 'var(--muted-soft)', margin: '14px 0 0' }}>
-              ¿Organizas una quiniela? <a href="/admin" onClick={() => track('home_login_hero')} style={{ color: 'var(--green-light)', fontWeight: 800, textDecoration: 'none' }}>Entra como organizador</a>.
-            </p>
+        <section style={{ borderBottom: '1px solid var(--border)' }}>
+          <div className="public-home-hero public-home-shell" style={{
+            maxWidth: 1100,
+            margin: '0 auto',
+            padding: '56px 24px 58px',
+            display: 'grid',
+            gridTemplateColumns: '1.05fr 0.95fr',
+            gap: 46,
+            alignItems: 'center',
+          }}>
+            <div style={{ minWidth: 0 }}>
+              <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(36px, 6vw, 56px)', fontWeight: 700, color: 'var(--text-strong)', margin: '0 0 14px', lineHeight: 1.02, letterSpacing: 0 }}>
+                Arma tu quiniela.<br className="public-home-title-break" /> Juega con tus amigos.
+              </h1>
+              <p style={{ fontSize: 15.5, color: 'rgba(255,255,255,0.72)', margin: '0 0 26px', lineHeight: 1.6, maxWidth: 470 }}>
+                Predice los marcadores, sube en el ranking en vivo y presume tus aciertos.{' '}
+                <strong style={{ color: 'var(--text-strong)', fontWeight: 700 }}>Sin cuentas ni complicaciones.</strong>
+              </p>
+              {verSeccion('mostrarCodigo') && (
+                <CodeEntry
+                  codigoBusqueda={codigoBusqueda}
+                  setCodigoBusqueda={setCodigoBusqueda}
+                  errorBusqueda={errorBusqueda}
+                  setErrorBusqueda={setErrorBusqueda}
+                  buscando={buscando}
+                  buscarPorCodigo={buscarPorCodigo}
+                  codeRowRef={codeRowRef}
+                />
+              )}
+              <p style={{ fontSize: 12.5, color: 'var(--muted-soft)', margin: '14px 0 0' }}>
+                ¿Organizas una quiniela? <a href="/admin" onClick={() => track('home_login_hero')} style={{ color: 'var(--green-light)', fontWeight: 800, textDecoration: 'none' }}>Entra como organizador</a>.
+              </p>
+            </div>
+            <RankingPreview principal={principal} conteos={conteos} />
           </div>
-          <RankingPreview principal={principal} conteos={conteos} />
-        </div>
-      </section>
+        </section>
+      </div>
 
       <main className="public-home-main" style={{ display: 'flex', flexDirection: 'column', gap: 32, padding: '32px 0' }}>
-        {verSeccion('mostrarActiva') && (
-          <section id="quinielas" className="public-section-open" style={{ order: ordenDe('mostrarActiva'), maxWidth: 1100, width: '100%', margin: '0 auto', padding: '0 24px' }}>
-            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 16, marginBottom: 18 }}>
-              <h2 style={{ ...sectionTitleStyle, margin: 0 }}>Quinielas abiertas</h2>
-              {activas.length > 0 && <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--green-light)' }}>{activas.length} disponible{activas.length === 1 ? '' : 's'}</span>}
-            </div>
-            {activas.length === 0 ? (
-              <HomeQuinielaRow empty />
-            ) : (
-              <div style={{ display: 'grid', gap: 12 }}>
-                {principal && <HomeQuinielaRow q={principal} conteos={conteos} />}
-                {otrasActivas.slice(0, 5).map(q => <HomeQuinielaRow key={q.id} q={q} conteos={conteos} />)}
-              </div>
-            )}
-          </section>
-        )}
-
         {verSeccion('mostrarComoFunciona') && (
           <div style={{ order: ordenDe('mostrarComoFunciona') }}>
             <HowItWorks />
@@ -611,28 +672,21 @@ export default function Home() {
           </section>
         )}
 
-        {misQuinielas.length > 0 && (
-          <div style={{ order: ordenDe('mostrarJugandose') - 0.5 }}>
-            <TusQuinielasSection quinielas={misQuinielas} conteos={conteos} predicciones={misPredicciones} />
+        {verSeccion('mostrarMisQuinielas') && (
+          <div style={{ order: ordenDe('mostrarMisQuinielas') }}>
+            <TusQuinielasSection
+              quinielas={misQuinielas}
+              conteos={conteos}
+              predicciones={misPredicciones}
+              onQuitar={quitarMiQuiniela}
+            />
           </div>
         )}
 
-        {verSeccion('mostrarJugandose') && enJuego.length > 0 && (
-          <section className="public-section-live" style={{ order: ordenDe('mostrarJugandose'), maxWidth: 1100, width: '100%', margin: '0 auto', padding: '0 24px' }}>
-            <h2 style={sectionTitleStyle}>Jugándose ahora</h2>
-            <div style={{ display: 'grid', gap: 12 }}>
-              {enJuego.map(q => <HomeQuinielaRow key={q.id} q={q} conteos={conteos} accent="yellow" />)}
-            </div>
-          </section>
-        )}
-
-        {verSeccion('mostrarTerminada') && ultimaFinal && (
-          <section style={{ order: ordenDe('mostrarTerminada'), maxWidth: 1100, width: '100%', margin: '0 auto', padding: '0 24px' }}>
-            <h2 style={sectionTitleStyle}>
-              {principal || enJuego.length > 0 ? 'Última quiniela terminada' : 'Quiniela más reciente'}
-            </h2>
-            <HomeQuinielaRow q={ultimaFinal} conteos={conteos} accent="neutral" />
-          </section>
+        {verSeccion('mostrarPublicas') && (
+          <div style={{ order: ordenDe('mostrarPublicas') }}>
+            <QuinielasPublicasSection quinielas={quinielasPublicas} conteos={conteos} />
+          </div>
         )}
 
         {verSeccion('mostrarFaq') && (
@@ -644,12 +698,6 @@ export default function Home() {
         {verSeccion('mostrarImagen') && (
           <section style={{ order: ordenDe('mostrarImagen'), maxWidth: 1100, width: '100%', margin: '0 auto', padding: '0 24px', textAlign: 'center' }}>
             <img src="/jugador-verde.png" alt="" style={{ width: '100%', maxWidth: 330, height: 'auto', display: 'block', margin: '0 auto' }} />
-          </section>
-        )}
-
-        {verSeccion('mostrarPromo') && (
-          <section style={{ order: ordenDe('mostrarPromo'), maxWidth: 1100, width: '100%', margin: '0 auto', padding: '0 24px' }}>
-            <PromoCTA />
           </section>
         )}
       </main>

@@ -13,14 +13,12 @@
 // Orden por defecto (cuando `config/home.orden` no existe).
 export const ORDEN_SECCIONES_HOME = [
   'mostrarCodigo',
+  'mostrarMisQuinielas',
   'mostrarComoFunciona',
   'mostrarCrearQuiniela',
-  'mostrarActiva',
-  'mostrarJugandose',
-  'mostrarTerminada',
+  'mostrarPublicas',
   'mostrarFaq',
   'mostrarImagen',
-  'mostrarPromo',
 ]
 
 // Etiquetas legibles para el panel del super admin.
@@ -28,12 +26,10 @@ export const LABELS_SECCIONES_HOME = {
   mostrarCodigo:        '¿Tienes un código de acceso?',
   mostrarComoFunciona:  '¿Cómo funciona? (3 pasos)',
   mostrarCrearQuiniela: '¿Quieres crear tu propia quiniela?',
-  mostrarActiva:        'Quiniela abierta',
-  mostrarJugandose:     'Jugándose ahora',
-  mostrarTerminada:     'Última quiniela terminada',
+  mostrarMisQuinielas:  'Tus quinielas',
+  mostrarPublicas:      'Quinielas públicas',
   mostrarFaq:           'Preguntas frecuentes',
   mostrarImagen:        'Imagen decorativa',
-  mostrarPromo:         '¿Quieres tu propia quiniela? (promo final)',
 }
 
 /**

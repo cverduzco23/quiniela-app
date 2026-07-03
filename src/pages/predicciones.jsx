@@ -3,7 +3,7 @@ import { useSearchParams, useParams } from 'react-router-dom'
 import { doc, getDoc, addDoc, collection, getDocs, query, where } from 'firebase/firestore'
 import { db, track } from '../firebase'
 import { registrarVisita, registrarVisitaQuiniela, registrarEnvio } from '../utils/analytics'
-import { cierreToDate, quinielaCerrada, tiempoRestante } from '../utils/cierre'
+import { cierreToDate, quinielaCerrada, quinielaFinalizada, hayPartidoEnVivo, tiempoRestante } from '../utils/cierre'
 import { tienePremio, tieneCuota, descripcionRegla, calcularBote, desglosePremio, TIPO_PREMIO, formatearMXN } from '../utils/premios'
 import { normalizarNombre, tieneNombreYApellido } from '../utils/nombres'
 import { recordarMiQuiniela } from '../utils/misQuinielas'
@@ -263,6 +263,7 @@ export default function Predicciones() {
 
   const partidos   = quiniela?.partidos ?? []
   const cerrada    = quinielaCerrada(quiniela)
+  const finalizada = quinielaFinalizada(quiniela)
   const progreso   = partidos.filter((_, i) => pickValido(picks[i])).length
   const completado = nombre.trim().length > 0 && progreso === partidos.length
 
@@ -631,19 +632,24 @@ export default function Predicciones() {
               </span>
             )}
             {quiniela.cierre && (() => {
-              // Cerrada → badge fijo. Dentro de 24h → timer en vivo (mismo que
-              // ranking/home). A más de 24h → fecha de cierre.
+              // Cerrada → badge fijo, con su propio estado (jugándose/en vivo
+              // vs. finalizada) para no sonar a "ya acabó" cuando sigue en
+              // juego. Dentro de 24h → timer en vivo (mismo que ranking/home).
+              // A más de 24h → fecha de cierre.
               if (cerrada) {
+                const enVivo = !finalizada && hayPartidoEnVivo(quiniela)
+                const label = finalizada ? 'Finalizada' : (enVivo ? 'En vivo' : 'Jugándose')
                 return (
                   <span style={{
                     display: 'inline-block', fontSize: 12, fontWeight: 700,
                     padding: '4px 12px', borderRadius: 'var(--radius-full)',
-                    background: 'var(--red-bg-strong)', color: '#FCA5A5',
-                    border: '1px solid var(--red)',
+                    background: finalizada ? 'var(--neutral-bg)' : 'var(--red-bg-strong)',
+                    color: finalizada ? 'var(--muted)' : '#FCA5A5',
+                    border: finalizada ? '1px solid var(--border)' : '1px solid var(--red)',
                   }}>
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-                      <PredIcon name="lock" size={12} />
-                      Quiniela cerrada
+                      <PredIcon name={finalizada ? 'check' : 'ranking'} size={12} />
+                      {label}
                     </span>
                   </span>
                 )
@@ -679,11 +685,11 @@ export default function Predicciones() {
               <PredIcon name="ball" size={48} />
             </div>
             <p style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-strong)', marginBottom: 8 }}>
-              ¡Los partidos están en juego!
+              {finalizada ? '¡La quiniela ya terminó!' : '¡Los partidos están en juego!'}
             </p>
             <p style={{ fontSize: 14, color: 'var(--muted)', lineHeight: 1.6, marginBottom: 28 }}>
               El tiempo para registrar predicciones ya cerró.<br />
-              Sigue los resultados en el ranking en tiempo real.
+              {finalizada ? 'Consulta los resultados finales en el ranking.' : 'Sigue los resultados en el ranking en tiempo real.'}
             </p>
             <a href={`/ranking/${quinielaId}`} style={{
               display: 'inline-block', padding: '12px 28px', borderRadius: 'var(--radius-md)',
@@ -793,22 +799,6 @@ export default function Predicciones() {
                 Ver ranking →
               </a>
             </div>
-            <p style={{ fontSize: 11, color: 'var(--muted)', textAlign: 'center', lineHeight: 1.6 }}>
-              ¿No eres tú?{' '}
-              <button
-                onClick={() => {
-                  try { if (lsEnviadoKey) localStorage.removeItem(lsEnviadoKey) } catch { /* noop */ }
-                  setYaEnviadoAntes(null)
-                }}
-                style={{
-                  background: 'none', border: 'none', color: 'var(--green-light)',
-                  fontSize: 11, fontWeight: 600, cursor: 'pointer', padding: 0,
-                  textDecoration: 'underline',
-                }}
-              >
-                Registrar a otra persona
-              </button>
-            </p>
           </div>
 
         ) : (tienePremio(quiniela) && !confirmadoRegla) ? (

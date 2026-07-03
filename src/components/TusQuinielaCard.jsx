@@ -1,5 +1,7 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { datosTarjetaQuiniela } from '../utils/quinielaCard'
+import { asignarAliasQuiniela } from '../utils/misQuinielas'
+import { useDialog } from './Dialogs'
 
 function ShareIcon() {
   return (
@@ -8,6 +10,15 @@ function ShareIcon() {
       <circle cx="6" cy="12" r="3" />
       <circle cx="18" cy="19" r="3" />
       <path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4" />
+    </svg>
+  )
+}
+
+function QuitarIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M18 6 6 18" />
+      <path d="m6 6 12 12" />
     </svg>
   )
 }
@@ -31,8 +42,8 @@ function Badge({ estado }) {
   }
   if (estado === 'jugandose') {
     return (
-      <span className="tq-badge" style={{ background: 'rgba(239,68,68,0.16)', color: '#FCA5A5' }}>
-        <span className="tq-pulse-dot" />
+      <span className="tq-badge" style={{ background: 'rgba(34,197,94,0.14)', color: '#86EFAC' }}>
+        <span className="tq-pulse-dot" style={{ background: '#86EFAC' }} />
         En vivo
       </span>
     )
@@ -44,7 +55,7 @@ function Badge({ estado }) {
   )
 }
 
-function Banda({ d, miNombreVisible }) {
+function Banda({ d, miNombreVisible, onAlias }) {
   if (d.estado === 'abierta') {
     return (
       <div className="tq-banda" style={{ background: 'linear-gradient(135deg,rgba(250,204,21,0.12),rgba(250,204,21,0.03))', border: '1px solid rgba(250,204,21,0.28)' }}>
@@ -65,7 +76,25 @@ function Banda({ d, miNombreVisible }) {
   if (!d.tengoPosicion) {
     return (
       <div className="tq-banda tq-banda--vacia" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)' }}>
-        <p className="tq-banda-vacia-text">Consulta tu posición en el ranking</p>
+        {d.nombresDisponibles?.length > 0 ? (
+          <div
+            className="tq-alias"
+            onClick={e => { e.preventDefault(); e.stopPropagation() }}
+            onMouseDown={e => e.stopPropagation()}
+          >
+            <span className="tq-alias-text">¿Ya estás dentro?</span>
+            <select
+              className="tq-alias-select"
+              defaultValue=""
+              onChange={e => { if (e.target.value) onAlias(e.target.value) }}
+            >
+              <option value="" disabled>Selecciona tu nombre</option>
+              {d.nombresDisponibles.map(n => <option key={n} value={n}>{n}</option>)}
+            </select>
+          </div>
+        ) : (
+          <p className="tq-banda-vacia-text">Consulta tu posición en el ranking</p>
+        )}
       </div>
     )
   }
@@ -125,19 +154,6 @@ function Banda({ d, miNombreVisible }) {
 }
 
 function ProgressRow({ d }) {
-  if (d.estado === 'abierta') {
-    const pct = d.prediccionesTotal > 0 ? Math.round((d.prediccionesHechas / d.prediccionesTotal) * 100) : 0
-    const pendientes = d.prediccionesTotal - d.prediccionesHechas
-    return (
-      <>
-        <div className="tq-progress-row">
-          <span>Tus predicciones · {d.prediccionesHechas} de {d.prediccionesTotal}</span>
-          <span style={{ color: '#FCD34D', fontWeight: 700 }}>{pendientes > 0 ? `${pendientes} pendientes` : 'Completas'}</span>
-        </div>
-        <div className="tq-bar"><div className="tq-bar-fill" style={{ width: `${pct}%`, background: 'linear-gradient(90deg,#F59E0B,#FCD34D)' }} /></div>
-      </>
-    )
-  }
   if (d.estado === 'jugandose') {
     const pct = d.numPartidos > 0 ? Math.round((d.partidosJugados / d.numPartidos) * 100) : 0
     const restantes = d.numPartidos - d.partidosJugados
@@ -151,6 +167,7 @@ function ProgressRow({ d }) {
       </>
     )
   }
+  // finalizada
   return (
     <>
       <div className="tq-progress-row">
@@ -162,11 +179,36 @@ function ProgressRow({ d }) {
   )
 }
 
-export function TusQuinielaCard({ q, predicciones, participantes }) {
-  const d = useMemo(() => datosTarjetaQuiniela(q, predicciones, participantes), [q, predicciones, participantes])
+export function TusQuinielaCard({ q, predicciones, participantes, onQuitar }) {
+  const { confirmar } = useDialog()
+  // aliasVersion no se lee dentro del cálculo, pero forzar su recomputación
+  // es la señal de que se acaba de guardar un alias nuevo en localStorage.
+  const [aliasVersion, setAliasVersion] = useState(0)
+  const d = useMemo(
+    () => datosTarjetaQuiniela(q, predicciones, participantes),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [q, predicciones, participantes, aliasVersion],
+  )
   const href = d.estado === 'abierta' ? `/quiniela/${q.id}` : `/ranking/${q.id}`
   const ctaLabel = d.estado === 'abierta' ? 'Completar predicciones' : d.estado === 'jugandose' ? 'Ver ranking' : 'Ver resultados'
   const ctaGhost = d.estado === 'finalizada'
+
+  const handleAlias = (nombre) => {
+    asignarAliasQuiniela(q.id, nombre)
+    setAliasVersion(v => v + 1)
+  }
+
+  const handleQuitar = async () => {
+    const ok = await confirmar(
+      <>
+        ¿Quitar <strong style={{ color: 'var(--text-strong)' }}>{q.nombre}</strong> de tus quinielas guardadas?
+        <br />
+        <span style={{ fontSize: 12, color: 'var(--muted)' }}>Podrás volver a entrar con el código cuando quieras.</span>
+      </>,
+      { confirmar: 'Quitar', cancelar: 'Cancelar', peligro: true },
+    )
+    if (ok) onQuitar?.(q.id)
+  }
 
   return (
     <div className="tq-card">
@@ -178,10 +220,12 @@ export function TusQuinielaCard({ q, predicciones, participantes }) {
           </div>
           <Badge estado={d.estado} />
         </div>
-        <Banda d={d} miNombreVisible={d.miNombre} />
-        <div className="tq-progress">
-          <ProgressRow d={d} />
-        </div>
+        <Banda d={d} miNombreVisible={d.miNombre} onAlias={handleAlias} />
+        {d.estado !== 'abierta' && (
+          <div className="tq-progress">
+            <ProgressRow d={d} />
+          </div>
+        )}
       </a>
       <div className="tq-actions">
         <a href={href} className={ctaGhost ? 'tq-cta tq-cta--ghost' : 'tq-cta tq-cta--solid'}>
@@ -190,6 +234,9 @@ export function TusQuinielaCard({ q, predicciones, participantes }) {
         <button type="button" className="tq-share" onClick={() => compartirQuiniela(q)} aria-label="Compartir quiniela">
           <ShareIcon />
           <span className="tq-share-label">Compartir</span>
+        </button>
+        <button type="button" className="tq-quitar" onClick={handleQuitar} aria-label="Quitar de tus quinielas">
+          <QuitarIcon />
         </button>
       </div>
     </div>

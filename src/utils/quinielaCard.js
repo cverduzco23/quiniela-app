@@ -1,6 +1,7 @@
 import { cierreToDate, quinielaCerrada, quinielaFinalizada } from './cierre'
 import { calcularPuntos, getResultado } from './scoring'
 import { normalizarNombre } from './nombres'
+import { haEnviadoQuiniela, miIdentidadEnQuiniela } from './misQuinielas'
 
 const DIAS = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb']
 const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
@@ -21,39 +22,6 @@ function restante(d) {
   return { valor: Math.max(1, Math.ceil(ms / MIN)), unidad: 'm' }
 }
 
-function pickValido(pick) {
-  if (!pick) return false
-  const l = pick.local, v = pick.visitante
-  return l !== '' && l !== undefined && v !== '' && v !== undefined &&
-    !isNaN(Number(l)) && !isNaN(Number(v))
-}
-
-// Cuántos picks válidos tiene este dispositivo guardados para esa quiniela:
-// si ya la envió, están todos completos; si no, cuenta el borrador local.
-function miProgreso(id, totalPartidos) {
-  try {
-    if (localStorage.getItem(`quiniela-${id}-enviada`)) return totalPartidos
-    const raw = localStorage.getItem(`quiniela-${id}-progreso`)
-    const data = raw ? JSON.parse(raw) : null
-    if (!data?.picks) return 0
-    let hechas = 0
-    for (let i = 0; i < totalPartidos; i++) if (pickValido(data.picks[i])) hechas++
-    return hechas
-  } catch {
-    return 0
-  }
-}
-
-function miNombreEn(id) {
-  try {
-    const raw = localStorage.getItem(`quiniela-${id}-enviada`)
-    const data = raw ? JSON.parse(raw) : null
-    return data?.nombre ? normalizarNombre(data.nombre) : null
-  } catch {
-    return null
-  }
-}
-
 // Arma los datos que necesita la tarjeta de "Tus quinielas" para uno de sus
 // tres estados (abierta / jugandose / finalizada), a partir del documento de
 // la quiniela, las predicciones enviadas por todos y el conteo de
@@ -67,15 +35,13 @@ export function datosTarjetaQuiniela(q, predicciones, participantes) {
 
   if (!cerrada) {
     const cierreDate = cierreToDate(q.cierre)
-    const total = partidos.length
     return {
       estado: 'abierta',
-      numPartidos: total,
+      numPartidos: partidos.length,
       participantes,
       cierreTexto: cierreDate ? formatCierre(cierreDate) : '—',
       restante: cierreDate ? restante(cierreDate) : null,
-      prediccionesHechas: Math.min(total, miProgreso(q.id, total)),
-      prediccionesTotal: total,
+      enviada: haEnviadoQuiniela(q.id),
     }
   }
 
@@ -85,10 +51,11 @@ export function datosTarjetaQuiniela(q, predicciones, participantes) {
     return getResultado(r) !== null
   }).length
 
-  const miNombre = miNombreEn(q.id)
+  const miNombre = miIdentidadEnQuiniela(q.id)
   const jugadores = predicciones
     .map(p => ({ nombre: normalizarNombre(p.nombre), ...calcularPuntos(p.picks, resultados, {}, partidos) }))
     .sort((a, b) => b.puntos - a.puntos)
+  const nombresDisponibles = [...new Set(jugadores.map(j => j.nombre))].sort((a, b) => a.localeCompare(b, 'es'))
 
   // Ranking olímpico: empates comparten posición (igual que RankingTable).
   const posiciones = []
@@ -117,6 +84,7 @@ export function datosTarjetaQuiniela(q, predicciones, participantes) {
     posicion,
     misPuntos,
     totalJugadores,
+    nombresDisponibles,
   }
 
   if (!finalizada) {

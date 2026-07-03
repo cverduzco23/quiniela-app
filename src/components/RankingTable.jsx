@@ -4,6 +4,7 @@ import { goalsToResultado, getResultado, getPickResultado, getEfectivo, calcular
 import { tienePremio, calcularGanadores, formatearMXN, descripcionRegla } from '../utils/premios'
 import { simularUltimoPartido } from '../utils/escenarios'
 import { normalizarNombre } from '../utils/nombres'
+import { miIdentidadEnQuiniela } from '../utils/misQuinielas'
 import { registrarApertura } from '../utils/analytics'
 import { compartirOraculo, compartirRanking } from '../utils/shareRanking'
 import { useDialog } from './Dialogs'
@@ -281,12 +282,7 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
   }).length
   const hayResultados = terminados > 0 || enVivo
   const vistaParticipantesAbierta = !cerrada && !hayResultados
-  let miNombreRanking = null
-  try {
-    const raw = quiniela?.id ? localStorage.getItem(`quiniela-${quiniela.id}-enviada`) : null
-    const data = raw ? JSON.parse(raw) : null
-    if (data?.nombre) miNombreRanking = normalizarNombre(data.nombre)
-  } catch { /* localStorage no disponible */ }
+  const miNombreRanking = quiniela?.id ? miIdentidadEnQuiniela(quiniela.id) : null
 
   const jugadores = predicciones
     .map(p => ({
@@ -379,16 +375,10 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
     setCompartiendo(true)
     setFeedbackShare('')
     try {
-      // Detectar el nombre del usuario actual (si ya envió desde este dispositivo)
-      // para que la imagen incluya su fila + vecinos cuando esté fuera del Top.
-      let miNombre = null
-      try {
-        const raw = quiniela?.id ? localStorage.getItem(`quiniela-${quiniela.id}-enviada`) : null
-        if (raw) {
-          const data = JSON.parse(raw)
-          if (data?.nombre) miNombre = data.nombre
-        }
-      } catch { /* localStorage no disponible — imagen genérica */ }
+      // Detectar la identidad del usuario en este dispositivo (envío real o
+      // alias autoasignado) para que la imagen incluya su fila + vecinos
+      // cuando esté fuera del Top.
+      const miNombre = quiniela?.id ? miIdentidadEnQuiniela(quiniela.id) : null
       const res = await compartirRanking({
         quiniela,
         jugadores,

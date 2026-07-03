@@ -946,7 +946,7 @@ export default function Admin() {
   const [cuota, setCuota]               = useState('')
   const [modeloPremio, setModeloPremio] = useState(MODELO_PREMIO.GANADOR_UNICO)
   const [codigoAcceso, setCodigoAcceso] = useState('')
-  const [privada, setPrivada]           = useState(false)
+  const [privada, setPrivada]           = useState(true)
   const [empresa, setEmpresa]           = useState('')
   const [requiereApellido, setRequiereApellido] = useState(false)
 
@@ -1686,7 +1686,7 @@ export default function Admin() {
       }
       setNombre(''); setCierre(''); setPartidos([{ local: '', visitante: '', hora: '' }])
       setPremioFijo(''); setCuota(''); setModeloPremio(MODELO_PREMIO.GANADOR_UNICO)
-      setCodigoAcceso(''); setPrivada(false); setEmpresa(''); setRequiereApellido(false)
+      setCodigoAcceso(''); setPrivada(true); setEmpresa(''); setRequiereApellido(false)
       setFixtures([]); setSeleccionados([])
     } catch { alerta('Error al guardar. Intenta de nuevo.') }
     finally { setGuardando(false) }
