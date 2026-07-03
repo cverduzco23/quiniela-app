@@ -133,14 +133,6 @@ function SvgIcon({ name, size = 14, style }) {
       </svg>
     )
   }
-  if (name === 'flame') {
-    return (
-      <svg {...common}>
-        <path d="M12 22c4 0 7-2.7 7-6.8 0-2.5-1.3-4.5-3.6-6.3.1 2.1-.7 3.4-2 4.2.2-3.1-1.2-5.8-4.1-8.1.2 3.7-1.9 5.5-3 7.5A6.5 6.5 0 0 0 5 15.3C5 19.3 8 22 12 22Z" />
-        <path d="M12 18c1.4 0 2.5-1 2.5-2.4 0-1-.5-1.9-1.5-2.6-.1 1-.5 1.6-1.2 2-.1-1.4-.7-2.5-1.9-3.4.1 1.7-.8 2.5-1.3 3.4a3 3 0 0 0-.3 1.1C8.3 17.2 9.8 18 12 18Z" />
-      </svg>
-    )
-  }
   if (name === 'camera') {
     return (
       <svg {...common}>
@@ -240,6 +232,11 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
   const { alerta } = useDialog()
   const [expandido, setExpandido]               = useState(new Set())
   const [expandidoPartido, setExpandidoPartido] = useState(new Set())
+  // Una vez que un panel se abrió al menos una vez lo dejamos montado (aunque
+  // esté cerrado) para poder animar su cierre con una transición en vez de
+  // desmontarlo de golpe. Evita montar todos los paneles desde el inicio.
+  const [montado, setMontado]                   = useState(new Set())
+  const [montadoPartido, setMontadoPartido]     = useState(new Set())
   const [visibles, setVisibles]                 = useState(PAGE_SIZE)
   const [compartiendo, setCompartiendo] = useState(false)
   const [compartiendoOraculo, setCompartiendoOraculo] = useState(false)
@@ -255,6 +252,7 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
   const [golFestejo, setGolFestejo] = useState(null) // { equipo } | null
 
   const toggleExpandido = (nombre) => {
+    setMontado(prev => prev.has(nombre) ? prev : new Set(prev).add(nombre))
     setExpandido(prev => {
       const s = new Set(prev)
       s.has(nombre) ? s.delete(nombre) : s.add(nombre)
@@ -263,6 +261,7 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
   }
 
   const togglePartido = (idx) => {
+    setMontadoPartido(prev => prev.has(idx) ? prev : new Set(prev).add(idx))
     setExpandidoPartido(prev => {
       const s = new Set(prev)
       s.has(idx) ? s.delete(idx) : s.add(idx)
@@ -435,7 +434,8 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
   return (
     <>
       <style>{`@keyframes pulse-dot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.3;transform:scale(.65)}}
-        @keyframes flame{0%,100%{transform:translateX(-50%) translateY(3%) scaleY(.92) scaleX(1.03);opacity:.72}50%{transform:translateX(-50%) translateY(-6%) scaleY(1.14) scaleX(.93);opacity:1}}`}</style>
+        @keyframes flame-pulse{0%,100%{transform:scale(0.97)}50%{transform:scale(1.04)}}
+        @keyframes flame-glow{0%,100%{transform:scale(0.95);opacity:.42}50%{transform:scale(1.05);opacity:.56}}`}</style>
 
       {golFestejo && (
         <div aria-hidden="true" style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 9999, overflow: 'hidden' }}>
@@ -649,7 +649,17 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                 )}
 
                 {/* Panel de estadísticas */}
-                {tieneAlgo && partidoAbierto && (
+                {tieneAlgo && montadoPartido.has(i) && (
+                  <div
+                    aria-hidden={!partidoAbierto}
+                    style={{
+                      display: 'grid',
+                      gridTemplateRows: partidoAbierto ? '1fr' : '0fr',
+                      opacity: partidoAbierto ? 1 : 0,
+                      transition: 'grid-template-rows 0.32s cubic-bezier(0.4,0,0.2,1), opacity 0.24s ease',
+                    }}
+                  >
+                  <div style={{ overflow: 'hidden' }}>
                   <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg-soft)', borderTop: '1px solid var(--border)', padding: '12px 16px' }}>
                     <div className="ranking-match-detail-teams" aria-hidden="true">
                       <div className="ranking-match-detail-team is-home">
@@ -753,6 +763,8 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                         Ver resumen del partido →
                       </a>
                     )}
+                  </div>
+                  </div>
                   </div>
                 )}
               </div>
@@ -939,21 +951,19 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                         <SvgIcon name="target" size={14} />
                       </span>
                     ) : j.racha.correctas >= 3 ? (
-                      <span title={`Racha de ${j.racha.correctas} resultados correctos seguidos`} aria-label="Racha de resultados correctos" style={{ position: 'relative', display: 'inline-flex', flexShrink: 0 }}>
-                        <span aria-hidden="true" style={{ position: 'absolute', left: '50%', bottom: '8%', width: 32, height: 17, transform: 'translateX(-50%)', pointerEvents: 'none', zIndex: 0 }}>
-                          {[{ l: '50%', w: 20, h: 17, d: 0, t: 1.0 }, { l: '32%', w: 14, h: 13, d: .35, t: 1.3 }, { l: '68%', w: 14, h: 13, d: .55, t: 1.2 }, { l: '50%', w: 9, h: 9, d: .2, t: 1.5 }].map((f, fi) => (
-                            <span key={fi} style={{
-                              position: 'absolute', bottom: 0, left: f.l, width: f.w, height: f.h,
-                              transform: 'translateX(-50%)', transformOrigin: 'bottom center',
-                              borderRadius: '50% 50% 46% 46%', filter: 'blur(1.5px)',
-                              background: 'radial-gradient(ellipse at 50% 80%, rgba(255,240,170,0.34), rgba(249,115,22,0.28) 40%, rgba(239,68,68,0.16) 66%, transparent 80%)',
-                              animation: `flame ${f.t}s ease-in-out ${f.d}s infinite`,
-                            }} />
-                          ))}
+                      <span title={`Racha de ${j.racha.correctas} resultados correctos seguidos`} aria-label={`Racha de ${j.racha.correctas} resultados correctos seguidos`} style={{ display: 'inline-flex', alignItems: 'center', gap: 0, flexShrink: 0 }}>
+                        <span aria-hidden="true" style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 18, height: 18 }}>
+                          <span style={{
+                            position: 'absolute', width: 20, height: 20, borderRadius: '50%',
+                            background: 'radial-gradient(circle, rgba(255,200,90,0.75) 0%, rgba(249,115,22,0.4) 45%, transparent 72%)',
+                            filter: 'blur(2px)',
+                            animation: 'flame-glow 2.2s ease-in-out infinite',
+                          }} />
+                          <span style={{ position: 'relative', fontSize: 13, lineHeight: 1, display: 'inline-block', animation: 'flame-pulse 2.2s ease-in-out infinite' }}>
+                            🔥
+                          </span>
                         </span>
-                        <span style={{ position: 'relative', zIndex: 1, color: 'var(--yellow)' }}>
-                          <SvgIcon name="flame" size={14} />
-                        </span>
+                        <span style={{ fontFamily: 'var(--font-display)', fontSize: 11, fontWeight: 800, color: 'var(--yellow)', marginLeft: 1 }}>{j.racha.correctas}</span>
                       </span>
                     ) : null}
                     {cumpleaneros.includes(j.id) && (
@@ -982,7 +992,17 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                 </div>
               </div>
 
-              {abierto && cerrada && (
+              {cerrada && montado.has(j.nombre) && (
+                <div
+                  aria-hidden={!abierto}
+                  style={{
+                    display: 'grid',
+                    gridTemplateRows: abierto ? '1fr' : '0fr',
+                    opacity: abierto ? 1 : 0,
+                    transition: 'grid-template-rows 0.32s cubic-bezier(0.4,0,0.2,1), opacity 0.24s ease',
+                  }}
+                >
+                <div style={{ overflow: 'hidden' }}>
                 <div style={{ background: 'var(--bg-soft)', borderTop: '1px solid var(--border)', padding: '0 var(--ranking-detail-pad-x, 16px) 12px' }}>
                   <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.8, padding: '10px 0 8px' }}>
                     Predicciones de {j.nombre}
@@ -1038,6 +1058,8 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                     <span style={{ fontSize: 12, color: 'var(--muted)' }}>Total</span>
                     <span style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 700, color: 'var(--green)' }}>{j.puntos} pts</span>
                   </div>
+                </div>
+                </div>
                 </div>
               )}
             </div>
