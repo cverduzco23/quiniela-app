@@ -903,6 +903,7 @@ export default function Admin() {
   const [busquedaSuper, setBusquedaSuper] = useState('')
   const [busquedaClientesSuper, setBusquedaClientesSuper] = useState('')
   const [filtroMisSuper, setFiltroMisSuper] = useState('todas')
+  const [busquedaMisSuper, setBusquedaMisSuper] = useState('')
   // Pestaña activa del panel cliente (nuevo shell escritorio/móvil): inicio | quinielas | caja | stats | cuenta | soporte
   const [clienteTab, setClienteTab]       = useState('inicio')
   // Estadísticas (analítica propia, solo super admin).
@@ -2035,6 +2036,21 @@ export default function Admin() {
     }
   }
 
+  const eliminarParticipanteCaja = async (nombre) => {
+    const movsDelParticipante = movimientos.filter(m => m.nombre === nombre)
+    if (!movsDelParticipante.length) return
+    const plural = movsDelParticipante.length === 1 ? 'movimiento' : 'movimientos'
+    if (!(await confirmar(`¿Eliminar a "${nombre}" de Caja? Se borrarán sus ${movsDelParticipante.length} ${plural}.`, { titulo: 'Eliminar participante', confirmar: 'Eliminar', peligro: true }))) return
+    try {
+      await Promise.all(movsDelParticipante.map(m => deleteDoc(doc(db, 'movimientos', m.id))))
+      setMovimientos(prev => prev.filter(m => m.nombre !== nombre))
+      if (cajaNombre === nombre) setCajaNombre(null)
+      if (cajaMovNombre === nombre) setCajaMovNombre('')
+    } catch {
+      alerta('Error al eliminar.')
+    }
+  }
+
   // ─── Compartir ────────────────────────────────────────────────────────────
   const linkJugadores = quinielaActual ? `${window.location.origin}/quiniela/${quinielaActual.id}` : ''
   const linkRanking   = quinielaActual ? `${window.location.origin}/ranking/${quinielaActual.id}` : ''
@@ -2850,6 +2866,10 @@ export default function Admin() {
                   }
                   abrirDetalleCaja(candidato)
                 }
+                const irARegistrarUsuarioCaja = () => {
+                  setCajaMovNombre(buscarNombreCaja.trim())
+                  document.getElementById('cd-part')?.focus()
+                }
                 const kpiCajaMobile = (valor, label, color) => (
                   <div className="super-mobile-kpi-card">
                     <div className="super-mobile-kpi-value" style={{ color }}>{valor}</div>
@@ -2881,9 +2901,9 @@ export default function Admin() {
                       <button
                         onClick={() => abrirDetalleCaja(buscarNombreCaja)}
                         disabled={!buscarNombreCaja.trim()}
-                        style={{ ...greenCtaStyle(!buscarNombreCaja.trim()), padding: '0 16px', height: 42, whiteSpace: 'nowrap', boxShadow: 'none' }}
+                        style={{ ...greenCtaStyle(!buscarNombreCaja.trim()), padding: '0 16px', height: 42, whiteSpace: 'nowrap', boxShadow: 'none', display: 'inline-flex', alignItems: 'center', gap: 5 }}
                       >
-                        Ver →
+                        <AdminIcon name="plus" size={14} /> Agregar usuario
                       </button>
                     </div>
                     <div className="super-order-row">
@@ -2902,13 +2922,27 @@ export default function Admin() {
                     ) : (
                       <div className="super-mobile-card-list">
                         {saldosFiltrados.map(({ nombre, saldo }) => (
-                          <button key={nombre} type="button" className="super-mobile-card super-balance-row" onClick={() => abrirDetalleCaja(nombre)}>
+                          <div
+                            key={nombre}
+                            role="button"
+                            tabIndex={0}
+                            className="super-mobile-card super-balance-row"
+                            onClick={() => abrirDetalleCaja(nombre)}
+                            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); abrirDetalleCaja(nombre) } }}
+                          >
                             <span className="super-balance-name">{nombre}</span>
                             <span className="super-balance-amount" style={{ color: saldo > 0 ? 'var(--green)' : saldo === 0 ? 'var(--muted)' : 'var(--red)' }}>
                               {saldo >= 0 ? '+' : ''}{formatearMXN(saldo)}
-                              <span style={{ color: 'var(--muted)', fontSize: 12 }}>→</span>
+                              <button
+                                type="button"
+                                onClick={e => { e.stopPropagation(); eliminarParticipanteCaja(nombre) }}
+                                aria-label={`Eliminar a ${nombre} de Caja`}
+                                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'transparent', color: 'var(--muted)', cursor: 'pointer', flexShrink: 0 }}
+                              >
+                                <AdminIcon name="trash" size={14} />
+                              </button>
                             </span>
-                          </button>
+                          </div>
                         ))}
                       </div>
                     )}
@@ -2934,11 +2968,24 @@ export default function Admin() {
                     <div style={{ display: 'grid', gridTemplateColumns: '1.55fr 1fr', gap: 16, alignItems: 'start' }}>
                       {/* Izquierda: saldos */}
                       <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 13, padding: '14px 16px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-                          <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, background: 'var(--bg-soft)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0 10px', height: 36 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
+                          <div style={{ flex: 1, minWidth: 160, display: 'flex', alignItems: 'center', gap: 8, background: 'var(--bg-soft)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0 10px', height: 36 }}>
                             <AdminIcon name="search" size={14} style={{ color: 'var(--muted)' }} />
-                            <input type="text" placeholder="Buscar participante…" value={buscarNombreCaja} onChange={e => setBuscarNombreCaja(e.target.value)} style={{ flex: 1, background: 'transparent', border: 'none', padding: 0, color: 'var(--text)', fontSize: 13 }} />
+                            <input
+                              type="text"
+                              placeholder="Buscar participante…"
+                              value={buscarNombreCaja}
+                              onChange={e => setBuscarNombreCaja(e.target.value)}
+                              style={{ flex: 1, background: 'transparent', border: 'none', padding: 0, color: 'var(--text)', fontSize: 13 }}
+                            />
                           </div>
+                          <button
+                            type="button"
+                            onClick={irARegistrarUsuarioCaja}
+                            style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, padding: '0 12px', height: 36, borderRadius: 'var(--radius-sm)', border: '1px solid var(--green)', background: 'var(--green-bg)', color: 'var(--green-light)', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                          >
+                            <AdminIcon name="plus" size={13} /> Agregar usuario
+                          </button>
                           <select value={cajaOrden} onChange={e => setCajaOrden(e.target.value)} style={{ fontSize: 12, padding: '8px 10px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-strong)', background: 'var(--card-light)', color: 'var(--text)' }}>
                             <option value="monto">Monto</option>
                             <option value="nombre">A–Z</option>
@@ -2957,8 +3004,18 @@ export default function Admin() {
                               style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '11px 12px', borderRadius: 'var(--radius-sm)', cursor: 'pointer', background: sel ? 'var(--green-bg)' : 'transparent', borderBottom: '1px solid var(--border)' }}
                             >
                               <span style={{ fontWeight: 600, fontSize: 13.5, color: 'var(--text)' }}>{nombre}</span>
-                              <span style={{ fontSize: 14, fontWeight: 700, color: saldo > 0 ? 'var(--green-light)' : saldo === 0 ? 'var(--muted)' : 'var(--red)' }}>
-                                {saldo >= 0 ? '+' : ''}{formatearMXN(saldo)}
+                              <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                <span style={{ fontSize: 14, fontWeight: 700, color: saldo > 0 ? 'var(--green-light)' : saldo === 0 ? 'var(--muted)' : 'var(--red)' }}>
+                                  {saldo >= 0 ? '+' : ''}{formatearMXN(saldo)}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={e => { e.stopPropagation(); eliminarParticipanteCaja(nombre) }}
+                                  title={`Eliminar a ${nombre} de Caja`}
+                                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 26, borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'transparent', color: 'var(--muted)', cursor: 'pointer' }}
+                                >
+                                  <AdminIcon name="trash" size={13} />
+                                </button>
                               </span>
                             </div>
                           )
@@ -3190,6 +3247,18 @@ export default function Admin() {
                     <div style={{ display: 'grid', gridTemplateColumns: '1.75fr 1fr', gap: 16, alignItems: 'start' }}>
                       {/* Izquierda: tabla de clientes */}
                       <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 13, overflow: 'hidden' }}>
+                        <div style={{ padding: '12px 18px', borderBottom: '1px solid var(--border)' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--bg-soft)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0 10px', height: 36 }}>
+                            <AdminIcon name="search" size={14} style={{ color: 'var(--muted)' }} />
+                            <input
+                              type="text"
+                              placeholder="Buscar cliente…"
+                              value={busquedaClientesSuper}
+                              onChange={e => setBusquedaClientesSuper(e.target.value)}
+                              style={{ flex: 1, background: 'transparent', border: 'none', padding: 0, color: 'var(--text)', fontSize: 13 }}
+                            />
+                          </div>
+                        </div>
                         <div style={{ display: 'grid', gridTemplateColumns: '2.2fr 1.3fr 0.9fr 28px', gap: 12, padding: '12px 18px', borderBottom: '1px solid var(--border)' }}>
                           {['Cliente', 'Plan', 'Estado', ''].map((h, i) => (
                             <span key={i} style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--muted-soft)' }}>{h}</span>
@@ -3199,7 +3268,9 @@ export default function Admin() {
                           <p style={{ fontSize: 13, color: 'var(--muted)', padding: '18px' }}>Cargando…</p>
                         ) : clientes.length === 0 ? (
                           <p style={{ fontSize: 13, color: 'var(--muted)', fontStyle: 'italic', padding: '18px' }}>Aún no hay clientes dados de alta.</p>
-                        ) : clientes.map(c => {
+                        ) : clientesMostrados.length === 0 ? (
+                          <p style={{ fontSize: 13, color: 'var(--muted)', fontStyle: 'italic', padding: '18px' }}>Sin coincidencias.</p>
+                        ) : clientesMostrados.map(c => {
                           const enPase = temporadaVigente(c)
                           const usadas = c.quinielasCreadas ?? 0
                           const permitidas = c.quinielasPermitidas ?? 0
@@ -3274,6 +3345,14 @@ export default function Admin() {
                   ['jugando', 'Jugándose'],
                   ['finalizadas', 'Finalizadas'],
                 ]
+                const filtroMis = normalizaCliente(busquedaMisSuper)
+                const misActivasF = filtroMis ? mias.activas.filter(q => normalizaCliente(q.nombre).includes(filtroMis)) : mias.activas
+                const misEnJuegoF = filtroMis ? mias.enJuego.filter(q => normalizaCliente(q.nombre).includes(filtroMis)) : mias.enJuego
+                const misFinalizadasF = filtroMis ? mias.finalizadas.filter(q => normalizaCliente(q.nombre).includes(filtroMis)) : mias.finalizadas
+                const misFiltradasTotal = filtroMisSuper === 'abiertas' ? misActivasF.length
+                  : filtroMisSuper === 'jugando' ? misEnJuegoF.length
+                    : filtroMisSuper === 'finalizadas' ? misFinalizadasF.length
+                      : misActivasF.length + misEnJuegoF.length + misFinalizadasF.length
                 const renderGrupoMisMobile = (titulo, arr, color, dim = false) => {
                   if (arr.length === 0) return null
                   return (
@@ -3289,15 +3368,21 @@ export default function Admin() {
                     </div>
                   )
                 }
-                const hayMisFiltradas = filtroMisSuper === 'todas'
-                  ? misFlat.length > 0
-                  : filtroMisSuper === 'abiertas'
-                    ? mias.activas.length > 0
-                    : filtroMisSuper === 'jugando'
-                      ? mias.enJuego.length > 0
-                      : mias.finalizadas.length > 0
                 const misQuinielasSection = (
                   <div className="super-module-content">
+                    {misFlat.length > 0 && (
+                      <div className="super-mobile-search" style={{ marginBottom: 12 }}>
+                        <AdminIcon name="search" size={16} />
+                        <input
+                          type="text"
+                          value={busquedaMisSuper}
+                          onChange={e => setBusquedaMisSuper(e.target.value)}
+                          placeholder="Buscar quiniela…"
+                          aria-label="Buscar quiniela"
+                          autoComplete="off"
+                        />
+                      </div>
+                    )}
                     <div className="super-filter-row" role="tablist" aria-label="Filtrar mis quinielas">
                       {filtrosMis.map(([key, label]) => (
                         <button
@@ -3310,15 +3395,15 @@ export default function Admin() {
                         </button>
                       ))}
                     </div>
-                    {!hayMisFiltradas ? (
+                    {misFiltradasTotal === 0 ? (
                       <p style={{ fontSize: 13, color: 'var(--muted)', fontStyle: 'italic' }}>
-                        {misFlat.length === 0 ? 'Aún no has creado quinielas.' : 'No hay quinielas en este estado.'}
+                        {misFlat.length === 0 ? 'Aún no has creado quinielas.' : 'Sin coincidencias.'}
                       </p>
                     ) : (
                       <>
-                        {(filtroMisSuper === 'todas' || filtroMisSuper === 'abiertas') && renderGrupoMisMobile('Abiertas', mias.activas, 'var(--green)')}
-                        {(filtroMisSuper === 'todas' || filtroMisSuper === 'jugando') && renderGrupoMisMobile('Jugándose', mias.enJuego, 'var(--yellow)')}
-                        {(filtroMisSuper === 'todas' || filtroMisSuper === 'finalizadas') && renderGrupoMisMobile('Finalizadas', mias.finalizadas, 'var(--muted)', true)}
+                        {(filtroMisSuper === 'todas' || filtroMisSuper === 'abiertas') && renderGrupoMisMobile('Abiertas', misActivasF, 'var(--green)')}
+                        {(filtroMisSuper === 'todas' || filtroMisSuper === 'jugando') && renderGrupoMisMobile('Jugándose', misEnJuegoF, 'var(--yellow)')}
+                        {(filtroMisSuper === 'todas' || filtroMisSuper === 'finalizadas') && renderGrupoMisMobile('Finalizadas', misFinalizadasF, 'var(--muted)', true)}
                       </>
                     )}
                     <button type="button" className="super-mobile-fab" onClick={abrirNuevaQuiniela}>
@@ -3335,7 +3420,7 @@ export default function Admin() {
                       <span style={{ width: 8, height: 8, borderRadius: '50%', background: color }} /> {titulo} <span style={{ color: 'var(--muted-dim)' }}>{arr.length}</span>
                     </p>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12, alignItems: 'start' }}>
-                      {arr.map(q => <QuinielaCard key={q.id} q={q} conteos={conteos} onGestionar={gestionarQuiniela} superCompact />)}
+                      {arr.map(q => <QuinielaCard key={q.id} q={q} conteos={conteos} onGestionar={gestionarQuiniela} superCompact softManage />)}
                     </div>
                   </div>
                 ) : null
@@ -3352,13 +3437,41 @@ export default function Admin() {
                         <AdminIcon name="plus" size={16} /> Nueva quiniela
                       </button>
                     </div>
+                    {misFlat.length > 0 && (
+                      <>
+                        <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
+                          {filtrosMis.map(([key, label]) => (
+                            <button
+                              key={key}
+                              type="button"
+                              className={`super-filter-chip${filtroMisSuper === key ? ' is-active' : ''}`}
+                              onClick={() => setFiltroMisSuper(key)}
+                            >
+                              {label}
+                            </button>
+                          ))}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--bg-soft)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0 10px', height: 36, marginBottom: 18, maxWidth: 320 }}>
+                          <AdminIcon name="search" size={14} style={{ color: 'var(--muted)' }} />
+                          <input
+                            type="text"
+                            placeholder="Buscar quiniela…"
+                            value={busquedaMisSuper}
+                            onChange={e => setBusquedaMisSuper(e.target.value)}
+                            style={{ flex: 1, background: 'transparent', border: 'none', padding: 0, color: 'var(--text)', fontSize: 13 }}
+                          />
+                        </div>
+                      </>
+                    )}
                     {misFlat.length === 0 ? (
                       <p style={{ fontSize: 13, color: 'var(--muted)', fontStyle: 'italic' }}>Aún no has creado quinielas.</p>
+                    ) : misFiltradasTotal === 0 ? (
+                      <p style={{ fontSize: 13, color: 'var(--muted)', fontStyle: 'italic' }}>Sin coincidencias.</p>
                     ) : (
                       <>
-                        {grupoQ('Abiertas', mias.activas, 'var(--green)')}
-                        {grupoQ('Jugándose', mias.enJuego, 'var(--yellow)')}
-                        {grupoQ('Finalizadas', mias.finalizadas, 'var(--muted)', true)}
+                        {(filtroMisSuper === 'todas' || filtroMisSuper === 'abiertas') && grupoQ('Abiertas', misActivasF, 'var(--green)')}
+                        {(filtroMisSuper === 'todas' || filtroMisSuper === 'jugando') && grupoQ('Jugándose', misEnJuegoF, 'var(--yellow)')}
+                        {(filtroMisSuper === 'todas' || filtroMisSuper === 'finalizadas') && grupoQ('Finalizadas', misFinalizadasF, 'var(--muted)', true)}
                       </>
                     )}
                   </div>
@@ -3476,7 +3589,7 @@ export default function Admin() {
                           {admAb && (
                             <div style={{ padding: '4px 18px 14px' }}>
                               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12, alignItems: 'start' }}>
-                                {adm.flat.map(q => <QuinielaCard key={q.id} q={q} conteos={conteos} onGestionar={gestionarQuiniela} dueno={labelDueno(q)} superCompact />)}
+                                {adm.flat.map(q => <QuinielaCard key={q.id} q={q} conteos={conteos} onGestionar={gestionarQuiniela} dueno={labelDueno(q)} superCompact softManage />)}
                               </div>
                             </div>
                           )}
@@ -3875,6 +3988,20 @@ export default function Admin() {
                             {kpi({ icon: 'wallet', color: 'var(--green-light)', tint: 'var(--green-bg)', valor: formatearMXN(cajaNeto), label: 'Caja global' })}
                             {kpi({ icon: 'trending-up', color: '#C4B5FD', tint: 'rgba(167,139,250,0.16)', valor: visitas7.toLocaleString('es-MX'), label: 'Visitas · 7 días' })}
                           </div>
+                          {/* En movimiento: accesos directos a quinielas abiertas o jugándose */}
+                          {enMovimientoSuper.length > 0 && (
+                            <div style={{ marginBottom: 20 }}>
+                              <p style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--muted-soft)', margin: '0 0 11px' }}>
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true" style={{ color: '#F59E0B' }}>
+                                  <path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z" fill="currentColor" />
+                                </svg>
+                                En movimiento
+                              </p>
+                              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                                {enMovimientoSuper.map(movingCard)}
+                              </div>
+                            </div>
+                          )}
                           {/* Módulos */}
                           <p style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--muted-soft)', margin: '0 0 11px' }}>Módulos</p>
                           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 13, marginBottom: 20 }}>
