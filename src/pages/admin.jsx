@@ -127,14 +127,14 @@ function DateTimeWrap({ vacio, texto = 'Elige fecha y hora', children }) {
   )
 }
 
-function AdminIcon({ name, size = 14, style }) {
+function AdminIcon({ name, size = 14, style, strokeWidth = 2 }) {
   const common = {
     width: size,
     height: size,
     viewBox: '0 0 24 24',
     fill: 'none',
     stroke: 'currentColor',
-    strokeWidth: 2,
+    strokeWidth,
     strokeLinecap: 'round',
     strokeLinejoin: 'round',
     style: { display: 'inline-block', flexShrink: 0, ...style },
@@ -858,6 +858,7 @@ export default function Admin() {
   // ─── Estado principal ─────────────────────────────────────────────────────
   const [vista, setVista]                 = useState('lista')
   const [superModulo, setSuperModulo]     = useState(null)
+  const [busquedaSuper, setBusquedaSuper] = useState('')
   // Pestaña activa del panel cliente (nuevo shell escritorio/móvil): inicio | quinielas | caja | stats | cuenta | soporte
   const [clienteTab, setClienteTab]       = useState('inicio')
   // Estadísticas (analítica propia, solo super admin).
@@ -2347,6 +2348,7 @@ export default function Admin() {
   const clienteShell = !soySuper                 // el cliente siempre usa el shell nuevo
   const clienteDesktop = clienteShell && esEscritorio
   const clienteMobile = clienteShell && !esEscritorio
+  const superMobileHome = soySuper && !superDesktop && vista === 'lista' && !superModulo
   const navCliente = (tab) => {
     if (tab === 'cuenta') { abrirMiCuenta() }     // precarga el formulario y pone vista='cuenta'
     else { setVista('lista') }
@@ -2372,7 +2374,7 @@ export default function Admin() {
       <div style={{ flex: (superDesktop || clienteDesktop) ? 1 : undefined, minWidth: 0, paddingBottom: clienteMobile ? 68 : undefined }}>
       {/* Hero */}
       {!superDesktop && !clienteShell && (
-      <div className="hero-pad" style={{ background: 'var(--hero-gradient)', color: 'var(--text)', borderBottom: '1px solid var(--border)' }}>
+      <div className="hero-pad" style={{ background: 'var(--hero-gradient)', color: 'var(--text)', borderBottom: '1px solid var(--border)', padding: soySuper ? '1.35rem 1rem 1.1rem' : undefined }}>
         <div style={{ maxWidth: 580, margin: '0 auto' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, minWidth: 0 }}>
@@ -2423,13 +2425,26 @@ export default function Admin() {
                     <BrandWordmark markSize={22} fontSize={18} />
                   )}
                 </a>
-                <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, letterSpacing: '-0.01em' }}>
-                  {soySuper ? 'Panel de Súper Administrador' : 'Panel de Administrador'}
-                </h1>
-                {!soySuper && adminDoc?.nombre && (
-                  <p style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 4 }}>
-                    👤 {adminDoc.nombre}{adminDoc.empresa ? ` · ${adminDoc.empresa}` : ''}
-                  </p>
+                {soySuper ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, letterSpacing: '-0.01em' }}>
+                      Súper Administrador
+                    </h1>
+                    <span style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', padding: '3px 8px', borderRadius: 'var(--radius-full)', background: 'var(--green-bg)', color: 'var(--green-light)', border: '1px solid rgba(34,197,94,0.35)' }}>
+                      Súper Admin
+                    </span>
+                  </div>
+                ) : (
+                  <>
+                    <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, letterSpacing: '-0.01em' }}>
+                      Panel de Administrador
+                    </h1>
+                    {adminDoc?.nombre && (
+                      <p style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 4 }}>
+                        👤 {adminDoc.nombre}{adminDoc.empresa ? ` · ${adminDoc.empresa}` : ''}
+                      </p>
+                    )}
+                  </>
                 )}
               </div>
             </div>
@@ -2442,16 +2457,7 @@ export default function Admin() {
               </button>
             )}
           </div>
-          {soySuper ? (
-            <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginTop: 16 }}>
-              <button onClick={abrirNuevaQuiniela} style={{ ...greenCtaStyle(false), padding: '8px 16px' }}>
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                  <AdminIcon name="plus" size={14} />
-                  Nueva quiniela
-                </span>
-              </button>
-            </div>
-          ) : (
+          {soySuper ? null : (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', gap: 8, marginTop: 16 }}>
             <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
               {vista !== 'lista' && (
@@ -2506,7 +2512,7 @@ export default function Admin() {
       {ayudaAbierta && <ComoFunciona onClose={() => setAyudaAbierta(false)} />}
       {tourAbierto && <TourBienvenida onClose={cerrarTour} />}
 
-      <div style={{ maxWidth: superDesktop ? 1200 : clienteDesktop ? 1040 : 580, margin: '0 auto', padding: (superDesktop || clienteDesktop) ? '26px 30px 48px' : '1.25rem 1rem 3rem' }}>
+      <div style={{ maxWidth: superDesktop ? 1200 : clienteDesktop ? 1040 : 580, margin: '0 auto', padding: (superDesktop || clienteDesktop) ? '26px 30px 48px' : superMobileHome ? '18px 16px 108px' : '1.25rem 1rem 3rem' }}>
 
         {/* ── Vista: Lista ────────────────────────────────────────────────── */}
         {vista === 'lista' && (
@@ -2702,22 +2708,42 @@ export default function Admin() {
                     {label}
                   </span>
                 )
-                const moduleCard = ({ modulo, icon, title, meta, desc }) => (
+                const moduleCard = ({ modulo, icon, title, meta, desc, wide = false }) => (
                   <button
                     key={modulo}
-                    className="super-module-tile"
+                    type="button"
+                    className={`super-module-tile${wide ? ' super-module-tile--wide' : ''}`}
                     onClick={() => setSuperModulo(modulo)}
                   >
-                    <span className="super-module-icon">
-                      <AdminIcon name={icon} size={22} />
-                    </span>
-                    <span className="super-module-copy">
-                      <span className="super-module-title">
-                        {title}
-                        {meta && <span className="super-module-meta">{meta}</span>}
-                      </span>
-                      <span className="super-module-desc">{desc}</span>
-                    </span>
+                    {wide ? (
+                      <>
+                        <span className="super-module-icon">
+                          <AdminIcon name={icon} size={22} />
+                        </span>
+                        <span className="super-module-copy">
+                          <span className="super-module-title">{title}</span>
+                          <span className="super-module-desc">{desc}</span>
+                        </span>
+                        <AdminIcon name="chevron-right" size={18} style={{ color: 'var(--muted-dim)' }} />
+                      </>
+                    ) : (
+                      <>
+                        <span className="super-module-top">
+                          <span className="super-module-icon">
+                            <AdminIcon name={icon} size={22} />
+                          </span>
+                          {meta != null ? (
+                            <span className="super-module-meta">{meta}</span>
+                          ) : (
+                            <AdminIcon name="chevron-right" size={18} style={{ color: 'var(--muted-dim)' }} />
+                          )}
+                        </span>
+                        <span className="super-module-copy">
+                          <span className="super-module-title">{title}</span>
+                          <span className="super-module-desc">{desc}</span>
+                        </span>
+                      </>
+                    )}
                   </button>
                 )
                 // Botón circular +/− para secciones principales
@@ -3635,19 +3661,90 @@ export default function Admin() {
                   )
                 })()
 
+                const normalizaTexto = (txt) => String(txt ?? '')
+                  .normalize('NFD')
+                  .replace(/[\u0300-\u036f]/g, '')
+                  .toLowerCase()
+                  .trim()
+                const busqueda = normalizaTexto(busquedaSuper)
+                const coincideBusqueda = (...partes) => {
+                  if (!busqueda) return true
+                  return partes.some(parte => normalizaTexto(parte).includes(busqueda))
+                }
+                const enMovimientoSuper = [
+                  ...quinielas.filter(q => esCerradaQ(q) && !esFinalizadaQ(q)),
+                  ...quinielas.filter(q => !esCerradaQ(q)),
+                ].filter(q => coincideBusqueda(q.nombre))
+                const gestionModules = [
+                  { modulo: 'caja', icon: 'wallet', title: 'Caja', meta: `${saldos.length}`, desc: 'Saldos y movimientos por participante.', keywords: 'saldos movimientos participante' },
+                  { modulo: 'clientes', icon: 'users', title: 'Clientes', meta: `${clientes.length}`, desc: 'Altas, planes, notas y estado de clientes.', keywords: 'altas planes notas estado clientes' },
+                  { modulo: 'mis', icon: 'ball', title: 'Mis quinielas', meta: `${misFlat.length}`, desc: 'Quinielas creadas desde la cuenta principal.', keywords: 'mis quinielas cuenta principal' },
+                  ...(quinielasOtras.length > 0 ? [{ modulo: 'otros', icon: 'user', title: 'Otros admins', meta: `${quinielasOtras.length}`, desc: 'Quinielas agrupadas por cliente administrador.', keywords: 'otros admins cliente administrador' }] : []),
+                ].filter(m => coincideBusqueda(m.title, m.desc, m.keywords))
+                const plataformaModules = [
+                  { modulo: 'estadisticas', icon: 'chart', title: 'Estadísticas', desc: 'Visitas, dispositivos y conversión.', keywords: 'estadisticas analitica visitas dispositivos conversion' },
+                  { modulo: 'home', icon: 'settings', title: 'Inicio público', desc: 'Mostrar, ocultar y ordenar bloques del home.', keywords: 'inicio publico home secciones bloques' },
+                  { modulo: 'cuenta', icon: 'key', title: 'Mi cuenta', desc: 'Accesos, seguridad y herramientas externas.', keywords: 'cuenta accesos seguridad herramientas externas', wide: true },
+                ].filter(m => coincideBusqueda(m.title, m.desc, m.keywords))
+                const renderMobileGroup = (label, modules, withBottomMargin = false) => modules.length > 0 ? (
+                  <>
+                    <div className="super-mobile-group-label">{label}</div>
+                    <div className={`super-module-grid${withBottomMargin ? ' super-module-grid--section' : ''}`}>
+                      {modules.map(moduleCard)}
+                    </div>
+                  </>
+                ) : null
+                const movingCard = (q) => {
+                  const enJuego = esCerradaQ(q) && !esFinalizadaQ(q)
+                  const jugadores = conteos[q.id] ?? 0
+                  return (
+                    <button
+                      key={q.id}
+                      type="button"
+                      className="super-moving-card"
+                      onClick={() => gestionarQuiniela(q)}
+                    >
+                      <span className={`super-moving-badge ${enJuego ? 'is-playing' : 'is-open'}`}>
+                        {enJuego ? 'Jugándose' : 'Abierta'}
+                      </span>
+                      <span className="super-moving-name">{q.nombre}</span>
+                      <span className="super-moving-meta">
+                        {jugadores} jugador{jugadores === 1 ? '' : 'es'}
+                      </span>
+                    </button>
+                  )
+                }
+
                 return (
                   <>
                     {!superModulo && !superDesktop && (
                       <>
-                        <div className="super-module-grid">
-                          {moduleCard({ modulo: 'caja', icon: 'wallet', title: 'Caja', meta: saldos.length ? `${saldos.length}` : null, desc: 'Saldos y movimientos por participante.' })}
-                          {moduleCard({ modulo: 'clientes', icon: 'users', title: 'Clientes', meta: clientes.length ? `${clientes.length}` : null, desc: 'Altas, planes, notas y estado de clientes.' })}
-                          {moduleCard({ modulo: 'mis', icon: 'ball', title: 'Mis quinielas', meta: misFlat.length ? `${misFlat.length}` : null, desc: 'Quinielas creadas desde la cuenta principal.' })}
-                          {quinielasOtras.length > 0 && moduleCard({ modulo: 'otros', icon: 'user', title: 'Otros admins', meta: `${quinielasOtras.length}`, desc: 'Quinielas agrupadas por cliente administrador.' })}
-                          {moduleCard({ modulo: 'home', icon: 'settings', title: 'Inicio público', desc: 'Mostrar, ocultar y ordenar bloques del home.' })}
-                          {moduleCard({ modulo: 'cuenta', icon: 'key', title: 'Mi cuenta', desc: 'Accesos, seguridad y herramientas externas.' })}
+                        <div className="super-mobile-search">
+                          <AdminIcon name="search" size={16} />
+                          <input
+                            type="text"
+                            value={busquedaSuper}
+                            onChange={e => setBusquedaSuper(e.target.value)}
+                            placeholder="Buscar sección o quiniela…"
+                            aria-label="Buscar sección o quiniela"
+                            autoComplete="off"
+                          />
                         </div>
-                        {statsSection}
+                        {enMovimientoSuper.length > 0 && (
+                          <section className="super-mobile-moving" aria-label="En movimiento">
+                            <div className="super-mobile-moving-label">
+                              <svg className="super-mobile-moving-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                <path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z" fill="currentColor" />
+                              </svg>
+                              <span>En movimiento</span>
+                            </div>
+                            <div className="super-mobile-moving-row">
+                              {enMovimientoSuper.map(movingCard)}
+                            </div>
+                          </section>
+                        )}
+                        {renderMobileGroup('Gestión', gestionModules, true)}
+                        {renderMobileGroup('Plataforma', plataformaModules)}
                       </>
                     )}
                     {!superModulo && superDesktop && (() => {
@@ -5432,6 +5529,17 @@ export default function Admin() {
           }}
         >
           <AdminIcon name="plus" size={24} />
+        </button>
+      )}
+      {superMobileHome && (
+        <button
+          type="button"
+          className="super-mobile-fab"
+          onClick={abrirNuevaQuiniela}
+          aria-label="Nueva quiniela"
+        >
+          <AdminIcon name="plus" size={18} strokeWidth={2.5} />
+          Nueva
         </button>
       )}
       </div>

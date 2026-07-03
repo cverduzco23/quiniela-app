@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Preview - Indicador Tú en Ranking</title>
+  <style>
+    :root {
+      --bg: #07120a;
+      --card: #0d1a10;
+      --card-light: #132317;
+      --border: rgba(255,255,255,0.08);
+      --text: #edf8ef;
+      --muted: #91a397;
+      --green: #22c55e;
+      --green-bg: rgba(34,197,94,0.11);
+      --yellow: #facc15;
+      --red-bg: rgba(239,68,68,0.13);
+      --radius: 10px;
+      --font-display: ui-rounded, "SF Pro Rounded", Inter, system-ui, sans-serif;
+      --font: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: radial-gradient(circle at 50% -10%, rgba(34,197,94,0.12), transparent 32%), var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      display: flex;
+      justify-content: center;
+      padding: 32px 14px;
+    }
+
+    main {
+      width: min(480px, 100%);
+    }
+
+    header {
+      margin-bottom: 18px;
+    }
+
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: .8px;
+      margin-bottom: 8px;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 16px rgba(34,197,94,.55);
+    }
+
+    h1 {
+      font-family: var(--font-display);
+      font-size: 25px;
+      line-height: 1.16;
+      margin: 0 0 6px;
+    }
+
+    .subtitle {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+      margin: 0;
+    }
+
+    .preview-set {
+      display: grid;
+      gap: 18px;
+    }
+
+    .variant-label {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin: 0 0 8px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: .7px;
+    }
+
+    .variant-label span:last-child {
+      color: var(--green);
+      letter-spacing: 0;
+      text-transform: none;
+      font-size: 11px;
+    }
+
+    .table {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      box-shadow: 0 18px 52px rgba(0,0,0,.23);
+    }
+
+    .live {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 8px 16px;
+      border-bottom: 1px solid rgba(239,68,68,.38);
+      background: var(--red-bg);
+      color: #fca5a5;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .pulse {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #ef4444;
+    }
+
+    .head,
+    .row {
+      display: grid;
+      grid-template-columns: 30px minmax(0, 1fr) 38px 38px 46px;
+      align-items: center;
+    }
+
+    .head {
+      padding: 10px 16px;
+      background: var(--card-light);
+      border-bottom: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: .8px;
+    }
+
+    .head span:nth-child(n+3),
+    .row span:nth-child(n+3) {
+      text-align: center;
+    }
+
+    .row {
+      position: relative;
+      padding: 13px 16px;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+      min-height: 50px;
+    }
+
+    .row:last-child { border-bottom: 0; }
+
+    .row.leader {
+      background: linear-gradient(90deg, rgba(250,204,21,.18), rgba(250,204,21,.05) 48%, transparent 82%);
+    }
+
+    .row.me-soft {
+      background: linear-gradient(90deg, rgba(34,197,94,.105), rgba(34,197,94,.035) 54%, transparent 86%);
+    }
+
+    .row.me-rail::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 9px;
+      bottom: 9px;
+      width: 2px;
+      border-radius: 999px;
+      background: var(--green);
+      opacity: .9;
+    }
+
+    .pos {
+      color: var(--muted);
+      font-weight: 800;
+      font-size: 14px;
+    }
+
+    .leader .pos,
+    .leader .points {
+      color: var(--yellow);
+    }
+
+    .name {
+      min-width: 0;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    .name-text {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      min-width: 0;
+    }
+
+    .tag-you {
+      flex: 0 0 auto;
+      border: 1px solid rgba(34,197,94,.42);
+      background: var(--green-bg);
+      color: var(--green);
+      border-radius: 999px;
+      padding: 1px 6px 2px;
+      font-size: 10px;
+      font-weight: 900;
+      line-height: 1.2;
+      letter-spacing: 0;
+    }
+
+    .stat {
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .exact {
+      color: var(--yellow);
+      font-weight: 800;
+    }
+
+    .points {
+      color: var(--green);
+      font-family: var(--font-display);
+      font-size: 18px;
+      font-weight: 800;
+    }
+
+    @media (max-width: 380px) {
+      body { padding: 22px 10px; }
+      .head,
+      .row {
+        grid-template-columns: 26px minmax(0, 1fr) 31px 31px 39px;
+        padding-left: 12px;
+        padding-right: 12px;
+      }
+      h1 { font-size: 22px; }
+      .name { gap: 5px; }
+      .tag-you { padding-left: 5px; padding-right: 5px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div class="brand"><span class="dot"></span> QuinielApp Ranking</div>
+      <h1>Final Mundial de Clubes</h1>
+      <p class="subtitle">Tres formas sutiles de identificar la fila del usuario dentro del ranking.</p>
+    </header>
+
+    <section class="preview-set">
+      <div>
+        <p class="variant-label"><span>Opción A</span><span>Solo etiqueta</span></p>
+        <div class="table">
+          <div class="live"><span class="pulse"></span> Ranking provisional</div>
+          <div class="head"><span>#</span><span>Jugador</span><span>✓</span><span>🎯</span><span>Pts</span></div>
+          <div class="row leader"><span class="pos">1</span><span class="name"><span class="name-text">Mauro López</span></span><span class="stat">5</span><span class="stat exact">2</span><span class="points">17</span></div>
+          <div class="row"><span class="pos">2</span><span class="name"><span class="name-text">Ana Paula</span></span><span class="stat">5</span><span class="stat exact">1</span><span class="points">14</span></div>
+          <div class="row"><span class="pos">3</span><span class="name"><span class="name-text">César V.</span><span class="tag-you">Tú</span></span><span class="stat">4</span><span class="stat exact">1</span><span class="points">13</span></div>
+          <div class="row"><span class="pos">4</span><span class="name"><span class="name-text">Fer Salinas</span></span><span class="stat">4</span><span class="stat">0</span><span class="points">10</span></div>
+        </div>
+      </div>
+
+      <div>
+        <p class="variant-label"><span>Opción B</span><span>Etiqueta + fondo tenue</span></p>
+        <div class="table">
+          <div class="live"><span class="pulse"></span> Ranking provisional</div>
+          <div class="head"><span>#</span><span>Jugador</span><span>✓</span><span>🎯</span><span>Pts</span></div>
+          <div class="row leader"><span class="pos">1</span><span class="name"><span class="name-text">Mauro López</span></span><span class="stat">5</span><span class="stat exact">2</span><span class="points">17</span></div>
+          <div class="row"><span class="pos">2</span><span class="name"><span class="name-text">Ana Paula</span></span><span class="stat">5</span><span class="stat exact">1</span><span class="points">14</span></div>
+          <div class="row me-soft"><span class="pos">3</span><span class="name"><span class="name-text">César V.</span><span class="tag-you">Tú</span></span><span class="stat">4</span><span class="stat exact">1</span><span class="points">13</span></div>
+          <div class="row"><span class="pos">4</span><span class="name"><span class="name-text">Fer Salinas</span></span><span class="stat">4</span><span class="stat">0</span><span class="points">10</span></div>
+        </div>
+      </div>
+
+      <div>
+        <p class="variant-label"><span>Opción C</span><span>Etiqueta + acento lateral</span></p>
+        <div class="table">
+          <div class="live"><span class="pulse"></span> Ranking provisional</div>
+          <div class="head"><span>#</span><span>Jugador</span><span>✓</span><span>🎯</span><span>Pts</span></div>
+          <div class="row leader"><span class="pos">1</span><span class="name"><span class="name-text">Mauro López</span></span><span class="stat">5</span><span class="stat exact">2</span><span class="points">17</span></div>
+          <div class="row"><span class="pos">2</span><span class="name"><span class="name-text">Ana Paula</span></span><span class="stat">5</span><span class="stat exact">1</span><span class="points">14</span></div>
+          <div class="row me-soft me-rail"><span class="pos">3</span><span class="name"><span class="name-text">César V.</span><span class="tag-you">Tú</span></span><span class="stat">4</span><span class="stat exact">1</span><span class="points">13</span></div>
+          <div class="row"><span class="pos">4</span><span class="name"><span class="name-text">Fer Salinas</span></span><span class="stat">4</span><span class="stat">0</span><span class="points">10</span></div>
+        </div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

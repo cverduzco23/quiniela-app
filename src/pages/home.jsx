@@ -71,18 +71,42 @@ const sectionTitleStyle = {
   margin: '0 0 16px',
 }
 
-// Bucket de orden para "Tus quinielas": urge tu atención primero, luego lo que
-// está pasando ahora, luego lo que ya resolviste, y al final el historial.
-const BUCKET_ABIERTA_SIN_ENVIAR = 0
+// Bucket de orden para "Tus quinielas": abiertas primero, luego las que están
+// jugándose, y el historial finalizado solo cuando se expande la sección.
+const BUCKET_ABIERTA = 0
 const BUCKET_JUGANDOSE = 1
-const BUCKET_ABIERTA_ENVIADA = 2
-const BUCKET_FINALIZADA = 3
+const BUCKET_FINALIZADA = 2
 
-function bucketDe(q, predicciones, participantes) {
-  const d = datosTarjetaQuiniela(q, predicciones, participantes)
-  if (d.estado === 'abierta') return d.enviada ? BUCKET_ABIERTA_ENVIADA : BUCKET_ABIERTA_SIN_ENVIAR
-  if (d.estado === 'jugandose') return BUCKET_JUGANDOSE
+function fechaCreacionMs(q) {
+  const creada = q?.creada
+  if (!creada) return 0
+  if (typeof creada.toDate === 'function') return creada.toDate().getTime()
+  if (typeof creada.seconds === 'number') return creada.seconds * 1000
+  const t = new Date(creada).getTime()
+  return Number.isNaN(t) ? 0 : t
+}
+
+function bucketDe(q, metaPorId) {
+  const d = metaPorId.get(q.id)
+  if (d?.estado === 'abierta') return BUCKET_ABIERTA
+  if (d?.estado === 'jugandose') return BUCKET_JUGANDOSE
   return BUCKET_FINALIZADA
+}
+
+function useMediaQuery(queryString) {
+  const [matches, setMatches] = useState(
+    typeof window !== 'undefined'
+      ? window.matchMedia(queryString).matches
+      : false,
+  )
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined
+    const mq = window.matchMedia(queryString)
+    const onChange = e => setMatches(e.matches)
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [queryString])
+  return matches
 }
 
 function HomeIcon({ name, size = 14, style }) {
@@ -354,17 +378,24 @@ const MAX_TUS_QUINIELAS = 8
 
 function TusQuinielasSection({ quinielas, conteos, predicciones, onQuitar }) {
   const [expandido, setExpandido] = useState(false)
+  const esMovil = useMediaQuery('(max-width: 640px)')
   if (quinielas.length === 0) return null
+  const metaPorId = new Map(quinielas.map(q => [
+    q.id,
+    datosTarjetaQuiniela(q, predicciones[q.id] ?? [], conteos[q.id] ?? 0),
+  ]))
   const ordenadas = [...quinielas]
     .sort((a, b) => {
-      const bA = bucketDe(a, predicciones[a.id] ?? [], conteos[a.id] ?? 0)
-      const bB = bucketDe(b, predicciones[b.id] ?? [], conteos[b.id] ?? 0)
+      const bA = bucketDe(a, metaPorId)
+      const bB = bucketDe(b, metaPorId)
       if (bA !== bB) return bA - bB
-      // Dentro de finalizadas: la quiniela creada más recientemente va arriba.
-      if (bA === BUCKET_FINALIZADA) return new Date(b.creada ?? 0) - new Date(a.creada ?? 0)
-      return 0
+      return fechaCreacionMs(b) - fechaCreacionMs(a)
     })
     .slice(0, MAX_TUS_QUINIELAS)
+  const principales = ordenadas.filter(q => metaPorId.get(q.id)?.estado !== 'finalizada')
+  const colapsadas = principales.slice(0, 3)
+  const visibles = esMovil && !expandido ? colapsadas : ordenadas
+  const hayMas = esMovil && ordenadas.length > colapsadas.length
   return (
     <section id="quinielas" className="public-section-mine" style={{ maxWidth: 1100, width: '100%', margin: '0 auto', padding: '0 24px' }}>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 16, marginBottom: 16 }}>
@@ -373,8 +404,8 @@ function TusQuinielasSection({ quinielas, conteos, predicciones, onQuitar }) {
           <p style={{ fontSize: 12.5, color: 'var(--muted-soft)', marginTop: 3 }}>Guardadas en este dispositivo</p>
         </div>
       </div>
-      <div className={`tq-grid${expandido ? '' : ' tq-grid--limitado'}`}>
-        {ordenadas.map(q => (
+      <div className="tq-grid">
+        {visibles.map(q => (
           <TusQuinielaCard
             key={q.id}
             q={q}
@@ -384,7 +415,7 @@ function TusQuinielasSection({ quinielas, conteos, predicciones, onQuitar }) {
           />
         ))}
       </div>
-      {ordenadas.length > 3 && (
+      {hayMas && (
         <button type="button" className="tq-vermas" onClick={() => setExpandido(v => !v)}>
           {expandido ? 'Ver menos' : 'Ver más'}
           <HomeIcon name="chevron" size={12} style={{ transform: expandido ? 'rotate(180deg)' : 'none' }} />
