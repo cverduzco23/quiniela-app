@@ -25,9 +25,6 @@ import { EmojiPicker } from '../components/EmojiPicker'
 // Mantener sincronizado con `isSuperAdmin()` en firestore.rules.
 const SUPER_ADMIN_UIDS = ['w6uc7cHowgM4Pmsya4bUHt1G3Pu2']
 
-// Mostrar el buscador en lista de participantes solo cuando hay suficientes.
-// Por debajo, scrollear es más rápido que escribir.
-const UMBRAL_BUSQUEDA_PARTICIPANTES = 20
 function esSuperAdminUid(uid) {
   return !!uid && SUPER_ADMIN_UIDS.includes(uid)
 }
@@ -400,6 +397,51 @@ function formatFixtureDate(value) {
     weekday: 'short', day: 'numeric', month: 'short',
     hour: '2-digit', minute: '2-digit',
   })
+}
+
+// Traducciones de fases/rondas conocidas. Lo que no se reconozca se muestra tal cual
+// viene de ESPN (mejor mostrar algo en inglés que nada).
+const FASES_TRADUCIDAS = {
+  'group stage':        'Fase de grupos',
+  'round of 32':        'Dieciseisavos de final',
+  'round of 16':        'Octavos de final',
+  'quarterfinal':       'Cuartos de final',
+  'quarterfinals':      'Cuartos de final',
+  'semifinal':          'Semifinal',
+  'semifinals':         'Semifinal',
+  'third place':        'Tercer lugar',
+  'third place playoff': 'Tercer lugar',
+  'bronze final':       'Tercer lugar',
+  'final':              'Final',
+}
+
+// ESPN trae la fase/grupo del partido en `competition.altGameNote`, con formatos
+// distintos según el torneo: "FIFA World Cup, Group A", "UEFA Champions League, Final",
+// "WCQ - Concacaf, 2026 FIFA World Cup¤ CONCACAF Qualification - Group C", o solo el
+// nombre de la liga ("Liga MX") cuando ESPN no expone fase/jornada para esa competición.
+// Devuelve null cuando no hay nada útil que mostrar.
+function faseLegible(altGameNote) {
+  if (!altGameNote) return null
+  // Algunas notas vienen concatenadas con "¤"; nos quedamos con el fragmento más específico (el último).
+  const partes = altGameNote.split('¤')
+  const seg = partes[partes.length - 1].trim()
+  let fase = null
+  if (seg.includes(',')) {
+    const bits = seg.split(',')
+    fase = bits[bits.length - 1].trim()
+  } else if (seg.includes(' - ')) {
+    const bits = seg.split(' - ')
+    fase = bits[bits.length - 1].trim()
+  } else if (partes.length > 1) {
+    fase = seg
+  }
+  if (!fase) return null
+
+  const grupo = fase.match(/^Group\s+([A-Z0-9]+)$/i)
+  if (grupo) return `Grupo ${grupo[1].toUpperCase()}`
+
+  const traducida = FASES_TRADUCIDAS[fase.toLowerCase()]
+  return traducida ?? fase
 }
 
 // Margen de seguridad: el cierre se sugiere unos minutos ANTES del primer partido.
@@ -2290,32 +2332,48 @@ export default function Admin() {
               const away    = awayCmp?.team?.displayName ?? '?'
               const homeLogo = homeCmp?.team?.logo ?? ''
               const awayLogo = awayCmp?.team?.logo ?? ''
+              const fase = faseLegible(f.competitions?.[0]?.altGameNote)
+              const faseAnterior = i > 0 ? faseLegible(fixtures[i - 1].competitions?.[0]?.altGameNote) : null
+              const mostrarFase = fase && fase !== faseAnterior
               return (
-                <div
-                  key={f.id} onClick={() => toggleFixture(f)}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 10,
-                    padding: '10px 12px', cursor: 'pointer',
-                    borderBottom: i < fixtures.length - 1 ? '1px solid var(--border)' : 'none',
-                    background: sel ? 'var(--green-bg)' : 'var(--card)', transition: 'background 0.1s',
-                  }}
-                >
-                  <div style={{
-                    width: 18, height: 18, borderRadius: 4, flexShrink: 0,
-                    border: sel ? '2px solid var(--green)' : '2px solid var(--border-strong)',
-                    background: sel ? 'var(--green)' : 'transparent',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  }}>
-                    {sel && <span style={{ color: '#07120A', fontSize: 11, fontWeight: 800, lineHeight: 1 }}>✓</span>}
+                <div key={f.id}>
+                  {mostrarFase && (
+                    <div style={{
+                      padding: '6px 12px', fontSize: 10.5, fontWeight: 700, color: 'var(--muted)',
+                      textTransform: 'uppercase', letterSpacing: 0.6,
+                      background: 'var(--bg-soft)', borderBottom: '1px solid var(--border)',
+                    }}>
+                      {fase}
+                    </div>
+                  )}
+                  <div
+                    onClick={() => toggleFixture(f)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      padding: '10px 12px', cursor: 'pointer',
+                      borderBottom: i < fixtures.length - 1 ? '1px solid var(--border)' : 'none',
+                      background: sel ? 'var(--green-bg)' : 'var(--card)', transition: 'background 0.1s',
+                    }}
+                  >
+                    <div style={{
+                      width: 18, height: 18, borderRadius: 4, flexShrink: 0,
+                      border: sel ? '2px solid var(--green)' : '2px solid var(--border-strong)',
+                      background: sel ? 'var(--green)' : 'transparent',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      {sel && <span style={{ color: '#07120A', fontSize: 11, fontWeight: 800, lineHeight: 1 }}>✓</span>}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        {homeLogo && <img src={homeLogo} alt="" style={{ width: 20, height: 20, objectFit: 'contain', flexShrink: 0 }} onError={e => { e.target.style.display = 'none' }} />}
+                        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: '1 1 0%', minWidth: 0 }}>{home}</span>
+                        <span style={{ fontSize: 11, color: 'var(--muted)', flexShrink: 0 }}>vs</span>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: '1 1 0%', minWidth: 0, textAlign: 'right' }}>{away}</span>
+                        {awayLogo && <img src={awayLogo} alt="" style={{ width: 20, height: 20, objectFit: 'contain', flexShrink: 0 }} onError={e => { e.target.style.display = 'none' }} />}
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{f.date ? formatFixtureDate(f.date) : ''}</div>
+                    </div>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
-                    {homeLogo && <img src={homeLogo} alt="" style={{ width: 20, height: 20, objectFit: 'contain', flexShrink: 0 }} onError={e => { e.target.style.display = 'none' }} />}
-                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{home}</span>
-                    <span style={{ fontSize: 11, color: 'var(--muted)', flexShrink: 0 }}>vs</span>
-                    {awayLogo && <img src={awayLogo} alt="" style={{ width: 20, height: 20, objectFit: 'contain', flexShrink: 0 }} onError={e => { e.target.style.display = 'none' }} />}
-                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{away}</span>
-                  </div>
-                  <span style={{ fontSize: 11, color: 'var(--muted)', flexShrink: 0 }}>{f.date ? formatFixtureDate(f.date) : ''}</span>
                 </div>
               )
             })}
@@ -4324,10 +4382,10 @@ export default function Admin() {
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', flexShrink: 0 }}>{i + 1}</span>
                         {escudoMini(p.escudoLocal, p.local)}
-                        <span style={{ fontSize: 13, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.local}</span>
+                        <span style={{ fontSize: 13, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: '1 1 0%', minWidth: 0 }}>{p.local}</span>
                         <span style={{ fontSize: 11, color: 'var(--muted)', flexShrink: 0 }}>vs</span>
+                        <span style={{ fontSize: 13, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: '1 1 0%', minWidth: 0, textAlign: 'right' }}>{p.visitante}</span>
                         {escudoMini(p.escudoVisitante, p.visitante)}
-                        <span style={{ fontSize: 13, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.visitante}</span>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginTop: 6 }}>
                         <span style={{ fontSize: 11, color: 'var(--muted)' }}>{p.hora ? formatFixtureDate(p.hora) : ''}</span>
@@ -4736,36 +4794,43 @@ export default function Admin() {
                       })
 
                       return (
-                        <div key={i} style={{ padding: '12px 0', borderBottom: i < (quinielaActual.partidos?.length ?? 0) - 1 ? '1px solid var(--border)' : 'none' }}>
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr auto', alignItems: 'center', gap: 8 }}>
-                            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <div
+                          key={i}
+                          style={{
+                            padding: 12, marginBottom: i < (quinielaActual.partidos?.length ?? 0) - 1 ? 10 : 0,
+                            background: 'var(--card-light)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)',
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                            {escudoMini(p.escudoLocal, p.local)}
+                            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                               {p.local || `Local ${i + 1}`}
                             </span>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                              <input
-                                type="number" min="0" max="99" placeholder="0"
-                                value={cancelado ? '' : (r.local ?? '')}
-                                disabled={cancelado}
-                                onChange={e => setResultados(prev => ({ ...prev, [i]: { ...(prev[i] ?? {}), cancelado: false, local: e.target.value } }))}
-                                style={{ width: 44, textAlign: 'center', padding: '6px 4px', fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 700, opacity: cancelado ? 0.4 : 1 }}
-                              />
-                              <span style={{ color: 'var(--muted)', fontWeight: 700, fontSize: 13 }}>–</span>
-                              <input
-                                type="number" min="0" max="99" placeholder="0"
-                                value={cancelado ? '' : (r.visitante ?? '')}
-                                disabled={cancelado}
-                                onChange={e => setResultados(prev => ({ ...prev, [i]: { ...(prev[i] ?? {}), cancelado: false, visitante: e.target.value } }))}
-                                style={{ width: 44, textAlign: 'center', padding: '6px 4px', fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 700, opacity: cancelado ? 0.4 : 1 }}
-                              />
-                            </div>
-                            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', textAlign: 'right', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            <input
+                              type="number" min="0" max="99" placeholder="0"
+                              value={cancelado ? '' : (r.local ?? '')}
+                              disabled={cancelado}
+                              onChange={e => setResultados(prev => ({ ...prev, [i]: { ...(prev[i] ?? {}), cancelado: false, local: e.target.value } }))}
+                              style={{ width: 44, flexShrink: 0, textAlign: 'center', padding: '6px 4px', fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 700, opacity: cancelado ? 0.4 : 1 }}
+                            />
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                            {escudoMini(p.escudoVisitante, p.visitante)}
+                            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                               {p.visitante || `Visitante ${i + 1}`}
                             </span>
+                            <input
+                              type="number" min="0" max="99" placeholder="0"
+                              value={cancelado ? '' : (r.visitante ?? '')}
+                              disabled={cancelado}
+                              onChange={e => setResultados(prev => ({ ...prev, [i]: { ...(prev[i] ?? {}), cancelado: false, visitante: e.target.value } }))}
+                              style={{ width: 44, flexShrink: 0, textAlign: 'center', padding: '6px 4px', fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 700, opacity: cancelado ? 0.4 : 1 }}
+                            />
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
                             <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 'var(--radius-full)', background: resColor.bg, color: resColor.color, whiteSpace: 'nowrap', letterSpacing: 0.3 }}>
                               {resLabel}
                             </span>
-                          </div>
-                          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 6 }}>
                             <button
                               type="button"
                               onClick={toggleCancelado}
@@ -4880,17 +4945,14 @@ export default function Admin() {
                           : 'Al eliminar una predicción el jugador podrá volver a registrarse con su nombre.'}
                         {' '}Usa el botón <AdminIcon name="eye" size={12} style={{ verticalAlign: '-2px' }} /> para ocultar a alguien del ranking público (por ejemplo, mientras no haya pagado): su predicción sigue guardada y no cuenta para el bote, y puedes mostrarla de nuevo cuando quieras.
                       </p>
-                      {/* Buscador — solo cuando hay suficientes participantes */}
-                      {listaPredicciones.length > UMBRAL_BUSQUEDA_PARTICIPANTES && (
-                        <input
-                          type="text"
-                          placeholder={`Buscar entre ${listaPredicciones.length} participantes…`}
-                          value={busquedaParticipante}
-                          onChange={e => setBusquedaParticipante(e.target.value)}
-                          style={{ width: '100%', fontSize: 13, padding: '8px 12px', marginBottom: 10 }}
-                          aria-label="Buscar participante por nombre"
-                        />
-                      )}
+                      <input
+                        type="text"
+                        placeholder={`Buscar entre ${listaPredicciones.length} participantes…`}
+                        value={busquedaParticipante}
+                        onChange={e => setBusquedaParticipante(e.target.value)}
+                        style={{ width: '100%', fontSize: 13, padding: '8px 12px', marginBottom: 10 }}
+                        aria-label="Buscar participante por nombre"
+                      />
                       {(() => {
                         const filtro = busquedaParticipante.trim().toLowerCase()
                         const listaFiltrada = filtro
@@ -4913,12 +4975,12 @@ export default function Admin() {
                           <div
                             key={pred.id}
                             style={{
-                              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+                              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap',
                               padding: '10px 0',
                               borderBottom: i < listaFiltrada.length - 1 ? '1px solid var(--border)' : 'none',
                             }}
                           >
-                            <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ flex: 1, minWidth: 140 }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
                                 <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
                                   {pred.nombre}
@@ -5092,26 +5154,30 @@ export default function Admin() {
                             {bloqueado && (
                               <span aria-label="Partido fijo" title="No editable: ya hay predicciones" style={{ fontSize: 12, opacity: 0.7, flexShrink: 0 }}>🔒</span>
                             )}
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
-                              {escudoMini(p.escudoLocal, p.local)}
-                              <span style={{ fontSize: 13, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.local}</span>
-                              <span style={{ fontSize: 11, color: 'var(--muted)', flexShrink: 0 }}>vs</span>
-                              {escudoMini(p.escudoVisitante, p.visitante)}
-                              <span style={{ fontSize: 13, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.visitante}</span>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                {escudoMini(p.escudoLocal, p.local)}
+                                <span style={{ fontSize: 13, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: '1 1 0%', minWidth: 0 }}>{p.local}</span>
+                                <span style={{ fontSize: 11, color: 'var(--muted)', flexShrink: 0 }}>vs</span>
+                                <span style={{ fontSize: 13, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: '1 1 0%', minWidth: 0, textAlign: 'right' }}>{p.visitante}</span>
+                                {escudoMini(p.escudoVisitante, p.visitante)}
+                              </div>
+                              {p.hora && <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{formatFixtureDate(p.hora)}</div>}
                             </div>
-                            {p.hora && <span style={{ fontSize: 11, color: 'var(--muted)', flexShrink: 0 }}>{formatFixtureDate(p.hora)}</span>}
-                            {!bloqueado && (
-                              <button onClick={() => setEditandoPartidoEdicion(i)} aria-label="Editar partido" title="Editar" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, padding: '2px 4px', flexShrink: 0 }}>✏️</button>
-                            )}
-                            {!bloqueado && !esOriginal && (
-                              <button
-                                onClick={() => setEditPartidos(prev => prev.filter((_, idx) => idx !== i))}
-                                aria-label="Quitar partido nuevo"
-                                style={{ background: 'none', border: 'none', color: 'var(--red)', fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: '2px 6px', borderRadius: 6, flexShrink: 0 }}
-                              >
-                                Quitar ✕
-                              </button>
-                            )}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
+                              {!bloqueado && (
+                                <button onClick={() => setEditandoPartidoEdicion(i)} aria-label="Editar partido" title="Editar" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, padding: '2px 4px', flexShrink: 0 }}>✏️</button>
+                              )}
+                              {!bloqueado && !esOriginal && (
+                                <button
+                                  onClick={() => setEditPartidos(prev => prev.filter((_, idx) => idx !== i))}
+                                  aria-label="Quitar partido nuevo"
+                                  style={{ background: 'none', border: 'none', color: 'var(--red)', fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: '2px 6px', borderRadius: 6, flexShrink: 0 }}
+                                >
+                                  Quitar ✕
+                                </button>
+                              )}
+                            </div>
                           </div>
                         )
                       }
