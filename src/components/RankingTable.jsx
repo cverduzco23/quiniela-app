@@ -213,17 +213,6 @@ function SvgIcon({ name, size = 14, style }) {
       </svg>
     )
   }
-  if (name === 'cake') {
-    return (
-      <svg {...common}>
-        <path d="M8 8h8" />
-        <path d="M7 12h10a3 3 0 0 1 3 3v5H4v-5a3 3 0 0 1 3-3Z" />
-        <path d="M4 16c1.5 1 3 1 4.5 0s3-1 4.5 0 3 1 4.5 0 1.8-.7 2.5-.6" />
-        <path d="M12 3v5" />
-        <path d="M12 3c1 1 .9 1.8 0 2.5-.9-.7-1-1.5 0-2.5Z" />
-      </svg>
-    )
-  }
   if (name === 'dot') {
     return (
       <svg {...common} fill="currentColor" stroke="none">
@@ -339,8 +328,6 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
   const jugadoresConPos = jugadores.map((j, i) => ({ ...j, _pos: posiciones[i] }))
   // Nombres abreviados (2 tokens, o más si hay empate) para la fila colapsada.
   const nombresCortos = abreviarNombres(jugadores.map(j => j.nombre))
-  // Cumpleañeros marcados por el admin (ids de predicción) muestran un icono.
-  const cumpleaneros = quiniela?.cumpleaneros ?? []
   const filtroBusqueda  = busqueda.trim().toLowerCase()
   const filtrados       = filtroBusqueda
     ? jugadoresConPos.filter(j => j.nombre.toLowerCase().includes(filtroBusqueda))
@@ -1032,11 +1019,6 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                         <span style={{ fontFamily: 'var(--font-display)', fontSize: 11, fontWeight: 800, color: 'var(--yellow)', marginLeft: 1 }}>{j.racha.correctas}</span>
                       </span>
                     ) : null}
-                    {cumpleaneros.includes(j.id) && (
-                      <span title="Hoy está de cumpleaños" aria-label="Cumpleaños" style={{ display: 'inline-flex', color: 'var(--yellow)', flexShrink: 0 }}>
-                        <SvgIcon name="cake" size={14} />
-                      </span>
-                    )}
                     {cerrada && (
                       <span style={{ display: 'inline-flex', color: 'var(--muted)', flexShrink: 0 }} aria-hidden="true">
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: abierto ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s ease' }}>

@@ -418,8 +418,8 @@ export default function Predicciones() {
         setEnviando(false)
         return
       }
-      // Si la quiniela requiere nombre completo, validar antes de tocar Firestore
-      if (quiniela?.requiereApellido && !tieneNombreYApellido(nombreNormalizado)) {
+      // Siempre pedimos nombre completo (nombre + apellido) antes de tocar Firestore.
+      if (!tieneNombreYApellido(nombreNormalizado)) {
         setNombreError('Pon tu nombre completo: nombre y al menos un apellido (ej. María González).')
         setMostrarResumen(false)
         setEnviando(false)
@@ -1066,17 +1066,15 @@ export default function Predicciones() {
             {/* Nombre */}
             <div style={card}>
               <label htmlFor="jugador-nombre" style={lbl}>
-                {quiniela?.requiereApellido ? 'Tu nombre completo' : 'Tu nombre'}
+                Tu nombre completo
               </label>
-              {quiniela?.requiereApellido && (
-                <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>
-                  Nombre y al menos un apellido (ej. María González).
-                </p>
-              )}
+              <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>
+                Nombre y al menos un apellido (ej. María González).
+              </p>
               <input
                 id="jugador-nombre"
                 type="text"
-                placeholder={quiniela?.requiereApellido ? 'Ej. María González' : '¿Cómo te llamas?'}
+                placeholder="Ej. María González"
                 value={nombre}
                 maxLength={40}
                 onChange={e => actualizarNombre(e.target.value)}
