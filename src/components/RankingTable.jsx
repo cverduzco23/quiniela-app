@@ -141,6 +141,16 @@ function SvgIcon({ name, size = 14, style }) {
       </svg>
     )
   }
+  if (name === 'share') {
+    return (
+      <svg {...common}>
+        <circle cx="18" cy="5" r="3" />
+        <circle cx="6" cy="12" r="3" />
+        <circle cx="18" cy="19" r="3" />
+        <path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4" />
+      </svg>
+    )
+  }
   if (name === 'sparkles') {
     return (
       <svg {...common}>
@@ -239,7 +249,6 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
   const [montadoPartido, setMontadoPartido]     = useState(new Set())
   const [visibles, setVisibles]                 = useState(PAGE_SIZE)
   const [compartiendo, setCompartiendo] = useState(false)
-  const [compartiendoOraculo, setCompartiendoOraculo] = useState(false)
   const [feedbackShare, setFeedbackShare] = useState('')
   const [busqueda, setBusqueda]                 = useState('')
   const [mostrarInfoPicks, setMostrarInfoPicks] = useState(false)
@@ -251,8 +260,20 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
   const golTimerRef = useRef(null)
   const [golFestejo, setGolFestejo] = useState(null) // { equipo } | null
 
+  // Al primer clic, el panel todavía no existe en el DOM: si lo montamos y lo
+  // marcamos "abierto" en el mismo instante, el navegador nunca pinta el
+  // estado cerrado y la apertura se ve de golpe en vez de animada. Por eso la
+  // primera vez lo montamos cerrado y esperamos dos frames (para que el
+  // navegador lo pinte) antes de abrirlo; los toggles siguientes, con el
+  // panel ya montado, solo alternan el estado y la transición ya sale suave.
   const toggleExpandido = (nombre) => {
-    setMontado(prev => prev.has(nombre) ? prev : new Set(prev).add(nombre))
+    if (!montado.has(nombre)) {
+      setMontado(prev => new Set(prev).add(nombre))
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        setExpandido(prev => new Set(prev).add(nombre))
+      }))
+      return
+    }
     setExpandido(prev => {
       const s = new Set(prev)
       s.has(nombre) ? s.delete(nombre) : s.add(nombre)
@@ -261,7 +282,13 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
   }
 
   const togglePartido = (idx) => {
-    setMontadoPartido(prev => prev.has(idx) ? prev : new Set(prev).add(idx))
+    if (!montadoPartido.has(idx)) {
+      setMontadoPartido(prev => new Set(prev).add(idx))
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        setExpandidoPartido(prev => new Set(prev).add(idx))
+      }))
+      return
+    }
     setExpandidoPartido(prev => {
       const s = new Set(prev)
       s.has(idx) ? s.delete(idx) : s.add(idx)
@@ -409,28 +436,6 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
   // cerró (los picks son públicos) y queda exactamente un partido por definir.
   const simulacion = cerrada ? simularUltimoPartido(quiniela, predicciones, liveScores) : null
 
-  const handleCompartirOraculo = async () => {
-    if (compartiendoOraculo || !simulacion) return
-    setPanelActivo('share')
-    setCompartiendoOraculo(true)
-    setFeedbackShare('')
-    try {
-      const res = await compartirOraculo({ quiniela, simulacion, bote })
-      if (res?.copiado) {
-        setFeedbackShare('Oráculo copiado. Pégalo donde quieras.')
-        setTimeout(() => setFeedbackShare(''), 4000)
-      } else if (res?.descargado) {
-        setFeedbackShare('Oráculo descargado. Compártelo donde quieras.')
-        setTimeout(() => setFeedbackShare(''), 4000)
-      }
-    } catch (err) {
-      console.error('Error compartiendo oráculo:', err)
-      alerta('No se pudo generar el Oráculo. Intenta de nuevo.')
-    } finally {
-      setCompartiendoOraculo(false)
-    }
-  }
-
   return (
     <>
       <style>{`@keyframes pulse-dot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.3;transform:scale(.65)}}
@@ -466,6 +471,8 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
         </div>
       )}
 
+      <div className="ranking-desktop-grid">
+      <div className="ranking-desktop-left">
       {/* Reglas */}
       <div style={{ display: 'flex', gap: 6, marginBottom: 'var(--ranking-section-gap, 16px)', flexWrap: 'nowrap' }}>
         {[
@@ -559,6 +566,19 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
             const hayResumen = tieneStats && (esFinish || !!stored) && !cancelado
             const tieneAlgo = hayStats || hayResumen
             const posH = hayStats ? parseFloat(st.home.posesion) || 50 : 50
+            const badgeNode = cancelado ? (
+              <span className="ranking-match-badge" style={{ background: 'var(--neutral-bg)', color: 'var(--muted)', borderColor: 'var(--border-strong)' }}>Cancelado</span>
+            ) : esVivo ? (
+              <span className="ranking-match-badge" style={{ background: 'var(--red-bg-strong)', color: '#FCA5A5', borderColor: 'transparent' }}>
+                <span className="ranking-match-live-dot" />{live.penalesEnVivo ? 'Penales' : live.halftime ? 'Descanso' : live.clock || 'EN VIVO'}
+              </span>
+            ) : resDisplay ? (
+              <span className="ranking-match-badge" style={{ background: resultColor[resDisplay].bg, color: resultColor[resDisplay].color, borderColor: 'transparent' }}>
+                {resultLabel[resDisplay]}
+              </span>
+            ) : (
+              <span className="ranking-match-badge is-pending-badge" style={{ background: 'var(--neutral-bg)', color: 'var(--muted)', borderColor: 'transparent' }}>Pendiente</span>
+            )
             return (
               <div
                 key={i}
@@ -566,6 +586,44 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                 className={`ranking-match-row${esVivo ? ' is-live' : ''}${tieneAlgo ? ' is-clickable' : ''}`}
                 style={{ borderBottom: i < partidos.length - 1 ? '1px solid var(--border)' : 'none' }}
               >
+                {/* Escritorio (≥1024px): equipos completos + fecha bajo el local */}
+                <div className="ranking-match-wide">
+                  <div className="ranking-match-wide-teams">
+                    <div className="ranking-match-wide-side is-home">
+                      <div className="ranking-match-wide-side-row">
+                        <EscudoEquipo url={p.escudoLocal} nombre={p.local} size={22} />
+                        <span className="ranking-match-wide-name">{p.local}</span>
+                      </div>
+                      {p.hora && <span className="ranking-match-wide-fecha">{formatFecha(p.hora)}</span>}
+                    </div>
+                    <span
+                      className="ranking-match-wide-score"
+                      style={{ color: cancelado ? 'var(--muted)' : esVivo ? '#FCA5A5' : 'var(--text-strong)', background: esVivo ? 'var(--red-bg)' : 'var(--card-light)', textDecoration: cancelado ? 'line-through' : 'none' }}
+                    >
+                      {pendiente ? 'vs' : `${scoreLocal}–${scoreVisitante}`}
+                    </span>
+                    <div className="ranking-match-wide-side is-away">
+                      <div className="ranking-match-wide-side-row">
+                        <span className="ranking-match-wide-name">{p.visitante}</span>
+                        <EscudoEquipo url={p.escudoVisitante} nombre={p.visitante} size={22} />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="ranking-match-wide-status">
+                    {badgeNode}
+                    {tieneAlgo && (
+                      <span className="ranking-match-toggle ranking-match-toggle-wide">
+                        <span className="ranking-match-toggle-icon" aria-hidden="true">
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.75" strokeLinecap="round" strokeLinejoin="round" style={{ transform: partidoAbierto ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s ease' }}>
+                            <polyline points="6 9 12 15 18 9" />
+                          </svg>
+                        </span>
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="ranking-match-compact">
                 <div className="ranking-match-body">
                   <div className="ranking-match-desktop-teams">
                     <div className="ranking-match-side is-home">
@@ -608,19 +666,7 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                   <div className="ranking-match-meta">
                     {p.hora && <p className="ranking-match-date">{formatFecha(p.hora)}</p>}
                     <div className="ranking-match-actions">
-                    {cancelado ? (
-                      <span className="ranking-match-badge" style={{ background: 'var(--neutral-bg)', color: 'var(--muted)', borderColor: 'var(--border-strong)' }}>Cancelado</span>
-                    ) : esVivo ? (
-                      <span className="ranking-match-badge" style={{ background: 'var(--red-bg-strong)', color: '#FCA5A5', borderColor: 'transparent' }}>
-                        <span className="ranking-match-live-dot" />{live.penalesEnVivo ? 'Penales' : live.halftime ? 'Descanso' : live.clock || 'EN VIVO'}
-                      </span>
-                    ) : resDisplay ? (
-                      <span className="ranking-match-badge" style={{ background: resultColor[resDisplay].bg, color: resultColor[resDisplay].color, borderColor: 'transparent' }}>
-                        {resultLabel[resDisplay]}
-                      </span>
-                    ) : (
-                      <span className="ranking-match-badge is-pending-badge" style={{ background: 'var(--neutral-bg)', color: 'var(--muted)', borderColor: 'transparent' }}>Pendiente</span>
-                    )}
+                    {badgeNode}
                     {tieneAlgo && (
                       <span className="ranking-match-toggle ranking-match-toggle-mobile">
                         <span className="ranking-match-toggle-icon" aria-hidden="true">
@@ -647,6 +693,7 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                     )}
                   </div>
                 )}
+                </div>
 
                 {/* Panel de estadísticas */}
                 {tieneAlgo && montadoPartido.has(i) && (
@@ -773,9 +820,21 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
         </div>
       )}
 
-      {/* ¿Quién gana según el marcador del último partido? */}
-      {simulacion && <EscenariosUltimoPartido sim={simulacion} conPremio={conPremio} liveScores={liveScores} />}
+      </div>
 
+      <div className="ranking-desktop-right">
+      {/* ¿Quién gana según el marcador del último partido? — en escritorio queda
+          arriba de la tabla de ranking; en móvil el orden visual no cambia
+          porque la columna izquierda ya terminó de renderizarse antes. */}
+      {simulacion && (
+        <EscenariosUltimoPartido
+          sim={simulacion}
+          conPremio={conPremio}
+          liveScores={liveScores}
+          quiniela={quiniela}
+          bote={bote}
+        />
+      )}
       {/* Tabla ranking */}
       <div style={{ background: 'var(--card)', borderRadius: 'var(--radius-md)', overflow: 'hidden', border: '1px solid var(--border)' }}>
         {enVivo && (
@@ -823,7 +882,7 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
             </button>
           </div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'var(--ranking-grid-cols, 30px 1fr 38px 38px 46px)', padding: '10px var(--ranking-row-pad-x, 16px)', alignItems: 'center', background: 'var(--card-light)', borderBottom: '1px solid var(--border)' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'var(--ranking-grid-cols, 30px 1fr 38px 38px 46px)', padding: 'var(--ranking-header-pad-y, 10px) var(--ranking-row-pad-x, 16px)', alignItems: 'center', background: 'var(--card-light)', borderBottom: '1px solid var(--border)' }}>
             {[
               { key: '#', label: '#' },
               { key: 'Jugador', label: 'Jugador' },
@@ -911,7 +970,7 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                 style={{
                   position: 'relative', overflow: 'hidden',
                   display: 'grid', gridTemplateColumns: 'var(--ranking-grid-cols, 30px 1fr 38px 38px 46px)',
-                  padding: '13px var(--ranking-row-pad-x, 16px)', alignItems: 'center',
+                  padding: 'var(--ranking-row-pad-y, 13px) var(--ranking-row-pad-x, 16px)', alignItems: 'center',
                   background: esMiFila
                     ? 'linear-gradient(90deg, rgba(34,197,94,0.105), rgba(34,197,94,0.035) 54%, transparent 86%)'
                     : esLider
@@ -934,7 +993,8 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                     textShadow: esLider ? '0 0 10px rgba(250,204,21,0.55), 0 1px 1px rgba(0,0,0,0.3)' : 'none',
                   }}>{pos}</span>
                 </span>
-                <div style={{ position: 'relative', minWidth: 0 }}>
+                <div style={{ position: 'relative', minWidth: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span className="ranking-player-avatar" aria-hidden="true">{inicialesPersona(j.nombre)}</span>
                   <span style={{ fontSize: 'var(--ranking-name-size, 13px)', fontWeight: esLider || esMiFila ? 700 : 500, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
                     <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{nombresCortos.get(j.nombre) || nombreCorto(j.nombre)}</span>
                     {esMiFila && (
@@ -981,7 +1041,7 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                   </span>
                 </div>
                 <span style={{ position: 'relative', fontSize: 'var(--ranking-stat-cell-size, 13px)', color: 'var(--muted)', textAlign: 'center' }}>{j.aciertos}</span>
-                <span style={{ position: 'relative', fontFamily: 'var(--font-display)', fontSize: 'var(--ranking-stat-cell-size, 13px)', textAlign: 'center', color: j.exactos > 0 ? 'var(--yellow)' : 'var(--muted)', fontWeight: j.exactos > 0 ? 700 : 600 }}>{j.exactos}</span>
+                <span style={{ position: 'relative', fontFamily: 'var(--font-display)', fontSize: 'var(--ranking-exact-size, 13px)', textAlign: 'center', color: j.exactos > 0 ? 'var(--yellow)' : 'var(--muted)', fontWeight: j.exactos > 0 ? 700 : 600 }}>{j.exactos}</span>
                 <div style={{ position: 'relative', textAlign: 'center' }}>
                   <span style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--ranking-points-size, 18px)', fontWeight: 700, color: esLider ? 'var(--yellow)' : 'var(--green)' }}>{j.puntos}</span>
                   {premioPorNombre[j.nombre] !== undefined && (
@@ -1169,30 +1229,11 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
               {panelActivo === 'share' && (
                 <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, width: '100%' }}>
                   <span style={{ flex: 1, minWidth: 0 }}>
-                    {compartiendo || compartiendoOraculo
+                    {compartiendo
                       ? 'Generando imagen para compartir...'
                       : feedbackShare || 'Genera una imagen del ranking para compartirla con tu grupo.'}
                   </span>
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                    {simulacion && (
-                      <button
-                        type="button"
-                        onClick={handleCompartirOraculo}
-                        disabled={compartiendoOraculo}
-                        style={{
-                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                          padding: '7px 10px', borderRadius: 'var(--radius-full)',
-                          border: '1px solid #A855F7',
-                          background: compartiendoOraculo ? 'var(--card-light)' : 'rgba(168,85,247,0.14)',
-                          color: compartiendoOraculo ? 'var(--muted)' : '#C084FC',
-                          fontSize: 11, fontWeight: 800, whiteSpace: 'nowrap',
-                          cursor: compartiendoOraculo ? 'not-allowed' : 'pointer',
-                        }}
-                      >
-                        <SvgIcon name="sparkles" size={13} />
-                        Oráculo
-                      </button>
-                    )}
                     <button
                       type="button"
                       onClick={handleCompartirRanking}
@@ -1218,6 +1259,8 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
             </span>
           </div>
         )}
+      </div>
+      </div>
       </div>
     </>
   )
@@ -1278,10 +1321,52 @@ function EscudoEquipo({ url, nombre, size = 18 }) {
   )
 }
 
-function EscenariosUltimoPartido({ sim, conPremio, liveScores = {} }) {
+function EscenariosUltimoPartido({ sim, conPremio, liveScores = {}, quiniela, bote }) {
+  const { alerta } = useDialog()
   const { partido, filas, numJugadores } = sim
   const local = partido.local, visitante = partido.visitante
   const [abierto, setAbierto] = useState(false)
+  // Una vez montado el panel lo dejamos en el DOM (aunque esté cerrado) para
+  // poder animar el cierre con una transición en vez de desaparecer de golpe.
+  const [montado, setMontado] = useState(false)
+  const [compartiendo, setCompartiendo] = useState(false)
+  const [feedback, setFeedback] = useState('')
+
+  // Mismo respiro de dos frames que el resto de los paneles del ranking: sin
+  // esto, la primera apertura (montar + abrir a la vez) se ve de golpe en vez
+  // de animada, porque el navegador nunca pinta el estado cerrado antes.
+  const toggleAbierto = () => {
+    if (!montado) {
+      setMontado(true)
+      requestAnimationFrame(() => requestAnimationFrame(() => setAbierto(true)))
+      return
+    }
+    setAbierto(a => !a)
+  }
+
+  // Compartir el oráculo es una acción propia de esta tarjeta: no toca el
+  // panel de "Compartir ranking" ni su estado, para que ambos botones queden
+  // completamente independientes.
+  const handleCompartir = async () => {
+    if (compartiendo) return
+    setCompartiendo(true)
+    setFeedback('')
+    try {
+      const res = await compartirOraculo({ quiniela, simulacion: sim, bote, liveScores, conPremio })
+      if (res?.copiado) {
+        setFeedback('Imagen copiada. Pégala donde quieras.')
+        setTimeout(() => setFeedback(''), 4000)
+      } else if (res?.descargado) {
+        setFeedback('Imagen descargada. Compártela donde quieras.')
+        setTimeout(() => setFeedback(''), 4000)
+      }
+    } catch (err) {
+      console.error('Error compartiendo oráculo:', err)
+      alerta('No se pudo generar la imagen. Intenta de nuevo.')
+    } finally {
+      setCompartiendo(false)
+    }
+  }
 
   const exactas   = filas.filter(f => f.esc.tipo === 'exacto')
   const genericas = filas.filter(f => f.esc.tipo === 'generico')
@@ -1321,25 +1406,51 @@ function EscenariosUltimoPartido({ sim, conPremio, liveScores = {} }) {
 
   return (
     <div className="oracle-card">
-      <button
-        onClick={() => setAbierto(a => !a)}
-        aria-expanded={abierto}
-        className="oracle-header"
-      >
-        <span className="oracle-icon" aria-hidden="true">
-          <SvgIcon name="sparkles" size={18} />
-        </span>
-        <span className="oracle-heading">
-          <span className="oracle-kicker">Oráculo del último partido</span>
-          <span className="oracle-title">¿Quién gana según el marcador?</span>
-        </span>
-        <span className="oracle-toggle">
-          {abierto ? 'Ocultar' : 'Ver'}
-        </span>
-      </button>
+      <div className="oracle-header-row">
+        <button
+          onClick={toggleAbierto}
+          aria-expanded={abierto}
+          className="oracle-header"
+        >
+          <span className="oracle-icon" aria-hidden="true">
+            <SvgIcon name="sparkles" size={18} />
+          </span>
+          <span className="oracle-heading">
+            <span className="oracle-kicker">Oráculo del último partido</span>
+            <span className="oracle-title">¿Quién gana según el marcador?</span>
+          </span>
+          <span className="oracle-toggle">
+            {abierto ? 'Ocultar' : 'Ver'}
+          </span>
+        </button>
+        <button
+          type="button"
+          onClick={handleCompartir}
+          disabled={compartiendo}
+          aria-label="Compartir oráculo"
+          title="Compartir oráculo"
+          className="oracle-share-btn"
+        >
+          <SvgIcon name="share" size={14} />
+        </button>
+      </div>
+      {(compartiendo || feedback) && (
+        <p className="oracle-share-status" role="status">
+          {compartiendo ? 'Generando imagen del oráculo...' : feedback}
+        </p>
+      )}
 
-      {abierto && (
-        <>
+      {montado && (
+        <div
+          aria-hidden={!abierto}
+          style={{
+            display: 'grid',
+            gridTemplateRows: abierto ? '1fr' : '0fr',
+            opacity: abierto ? 1 : 0,
+            transition: 'grid-template-rows 0.32s cubic-bezier(0.4,0,0.2,1), opacity 0.24s ease',
+          }}
+        >
+        <div style={{ overflow: 'hidden' }}>
           <p className="oracle-copy">
             <strong>{local} vs {visitante}</strong> define quién queda en 1° lugar{conPremio ? ' y se lleva el premio' : ''}.
           </p>
@@ -1373,7 +1484,8 @@ function EscenariosUltimoPartido({ sim, conPremio, liveScores = {} }) {
           <p className="oracle-note">
             Con los {numJugadores} participantes. En empate de puntos, comparten el 1° lugar.
           </p>
-        </>
+        </div>
+        </div>
       )}
     </div>
   )

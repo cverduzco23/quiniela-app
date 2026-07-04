@@ -1,6 +1,7 @@
 import { cierreToDate, quinielaCerrada } from './cierre'
 import { formatearMXN } from './premios'
 import { normalizarNombre } from './nombres'
+import { goalsToResultado } from './scoring'
 
 const W = 1080
 const H = 1350
@@ -35,10 +36,10 @@ const medal = [
   { fg: '#E0A870', light: '#FCD9B6', dark: '#472B20', h: 102 },
 ]
 
-function setupCanvas() {
+function setupCanvas(height = H) {
   const canvas = document.createElement('canvas')
   canvas.width = W * SCALE
-  canvas.height = H * SCALE
+  canvas.height = height * SCALE
   const ctx = canvas.getContext('2d')
   ctx.scale(SCALE, SCALE)
   ctx.textBaseline = 'alphabetic'
@@ -155,13 +156,13 @@ function drawTableIcon(ctx, name, cx, cy, size = 18, color = COLORS.dim) {
   ctx.restore()
 }
 
-function drawBackground(ctx, theme = 'green') {
-  const g = ctx.createLinearGradient(0, 0, W, H)
+function drawBackground(ctx, theme = 'green', height = H) {
+  const g = ctx.createLinearGradient(0, 0, W, height)
   g.addColorStop(0, COLORS.bg0)
   g.addColorStop(0.46, COLORS.bg1)
   g.addColorStop(1, COLORS.bg2)
   ctx.fillStyle = g
-  ctx.fillRect(0, 0, W, H)
+  ctx.fillRect(0, 0, W, height)
 
   const glowA = theme === 'purple' ? 'rgba(168,85,247,0.25)' : 'rgba(34,197,94,0.20)'
   const glowB = theme === 'purple' ? 'rgba(168,85,247,0.13)' : 'rgba(250,204,21,0.12)'
@@ -169,12 +170,12 @@ function drawBackground(ctx, theme = 'green') {
   rg.addColorStop(0, glowA)
   rg.addColorStop(1, 'rgba(0,0,0,0)')
   ctx.fillStyle = rg
-  ctx.fillRect(0, 0, W, H)
+  ctx.fillRect(0, 0, W, height)
   rg = ctx.createRadialGradient(W, 0, 0, W, 0, 470)
   rg.addColorStop(0, glowB)
   rg.addColorStop(1, 'rgba(0,0,0,0)')
   ctx.fillStyle = rg
-  ctx.fillRect(0, 0, W, H)
+  ctx.fillRect(0, 0, W, height)
 }
 
 function drawBrandMark(ctx, x, y, size) {
@@ -264,28 +265,69 @@ function drawAvatar(ctx, x, y, size, name, color, bg = 'rgba(255,255,255,0.05)')
   ctx.textAlign = 'left'
 }
 
-function drawFooter(ctx, quiniela, theme = 'green') {
+// Carga un escudo/bandera para dibujarlo en el canvas. Los logos de ESPN
+// sirven CORS abierto (Access-Control-Allow-Origin: *), así que se pueden
+// dibujar sin "manchar" el canvas y seguir generando el PNG con toBlob.
+// Si la imagen falla o tarda, resolvemos null y el llamador cae a iniciales.
+function loadImageSafe(url, timeoutMs = 3500) {
+  return new Promise(resolve => {
+    if (!url) { resolve(null); return }
+    const img = new Image()
+    img.crossOrigin = 'anonymous'
+    let done = false
+    const finish = (result) => { if (done) return; done = true; resolve(result) }
+    const timer = setTimeout(() => finish(null), timeoutMs)
+    img.onload = () => { clearTimeout(timer); finish(img) }
+    img.onerror = () => { clearTimeout(timer); finish(null) }
+    img.src = url
+  })
+}
+
+// Círculo con el escudo del equipo (recortado, "contain" para no deformar
+// logos rectangulares); si no hay imagen cargada, cae al avatar de iniciales.
+function drawCrestOrAvatar(ctx, x, y, size, img, name, color, bg = 'rgba(255,255,255,0.05)') {
+  if (!img) { drawAvatar(ctx, x, y, size, name, color, bg); return }
+  ctx.save()
+  ctx.beginPath()
+  ctx.arc(x, y, size / 2, 0, Math.PI * 2)
+  ctx.fillStyle = bg
+  ctx.fill()
+  ctx.clip()
+  const inner = size * 0.72
+  const scale = Math.min(inner / img.width, inner / img.height)
+  const w = img.width * scale
+  const h = img.height * scale
+  ctx.drawImage(img, x - w / 2, y - h / 2, w, h)
+  ctx.restore()
+  ctx.lineWidth = 2
+  ctx.strokeStyle = 'rgba(255,255,255,0.22)'
+  ctx.beginPath()
+  ctx.arc(x, y, size / 2, 0, Math.PI * 2)
+  ctx.stroke()
+}
+
+function drawFooter(ctx, quiniela, theme = 'green', height = H) {
   const accent = theme === 'purple' ? COLORS.purpleLight : COLORS.greenLight
   ctx.font = '900 15px Inter'
   ctx.fillStyle = COLORS.dim
   ctx.textBaseline = 'middle'
-  ctx.fillText('CÓDIGO', PAD, H - 84)
+  ctx.fillText('CÓDIGO', PAD, height - 84)
   const code = String(quiniela?.codigoAcceso || quiniela?.id || 'QUINIELA').toUpperCase()
   ctx.font = '700 32px Rajdhani'
   const w = Math.max(172, ctx.measureText(code).width + 42)
-  fillRound(ctx, PAD + 84, H - 112, w, 56, 10, theme === 'purple' ? 'rgba(168,85,247,0.16)' : 'rgba(34,197,94,0.16)', theme === 'purple' ? 'rgba(192,132,252,0.45)' : 'rgba(34,197,94,0.45)')
+  fillRound(ctx, PAD + 84, height - 112, w, 56, 10, theme === 'purple' ? 'rgba(168,85,247,0.16)' : 'rgba(34,197,94,0.16)', theme === 'purple' ? 'rgba(192,132,252,0.45)' : 'rgba(34,197,94,0.45)')
   ctx.fillStyle = accent
-  ctx.fillText(code, PAD + 105, H - 84)
+  ctx.fillText(code, PAD + 105, height - 84)
 
-  drawBrandMark(ctx, W - PAD - 138, H - 102, 28)
+  drawBrandMark(ctx, W - PAD - 138, height - 102, 28)
   ctx.font = '900 17px Inter'
   ctx.fillStyle = COLORS.strong
-  ctx.fillText('Quiniel', W - PAD - 100, H - 88)
+  ctx.fillText('Quiniel', W - PAD - 100, height - 88)
   ctx.fillStyle = COLORS.green
-  ctx.fillText('App', W - PAD - 100 + ctx.measureText('Quiniel').width, H - 88)
+  ctx.fillText('App', W - PAD - 100 + ctx.measureText('Quiniel').width, height - 88)
   ctx.font = '500 13px Inter'
   ctx.fillStyle = COLORS.dim
-  ctx.fillText('quinielapp.fun', W - PAD - 100, H - 68)
+  ctx.fillText('quinielapp.fun', W - PAD - 100, height - 68)
 }
 
 function blobFromCanvas(canvas) {
@@ -706,18 +748,102 @@ function drawRankingImage(ctx, datos) {
   drawFooter(ctx, quiniela)
 }
 
-function escenarioLabel(esc, partido) {
+function escenarioLabel(ctx, esc, partido, maxWidth) {
   if (esc.tipo === 'exacto') return `${esc.local}-${esc.visitante}`
   if (esc.resultado === 'draw') return 'Empate'
-  return `${esc.resultado === 'home' ? initials(partido.local) : initials(partido.visitante)} gana`
+  const equipo = esc.resultado === 'home' ? partido.local : partido.visitante
+  return truncate(ctx, `${shortName(equipo, 2)} gana`, maxWidth)
 }
 
-function drawOracleImage(ctx, datos) {
-  const { quiniela, simulacion, bote = 0 } = datos
+// La fila "actual" es la que de verdad coincide con el marcador en vivo
+// (exacto si hay uno pronosticado con ese marcador; si no, el genérico
+// Local/Empate/Visitante). Sin partido en vivo, ninguna fila se resalta.
+function isCurrentEscenario(esc, live) {
+  const { enVivo, curL, curV, curRes, hayExactaActual } = live
+  if (!enVivo) return false
+  if (esc.tipo === 'exacto') return esc.local === curL && esc.visitante === curV
+  return !hayExactaActual && esc.resultado === curRes
+}
+
+function drawScenarioRow(ctx, fila, y, rowH, partido, current) {
+  if (current) {
+    ctx.fillStyle = 'rgba(239,68,68,0.14)'
+    ctx.fillRect(PAD, y, W - PAD * 2, rowH)
+  }
+  const pillH = Math.min(40, rowH - 20)
+  const midY = y + rowH / 2
+  fillRound(ctx, PAD + 30, midY - pillH / 2, 300, pillH, 8, current ? 'rgba(239,68,68,0.16)' : 'rgba(255,255,255,0.05)', current ? 'rgba(239,68,68,0.75)' : COLORS.border2)
+  ctx.font = '600 18px Inter'
+  ctx.fillStyle = current ? COLORS.redLight : COLORS.text
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText(escenarioLabel(ctx, fila.esc, partido, 260), PAD + 180, midY)
+  ctx.textAlign = 'left'
+  // Ancho disponible para "quién gana": hasta el borde derecho, dejando
+  // hueco para el badge "Ahora" en la fila resaltada.
+  const rightLimit = current ? (W - PAD - 126 - 10) : (W - PAD - 30)
+  const maxWinnerWidth = rightLimit - (PAD + 345)
+  ctx.font = '600 27px Inter'
+  ctx.fillStyle = COLORS.purpleLight
+  const winnerText = fila.lideres.map(n => shortName(n, 2)).join(' + ')
+  const winnerDisplay = truncate(ctx, winnerText, Math.max(40, maxWinnerWidth))
+  ctx.fillText(winnerDisplay, PAD + 345, midY)
+  if (current) {
+    fillRound(ctx, W - PAD - 126, midY - 18, 96, 36, 999, 'rgba(239,68,68,0.22)')
+    ctx.font = '800 14px Inter'
+    ctx.fillStyle = COLORS.redLight
+    ctx.textAlign = 'center'
+    ctx.fillText('Ahora', W - PAD - 78, midY)
+    ctx.textAlign = 'left'
+  }
+  ctx.textBaseline = 'alphabetic'
+}
+
+// Geometría de la tabla de escenarios, compartida entre el cálculo de altura
+// del lienzo (antes de crearlo) y el dibujo (después). El lienzo del oráculo
+// no tiene una altura fija: crece para mostrar TODOS los marcadores sin
+// esconder ninguno, así la imagen es un "screenshot" fiel de la web.
+const ORACLE_TABLE_Y = 454
+const ORACLE_HEADER_H = 60
+const ORACLE_DIVIDER_H = 46
+const ORACLE_ROW_H = 78
+const ORACLE_FOOTER_GAP = 90
+const ORACLE_FOOTER_BLOCK_H = 150
+
+function oracleRowCounts(simulacion) {
+  const filas = simulacion?.filas ?? []
+  return {
+    exactas: filas.filter(f => f.esc.tipo === 'exacto').length,
+    genericas: filas.filter(f => f.esc.tipo === 'generico').length,
+  }
+}
+
+function computeOracleCanvasHeight(simulacion) {
+  const { exactas, genericas } = oracleRowCounts(simulacion)
+  const tableH = ORACLE_HEADER_H + exactas * ORACLE_ROW_H + ORACLE_DIVIDER_H + genericas * ORACLE_ROW_H
+  const noteY = ORACLE_TABLE_Y + tableH + 44
+  return Math.round(noteY + ORACLE_FOOTER_GAP + ORACLE_FOOTER_BLOCK_H)
+}
+
+function drawOracleImage(ctx, datos, assets = {}) {
+  const { quiniela, simulacion, bote = 0, liveScores = {}, conPremio = true } = datos
+  const { escudoLocal = null, escudoVisitante = null, height = H } = assets
   const partido = simulacion?.partido ?? {}
-  drawBackground(ctx, 'purple')
+
+  // Marcador real del partido en vivo (mismo criterio que la tarjeta en la
+  // web): solo así sabemos qué fila de la tabla es la que está pasando ahora.
+  const live = partido.espnId ? liveScores?.[partido.espnId] : null
+  const enVivo = live?.state === 'in' && live.local !== '' && live.visitante !== '' &&
+    live.local != null && live.visitante != null
+  const curL = enVivo ? Number(live.local) : null
+  const curV = enVivo ? Number(live.visitante) : null
+  const curRes = enVivo ? goalsToResultado(curL, curV) : null
+  const exactasAll = (simulacion?.filas ?? []).filter(f => f.esc.tipo === 'exacto')
+  const hayExactaActual = enVivo && exactasAll.some(f => f.esc.local === curL && f.esc.visitante === curV)
+
+  drawBackground(ctx, 'purple', height)
   drawBrand(ctx, PAD, 64, 42)
-  drawLiveBadge(ctx, W - PAD, 66, 'EN VIVO')
+  if (enVivo) drawLiveBadge(ctx, W - PAD, 66, 'EN VIVO')
 
   fillRound(ctx, PAD, 144, 64, 64, 12, 'rgba(168,85,247,0.22)', 'rgba(192,132,252,0.45)')
   ctx.font = '900 38px Inter'
@@ -731,10 +857,24 @@ function drawOracleImage(ctx, datos) {
   ctx.fillText('ORACULO · ESCENARIOS DE CIERRE', PAD + 84, 154)
   ctx.font = '700 52px Rajdhani'
   ctx.fillStyle = COLORS.strong
-  ctx.fillText('¿Quién gana el bote?', PAD + 84, 206)
+  ctx.fillText('¿Quién gana?', PAD + 84, 206)
   ctx.font = '500 22px Inter'
   ctx.fillStyle = COLORS.muted
-  ctx.fillText(`Todo depende del último partido. Así cambia el ganador de los ${formatearMXN(bote)}:`, PAD, 250)
+  if (conPremio) {
+    const botePrefix = 'Todo depende del último partido. Así cambia quién se lleva los '
+    ctx.fillText(botePrefix, PAD, 250)
+    const botePrefixW = ctx.measureText(botePrefix).width
+    ctx.font = '800 22px Inter'
+    ctx.fillStyle = COLORS.greenLight
+    const boteText = formatearMXN(bote)
+    ctx.fillText(boteText, PAD + botePrefixW, 250)
+    const boteTextW = ctx.measureText(boteText).width
+    ctx.font = '500 22px Inter'
+    ctx.fillStyle = COLORS.muted
+    ctx.fillText(':', PAD + botePrefixW + boteTextW, 250)
+  } else {
+    ctx.fillText('Todo depende del último partido. Así cambia quién queda en 1° lugar:', PAD, 250)
+  }
 
   fillRound(ctx, PAD, 288, W - PAD * 2, 136, 16, 'rgba(168,85,247,0.14)', 'rgba(192,132,252,0.40)')
   ctx.font = '900 14px Inter'
@@ -744,69 +884,92 @@ function drawOracleImage(ctx, datos) {
   ctx.fillStyle = COLORS.muted
   ctx.textAlign = 'right'
   ctx.fillText(formatMatchTime(partido.hora), W - PAD - 30, 328)
-  ctx.textAlign = 'center'
-  ctx.font = '900 34px Inter'
-  ctx.fillStyle = COLORS.strong
-  ctx.fillText(shortName(partido.local, 2), W / 2 - 170, 384)
-  drawAvatar(ctx, W / 2 - 56, 374, 54, partido.local, COLORS.text, 'rgba(255,255,255,0.08)')
-  ctx.font = '900 24px Inter'
+  // Los nombres se anclan hacia afuera de cada escudo (en vez de un punto fijo)
+  // para que equipos con nombres largos ("Colombia", "Corea del Sur") no se
+  // encimen con el círculo de iniciales.
+  const avatarR = 27
+  const homeAvatarX = W / 2 - 58
+  const awayAvatarX = W / 2 + 58
+  const nameGap = 16
+  ctx.font = '700 24px Inter'
   ctx.fillStyle = COLORS.dim
+  ctx.textAlign = 'center'
   ctx.fillText('VS', W / 2, 384)
-  drawAvatar(ctx, W / 2 + 56, 374, 54, partido.visitante, COLORS.text, 'rgba(255,255,255,0.08)')
-  ctx.font = '900 34px Inter'
+
+  ctx.font = '700 34px Inter'
   ctx.fillStyle = COLORS.strong
-  ctx.fillText(shortName(partido.visitante, 2), W / 2 + 190, 384)
+  ctx.textAlign = 'right'
+  const homeNameMax = homeAvatarX - avatarR - nameGap - (PAD + 30)
+  ctx.fillText(truncate(ctx, partido.local, homeNameMax), homeAvatarX - avatarR - nameGap, 384)
   ctx.textAlign = 'left'
+  const awayNameMax = (W - PAD - 30) - (awayAvatarX + avatarR + nameGap)
+  ctx.fillText(truncate(ctx, partido.visitante, awayNameMax), awayAvatarX + avatarR + nameGap, 384)
 
-  const rows = (simulacion?.filas ?? []).slice(0, 6)
-  const tableY = 454
-  fillRound(ctx, PAD, tableY, W - PAD * 2, 352, 16, 'rgba(10,15,30,0.72)', COLORS.border2)
+  drawCrestOrAvatar(ctx, homeAvatarX, 374, avatarR * 2, escudoLocal, partido.local, COLORS.text, 'rgba(255,255,255,0.08)')
+  drawCrestOrAvatar(ctx, awayAvatarX, 374, avatarR * 2, escudoVisitante, partido.visitante, COLORS.text, 'rgba(255,255,255,0.08)')
+
+  // Tabla de escenarios: los 3 genéricos (Local/Empate/Visitante) SIEMPRE
+  // aparecen, en su propia subsección "Cualquier otro marcador" — igual que
+  // en la web. Antes se recortaba a las primeras 6 filas de la lista y, si
+  // había 6+ marcadores exactos distintos entre los jugadores, los genéricos
+  // se quedaban fuera de la imagen.
+  const genericas = (simulacion?.filas ?? []).filter(f => f.esc.tipo === 'generico')
+  const liveCtx = { enVivo, curL, curV, curRes, hayExactaActual }
+
+  // Se muestran TODOS los marcadores, sin recortar — la imagen es un
+  // "screenshot" fiel de lo que ya se ve en el oráculo de la web. El lienzo
+  // (computeOracleCanvasHeight) se calculó con esta misma geometría antes de
+  // crear el canvas, así que aquí solo hace falta dibujar.
+  const tableY = ORACLE_TABLE_Y
+  const headerH = ORACLE_HEADER_H
+  const dividerH = ORACLE_DIVIDER_H
+  const rowH = ORACLE_ROW_H
+  const tableH = headerH + exactasAll.length * rowH + dividerH + genericas.length * rowH
+  fillRound(ctx, PAD, tableY, W - PAD * 2, tableH, 16, 'rgba(10,15,30,0.72)', COLORS.border2)
   ctx.fillStyle = 'rgba(255,255,255,0.03)'
-  roundRect(ctx, PAD, tableY, W - PAD * 2, 56, 16)
+  roundRect(ctx, PAD, tableY, W - PAD * 2, headerH, 16)
   ctx.fill()
-  ctx.font = '900 14px Inter'
+  ctx.font = '800 14px Inter'
   ctx.fillStyle = COLORS.muted
-  ctx.fillText('SI TERMINA', PAD + 30, tableY + 34)
-  ctx.fillText('GANA EL BOTE', PAD + 345, tableY + 34)
+  ctx.fillText('SI TERMINA', PAD + 30, tableY + 37)
+  ctx.fillText('QUIÉN GANA', PAD + 345, tableY + 37)
 
-  rows.forEach((fila, i) => {
-    const y = tableY + 56 + i * 48
-    const current = i === 0
-    if (current) {
-      ctx.fillStyle = 'rgba(239,68,68,0.16)'
-      ctx.fillRect(PAD, y, W - PAD * 2, 48)
-    }
-    fillRound(ctx, PAD + 30, y + 9, 300, 30, 8, current ? 'rgba(239,68,68,0.16)' : 'rgba(255,255,255,0.05)', current ? 'rgba(239,68,68,0.8)' : COLORS.border2)
-    ctx.font = '900 18px Inter'
-    ctx.fillStyle = current ? COLORS.redLight : COLORS.text
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
-    ctx.fillText(escenarioLabel(fila.esc, partido), PAD + 180, y + 25)
-    ctx.textAlign = 'left'
-    ctx.font = '900 28px Inter'
-    ctx.fillStyle = COLORS.purpleLight
-    const winnerText = fila.lideres.map(n => shortName(n, 2)).join(' + ')
-    ctx.fillText(truncate(ctx, winnerText, 470), PAD + 345, y + 31)
-    if (fila.empate) {
-      ctx.font = '800 19px Inter'
-      ctx.fillStyle = COLORS.muted
-      ctx.fillText('(empate)', PAD + 345 + Math.min(470, ctx.measureText(winnerText).width) + 10, y + 31)
-    }
-    if (current) {
-      fillRound(ctx, W - PAD - 116, y + 10, 86, 28, 999, 'rgba(239,68,68,0.24)')
-      ctx.font = '900 13px Inter'
-      ctx.fillStyle = COLORS.redLight
-      ctx.textAlign = 'center'
-      ctx.fillText('Ahora', W - PAD - 73, y + 25)
-      ctx.textAlign = 'left'
-    }
-    ctx.textBaseline = 'alphabetic'
+  let rowY = tableY + headerH
+  exactasAll.forEach(fila => {
+    drawScenarioRow(ctx, fila, rowY, rowH, partido, isCurrentEscenario(fila.esc, liveCtx))
+    rowY += rowH
   })
 
+  // Divisor "Cualquier otro marcador" (igual que el de la web) antes de los
+  // 3 escenarios genéricos, que siempre se muestran completos.
+  ctx.font = '800 12px Inter'
+  ctx.fillStyle = COLORS.muted
+  ctx.textBaseline = 'middle'
+  const dividerLabel = 'CUALQUIER OTRO MARCADOR'
+  ctx.fillText(dividerLabel, PAD + 30, rowY + dividerH / 2)
+  const dividerLabelW = ctx.measureText(dividerLabel).width
+  ctx.strokeStyle = COLORS.border
+  ctx.lineWidth = 1
+  ctx.beginPath()
+  ctx.moveTo(PAD + 30 + dividerLabelW + 14, rowY + dividerH / 2)
+  ctx.lineTo(W - PAD - 30, rowY + dividerH / 2)
+  ctx.stroke()
+  ctx.textBaseline = 'alphabetic'
+  rowY += dividerH
+
+  genericas.forEach(fila => {
+    drawScenarioRow(ctx, fila, rowY, rowH, partido, isCurrentEscenario(fila.esc, liveCtx))
+    rowY += rowH
+  })
+
+  // Mismo texto que ya usa la tarjeta en la web (sin mencionar el premio ni
+  // una hora fija: antes decía "esta noche" sin importar cuándo fuera el
+  // partido).
+  const numJugadores = simulacion?.numJugadores ?? 0
   ctx.font = '500 18px Inter'
   ctx.fillStyle = COLORS.dim
-  ctx.fillText('Ganar suma más puntos; el empate reparte el bote. Todo se define esta noche.', PAD, 848)
-  drawFooter(ctx, quiniela, 'purple')
+  ctx.fillText(`Con los ${numJugadores} participantes. En empate de puntos, comparten el 1° lugar.`, PAD, tableY + tableH + 44)
+  drawFooter(ctx, quiniela, 'purple', height)
 }
 
 function formatMatchTime(value) {
@@ -858,8 +1021,16 @@ export async function generarImagenRanking(datos) {
 
 export async function generarImagenOraculo(datos) {
   await waitFonts()
-  const { canvas, ctx } = setupCanvas()
-  drawOracleImage(ctx, datos)
+  const partido = datos.simulacion?.partido ?? {}
+  const [escudoLocal, escudoVisitante] = await Promise.all([
+    loadImageSafe(partido.escudoLocal),
+    loadImageSafe(partido.escudoVisitante),
+  ])
+  // El lienzo crece según cuántos marcadores haya que mostrar — sin esto se
+  // recortarían filas o quedaría un hueco vacío si son pocas.
+  const height = computeOracleCanvasHeight(datos.simulacion)
+  const { canvas, ctx } = setupCanvas(height)
+  drawOracleImage(ctx, datos, { escudoLocal, escudoVisitante, height })
   return blobFromCanvas(canvas)
 }
 

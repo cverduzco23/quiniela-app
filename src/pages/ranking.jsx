@@ -418,7 +418,7 @@ export default function Ranking() {
     <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
       {/* Hero */}
       <div className="hero-pad ranking-hero-pad" style={{ background: 'var(--hero-gradient)', color: 'var(--text)', borderBottom: '1px solid var(--border)' }}>
-        <div style={{ maxWidth: 480, margin: '0 auto' }}>
+        <div className="ranking-hero-inner" style={{ maxWidth: 'var(--ranking-max-width, 480px)', margin: '0 auto' }}>
           <div className="ranking-brand-row" style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 'var(--ranking-brand-margin-bottom, 8px)' }}>
             <a href="/" className="app-back-button" aria-label="Ir a inicio" title="Inicio">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -522,7 +522,7 @@ export default function Ranking() {
         </div>
       </div>
 
-      <div className="ranking-content" style={{ maxWidth: 480, margin: '0 auto', padding: 'var(--ranking-content-padding, 1.25rem 1rem 3rem)' }}>
+      <div className="ranking-content" style={{ maxWidth: 'var(--ranking-max-width, 480px)', margin: '0 auto', padding: 'var(--ranking-content-padding, 1.25rem 1rem 3rem)' }}>
         {/* CTA para registrar predicción — solo si la quiniela sigue abierta y este dispositivo aún no envió */}
         {!quinielaCerrada(quiniela) && !yaEnvió && (() => {
           const tr = tiempoRestante(quiniela.cierre)
@@ -562,7 +562,7 @@ export default function Ranking() {
           )
         })()}
         <RankingTable quiniela={quiniela} predicciones={predicciones} liveScores={liveScores} liveStats={liveStats} liveEventos={liveEventos} livePenales={livePenales} />
-        <Footer />
+        <Footer maxWidth="var(--ranking-max-width, 480px)" />
       </div>
     </div>
   )

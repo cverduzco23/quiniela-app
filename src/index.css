@@ -1140,8 +1140,14 @@ a:focus-visible {
     var(--card);
   box-shadow: var(--shadow-sm);
 }
+.oracle-header-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 .oracle-header {
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   padding: 0;
   border: none;
   background: transparent;
@@ -1152,6 +1158,23 @@ a:focus-visible {
   align-items: center;
   gap: 10px;
   text-align: left;
+}
+.oracle-share-btn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-full);
+  border: 1px solid rgba(168,85,247,0.4);
+  background: rgba(168,85,247,0.13);
+  color: var(--purple, #A855F7);
+  cursor: pointer;
+}
+.oracle-share-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 .oracle-icon {
   width: 34px;
@@ -1325,6 +1348,13 @@ a:focus-visible {
   color: var(--muted);
   font-size: 10px;
   line-height: 1.45;
+}
+.oracle-share-status {
+  margin: 8px 0 0;
+  color: var(--purple, #A855F7);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.4;
 }
 @media (max-width: 380px) {
   .oracle-card {
@@ -2227,6 +2257,15 @@ a:focus-visible {
 .ranking-match-row.is-clickable:hover .ranking-match-toggle-desktop .ranking-match-toggle-icon {
   color: var(--muted);
 }
+.ranking-match-toggle-wide .ranking-match-toggle-icon {
+  width: 14px;
+  height: 14px;
+  background: transparent;
+  color: var(--muted-soft);
+}
+.ranking-match-row.is-clickable:hover .ranking-match-toggle-wide .ranking-match-toggle-icon {
+  color: var(--muted);
+}
 .ranking-match-detail-teams {
   display: none;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
@@ -2449,6 +2488,136 @@ a:focus-visible {
   }
   .ranking-stat-card {
     padding: 10px 6px;
+  }
+}
+
+/* Ranking — escritorio: fila de partido "ancha" (equipos completos + fecha
+   bajo el local) y avatar de iniciales en la tabla. Ocultos por defecto;
+   se activan solo en el breakpoint de escritorio más abajo. */
+.ranking-match-wide {
+  display: none;
+}
+.ranking-match-wide-teams {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 58px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+}
+.ranking-match-wide-side {
+  min-width: 0;
+}
+.ranking-match-wide-side-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.ranking-match-wide-side.is-away {
+  align-self: start;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+.ranking-match-wide-side.is-away .ranking-match-wide-side-row {
+  flex-direction: row-reverse;
+}
+.ranking-match-wide-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  min-width: 0;
+}
+.ranking-match-wide-side.is-away .ranking-match-wide-name {
+  text-align: right;
+}
+.ranking-match-wide-fecha {
+  display: block;
+  margin: 4px 0 0 30px;
+  color: var(--muted);
+  font-size: 10.5px;
+  white-space: nowrap;
+}
+.ranking-match-wide-score {
+  align-self: start;
+  justify-self: center;
+  min-width: 52px;
+  text-align: center;
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 800;
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+}
+.ranking-match-wide-status {
+  align-self: start;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  min-width: 88px;
+}
+.ranking-player-avatar {
+  display: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  background: var(--neutral-bg);
+  border: 1px solid var(--border-strong);
+  color: var(--green-light);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.2px;
+}
+
+/* Ranking — escritorio (≥1024px): layout de dos columnas.
+   Reglas/premio/stats/partidos a la izquierda (540px fijos); tabla de
+   ranking + acciones a la derecha. El móvil/tablet no cambia. */
+@media (min-width: 1024px) {
+  .ranking-hero-inner,
+  .ranking-content {
+    --ranking-max-width: 1180px;
+  }
+  .ranking-content {
+    --ranking-content-padding: 24px 32px 32px;
+    --ranking-grid-cols: 44px minmax(0, 1fr) 64px 64px 96px;
+    --ranking-row-pad-x: 20px;
+    --ranking-row-pad-y: 14px;
+    --ranking-header-pad-y: 12px;
+    --ranking-name-size: 14px;
+    --ranking-stat-cell-size: 14px;
+    --ranking-exact-size: 15px;
+    --ranking-points-size: 20px;
+  }
+
+  .ranking-desktop-grid {
+    display: grid;
+    grid-template-columns: 540px minmax(0, 1fr);
+    gap: 22px;
+    align-items: start;
+  }
+  .ranking-desktop-right {
+    --ranking-section-gap: 10px;
+  }
+
+  .ranking-match-compact {
+    display: none;
+  }
+  .ranking-match-wide {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 14px;
+    align-items: center;
+    padding: 12px 16px;
+  }
+
+  .ranking-player-avatar {
+    display: inline-flex;
   }
 }
 
