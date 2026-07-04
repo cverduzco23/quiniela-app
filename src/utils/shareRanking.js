@@ -87,6 +87,16 @@ function truncate(ctx, text, maxWidth) {
   return `${s.slice(0, Math.max(0, lo - 1))}...`
 }
 
+function drawCenteredText(ctx, text, cx, y, maxWidth = Infinity) {
+  const s = Number.isFinite(maxWidth) ? truncate(ctx, text, maxWidth) : String(text || '')
+  const prevAlign = ctx.textAlign
+  // Mobile Safari can mis-anchor centered canvas text when a custom font string
+  // includes an emoji/color-font glyph. Compute the left edge ourselves.
+  ctx.textAlign = 'left'
+  ctx.fillText(s, cx - ctx.measureText(s).width / 2, y)
+  ctx.textAlign = prevAlign
+}
+
 function textWidthWithTracking(ctx, text, tracking) {
   const s = String(text || '')
   if (s.length <= 1) return ctx.measureText(s).width
@@ -262,6 +272,22 @@ function drawAvatar(ctx, x, y, size, name, color, bg = 'rgba(255,255,255,0.05)')
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
   ctx.fillText(initials(name), x, y + 1)
+  ctx.textAlign = 'left'
+}
+
+function drawAvatarLabel(ctx, x, y, size, label, color, bg = 'rgba(255,255,255,0.05)') {
+  ctx.fillStyle = bg
+  ctx.beginPath()
+  ctx.arc(x, y, size / 2, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.lineWidth = 3
+  ctx.strokeStyle = color
+  ctx.stroke()
+  ctx.fillStyle = color
+  ctx.font = `900 ${size > 34 ? 13 : 11}px Inter`
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText(label, x, y + 1)
   ctx.textAlign = 'left'
 }
 
@@ -625,7 +651,7 @@ function drawOpenImage(ctx, quiniela, jugadores) {
   ctx.font = '700 68px Rajdhani'
   ctx.fillStyle = COLORS.strong
   ctx.textBaseline = 'alphabetic'
-  ctx.fillText(truncate(ctx, quiniela?.nombre || 'Quiniela', W - 170), W / 2, 276)
+  drawCenteredText(ctx, quiniela?.nombre || 'Quiniela', W / 2, 276, W - 170)
   ctx.font = '500 23px Inter'
   ctx.fillStyle = COLORS.muted
   ctx.fillText('Aún puedes entrar - haz tus pronósticos antes de que', W / 2, 326)
@@ -661,22 +687,30 @@ function drawOpenImage(ctx, quiniela, jugadores) {
 
   const countText = `${jugadores.length} jugador${jugadores.length === 1 ? '' : 'es'} ya están dentro`
   ctx.font = '800 20px Inter'
-  const pillW = Math.max(470, ctx.measureText(countText).width + 188)
-  fillRound(ctx, W / 2 - pillW / 2, 724, pillW, 66, 999, '#141F33', COLORS.border2)
-  const avs = jugadores.slice(0, 4)
-  avs.forEach((j, i) => drawAvatar(ctx, W / 2 - pillW / 2 + 42 + i * 31, 757, 40, j.nombre, i === 3 && jugadores.length > 4 ? COLORS.greenLight : COLORS.muted, '#233047'))
-  if (jugadores.length > 4) {
-    ctx.font = '900 14px Inter'
-    ctx.fillStyle = COLORS.greenLight
-    ctx.textBaseline = 'middle'
-    ctx.textAlign = 'center'
-    ctx.fillText(`+${jugadores.length - 3}`, W / 2 - pillW / 2 + 135, 758)
+  const avatarSize = 40
+  const avatarGap = 7
+  const avs = jugadores.length > 4 ? jugadores.slice(0, 3) : jugadores.slice(0, 4)
+  const extraCount = jugadores.length - avs.length
+  const badgeCount = avs.length + (extraCount > 0 ? 1 : 0)
+  const badgesW = badgeCount > 0 ? badgeCount * avatarSize + (badgeCount - 1) * avatarGap : 0
+  const textGap = badgeCount > 0 ? 20 : 0
+  const pillPadX = 28
+  const pillW = Math.max(470, pillPadX * 2 + badgesW + textGap + ctx.measureText(countText).width)
+  const pillX = W / 2 - pillW / 2
+  fillRound(ctx, pillX, 724, pillW, 66, 999, '#141F33', COLORS.border2)
+  let avatarX = pillX + pillPadX + avatarSize / 2
+  avs.forEach((j) => {
+    drawAvatar(ctx, avatarX, 757, avatarSize, j.nombre, COLORS.muted, '#233047')
+    avatarX += avatarSize + avatarGap
+  })
+  if (extraCount > 0) {
+    drawAvatarLabel(ctx, avatarX, 757, avatarSize, `+${extraCount}`, COLORS.greenLight, '#173A32')
   }
   ctx.font = '800 20px Inter'
   ctx.textAlign = 'left'
   ctx.fillStyle = COLORS.text
   ctx.textBaseline = 'middle'
-  ctx.fillText(countText, W / 2 - pillW / 2 + 168, 758)
+  ctx.fillText(countText, pillX + pillPadX + badgesW + textGap, 758)
 
   const ctaY = 1038
   const ctaH = 224

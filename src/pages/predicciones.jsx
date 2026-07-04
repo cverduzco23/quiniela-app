@@ -905,7 +905,7 @@ export default function Predicciones() {
               }}>
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                   <PredIcon name="warning" size={14} />
-                  <span><strong>Realiza tu pago primero.</strong> Al continuar declaras que <strong>ya realizaste tu pago</strong> (transferencia o efectivo). Toda predicción sin pago confirmado se elimina automáticamente.</span>
+                  <span><strong>Realiza tu pago primero.</strong> Al continuar declaras que <strong>ya realizaste tu pago</strong> (transferencia o efectivo).</span>
                 </span>
               </p>
             )}
@@ -915,6 +915,20 @@ export default function Predicciones() {
             >
               {tieneCuota(quiniela) ? 'Confirmo que ya pagué →' : 'Entendido, continuar →'}
             </button>
+            <a
+              href={`/ranking/${quinielaId}`}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+                marginTop: 10, padding: '12px', borderRadius: 'var(--radius-md)',
+                background: 'linear-gradient(135deg, rgba(34,197,94,0.14), rgba(34,197,94,0.06))',
+                border: '1px solid rgba(34,197,94,0.42)',
+                color: 'var(--green-light)', fontWeight: 800, fontSize: 14, textDecoration: 'none',
+                boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05), 0 0 0 1px rgba(34,197,94,0.04)',
+              }}
+            >
+              <PredIcon name="ranking" size={15} />
+              Ver ranking
+            </a>
           </div>
         ) : (
           <>
@@ -959,9 +973,6 @@ export default function Predicciones() {
                 </div>
               ))}
             </div>
-            <p style={{ fontSize: 11, color: 'var(--muted)', textAlign: 'center', lineHeight: 1.5, marginTop: -6, marginBottom: 'var(--pred-rules-margin-bottom, 16px)' }}>
-              El resultado se toma del marcador al final del partido (incluye tiempo extra si lo hay). <strong style={{ color: 'var(--text)' }}>Los penales no cuentan.</strong>
-            </p>
 
             {/* ── Pantalla de resumen ─────────────────────────────────── */}
             {mostrarResumen ? (
@@ -1078,7 +1089,7 @@ export default function Predicciones() {
 
             {/* Partidos */}
             <p style={{ fontSize: 11, color: 'var(--muted)', textAlign: 'center', marginBottom: 12, lineHeight: 1.5 }}>
-              Anota el marcador con el que termina cada partido (tiempo extra incluido si lo hay). <strong style={{ color: 'var(--text)' }}>No cuentan los goles de penales.</strong>
+              El resultado se toma del marcador al final del partido (incluye tiempo extra si lo hay). <strong style={{ color: 'var(--text)' }}>No cuentan los goles de tanda de penales.</strong>
             </p>
             {partidos.map((p, i) => {
               const pick = picks[i]
@@ -1198,15 +1209,6 @@ export default function Predicciones() {
                 }
               </p>
             )}
-            <p style={{ fontSize: 'var(--pred-helper-size, 12px)', color: 'var(--muted)', textAlign: 'center', marginTop: 'var(--pred-ranking-link-margin-top, 14px)' }}>
-              ¿Solo quieres ver el ranking?{' '}
-              <a
-                href={`/ranking/${quinielaId}`}
-                style={{ color: 'var(--green-light)', fontWeight: 700, textDecoration: 'underline' }}
-              >
-                Entrar al ranking
-              </a>
-            </p>
           </>
             )}
           </>

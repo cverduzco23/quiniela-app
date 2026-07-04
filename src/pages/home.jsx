@@ -393,7 +393,7 @@ function TusQuinielasSection({ quinielas, conteos, predicciones, onQuitar }) {
     })
     .slice(0, MAX_TUS_QUINIELAS)
   const principales = ordenadas.filter(q => metaPorId.get(q.id)?.estado !== 'finalizada')
-  const colapsadas = principales.slice(0, 3)
+  const colapsadas = (principales.length > 0 ? principales : ordenadas).slice(0, 3)
   const visibles = esMovil && !expandido ? colapsadas : ordenadas
   const hayMas = esMovil && ordenadas.length > colapsadas.length
   return (

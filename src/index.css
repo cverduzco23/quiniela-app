@@ -541,6 +541,16 @@ a:focus-visible {
   display: flex;
   gap: 10px;
 }
+.tq-actions--open-choice {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 44px;
+}
+.tq-actions--open-choice .tq-cta--solid {
+  grid-column: 1 / -1;
+}
+.tq-actions--open-choice .tq-cta--ranking {
+  min-height: 44px;
+}
 .tq-cta {
   flex: 1;
   display: inline-flex;

@@ -32,8 +32,15 @@ function compartirQuiniela(q) {
   }
 }
 
-function Badge({ estado }) {
+function Badge({ estado, enviada }) {
   if (estado === 'abierta') {
+    if (enviada) {
+      return (
+        <span className="tq-badge" style={{ background: 'rgba(59,130,246,0.16)', color: '#93C5FD' }}>
+          Enviada
+        </span>
+      )
+    }
     return (
       <span className="tq-badge" style={{ background: 'rgba(34,197,94,0.14)', color: '#86EFAC' }}>
         Abierta
@@ -189,9 +196,10 @@ export function TusQuinielaCard({ q, predicciones, participantes, onQuitar }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [q, predicciones, participantes, aliasVersion],
   )
-  const href = d.estado === 'abierta' ? `/quiniela/${q.id}` : `/ranking/${q.id}`
-  const ctaLabel = d.estado === 'abierta' ? 'Completar predicciones' : d.estado === 'jugandose' ? 'Ver ranking' : 'Ver resultados'
+  const href = d.estado === 'abierta' && !d.enviada ? `/quiniela/${q.id}` : `/ranking/${q.id}`
+  const ctaLabel = d.estado === 'abierta' ? (d.enviada ? 'Ver ranking' : 'Completar predicciones') : d.estado === 'jugandose' ? 'Ver ranking' : 'Ver resultados'
   const ctaGhost = d.estado === 'finalizada'
+  const mostrarRankingSecundario = d.estado === 'abierta' && !d.enviada
 
   const handleAlias = (nombre) => {
     asignarAliasQuiniela(q.id, nombre)
@@ -218,7 +226,7 @@ export function TusQuinielaCard({ q, predicciones, participantes, onQuitar }) {
             <p className="tq-title">{q.nombre}</p>
             <p className="tq-meta">{d.numPartidos} partidos · {d.participantes} participantes</p>
           </div>
-          <Badge estado={d.estado} />
+          <Badge estado={d.estado} enviada={d.enviada} />
         </div>
         <Banda d={d} miNombreVisible={d.miNombre} onAlias={handleAlias} />
         {d.estado !== 'abierta' && (
@@ -227,10 +235,15 @@ export function TusQuinielaCard({ q, predicciones, participantes, onQuitar }) {
           </div>
         )}
       </a>
-      <div className="tq-actions">
+      <div className={`tq-actions${mostrarRankingSecundario ? ' tq-actions--open-choice' : ''}`}>
         <a href={href} className={ctaGhost ? 'tq-cta tq-cta--ghost' : 'tq-cta tq-cta--solid'}>
           {ctaLabel}
         </a>
+        {mostrarRankingSecundario && (
+          <a href={`/ranking/${q.id}`} className="tq-cta tq-cta--ghost tq-cta--ranking">
+            Ver ranking
+          </a>
+        )}
         <button type="button" className="tq-share" onClick={() => compartirQuiniela(q)} aria-label="Compartir quiniela">
           <ShareIcon />
           <span className="tq-share-label">Compartir</span>
