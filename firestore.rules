@@ -160,11 +160,13 @@ service cloud.firestore {
       allow read: if isSuperAdmin();
       allow write: if
         request.resource.data.keys().hasOnly(
-          ['visitas', 'movil', 'escritorio', 'ios', 'android', 'horas', 'envios', 'aperturas', 'enVivo', 'dispositivos']
+          ['visitas', 'movil', 'escritorio', 'ios', 'android', 'horas', 'envios', 'aperturas', 'enVivo', 'dispositivos', 'anchoMovil', 'anchoEscritorio']
         ) &&
-        (!('horas'     in request.resource.data) || request.resource.data.horas.size()     <= 24)  &&
-        (!('aperturas' in request.resource.data) || request.resource.data.aperturas.size() <= 500) &&
-        (!('enVivo'    in request.resource.data) || request.resource.data.enVivo.size()    <= 200);
+        (!('horas'           in request.resource.data) || request.resource.data.horas.size()           <= 24)  &&
+        (!('aperturas'       in request.resource.data) || request.resource.data.aperturas.size()       <= 500) &&
+        (!('enVivo'          in request.resource.data) || request.resource.data.enVivo.size()          <= 200) &&
+        (!('anchoMovil'      in request.resource.data) || request.resource.data.anchoMovil.size()      <= 200) &&
+        (!('anchoEscritorio' in request.resource.data) || request.resource.data.anchoEscritorio.size() <= 10);
     }
   }
 }

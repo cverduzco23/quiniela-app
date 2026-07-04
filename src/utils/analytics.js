@@ -49,6 +49,24 @@ function clasificarDispositivo() {
   return { ios, android, movil }
 }
 
+// Ancho de pantalla: en celular lo guardamos EXACTO (los anchos reales de
+// modelos distintos —un iPhone Pro Max vs un Galaxy— sí importan para ver
+// cómo se ve la web). En escritorio la ventana se redimensiona libremente,
+// así que un valor exacto solo ensuciaría el conteo con cientos de valores
+// casi únicos; ahí agrupamos en rangos.
+function anchoPantalla() {
+  try { return window.innerWidth || 0 } catch { return 0 }
+}
+
+function rangoAnchoEscritorio(w) {
+  if (w < 1024) return '<1024'
+  if (w < 1280) return '1024-1279'
+  if (w < 1440) return '1280-1439'
+  if (w < 1680) return '1440-1679'
+  if (w < 1920) return '1680-1919'
+  return '1920+'
+}
+
 async function escribir(idDoc, datos) {
   try {
     await setDoc(doc(db, 'analytics', idDoc), datos, { merge: true })
@@ -94,6 +112,11 @@ export function registrarVisita() {
   }
   if (ios) datos.ios = increment(1)
   else if (android) datos.android = increment(1)
+  const ancho = anchoPantalla()
+  if (ancho > 0) {
+    if (movil) datos.anchoMovil = { [String(ancho)]: increment(1) }
+    else datos.anchoEscritorio = { [rangoAnchoEscritorio(ancho)]: increment(1) }
+  }
   escribir(idDiaHoy(), datos)
 }
 

@@ -522,6 +522,7 @@ const DEFINICIONES_STATS = {
   jugaron:      { t: 'Jugaron', d: 'Cuántas predicciones se enviaron de verdad (llenaron sus marcadores y le dieron enviar). No cuenta solo entrar ni escribir el código de acceso. Si una persona manda dos predicciones, cuentan dos. Últimos 7 días.' },
   conversion:   { t: 'Conversión', d: 'De cada 100 visitas, cuántas terminaron enviando predicción (Jugaron ÷ Visitas). Te dice qué tanto de la gente que entra realmente juega. Es un estimado.' },
   tipo:         { t: 'Tipo de dispositivo', d: 'De las visitas, qué porcentaje fue desde celular y qué porcentaje desde computadora (y dentro de celular, iPhone vs Android). Se detecta por el tipo de navegador. Últimos 7 días.' },
+  anchos:       { t: 'Ancho de pantalla', d: 'En celular, el ancho exacto en píxeles del aparato (distingue modelos, ej. un iPhone Pro Max de un Galaxy). En computadora se agrupa en rangos porque la ventana se redimensiona libremente. Últimos 7 días.' },
   hora:         { t: 'Hora con más actividad', d: 'La hora del día (horario de México) en la que se registran más visitas, sumando los últimos 7 días. Útil para saber a qué hora conviene mandar el WhatsApp.' },
   porDia:       { t: 'Visitas por día', d: 'Cuántas visitas hubo en cada uno de los últimos 7 días.' },
   aperturas:    { t: 'Participantes más abiertos', d: 'En una quiniela ya cerrada, cuánta gente abrió las predicciones de cada participante (al tocar su fila en el ranking para ver sus pronósticos). Se cuenta una vez por sesión y participante.' },
@@ -3621,6 +3622,26 @@ export default function Admin() {
                   const horaPicoEntry = Object.entries(horasAcum).sort((a, b) => b[1] - a[1])[0]
                   const horaPico = horaPicoEntry ? `${String(horaPicoEntry[0]).padStart(2, '0')}:00` : '—'
 
+                  // Anchos de pantalla: exacto en celular, por rango en escritorio
+                  // (ver utils/analytics.js). Mostramos los más frecuentes de cada uno.
+                  const anchoMovilAcum = {}
+                  dias.forEach(d => Object.entries(d.anchoMovil || {}).forEach(([w, n]) => {
+                    anchoMovilAcum[w] = (anchoMovilAcum[w] || 0) + (Number(n) || 0)
+                  }))
+                  const totAnchoMovil = Object.values(anchoMovilAcum).reduce((a, n) => a + n, 0)
+                  const topAnchosMovil = Object.entries(anchoMovilAcum)
+                    .sort((a, b) => b[1] - a[1]).slice(0, 6)
+
+                  const anchoEscrAcum = {}
+                  dias.forEach(d => Object.entries(d.anchoEscritorio || {}).forEach(([r, n]) => {
+                    anchoEscrAcum[r] = (anchoEscrAcum[r] || 0) + (Number(n) || 0)
+                  }))
+                  const totAnchoEscr = Object.values(anchoEscrAcum).reduce((a, n) => a + n, 0)
+                  const ORDEN_RANGOS_ESCR = ['<1024', '1024-1279', '1280-1439', '1440-1679', '1680-1919', '1920+']
+                  const topAnchosEscr = ORDEN_RANGOS_ESCR
+                    .map(r => [r, anchoEscrAcum[r] || 0])
+                    .filter(([, n]) => n > 0)
+
                   const maxDia = Math.max(1, ...dias.map(d => Number(d.visitas) || 0))
                   const fmtDia = (date) => date.toLocaleDateString('es-MX', { weekday: 'short', day: 'numeric' })
 
@@ -3737,6 +3758,37 @@ export default function Admin() {
                               {totAndroid > 0 && <span style={{ color: 'var(--muted)' }}>Android {pct(totAndroid, totDisp)}%</span>}
                             </div>
                           </div>
+
+                          {(topAnchosMovil.length > 0 || topAnchosEscr.length > 0) && (
+                            <div style={{ marginBottom: 14 }}>
+                              {tituloInfo('anchos', 'Ancho de pantalla')}
+                              {defBox('anchos')}
+                              {topAnchosMovil.length > 0 && (
+                                <div style={{ marginBottom: topAnchosEscr.length > 0 ? 10 : 0 }}>
+                                  <p style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 700, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 5 }}>
+                                    <AdminIcon name="device-mobile" size={12} /> Celular
+                                  </p>
+                                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', fontSize: 12.5, color: 'var(--text)' }}>
+                                    {topAnchosMovil.map(([w, n]) => (
+                                      <span key={w}>{w}px <span style={{ color: 'var(--muted)' }}>({pct(n, totAnchoMovil)}%)</span></span>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                              {topAnchosEscr.length > 0 && (
+                                <div>
+                                  <p style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 700, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 5 }}>
+                                    <AdminIcon name="monitor" size={12} /> Computadora
+                                  </p>
+                                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', fontSize: 12.5, color: 'var(--text)' }}>
+                                    {topAnchosEscr.map(([r, n]) => (
+                                      <span key={r}>{r}px <span style={{ color: 'var(--muted)' }}>({pct(n, totAnchoEscr)}%)</span></span>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
 
                           <div style={{ marginBottom: 14 }}>
                             {tituloInfo('hora', 'Hora con más actividad')}
