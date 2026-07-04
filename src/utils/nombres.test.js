@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { normalizarNombre, tieneNombreYApellido } from './nombres'
+import { contieneEmoji, normalizarNombre, quitarEmojis, tieneNombreYApellido } from './nombres'
 
 describe('normalizarNombre', () => {
   it('capitaliza cada palabra', () => {
@@ -62,6 +62,30 @@ describe('normalizarNombre', () => {
 
   it('limita a 40 caracteres como salvaguarda', () => {
     expect(normalizarNombre('a'.repeat(60)).length).toBeLessThanOrEqual(40)
+  })
+
+  it('quita emojis antes de normalizar', () => {
+    expect(normalizarNombre(`ana \u{1F3C6} lopez`)).toBe('Ana Lopez')
+    expect(normalizarNombre(`\u{1F1F2}\u{1F1FD} maría \u{26BD}`)).toBe('María')
+  })
+})
+
+describe('emojis en nombres', () => {
+  it('detecta emojis en nombres', () => {
+    expect(contieneEmoji(`Ana \u{1F600}`)).toBe(true)
+    expect(contieneEmoji(`Ana \u{1F1F2}\u{1F1FD}`)).toBe(true)
+    expect(contieneEmoji(`Ana 1\uFE0F\u20E3`)).toBe(true)
+  })
+
+  it('no marca texto normal como emoji', () => {
+    expect(contieneEmoji('Ana #1')).toBe(false)
+    expect(contieneEmoji('Carlos G. López')).toBe(false)
+  })
+
+  it('quita emojis sin quitar caracteres normales', () => {
+    expect(quitarEmojis(`Ana \u{1F600} López`)).toBe('Ana  López')
+    expect(quitarEmojis('Ana #1')).toBe('Ana #1')
+    expect(quitarEmojis(`Ana 1\uFE0F\u20E3`)).toBe('Ana ')
   })
 })
 

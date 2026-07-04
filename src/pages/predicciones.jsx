@@ -5,7 +5,7 @@ import { db, track } from '../firebase'
 import { registrarVisita, registrarVisitaQuiniela, registrarEnvio } from '../utils/analytics'
 import { cierreToDate, quinielaCerrada, quinielaFinalizada, hayPartidoEnVivo, tiempoRestante } from '../utils/cierre'
 import { tienePremio, tieneCuota, descripcionRegla, calcularBote, desglosePremio, TIPO_PREMIO, formatearMXN } from '../utils/premios'
-import { normalizarNombre, tieneNombreYApellido } from '../utils/nombres'
+import { contieneEmoji, normalizarNombre, quitarEmojis, tieneNombreYApellido } from '../utils/nombres'
 import { recordarMiQuiniela } from '../utils/misQuinielas'
 import { CuentaRegresiva } from '../components/CuentaRegresiva'
 import { Footer } from '../components/Footer'
@@ -387,6 +387,12 @@ export default function Predicciones() {
   const setPick = (i, campo, valor) =>
     setPicks(prev => ({ ...prev, [i]: { ...(prev[i] ?? {}), [campo]: valor } }))
 
+  const actualizarNombre = (valor) => {
+    const sinEmojis = quitarEmojis(valor)
+    setNombre(sinEmojis)
+    setNombreError(sinEmojis !== valor ? 'No se permiten emojis en el nombre.' : '')
+  }
+
   const enviar = async () => {
     if (enviando) return
     if (!completado) return
@@ -397,7 +403,21 @@ export default function Predicciones() {
     setEnviando(true)
     setNombreError('')
     try {
-      const nombreNormalizado = normalizarNombre(nombre)
+      const nombreSinEmojis = quitarEmojis(nombre)
+      if (contieneEmoji(nombre)) {
+        setNombre(nombreSinEmojis)
+        setNombreError('No se permiten emojis en el nombre.')
+        setMostrarResumen(false)
+        setEnviando(false)
+        return
+      }
+      const nombreNormalizado = normalizarNombre(nombreSinEmojis)
+      if (!nombreNormalizado) {
+        setNombreError('Escribe tu nombre.')
+        setMostrarResumen(false)
+        setEnviando(false)
+        return
+      }
       // Si la quiniela requiere nombre completo, validar antes de tocar Firestore
       if (quiniela?.requiereApellido && !tieneNombreYApellido(nombreNormalizado)) {
         setNombreError('Pon tu nombre completo: nombre y al menos un apellido (ej. María González).')
@@ -1048,7 +1068,7 @@ export default function Predicciones() {
                 placeholder={quiniela?.requiereApellido ? 'Ej. María González' : '¿Cómo te llamas?'}
                 value={nombre}
                 maxLength={40}
-                onChange={e => { setNombre(e.target.value); setNombreError('') }}
+                onChange={e => actualizarNombre(e.target.value)}
                 style={{ fontSize: 'var(--pred-input-size, 15px)', padding: 'var(--pred-input-padding, 10px 12px)', borderColor: nombreError ? 'var(--red)' : undefined }}
               />
               {nombreError && (

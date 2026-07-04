@@ -6,10 +6,21 @@
 // de predicciones y la imagen para compartir.
 const MAX_PALABRAS = 4
 const MAX_CARACTERES = 40
+const EMOJI_PATTERN = String.raw`(?:\p{Regional_Indicator}{2}|[#*0-9]\uFE0F?\u20E3|\p{Emoji_Modifier_Base}\p{Emoji_Modifier}?|\p{Emoji_Presentation}|\p{Extended_Pictographic})(?:[\uFE0E\uFE0F])?(?:\u200D(?:\p{Emoji_Modifier_Base}\p{Emoji_Modifier}?|\p{Emoji_Presentation}|\p{Extended_Pictographic})(?:[\uFE0E\uFE0F])?)*`
+const EMOJI_REGEX = new RegExp(EMOJI_PATTERN, 'gu')
+const EMOJI_TEST_REGEX = new RegExp(EMOJI_PATTERN, 'u')
+
+export function contieneEmoji(texto) {
+  return EMOJI_TEST_REGEX.test(String(texto ?? ''))
+}
+
+export function quitarEmojis(texto) {
+  return String(texto ?? '').replace(EMOJI_REGEX, '')
+}
 
 export function normalizarNombre(nombre) {
   if (!nombre) return ''
-  const limpio = String(nombre)
+  const limpio = quitarEmojis(nombre)
     .trim()
     .replace(/\s+/g, ' ')
     // Quita signos de puntuación sueltos al final (puntos, comas, signos, etc.)
