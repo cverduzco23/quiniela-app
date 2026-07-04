@@ -252,7 +252,6 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
   const [feedbackShare, setFeedbackShare] = useState('')
   const [busqueda, setBusqueda]                 = useState('')
   const [mostrarInfoPicks, setMostrarInfoPicks] = useState(false)
-  const [panelActivo, setPanelActivo]           = useState(null)
 
   // Detección de goles nuevos (comparando contra el polling anterior) para
   // disparar un festejo en pantalla, igual al de "picks completos".
@@ -397,7 +396,6 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
 
   const handleCompartirRanking = async () => {
     if (compartiendo || !puedeCompartir) return
-    setPanelActivo('share')
     setCompartiendo(true)
     setFeedbackShare('')
     try {
@@ -1152,112 +1150,21 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
         )}
       </div>
 
-      <div style={{
-        marginTop: 'var(--ranking-section-gap, 16px)', background: 'var(--card)', borderRadius: 'var(--radius-md)',
-        border: '1px solid var(--border)', overflow: 'hidden',
-      }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1, background: 'var(--border)' }}>
-          {[
-            {
-              key: 'share',
-              label: 'Compartir ranking',
-              icon: 'camera',
-              color: 'var(--green)',
-              disabled: !puedeCompartir,
-              onClick: () => setPanelActivo(p => p === 'share' ? null : 'share'),
-            },
-            {
-              key: 'tie',
-              label: 'Empates',
-              icon: 'scale',
-              color: 'var(--green)',
-              onClick: () => setPanelActivo(p => p === 'tie' ? null : 'tie'),
-            },
-            {
-              key: 'live',
-              label: 'Tiempo real',
-              icon: 'broadcast',
-              color: 'var(--red)',
-              onClick: () => setPanelActivo(p => p === 'live' ? null : 'live'),
-            },
-          ].map(item => {
-            const activo = panelActivo === item.key
-            const activeBg = item.key === 'live' ? 'var(--red-bg)' : 'var(--green-bg)'
-            return (
-              <button
-                key={item.key}
-                type="button"
-                onClick={item.onClick}
-                disabled={item.disabled}
-                aria-label={item.label}
-                title={item.label}
-                style={{
-                  minWidth: 0, border: 'none', borderRadius: 0,
-                  padding: '11px 8px', background: activo ? activeBg : 'var(--card)',
-                  color: item.disabled ? 'var(--muted)' : activo ? item.color : 'var(--muted)',
-                  cursor: item.disabled ? 'not-allowed' : 'pointer',
-                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                  transition: 'background 0.18s ease, color 0.18s ease',
-                }}
-              >
-                <span style={{
-                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                  width: 30, height: 30, borderRadius: 'var(--radius-full)',
-                  background: activo ? 'rgba(255,255,255,0.06)' : 'var(--neutral-bg)',
-                  border: `1px solid ${activo ? item.color : 'var(--border-strong)'}`,
-                  boxShadow: activo ? 'inset 0 1px 0 rgba(255,255,255,0.07)' : 'none',
-                }}>
-                  <SvgIcon name={item.icon} size={15} style={{ color: item.disabled ? 'var(--muted)' : activo ? item.color : undefined }} />
-                </span>
-              </button>
-            )
-          })}
-        </div>
-        {panelActivo && (
-          <div style={{
-            display: 'flex', alignItems: 'flex-start', gap: 8,
-            padding: '11px 14px', borderTop: '1px solid var(--border)',
-            background: 'var(--bg-soft)',
-          }}>
-            <span style={{
-              display: 'inline-flex', flexShrink: 0, paddingTop: 1,
-              color: panelActivo === 'live' ? 'var(--red)' : 'var(--green)',
-            }}>
-              <SvgIcon name={panelActivo === 'share' ? 'camera' : panelActivo === 'tie' ? 'scale' : 'broadcast'} size={14} />
-            </span>
-            <span style={{ fontSize: 11.5, color: 'var(--muted)', lineHeight: 1.5 }}>
-              {panelActivo === 'share' && (
-                <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, width: '100%' }}>
-                  <span style={{ flex: 1, minWidth: 0 }}>
-                    {compartiendo
-                      ? 'Generando imagen para compartir...'
-                      : feedbackShare || 'Genera una imagen del ranking para compartirla con tu grupo.'}
-                  </span>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                    <button
-                      type="button"
-                      onClick={handleCompartirRanking}
-                      disabled={compartiendo || !puedeCompartir}
-                      style={{
-                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                        padding: '7px 10px', borderRadius: 'var(--radius-full)',
-                        border: '1px solid var(--green)',
-                        background: compartiendo ? 'var(--card-light)' : 'rgba(34,197,94,0.12)',
-                        color: compartiendo ? 'var(--muted)' : 'var(--green)',
-                        fontSize: 11, fontWeight: 800, whiteSpace: 'nowrap',
-                        cursor: compartiendo || !puedeCompartir ? 'not-allowed' : 'pointer',
-                      }}
-                    >
-                      <SvgIcon name="camera" size={13} />
-                      Generar
-                    </button>
-                  </span>
-                </span>
-              )}
-              {panelActivo === 'tie' && 'Empate en puntos: comparten posición y reparten el premio en partes iguales.'}
-              {panelActivo === 'live' && 'Actualización en tiempo real: los resultados se actualizan mientras la quiniela está en juego.'}
-            </span>
-          </div>
+      <div className="ranking-share-action-wrap">
+        <button
+          type="button"
+          className="ranking-share-action"
+          onClick={handleCompartirRanking}
+          disabled={compartiendo || !puedeCompartir}
+          aria-label="Compartir ranking"
+        >
+          <SvgIcon name="share" size={20} />
+          <span>{compartiendo ? 'Generando...' : 'Compartir'}</span>
+        </button>
+        {(compartiendo || feedbackShare) && (
+          <p className="ranking-share-status" role="status">
+            {compartiendo ? 'Generando imagen para compartir...' : feedbackShare}
+          </p>
         )}
       </div>
       </div>
@@ -1344,9 +1251,8 @@ function EscenariosUltimoPartido({ sim, conPremio, liveScores = {}, quiniela, bo
     setAbierto(a => !a)
   }
 
-  // Compartir el oráculo es una acción propia de esta tarjeta: no toca el
-  // panel de "Compartir ranking" ni su estado, para que ambos botones queden
-  // completamente independientes.
+  // Compartir el oráculo es una acción propia de esta tarjeta, independiente
+  // del botón principal de compartir ranking.
   const handleCompartir = async () => {
     if (compartiendo) return
     setCompartiendo(true)
