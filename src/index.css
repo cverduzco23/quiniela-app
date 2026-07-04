@@ -1145,22 +1145,21 @@ a:focus-visible {
 }
 .ranking-share-action {
   width: 100%;
-  min-height: 42px;
+  min-height: 46px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  border: 1.5px solid rgba(148, 163, 184, 0.32);
+  gap: 7px;
+  border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  background: var(--card-light);
-  color: var(--text-strong);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+  background: var(--card);
+  color: var(--text);
   cursor: pointer;
   transition: border-color 0.18s ease, background 0.18s ease, transform 0.18s ease;
 }
 .ranking-share-action:hover:not(:disabled) {
-  border-color: rgba(134, 239, 172, 0.52);
-  background: #233149;
+  border-color: var(--border-strong);
+  background: var(--card-light);
   transform: translateY(-1px);
 }
 .ranking-share-action:active:not(:disabled) {
@@ -1175,8 +1174,8 @@ a:focus-visible {
 }
 .ranking-share-action span {
   font-family: var(--font-sans);
-  font-size: 15px;
-  font-weight: 600;
+  font-size: var(--ranking-name-size, 13.5px);
+  font-weight: 500;
   line-height: 1;
 }
 .ranking-share-status {
@@ -2152,10 +2151,13 @@ a:focus-visible {
 }
 .ranking-match-body {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px;
   padding: 10px 12px;
   align-items: center;
+}
+.ranking-match-body.has-meta {
+  grid-template-columns: minmax(0, 1fr) auto;
 }
 .ranking-match-desktop-teams {
   display: grid;
@@ -2398,8 +2400,12 @@ a:focus-visible {
 }
 
 @media (max-width: 380px) {
-  .ranking-match-body {
+  .ranking-match-body.has-meta {
     grid-template-columns: minmax(0, 1fr) auto;
+    gap: 6px;
+    padding: 9px 9px 1px;
+  }
+  .ranking-match-body {
     gap: 6px;
     padding: 9px 9px 1px;
   }
@@ -2482,10 +2488,7 @@ a:focus-visible {
   }
   .ranking-share-action {
     min-height: 40px;
-    gap: 8px;
-  }
-  .ranking-share-action span {
-    font-size: 15px;
+    gap: 7px;
   }
   .ranking-prize-banner {
     --ranking-prize-title-size: 11.5px;
@@ -2673,10 +2676,13 @@ a:focus-visible {
   }
   .ranking-match-wide {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr);
     gap: 14px;
     align-items: center;
     padding: 12px 16px;
+  }
+  .ranking-match-wide.has-status {
+    grid-template-columns: minmax(0, 1fr) auto;
   }
 
   .ranking-player-avatar {

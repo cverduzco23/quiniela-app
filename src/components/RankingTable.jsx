@@ -535,6 +535,7 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
               resDisplay = getResultado(stored)
             }
             const pendiente = !cancelado && !resDisplay && !esVivo && !esFinish
+            const pendienteEnQuinielaAbierta = !cerrada && pendiente
             const scoreLocalDisplay = pendiente ? 'vs' : scoreLocal
             const scoreVisitanteDisplay = pendiente ? '' : scoreVisitante
             const tieneStats = !!p.espnId
@@ -574,9 +575,12 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
               <span className="ranking-match-badge" style={{ background: resultColor[resDisplay].bg, color: resultColor[resDisplay].color, borderColor: 'transparent' }}>
                 {resultLabel[resDisplay]}
               </span>
+            ) : pendienteEnQuinielaAbierta ? (
+              null
             ) : (
               <span className="ranking-match-badge is-pending-badge" style={{ background: 'var(--neutral-bg)', color: 'var(--muted)', borderColor: 'transparent' }}>Pendiente</span>
             )
+            const muestraEstadoPartido = !!badgeNode || tieneAlgo
             return (
               <div
                 key={i}
@@ -585,7 +589,7 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                 style={{ borderBottom: i < partidos.length - 1 ? '1px solid var(--border)' : 'none' }}
               >
                 {/* Escritorio (≥1024px): equipos completos + fecha bajo el local */}
-                <div className="ranking-match-wide">
+                <div className={`ranking-match-wide${muestraEstadoPartido ? ' has-status' : ''}`}>
                   <div className="ranking-match-wide-teams">
                     <div className="ranking-match-wide-side is-home">
                       <div className="ranking-match-wide-side-row">
@@ -607,90 +611,94 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                       </div>
                     </div>
                   </div>
-                  <div className="ranking-match-wide-status">
-                    {badgeNode}
-                    {tieneAlgo && (
-                      <span className="ranking-match-toggle ranking-match-toggle-wide">
-                        <span className="ranking-match-toggle-icon" aria-hidden="true">
-                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.75" strokeLinecap="round" strokeLinejoin="round" style={{ transform: partidoAbierto ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s ease' }}>
-                            <polyline points="6 9 12 15 18 9" />
-                          </svg>
+                  {muestraEstadoPartido && (
+                    <div className="ranking-match-wide-status">
+                      {badgeNode}
+                      {tieneAlgo && (
+                        <span className="ranking-match-toggle ranking-match-toggle-wide">
+                          <span className="ranking-match-toggle-icon" aria-hidden="true">
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.75" strokeLinecap="round" strokeLinejoin="round" style={{ transform: partidoAbierto ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s ease' }}>
+                              <polyline points="6 9 12 15 18 9" />
+                            </svg>
+                          </span>
                         </span>
-                      </span>
-                    )}
-                  </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <div className="ranking-match-compact">
-                <div className="ranking-match-body">
-                  <div className="ranking-match-desktop-teams">
-                    <div className="ranking-match-side is-home">
-                      {p.escudoLocal && <img className="ranking-match-crest" src={p.escudoLocal} alt="" onError={e => { e.target.style.display = 'none' }} />}
-                      <span className="ranking-match-name">{p.local}</span>
-                    </div>
-                    <span
-                      className={`ranking-match-score is-desktop${pendiente ? ' is-pending' : ''}`}
-                      style={{ color: cancelado ? 'var(--muted)' : esVivo ? '#FCA5A5' : 'var(--text-strong)', background: esVivo ? 'var(--red-bg)' : 'var(--card-light)', textDecoration: cancelado ? 'line-through' : 'none' }}
-                    >
-                      {pendiente ? 'vs' : `${scoreLocal}–${scoreVisitante}`}
-                    </span>
-                    <div className="ranking-match-side is-away">
-                      <span className="ranking-match-name">{p.visitante}</span>
-                      {p.escudoVisitante && <img className="ranking-match-crest" src={p.escudoVisitante} alt="" onError={e => { e.target.style.display = 'none' }} />}
-                    </div>
-                  </div>
-                  <div className="ranking-match-mobile-teams">
-                    <div className="ranking-match-team">
-                      {p.escudoLocal && <img className="ranking-match-crest" src={p.escudoLocal} alt="" onError={e => { e.target.style.display = 'none' }} />}
-                      <span className="ranking-match-name">{p.local}</span>
+                  <div className={`ranking-match-body${muestraEstadoPartido ? ' has-meta' : ''}`}>
+                    <div className="ranking-match-desktop-teams">
+                      <div className="ranking-match-side is-home">
+                        {p.escudoLocal && <img className="ranking-match-crest" src={p.escudoLocal} alt="" onError={e => { e.target.style.display = 'none' }} />}
+                        <span className="ranking-match-name">{p.local}</span>
+                      </div>
                       <span
-                        className={`ranking-match-score${pendiente ? ' is-pending is-mobile-pending' : ''}`}
+                        className={`ranking-match-score is-desktop${pendiente ? ' is-pending' : ''}`}
                         style={{ color: cancelado ? 'var(--muted)' : esVivo ? '#FCA5A5' : 'var(--text-strong)', background: esVivo ? 'var(--red-bg)' : 'var(--card-light)', textDecoration: cancelado ? 'line-through' : 'none' }}
                       >
-                        {pendiente ? 'Pendiente' : scoreLocalDisplay}
+                        {pendiente ? 'vs' : `${scoreLocal}–${scoreVisitante}`}
                       </span>
+                      <div className="ranking-match-side is-away">
+                        <span className="ranking-match-name">{p.visitante}</span>
+                        {p.escudoVisitante && <img className="ranking-match-crest" src={p.escudoVisitante} alt="" onError={e => { e.target.style.display = 'none' }} />}
+                      </div>
                     </div>
-                    <div className="ranking-match-team">
-                      {p.escudoVisitante && <img className="ranking-match-crest" src={p.escudoVisitante} alt="" onError={e => { e.target.style.display = 'none' }} />}
-                      <span className="ranking-match-name">{p.visitante}</span>
-                      <span
-                        className={`ranking-match-score${scoreVisitanteDisplay === '' ? ' is-empty' : ''}`}
-                        style={{ color: cancelado ? 'var(--muted)' : esVivo ? '#FCA5A5' : 'var(--text-strong)', background: esVivo ? 'var(--red-bg)' : 'var(--card-light)', textDecoration: cancelado ? 'line-through' : 'none' }}
-                      >
-                        {scoreVisitanteDisplay}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="ranking-match-meta">
-                    {p.hora && <p className="ranking-match-date">{formatFecha(p.hora)}</p>}
-                    <div className="ranking-match-actions">
-                    {badgeNode}
-                    {tieneAlgo && (
-                      <span className="ranking-match-toggle ranking-match-toggle-mobile">
-                        <span className="ranking-match-toggle-icon" aria-hidden="true">
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: partidoAbierto ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s ease' }}>
-                            <polyline points="6 9 12 15 18 9" />
-                          </svg>
+                    <div className="ranking-match-mobile-teams">
+                      <div className="ranking-match-team">
+                        {p.escudoLocal && <img className="ranking-match-crest" src={p.escudoLocal} alt="" onError={e => { e.target.style.display = 'none' }} />}
+                        <span className="ranking-match-name">{p.local}</span>
+                        <span
+                          className={`ranking-match-score${pendiente ? ' is-pending is-mobile-pending' : ''}`}
+                          style={{ color: cancelado ? 'var(--muted)' : esVivo ? '#FCA5A5' : 'var(--text-strong)', background: esVivo ? 'var(--red-bg)' : 'var(--card-light)', textDecoration: cancelado ? 'line-through' : 'none' }}
+                        >
+                          {pendienteEnQuinielaAbierta ? 'vs' : pendiente ? 'Pendiente' : scoreLocalDisplay}
                         </span>
-                      </span>
-                    )}
-                    </div>
-                  </div>
-                </div>
-                {(p.hora || tieneAlgo) && (
-                  <div className="ranking-match-date-desktop">
-                    {p.hora && <span>{formatFecha(p.hora)}</span>}
-                    {tieneAlgo && (
-                      <span className="ranking-match-toggle ranking-match-toggle-desktop">
-                        <span className="ranking-match-toggle-icon" aria-hidden="true">
-                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.75" strokeLinecap="round" strokeLinejoin="round" style={{ transform: partidoAbierto ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s ease' }}>
-                            <polyline points="6 9 12 15 18 9" />
-                          </svg>
+                      </div>
+                      <div className="ranking-match-team">
+                        {p.escudoVisitante && <img className="ranking-match-crest" src={p.escudoVisitante} alt="" onError={e => { e.target.style.display = 'none' }} />}
+                        <span className="ranking-match-name">{p.visitante}</span>
+                        <span
+                          className={`ranking-match-score${scoreVisitanteDisplay === '' ? ' is-empty' : ''}`}
+                          style={{ color: cancelado ? 'var(--muted)' : esVivo ? '#FCA5A5' : 'var(--text-strong)', background: esVivo ? 'var(--red-bg)' : 'var(--card-light)', textDecoration: cancelado ? 'line-through' : 'none' }}
+                        >
+                          {scoreVisitanteDisplay}
                         </span>
-                      </span>
+                      </div>
+                    </div>
+                    {muestraEstadoPartido && (
+                      <div className="ranking-match-meta">
+                        {p.hora && <p className="ranking-match-date">{formatFecha(p.hora)}</p>}
+                        <div className="ranking-match-actions">
+                          {badgeNode}
+                          {tieneAlgo && (
+                            <span className="ranking-match-toggle ranking-match-toggle-mobile">
+                              <span className="ranking-match-toggle-icon" aria-hidden="true">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: partidoAbierto ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s ease' }}>
+                                  <polyline points="6 9 12 15 18 9" />
+                                </svg>
+                              </span>
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     )}
                   </div>
-                )}
+                  {(p.hora || tieneAlgo) && (
+                    <div className="ranking-match-date-desktop">
+                      {p.hora && <span>{formatFecha(p.hora)}</span>}
+                      {tieneAlgo && (
+                        <span className="ranking-match-toggle ranking-match-toggle-desktop">
+                          <span className="ranking-match-toggle-icon" aria-hidden="true">
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.75" strokeLinecap="round" strokeLinejoin="round" style={{ transform: partidoAbierto ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s ease' }}>
+                              <polyline points="6 9 12 15 18 9" />
+                            </svg>
+                          </span>
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Panel de estadísticas */}
@@ -1158,7 +1166,7 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
           disabled={compartiendo || !puedeCompartir}
           aria-label="Compartir ranking"
         >
-          <SvgIcon name="share" size={20} />
+          <SvgIcon name="share" size={14} />
           <span>{compartiendo ? 'Generando...' : 'Compartir'}</span>
         </button>
         {(compartiendo || feedbackShare) && (
