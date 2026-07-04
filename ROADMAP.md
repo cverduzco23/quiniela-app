@@ -1,9 +1,59 @@
 # ROADMAP — QuinielApp
 
-> **Última actualización: 2026-06-15** (lote de mejoras de UX — ver §4.bis).
-> Auditoría completa de código, seguridad y costos: 2026-06-11 (§3).
+> **Última actualización: 2026-07-04** (PIVOTE de modelo de negocio — ver §0).
+> Lote de mejoras de UX: 2026-06-15 (§4.bis). Auditoría de código/seguridad/costos: 2026-06-11 (§3).
 > Este documento es la fuente de verdad para retomar el proyecto en cualquier momento:
 > qué busca el proyecto, qué está hecho, qué está pendiente, por qué, y en qué orden.
+>
+> ⚠️ **§0 (abajo) es el estado vigente y MANDA sobre cualquier referencia a "planes", "Pase
+> Mundial", "$49/$199" o "cobro por quiniela" que quede en secciones anteriores de este doc.**
+
+---
+
+## 0. Pivote de modelo de negocio (2026-07-04) — ESTADO VIGENTE
+
+**Decisión.** Se abandona el modelo SaaS de vender quinielas/planes. Razones (del dueño):
+el negocio no crecería sin invertir tiempo en ventas —que no lo hay—, no le gana a competidores
+(algunos regalan quinielas o transmiten partidos), y los caminos "públicos con premio" o
+"puntos canjeables" chocan con la regulación (SEGOB). El proyecto se mantiene porque el dueño
+lo usa con familia y amigos; se busca un **ingreso ligero pasivo**, no una fuente principal.
+
+**Modelo nuevo (por fases):**
+1. **Ahora: 100% gratis + botón "Apoya el proyecto"** (donativo voluntario, previsto vía **link
+   de Mercado Pago**, sin construir sistema de pagos). Cubrir el costo de operación ya es meta válida.
+2. **Si algún día crece de forma orgánica:** evaluar **freemium** (todo lo esencial gratis; el pase
+   opcional desbloquea comodidades, nunca candados) y/o **anuncios**. El pase, si vuelve, se
+   enmarca como **cuota por la herramienta (software)**, no como cuota de juego ni tajada del bote.
+
+**Descartado explícitamente:** retransmisión de partidos (piratería de derechos, riesgo legal
+alto al monetizar; no se hace). Quinielas públicas con premio en dinero. Puntos canjeables por
+regalos como producto público.
+
+**Qué se distingue (importante):** la **cuota/bote/premio DENTRO de una quiniela** (entre amigos,
+"marcar pagado", `premios.js`) **se conserva** — es función de juego, no modelo de negocio, y es
+legal en pools privados de conocidos.
+
+### 0.1 Limpieza de código ya ejecutada (2026-07-04)
+
+Se eliminó toda la capa SaaS de planes/pagos, front y back:
+- **Borrados:** `src/components/Paywall.jsx`, `src/utils/entitlements.js`.
+- **`admin.jsx`:** fuera el gate de cuota (`puedeCrearQuiniela` → ahora `puedeCrear = soySuper ||
+  adminDoc.activo`, quinielas **ilimitadas** para cualquier cliente activo); fuera `darQuinielaExtra`
+  ($49) y `darPaseMundial` ($199); fuera banner de upsell, bloques "Tu plan / Mi cuenta", columna
+  "Plan" en la lista de clientes y el contador `quinielasCreadas`. El alta de cliente ya no escribe
+  `plan/quinielasPermitidas/quinielasCreadas/temporadaHasta`.
+- **`whatsapp.js`:** fuera mensajes `comprarQuiniela` y `paseMundial`.
+- **`firestore.rules`:** el update del propio admin ya no congela `plan/quinielasPermitidas/
+  temporadaHasta` (no existen); **sigue congelando `activo` y `email`** (gate de acceso).
+  ⚠️ **Pendiente del dueño: re-desplegar reglas** (`firebase deploy --only firestore:rules`).
+- Docs viejos de clientes en Firestore quedan con campos `plan`, etc. sin uso — inofensivos, se ignoran.
+- Verificado: 744 tests ✓, build ✓. Se **conserva** el módulo "Clientes" (alta manual) hasta implementar auto-registro.
+
+### 0.2 Siguientes pasos acordados (en orden)
+
+1. ✅ **Limpiar la app de planes/pagos** (hecho, §0.1).
+2. **Auto-registro de usuarios** (que creen su cuenta solos, sin alta manual del dueño). Reemplazará el módulo "Clientes" manual.
+3. **Botón "Apoya el proyecto"** con link de Mercado Pago (donativo, sin checkout ni webhook).
 
 ---
 
@@ -12,9 +62,15 @@
 **Meta:** una app que cualquier organizador pueda usar de punta a punta **sin que César
 tenga que gestionar casi nada** — solo recibir el pago correspondiente por el uso.
 
+> ⚠️ **Revisado por §0 (2026-07-04):** la meta ya NO es "recibir el pago por el uso". Ahora es
+> mantener la app **gratis** para familia/amigos con un **ingreso pasivo ligero** (donativos; y
+> freemium/anuncios solo si crece solo). Los puntos 1-4 de abajo se releen así: el **auto-registro
+> (1)** sigue siendo deseable, pero **sin pago** (ya no hay "paga solo"); los **pagos automáticos
+> (2)** quedan descartados como producto SaaS (a lo más, un link de donativo). 3 y 4 siguen válidos.
+
 Eso implica, en estado final:
-1. **Auto-alta de clientes** (self-service): el cliente se registra y paga solo, sin WhatsApp manual.
-2. **Pagos automáticos**: checkout de MercadoPago + webhook que activa la cuenta/quiniela sin intervención.
+1. **Auto-alta de clientes** (self-service): el cliente se registra solo, sin WhatsApp manual.
+2. ~~**Pagos automáticos**~~ → descartado (ver §0); a lo más un link de donativo voluntario.
 3. **Resultados automáticos**: sincronización ESPN programada (sin botón ⚡ manual).
 4. **Seguridad de producción**: lecturas protegidas, cuotas duras del lado servidor, App Check.
 
@@ -37,8 +93,11 @@ Eso implica, en estado final:
 | Resultados de partidos | Botón "⚡ Sincronizar ESPN" en el panel | Función programada (post-Mundial) |
 | Respaldos | **No hay** ⚠️ | Export programado; mientras tanto, manual |
 
-Precios vigentes: **$49 MXN por quiniela** (lanzamiento) + **$199 Pase Mundial**.
-WhatsApp Business: `525652491143`. Detalle del flujo de onboarding: [PLAN_ONBOARDING_CLIENTES.md](PLAN_ONBOARDING_CLIENTES.md).
+> ⚠️ **Obsoleto por §0 (2026-07-04):** ya NO se cobra por quiniela ni Pase Mundial. La app es
+> gratis; el alta de clientes manual se conserva solo hasta el auto-registro. La tabla de arriba
+> (cobro/cuota) queda como referencia histórica del modelo anterior.
+
+WhatsApp Business: `525652491143`. Detalle del flujo de onboarding (histórico): [PLAN_ONBOARDING_CLIENTES.md](PLAN_ONBOARDING_CLIENTES.md).
 
 ---
 

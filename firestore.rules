@@ -47,16 +47,13 @@ service cloud.firestore {
       allow create, delete: if isSuperAdmin();
 
       // Actualizar: el super admin puede todo. El dueño puede tocar SOLO campos
-      // operativos (debeCambiarPassword, quinielasCreadas, nombre, empresa, telefono);
-      // los campos de dinero/derechos quedan congelados a su valor actual para que
+      // operativos (debeCambiarPassword, nombre, empresa, telefono). El gate de
+      // acceso `activo` y el `email` quedan congelados a su valor actual para que
       // nadie se auto-otorgue acceso.
       allow update: if isSuperAdmin() || (
         isSignedIn() && request.auth.uid == uid &&
-        request.resource.data.plan                == resource.data.plan &&
-        request.resource.data.quinielasPermitidas == resource.data.quinielasPermitidas &&
-        request.resource.data.activo              == resource.data.activo &&
-        request.resource.data.temporadaHasta      == resource.data.temporadaHasta &&
-        request.resource.data.email               == resource.data.email
+        request.resource.data.activo == resource.data.activo &&
+        request.resource.data.email  == resource.data.email
       );
     }
 

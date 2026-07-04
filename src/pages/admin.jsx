@@ -1,16 +1,14 @@
 import { useState, useEffect, useMemo } from 'react'
-import { collection, addDoc, doc, updateDoc, getDoc, getDocs, deleteDoc, query, orderBy, where, setDoc, serverTimestamp, increment, Timestamp } from 'firebase/firestore'
+import { collection, addDoc, doc, updateDoc, getDoc, getDocs, deleteDoc, query, orderBy, where, setDoc, serverTimestamp } from 'firebase/firestore'
 import { signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, updatePassword } from 'firebase/auth'
 import { db, auth, crearUsuarioAislado, generarPasswordTemporal } from '../firebase'
 import { CambioPassword } from '../components/CambioPassword'
 import { useDialog } from '../components/Dialogs'
-import { Paywall } from '../components/Paywall'
 import { ComoFunciona } from '../components/ComoFunciona'
 import { TourBienvenida } from '../components/TourBienvenida'
 import { MedidorPassword } from '../components/MedidorPassword'
 import { BrandMark, BrandWordmark } from '../components/Brand'
 import { evaluarPassword } from '../utils/password'
-import { puedeCrearQuiniela, quinielasRestantes, temporadaVigente } from '../utils/entitlements'
 import { waLink, MENSAJES_WA } from '../utils/whatsapp'
 import { cierreToDate, cierreToInputValue, inputValueACierre, quinielaCerrada, quinielaFinalizada, resultadosCompletos } from '../utils/cierre'
 import { TIPO_PREMIO, MODELO_PREMIO, calcularBote, tienePremio, formatearMXN } from '../utils/premios'
@@ -305,8 +303,6 @@ function SidebarCliente({ activo, onNav, adminDoc, onSalir }) {
       </button>
     )
   }
-  const enPase = adminDoc ? temporadaVigente(adminDoc) : false
-  const restantes = adminDoc ? quinielasRestantes(adminDoc) : 0
   return (
     <aside style={{
       width: 248, flex: '0 0 auto', position: 'sticky', top: 0, alignSelf: 'flex-start',
@@ -325,12 +321,6 @@ function SidebarCliente({ activo, onNav, adminDoc, onSalir }) {
         {item('soporte', 'message', 'Soporte')}
       </nav>
       <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <div style={{ background: 'var(--yellow-bg)', border: '1px solid var(--yellow-bg-strong)', borderRadius: 10, padding: '11px 12px' }}>
-          <p style={{ fontSize: 11, fontWeight: 800, color: 'var(--yellow-soft)', margin: 0 }}>{enPase ? 'Pase Mundial activo' : 'Plan'}</p>
-          <p style={{ fontSize: 11.5, color: 'var(--muted)', margin: '3px 0 0' }}>
-            {enPase ? 'Quinielas ilimitadas' : `${restantes} quiniela${restantes === 1 ? '' : 's'} disponible${restantes === 1 ? '' : 's'}`}
-          </p>
-        </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '4px' }}>
           <span style={{ width: 34, height: 34, borderRadius: 'var(--radius-full)', background: 'linear-gradient(135deg, var(--green), var(--green-light))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12.5, fontWeight: 800, color: '#07120A' }}>
             {iniciales(adminDoc?.nombre || adminDoc?.email)}
@@ -595,8 +585,9 @@ export default function Admin() {
   const soySuper = esSuperAdminUid(miUid)
   // Forzar cambio de contraseña en el primer ingreso (solo clientes con el flag).
   const debeCambiarPassword = !soySuper && adminDoc?.debeCambiarPassword === true
-  // ¿Puede crear una quiniela más? El super admin no tiene límite.
-  const puedeCrear = soySuper || puedeCrearQuiniela(adminDoc)
+  // ¿Puede crear una quiniela? El super admin siempre; un cliente si está activo.
+  // (El gate duro real vive en firestore.rules: adminActivo()). Ya no hay límite de cuota.
+  const puedeCrear = soySuper || !!adminDoc?.activo
 
   // Tour de bienvenida: solo la primera vez que un cliente-admin entra al panel.
   // El "visto" se guarda en localStorage (sin tocar Firestore ni sus reglas).
@@ -612,15 +603,6 @@ export default function Admin() {
     setTourAbierto(false)
   }
 
-  // Recarga el doc admins/{uid} propio (tras crear una quiniela, etc.).
-  const recargarMiAdminDoc = async () => {
-    if (!miUid) return
-    try {
-      const snap = await getDoc(doc(db, 'admins', miUid))
-      setAdminDoc(snap.exists() ? { id: snap.id, ...snap.data() } : null)
-    } catch { /* noop */ }
-  }
-
   // Abre "Mi cuenta" precargando el formulario con los datos actuales.
   const abrirMiCuenta = () => {
     setCuentaNombre(adminDoc?.nombre ?? '')
@@ -632,7 +614,7 @@ export default function Admin() {
     setVista('cuenta')
   }
 
-  // Guarda nombre/empresa/teléfono (las reglas congelan plan/dinero/correo).
+  // Guarda nombre/empresa/teléfono (las reglas congelan activo/correo).
   const guardarMiCuenta = async () => {
     if (!cuentaNombre.trim()) { setCuentaMsg({ tipo: 'error', texto: 'El nombre no puede quedar vacío.' }); return }
     if (!miUid) return
@@ -778,7 +760,8 @@ export default function Admin() {
       const password = generarPasswordTemporal()
       // 1) Cuenta de acceso (sin tocar la sesión del super admin).
       const uid = await crearUsuarioAislado(email, password)
-      // 2) Doc de derechos con los defaults del plan trial.
+      // 2) Perfil del cliente. Sin planes ni cuota: cualquier cliente activo
+      //    crea quinielas ilimitadas gratis. `activo` sigue siendo el gate de acceso.
       await setDoc(doc(db, 'admins', uid), {
         email,
         nombre,
@@ -786,10 +769,6 @@ export default function Admin() {
         telefono: ncTel.trim() || null,
         activo: true,
         debeCambiarPassword: true,
-        plan: 'trial',
-        quinielasPermitidas: 1,
-        quinielasCreadas: 0,
-        temporadaHasta: null,
         creado: serverTimestamp(),
         notas: null,
       })
@@ -824,37 +803,6 @@ export default function Admin() {
     } catch { alerta('No se pudo actualizar. Intenta de nuevo.') }
   }
 
-  const darQuinielaExtra = async (c) => {
-    if (!(await confirmar(`Confirmar pago de $49 y dar 1 quiniela más a ${c.nombre || c.email}?`))) return
-    try {
-      await updateDoc(doc(db, 'admins', c.id), {
-        quinielasPermitidas: increment(1),
-        plan: 'por_quiniela',
-        activo: true,
-      })
-      cargarClientes()
-    } catch { alerta('No se pudo actualizar. Intenta de nuevo.') }
-  }
-
-  const darPaseMundial = async (c) => {
-    const def = '2026-07-20'
-    const fecha = await pedirTexto(
-      `Pase Mundial para ${c.nombre || c.email}: quinielas ilimitadas hasta esta fecha (YYYY-MM-DD).`,
-      def
-    )
-    if (!fecha) return
-    const d = new Date(`${fecha}T23:59:59`)
-    if (isNaN(d.getTime())) { alerta('Fecha no válida.'); return }
-    try {
-      await updateDoc(doc(db, 'admins', c.id), {
-        temporadaHasta: Timestamp.fromDate(d),
-        plan: 'pase_mundial',
-        activo: true,
-      })
-      cargarClientes()
-    } catch { alerta('No se pudo actualizar. Intenta de nuevo.') }
-  }
-
   const editarNotasCliente = async (c) => {
     const notas = await pedirTexto(`Notas internas sobre ${c.nombre || c.email}:`, c.notas ?? '')
     if (notas === null) return
@@ -868,13 +816,10 @@ export default function Admin() {
   // OJO: la cuenta de Firebase Auth NO se puede borrar desde aquí (requiere servidor);
   // hay que eliminarla a mano en la consola de Firebase. Se lo recordamos al super admin.
   const eliminarCliente = async (c) => {
-    const usadas = c.quinielasCreadas ?? 0
     const aviso =
       `¿Eliminar a ${c.nombre || c.email} del panel?\n\n` +
       `• Desaparecerá de tu lista de clientes.\n` +
-      (usadas > 0
-        ? `• Sus ${usadas} quiniela(s) ya creadas NO se borran (siguen visibles para sus participantes).\n`
-        : '') +
+      `• Las quinielas que haya creado NO se borran (siguen visibles para sus participantes).\n` +
       `• La cuenta de acceso (Firebase Auth) NO se borra automáticamente: debes eliminarla tú en la consola de Firebase → Authentication.\n\n` +
       `Esta acción no se puede deshacer.`
     if (!(await confirmar(aviso, { titulo: 'Eliminar cliente', confirmar: 'Eliminar', peligro: true }))) return
@@ -1661,8 +1606,8 @@ export default function Admin() {
   }
 
   const guardarNuevaQuiniela = async () => {
-    // Gate de cuota (defensivo; la UI ya muestra el paywall si no puede crear).
-    if (!puedeCrear) return alerta('Ya usaste tu(s) quiniela(s) incluida(s). Elige un plan para crear más.')
+    // Gate de acceso (defensivo; el gate duro real vive en firestore.rules).
+    if (!puedeCrear) return alerta('Tu cuenta no está activa para crear quinielas. Escríbenos si crees que es un error.')
     if (!nombre.trim()) return alerta('Ponle un nombre a la quiniela')
     if (!cierre) return alerta('La fecha y hora de cierre es obligatoria')
     if (partidos.length === 0) return alerta('Agrega al menos un partido')
@@ -1725,12 +1670,6 @@ export default function Admin() {
       setVista('gestionar')
       setTab('compartir')
       cargarQuinielas()
-      // Descontar la cuota del cliente (el super admin no consume cuota).
-      if (!soySuper && miUid) {
-        try { await updateDoc(doc(db, 'admins', miUid), { quinielasCreadas: increment(1) }) }
-        catch { /* el contador es suave; no bloquea la creación ya hecha */ }
-        recargarMiAdminDoc()
-      }
       setNombre(''); setCierre(''); setPartidos([{ local: '', visitante: '', hora: '' }])
       setPremioFijo(''); setCuota(''); setModeloPremio(MODELO_PREMIO.GANADOR_UNICO)
       setCodigoAcceso(''); setPrivada(true); setEmpresa(''); setRequiereApellido(false)
@@ -2206,41 +2145,6 @@ export default function Admin() {
     />
   )
 
-  // ─── Bloque de upsell de planes (banner de lista + Mi cuenta) ─────────────
-  // Explica el Pase Mundial + botones de compra. Solo si NO tiene pase vigente.
-  const renderUpsellPlan = () => (
-    !temporadaVigente(adminDoc) ? (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 }}>
-        <a
-          href={waLink(MENSAJES_WA.comprarQuiniela)} target="_blank" rel="noopener noreferrer"
-          style={{ display: 'block', padding: '10px 12px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-strong)', background: 'transparent', textDecoration: 'none' }}
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-strong)' }}>➕ Otra quiniela</span>
-            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>$49</span>
-          </div>
-          <ul style={{ margin: '6px 0 0', padding: '0 0 0 18px', fontSize: 11.5, color: 'var(--muted)', lineHeight: 1.5 }}>
-            <li>Una quiniela adicional</li>
-            <li>Pago único</li>
-          </ul>
-        </a>
-        <a
-          href={waLink(MENSAJES_WA.paseMundial)} target="_blank" rel="noopener noreferrer"
-          style={{ display: 'block', padding: '10px 12px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--green)', background: 'var(--green-bg)', textDecoration: 'none' }}
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-strong)' }}>🏆 Pase Mundial</span>
-            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>$199</span>
-          </div>
-          <ul style={{ margin: '6px 0 0', padding: '0 0 0 18px', fontSize: 11.5, color: 'var(--muted)', lineHeight: 1.5 }}>
-            <li>Quinielas ilimitadas durante el Mundial 2026</li>
-            <li>Pago único, no por cada quiniela</li>
-          </ul>
-        </a>
-      </div>
-    ) : null
-  )
-
   // ─── Formulario de premio (reutilizable) ──────────────────────────────────
   // Único modelo de premio: "Ganador único" (gana quien más puntos; empate = se reparte).
   const renderFormularioPremio = (fijo, setFijo, cuotaVal, setCuotaVal) => {
@@ -2646,23 +2550,6 @@ export default function Admin() {
                 </button>
               </div>
             </div>}
-
-            {/* Aviso de plan para clientes (el super admin no tiene cuota). */}
-            {!soySuper && !clienteShell && adminDoc && (
-              <div style={{ ...card, padding: '0.9rem 1.1rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span style={{ fontSize: 18, lineHeight: 1 }} aria-hidden="true">{temporadaVigente(adminDoc) ? '🏆' : '🎟️'}</span>
-                  <p style={{ fontSize: 12.5, color: 'var(--text)', lineHeight: 1.4 }}>
-                    {temporadaVigente(adminDoc)
-                      ? 'Pase Mundial activo — puedes crear quinielas ilimitadas.'
-                      : quinielasRestantes(adminDoc) > 0
-                        ? `Tienes ${quinielasRestantes(adminDoc)} quiniela${quinielasRestantes(adminDoc) === 1 ? '' : 's'} disponible${quinielasRestantes(adminDoc) === 1 ? '' : 's'}.`
-                        : 'Ya usaste tus quinielas incluidas. Elige un plan para crear más.'}
-                  </p>
-                </div>
-                {renderUpsellPlan()}
-              </div>
-            )}
 
             {/* Secciones del inicio (solo super admin): mostrar/ocultar y reordenar bloques del home. */}
             {soySuper && superModulo === 'home' && (() => {
@@ -3073,15 +2960,6 @@ export default function Admin() {
                   ? clientes.filter(c => [c.nombre, c.empresa, c.email, c.telefono].some(v => normalizaCliente(v).includes(filtroClientes)))
                   : clientes
                 const clienteCard = (c) => {
-                  const enPase = temporadaVigente(c)
-                  const usadas = c.quinielasCreadas ?? 0
-                  const permitidas = c.quinielasPermitidas ?? 0
-                  const paseFecha = enPase && c.temporadaHasta?.toMillis
-                    ? new Date(c.temporadaHasta.toMillis()).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })
-                    : null
-                  const plan = enPase
-                    ? `Pase Mundial — ilimitadas${paseFecha ? ` hasta ${paseFecha}` : ''}`
-                    : `${usadas}/${permitidas} quinielas usadas`
                   return (
                     <div key={c.id} className={`super-client-card${c.activo ? '' : ' is-inactive'}`}>
                       <div className="super-client-head">
@@ -3093,14 +2971,13 @@ export default function Admin() {
                         </div>
                         <span className={`super-status-badge${c.activo ? '' : ' is-muted'}`}>{c.activo ? 'Activo' : 'Inactivo'}</span>
                       </div>
-                      <p className={`super-client-plan${enPase ? ' is-pass' : ''}`}>
-                        {plan}
-                        {c.debeCambiarPassword ? <span style={{ color: 'var(--yellow)' }}> · contraseña sin cambiar</span> : null}
-                        {c.notas ? <span style={{ color: 'var(--muted)' }}><br />{c.notas}</span> : null}
-                      </p>
+                      {(c.debeCambiarPassword || c.notas) && (
+                        <p className="super-client-plan">
+                          {c.debeCambiarPassword ? <span style={{ color: 'var(--yellow)' }}>Contraseña sin cambiar</span> : null}
+                          {c.notas ? <span style={{ color: 'var(--muted)' }}>{c.debeCambiarPassword ? <br /> : null}{c.notas}</span> : null}
+                        </p>
+                      )}
                       <div className="super-action-row">
-                        <button type="button" onClick={() => darQuinielaExtra(c)} className="super-action-btn"><AdminIcon name="plus" size={12} />+1 ($49)</button>
-                        <button type="button" onClick={() => darPaseMundial(c)} className="super-action-btn"><AdminIcon name="ball" size={12} />Pase ($199)</button>
                         <button type="button" onClick={() => toggleActivoCliente(c)} className="super-action-btn"><AdminIcon name={c.activo ? 'pause' : 'play'} size={12} />{c.activo ? 'Pausar' : 'Activar'}</button>
                         <button type="button" onClick={() => editarNotasCliente(c)} className="super-action-btn"><AdminIcon name="note" size={12} />Notas</button>
                         <button type="button" onClick={() => eliminarCliente(c)} disabled={eliminandoCliente === c.id} className="super-action-btn is-danger">
@@ -3260,8 +3137,8 @@ export default function Admin() {
                             />
                           </div>
                         </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '2.2fr 1.3fr 0.9fr 28px', gap: 12, padding: '12px 18px', borderBottom: '1px solid var(--border)' }}>
-                          {['Cliente', 'Plan', 'Estado', ''].map((h, i) => (
+                        <div style={{ display: 'grid', gridTemplateColumns: '2.6fr 0.9fr 28px', gap: 12, padding: '12px 18px', borderBottom: '1px solid var(--border)' }}>
+                          {['Cliente', 'Estado', ''].map((h, i) => (
                             <span key={i} style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--muted-soft)' }}>{h}</span>
                           ))}
                         </div>
@@ -3272,23 +3149,17 @@ export default function Admin() {
                         ) : clientesMostrados.length === 0 ? (
                           <p style={{ fontSize: 13, color: 'var(--muted)', fontStyle: 'italic', padding: '18px' }}>Sin coincidencias.</p>
                         ) : clientesMostrados.map(c => {
-                          const enPase = temporadaVigente(c)
-                          const usadas = c.quinielasCreadas ?? 0
-                          const permitidas = c.quinielasPermitidas ?? 0
                           const abierto = clienteExpandido === c.id
                           return (
                             <div key={c.id} style={{ borderBottom: '1px solid var(--border)', opacity: c.activo ? 1 : 0.78 }}>
                               <div
                                 onClick={() => setClienteExpandido(abierto ? null : c.id)}
-                                style={{ display: 'grid', gridTemplateColumns: '2.2fr 1.3fr 0.9fr 28px', gap: 12, padding: '14px 18px', alignItems: 'center', cursor: 'pointer', background: abierto ? 'var(--green-bg)' : 'transparent' }}
+                                style={{ display: 'grid', gridTemplateColumns: '2.6fr 0.9fr 28px', gap: 12, padding: '14px 18px', alignItems: 'center', cursor: 'pointer', background: abierto ? 'var(--green-bg)' : 'transparent' }}
                               >
                                 <div style={{ minWidth: 0 }}>
                                   <p style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-strong)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.nombre || '(sin nombre)'}</p>
                                   <p style={{ fontSize: 11.5, color: 'var(--muted)', margin: '2px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.email}{c.empresa ? ` · ${c.empresa}` : ''}</p>
                                 </div>
-                                <span style={{ fontSize: 12, color: 'var(--text)' }}>
-                                  {enPase ? <span style={{ color: 'var(--yellow-soft)', fontWeight: 700 }}>Pase Mundial</span> : `${usadas}/${permitidas} quinielas`}
-                                </span>
                                 <span>
                                   <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 'var(--radius-full)', background: c.activo ? 'var(--green-bg)' : 'var(--neutral-bg)', color: c.activo ? 'var(--green)' : 'var(--muted)' }}>
                                     {c.activo ? 'Activo' : 'Inactivo'}
@@ -3302,8 +3173,6 @@ export default function Admin() {
                                 <div style={{ padding: '0 18px 14px', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                                   {c.debeCambiarPassword && <span style={{ width: '100%', fontSize: 11.5, color: 'var(--yellow)', marginBottom: 2 }}>Contraseña sin cambiar</span>}
                                   {c.notas && <span style={{ width: '100%', fontSize: 12, color: 'var(--muted)', marginBottom: 4 }}>{c.notas}</span>}
-                                  <button onClick={() => darQuinielaExtra(c)} style={accionBtn}>{inlineIconLabel('plus', '+1 quiniela ($49)')}</button>
-                                  <button onClick={() => darPaseMundial(c)} style={accionBtn}>{inlineIconLabel('ball', 'Pase Mundial ($199)')}</button>
                                   <button onClick={() => toggleActivoCliente(c)} style={accionBtn}>{inlineIconLabel(c.activo ? 'pause' : 'play', c.activo ? 'Desactivar' : 'Activar')}</button>
                                   <button onClick={() => editarNotasCliente(c)} style={accionBtn}>{inlineIconLabel('note', 'Notas')}</button>
                                   <button onClick={() => eliminarCliente(c)} disabled={eliminandoCliente === c.id} style={{ ...accionBtn, color: 'var(--red)', borderColor: 'var(--red)' }}>
@@ -3897,7 +3766,7 @@ export default function Admin() {
                 ].filter(q => coincideBusqueda(q.nombre))
                 const gestionModules = [
                   { modulo: 'caja', icon: 'wallet', title: 'Caja', meta: `${saldos.length}`, desc: 'Saldos y movimientos por participante.', keywords: 'saldos movimientos participante' },
-                  { modulo: 'clientes', icon: 'users', title: 'Clientes', meta: `${clientes.length}`, desc: 'Altas, planes, notas y estado de clientes.', keywords: 'altas planes notas estado clientes' },
+                  { modulo: 'clientes', icon: 'users', title: 'Clientes', meta: `${clientes.length}`, desc: 'Altas, notas y estado de clientes.', keywords: 'altas notas estado clientes cuentas' },
                   { modulo: 'mis', icon: 'ball', title: 'Mis quinielas', meta: `${misFlat.length}`, desc: 'Quinielas creadas desde la cuenta principal.', keywords: 'mis quinielas cuenta principal' },
                   ...(quinielasOtras.length > 0 ? [{ modulo: 'otros', icon: 'user', title: 'Otros admins', meta: `${quinielasOtras.length}`, desc: 'Quinielas agrupadas por cliente administrador.', keywords: 'otros admins cliente administrador' }] : []),
                 ].filter(m => coincideBusqueda(m.title, m.desc, m.keywords))
@@ -4058,7 +3927,7 @@ export default function Admin() {
                           <p style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--muted-soft)', margin: '0 0 11px' }}>Módulos</p>
                           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 13, marginBottom: 20 }}>
                             {deskModule({ modulo: 'caja', icon: 'wallet', title: 'Caja global', desc: 'Saldos y movimientos de todos los participantes.' })}
-                            {deskModule({ modulo: 'clientes', icon: 'users', title: 'Clientes', meta: clientes.length || null, desc: 'Altas, planes, notas y estado de cuentas.' })}
+                            {deskModule({ modulo: 'clientes', icon: 'users', title: 'Clientes', meta: clientes.length || null, desc: 'Altas, notas y estado de cuentas.' })}
                             {quinielasOtras.length > 0 && deskModule({ modulo: 'otros', icon: 'user', title: 'Otros admins', meta: quinielasOtras.length, desc: 'Quinielas agrupadas por cliente.' })}
                             {deskModule({ modulo: 'home', icon: 'settings', title: 'Inicio público', desc: 'Mostrar, ocultar y ordenar bloques del home.' })}
                             {deskModule({ modulo: 'mis', icon: 'ball', title: 'Mis quinielas', meta: misFlat.length || null, desc: 'Quinielas creadas desde tu cuenta.' })}
@@ -4291,21 +4160,6 @@ export default function Admin() {
               return (
                 <>
                   {headerCli(`Hola, ${nombreCli}`, adminDoc?.empresa || 'Tu panel de quinielas', ctaNueva)}
-                  {adminDoc && (
-                    <div style={{ ...card, padding: '0.9rem 1.1rem', marginBottom: 16 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <AdminIcon name={temporadaVigente(adminDoc) ? 'trophy' : 'megaphone'} size={18} style={{ color: 'var(--yellow)' }} />
-                        <p style={{ fontSize: 12.5, color: 'var(--text)', lineHeight: 1.4 }}>
-                          {temporadaVigente(adminDoc)
-                            ? 'Pase Mundial activo — puedes crear quinielas ilimitadas.'
-                            : quinielasRestantes(adminDoc) > 0
-                              ? `Tienes ${quinielasRestantes(adminDoc)} quiniela${quinielasRestantes(adminDoc) === 1 ? '' : 's'} disponible${quinielasRestantes(adminDoc) === 1 ? '' : 's'}.`
-                              : 'Ya usaste tus quinielas incluidas. Elige un plan para crear más.'}
-                        </p>
-                      </div>
-                      {renderUpsellPlan()}
-                    </div>
-                  )}
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 20 }}>
                     {[
                       { v: mias.activas.length, l: 'Abiertas', c: 'var(--green-light)' },
@@ -4452,22 +4306,6 @@ export default function Admin() {
               </button>
             </div>
 
-            {/* Tu plan */}
-            <div style={card}>
-              <p style={{ ...lbl, marginBottom: 10 }}>Tu plan</p>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span style={{ fontSize: 18, lineHeight: 1 }} aria-hidden="true">{temporadaVigente(adminDoc) ? '🏆' : '🎟️'}</span>
-                <p style={{ fontSize: 12.5, color: 'var(--text)', lineHeight: 1.4 }}>
-                  {temporadaVigente(adminDoc)
-                    ? 'Pase Mundial activo — puedes crear quinielas ilimitadas.'
-                    : quinielasRestantes(adminDoc) > 0
-                      ? `Tienes ${quinielasRestantes(adminDoc)} quiniela${quinielasRestantes(adminDoc) === 1 ? '' : 's'} disponible${quinielasRestantes(adminDoc) === 1 ? '' : 's'}.`
-                      : 'Ya usaste tus quinielas incluidas. Elige un plan para crear más.'}
-                </p>
-              </div>
-              {renderUpsellPlan()}
-            </div>
-
             {/* Seguridad — colapsada por default */}
             <div style={card}>
               <button
@@ -4503,15 +4341,7 @@ export default function Admin() {
         )}
 
         {/* ── Vista: Nueva quiniela ────────────────────────────────────────── */}
-        {/* Cliente sin cuota disponible: en vez del formulario, ve el paywall. */}
-        {vista === 'nueva' && !puedeCrear && (
-          <>
-            <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)', marginBottom: 14 }}>Nueva quiniela</p>
-            <Paywall />
-          </>
-        )}
-
-        {vista === 'nueva' && puedeCrear && (
+        {vista === 'nueva' && (
           <>
             <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)', marginBottom: 14 }}>Nueva quiniela</p>
 
