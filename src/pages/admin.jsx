@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { collection, addDoc, doc, updateDoc, getDoc, getDocs, deleteDoc, query, orderBy, where, setDoc, serverTimestamp } from 'firebase/firestore'
 import { signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, updatePassword } from 'firebase/auth'
 import { db, auth, crearUsuarioAislado, generarPasswordTemporal } from '../firebase'
@@ -10,7 +10,7 @@ import { MedidorPassword } from '../components/MedidorPassword'
 import { BrandMark, BrandWordmark } from '../components/Brand'
 import { evaluarPassword } from '../utils/password'
 import { waLink, MENSAJES_WA } from '../utils/whatsapp'
-import { cierreToDate, cierreToInputValue, inputValueACierre, quinielaCerrada, quinielaFinalizada, resultadosCompletos } from '../utils/cierre'
+import { cierreToDate, cierreToInputValue, inputValueACierre, quinielaCerrada, quinielaFinalizada, resultadosCompletos, hayPartidoEnVivo } from '../utils/cierre'
 import { TIPO_PREMIO, MODELO_PREMIO, calcularBote, tienePremio, formatearMXN } from '../utils/premios'
 import { normalizarNombre } from '../utils/nombres'
 import { detectarSimilares } from '../utils/duplicados'
@@ -200,6 +200,7 @@ function AdminIcon({ name, size = 14, style, strokeWidth = 2 }) {
   if (name === 'chevron-down') return <svg {...common}><path d="m6 9 6 6 6-6" /></svg>
   if (name === 'star') return <svg {...common}><path d="m12 3 2.9 5.9 6.5.9-4.7 4.6 1.1 6.5L12 18.4 6.2 21.4l1.1-6.5L2.6 9.8l6.5-.9L12 3Z" /></svg>
   if (name === 'smile') return <svg {...common}><circle cx="12" cy="12" r="9" /><path d="M8 14s1.4 2 4 2 4-2 4-2" /><path d="M9 9h.01" /><path d="M15 9h.01" /></svg>
+  if (name === 'party') return <svg {...common}><path d="m5 19 5.8-15.3 9.5 9.5L5 19Z" /><path d="m8.5 11.5 4 4" /><path d="m13 5 6-2" /><path d="m16 8 4-4" /><path d="M18 11h3" /><path d="M9.5 3.5 11 2" /><path d="M20.5 7.5 22 6" /></svg>
   return <svg {...common}><circle cx="12" cy="12" r="9" /></svg>
 }
 
@@ -511,6 +512,51 @@ function fechaCreacionMs(q) {
   if (typeof creada.seconds === 'number') return creada.seconds * 1000
   const t = new Date(creada).getTime()
   return Number.isNaN(t) ? 0 : t
+}
+
+function resultadoPartidoListo(r) {
+  if (!r) return false
+  if (r.cancelado) return true
+  return String(r.local ?? '').trim() !== '' && String(r.visitante ?? '').trim() !== ''
+}
+
+function partidosJugadosCard(q) {
+  const resultados = q?.resultados ?? {}
+  return (q?.partidos ?? []).reduce((total, _, i) => (
+    total + (resultadoPartidoListo(resultados[i] ?? resultados[String(i)]) ? 1 : 0)
+  ), 0)
+}
+
+function partidosEnVivoCard(q, ahora = Date.now()) {
+  const resultados = q?.resultados ?? {}
+  const VENTANA = 2.5 * 60 * 60 * 1000
+  return (q?.partidos ?? []).reduce((total, p, i) => {
+    const r = resultados[i] ?? resultados[String(i)]
+    if (resultadoPartidoListo(r) || !p?.hora) return total
+    const inicio = new Date(p.hora).getTime()
+    if (Number.isNaN(inicio)) return total
+    return total + (ahora >= inicio && ahora <= inicio + VENTANA ? 1 : 0)
+  }, 0)
+}
+
+function textoCierreCard(q) {
+  const d = cierreToDate(q?.cierre)
+  if (!d) return 'Sin cierre configurado'
+  const ms = d.getTime() - Date.now()
+  if (ms <= 0) return 'Cierre vencido'
+  const MIN = 60 * 1000
+  const HORA = 60 * MIN
+  const DIA = 24 * HORA
+  if (ms >= DIA) {
+    const dias = Math.ceil(ms / DIA)
+    return `Cierra en ${dias} día${dias !== 1 ? 's' : ''}`
+  }
+  if (ms >= HORA) {
+    const horas = Math.ceil(ms / HORA)
+    return `Cierra en ${horas} h`
+  }
+  const mins = Math.max(1, Math.ceil(ms / MIN))
+  return `Cierra en ${mins} min`
 }
 
 // Cierre sugerido (valor listo para <input datetime-local>) = primer partido − margen.
@@ -939,6 +985,8 @@ export default function Admin() {
   // Pestaña activa del panel cliente (nuevo shell escritorio/móvil): inicio | quinielas | caja | stats | cuenta | soporte
   const [clienteTab, setClienteTab]       = useState('inicio')
   const [filtroQuinielasCliente, setFiltroQuinielasCliente] = useState('todas')
+  const filtroQuinielasScrollRef = useRef(null)
+  const filtroQuinielasNudgeRef = useRef(false)
   // Estadísticas (analítica propia, solo super admin).
   const [statsDias, setStatsDias]         = useState(null)   // resumen últimos días
   const [statsGlobal, setStatsGlobal]     = useState(null)   // doc analytics/global (dispositivos únicos)
@@ -2004,6 +2052,39 @@ export default function Admin() {
     () => detectarSimilares(listaPredicciones.map(p => p.nombre)),
     [listaPredicciones]
   )
+
+  useEffect(() => {
+    const esClienteMobile = !soySuper && !esEscritorio
+    if (!autenticado || !authListo || !esClienteMobile || vista !== 'lista' || clienteTab !== 'quinielas') return
+    if (filtroQuinielasNudgeRef.current) return
+
+    const row = filtroQuinielasScrollRef.current
+    if (!row) return
+
+    const maxScroll = row.scrollWidth - row.clientWidth
+    if (maxScroll <= 4) return
+
+    filtroQuinielasNudgeRef.current = true
+    let raf = 0
+    const t = window.setTimeout(() => {
+      const start = row.scrollLeft
+      const distance = maxScroll - start
+      const duration = 2600
+      const startedAt = window.performance.now()
+      const easeInOutCubic = (p) => (p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2)
+
+      const tick = (now) => {
+        const progress = Math.min(1, (now - startedAt) / duration)
+        row.scrollLeft = start + distance * easeInOutCubic(progress)
+        if (progress < 1) raf = window.requestAnimationFrame(tick)
+      }
+      raf = window.requestAnimationFrame(tick)
+    }, 420)
+    return () => {
+      window.clearTimeout(t)
+      if (raf) window.cancelAnimationFrame(raf)
+    }
+  }, [autenticado, authListo, soySuper, esEscritorio, vista, clienteTab, quinielasMias.length])
 
   // ─── Caja helpers ────────────────────────────────────────────────────────
   const movimientosPorNombre = {}
@@ -4099,10 +4180,10 @@ export default function Admin() {
                 finalizadas: ordenarRecientes(mias.finalizadas),
               }
               const filtrosQuinielasCliente = [
-                ['todas', 'Todas', quinielasMias.length],
-                ['abiertas', 'Abiertas', miasOrdenadas.activas.length],
-                ['jugando', 'Jugándose', miasOrdenadas.enJuego.length],
-                ['finalizadas', 'Finalizadas', miasOrdenadas.finalizadas.length],
+                { key: 'todas', label: 'Todas', count: quinielasMias.length, tone: 'all' },
+                { key: 'abiertas', label: 'Abiertas', count: miasOrdenadas.activas.length, tone: 'green' },
+                { key: 'jugando', label: 'Jugándose', count: miasOrdenadas.enJuego.length, tone: 'yellow' },
+                { key: 'finalizadas', label: 'Finalizadas', count: miasOrdenadas.finalizadas.length, tone: 'muted' },
               ]
               const quinielasClienteFiltradas = filtroQuinielasCliente === 'abiertas'
                 ? miasOrdenadas.activas
@@ -4111,7 +4192,7 @@ export default function Admin() {
                   : filtroQuinielasCliente === 'finalizadas'
                     ? miasOrdenadas.finalizadas
                     : [...miasOrdenadas.activas, ...miasOrdenadas.enJuego, ...miasOrdenadas.finalizadas]
-              const filtroQuinielasActual = filtrosQuinielasCliente.find(([key]) => key === filtroQuinielasCliente)
+              const filtroQuinielasActual = filtrosQuinielasCliente.find(f => f.key === filtroQuinielasCliente)
               const listaQuinielas = quinielasMias.length === 0 ? (
                 <div style={{ ...card, textAlign: 'center', padding: '3rem 2rem' }}>
                   <div style={{ color: 'var(--muted)', marginBottom: 12, display: 'flex', justifyContent: 'center' }}><AdminIcon name="ball" size={40} /></div>
@@ -4121,24 +4202,24 @@ export default function Admin() {
                 </div>
               ) : clienteMobile ? (
                 <div>
-                  <div className="super-filter-row admin-quiniela-filter-row" role="tablist" aria-label="Filtrar quinielas">
-                    {filtrosQuinielasCliente.map(([key, label, count]) => (
+                  <div ref={filtroQuinielasScrollRef} className="super-filter-row admin-quiniela-filter-row" role="tablist" aria-label="Filtrar quinielas">
+                    {filtrosQuinielasCliente.map(({ key, label, count, tone }) => (
                       <button
                         key={key}
                         type="button"
                         role="tab"
-                        className={`super-filter-chip${filtroQuinielasCliente === key ? ' is-active' : ''}`}
+                        className={`super-filter-chip admin-quiniela-filter-chip admin-quiniela-filter-chip--${tone}${filtroQuinielasCliente === key ? ' is-active' : ''}`}
                         onClick={() => setFiltroQuinielasCliente(key)}
                         aria-selected={filtroQuinielasCliente === key}
                       >
-                        <span>{label}</span>
-                        <span className="super-filter-chip-count">{count}</span>
+                        {tone !== 'all' && <span className="admin-quiniela-filter-dot" />}
+                        <span>{label} · {count}</span>
                       </button>
                     ))}
                   </div>
                   {quinielasClienteFiltradas.length === 0 ? (
                     <p style={{ fontSize: 13, color: 'var(--muted)', fontStyle: 'italic' }}>
-                      No hay quinielas {filtroQuinielasActual?.[1]?.toLowerCase() ?? 'en este filtro'}.
+                      No hay quinielas {filtroQuinielasActual?.label?.toLowerCase() ?? 'en este filtro'}.
                     </p>
                   ) : (
                     <div className="super-mobile-card-list">
@@ -5521,91 +5602,112 @@ export default function Admin() {
 // ─── Componente de card de quiniela en la lista ───────────────────────────────
 function QuinielaCard({ q, conteos, onGestionar, dueno, superCompact = false, softManage = false }) {
   const cerrada = esCerradaQ(q)
-  const enJuego = cerrada && !esFinalizadaQ(q)
+  const finalizada = cerrada && esFinalizadaQ(q)
+  const enJuego = cerrada && !finalizada
+  const enVivo = enJuego && hayPartidoEnVivo(q)
   const n = conteos[q.id] ?? 0
   const nVisible = Math.max(0, n - (q.ocultos ?? []).length)
+  const totalPartidos = q.partidos?.length ?? 0
+  const jugados = partidosJugadosCard(q)
+  const enVivoAhora = partidosEnVivoCard(q)
+  const progreso = totalPartidos > 0 ? Math.min(100, Math.round((jugados / totalPartidos) * 100)) : 0
+  const conPremio = tienePremio(q)
+  const bote = conPremio ? calcularBote(q, nVisible) : 0
   const esTipoBote = (Number(q.cuota) > 0) || q.tipoPremio === TIPO_PREMIO.BOTE
   const pagosPendientes = esTipoBote ? Math.max(0, n - (q.pagados ?? []).length) : 0
 
-  const badge = enJuego
-    ? { label: 'Jugándose', bg: 'var(--yellow-bg)', color: 'var(--yellow)' }
-    : cerrada
-      ? { label: 'Finalizada', bg: 'var(--neutral-bg)', color: 'var(--muted)' }
-      : { label: 'Abierta', bg: 'var(--green-bg)', color: 'var(--green)' }
+  const estado = finalizada ? 'finalizada' : enVivo ? 'en-vivo' : enJuego ? 'jugandose' : 'abierta'
+  const badge = {
+    abierta: 'Abierta',
+    jugandose: 'Jugándose',
+    'en-vivo': 'En vivo',
+    finalizada: 'Finalizada',
+  }[estado]
+  const footer = finalizada
+    ? 'Resultados completos'
+    : enJuego
+      ? (enVivoAhora > 0 ? `${enVivoAhora} en juego ahora` : 'Sin partido ahora')
+      : textoCierreCard(q)
+  const boton = finalizada ? 'Ver resultados' : 'Gestionar'
+  const cardClasses = [
+    'admin-q-card',
+    `admin-q-card--${estado}`,
+    conPremio ? '' : 'admin-q-card--no-prize',
+    superCompact ? 'admin-q-card--compact' : '',
+    softManage ? 'admin-q-card--soft-action' : '',
+  ].filter(Boolean).join(' ')
 
   return (
-    <div style={{
-      background: 'var(--card)', borderRadius: 'var(--radius-md)', padding: '1rem 1.25rem', marginBottom: 10,
-      border: '1px solid var(--border)',
-      display: 'flex',
-      flexDirection: superCompact ? 'column' : 'row',
-      alignItems: superCompact ? 'stretch' : 'center',
-      justifyContent: 'space-between',
-      gap: superCompact ? 12 : 12,
-    }}>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <p style={{ fontWeight: 600, fontSize: 15, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: 6 }}>
-          {q.nombre}
-        </p>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 4 }}>
-          <span style={{
-            fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 'var(--radius-full)', flexShrink: 0,
-            background: badge.bg, color: badge.color,
-          }}>
-            {badge.label}
+    <div className={cardClasses}>
+      <div className="admin-q-card-main">
+        <div className="admin-q-card-head">
+          <p className="admin-q-card-title">{q.nombre}</p>
+          <span className={`admin-q-status admin-q-status--${estado}`}>
+            <span className="admin-q-status-dot" />
+            {badge}
           </span>
-          {q.destacada && !cerrada && (
-            <span style={{
-              fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 'var(--radius-full)', flexShrink: 0,
-              background: 'var(--yellow-bg)', color: 'var(--yellow)',
-            }}>
-              {superCompact ? 'Principal' : '⭐ Principal'}
-            </span>
-          )}
-          {pagosPendientes > 0 && (
-            <span style={{
-              fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 'var(--radius-full)', flexShrink: 0,
-              background: 'var(--yellow-bg)', color: 'var(--yellow)',
-            }}>
-              {pagosPendientes} pago{pagosPendientes !== 1 ? 's' : ''}
-            </span>
-          )}
-          {!tienePremio(q) && (
-            <span style={{
-              display: 'inline-flex', alignItems: 'center', gap: 4,
-              fontSize: 10, fontWeight: 800, padding: '3px 9px 3px 7px', borderRadius: 'var(--radius-full)', flexShrink: 0,
-              background: 'linear-gradient(135deg, rgba(250,204,21,0.18), rgba(34,197,94,0.18))',
-              color: 'var(--green-light)', border: '1px solid rgba(134,239,172,0.42)',
-            }}>
-              <AdminIcon name="smile" size={11} strokeWidth={2.4} />
-              Solo por diversión
-            </span>
-          )}
         </div>
-        {dueno && (
-          <p style={{ fontSize: 11, color: 'var(--green-light)', marginBottom: 4, fontWeight: 700 }}>
-            {superCompact ? dueno : `👤 ${dueno}`}
-          </p>
-        )}
-        <p style={{ fontSize: 12, color: 'var(--muted)' }}>
-          {q.partidos?.length ?? 0} partidos · {n} {n === 1 ? 'participante' : 'participantes'}
-          {tienePremio(q) && (
-            <>
-              {' · '}
-              <span style={{ color: 'var(--green)', fontWeight: 700 }}>
-                {superCompact ? formatearMXN(calcularBote(q, nVisible)) : `💰 ${formatearMXN(calcularBote(q, nVisible))}`}
+        {(q.destacada && !cerrada) || pagosPendientes > 0 || dueno ? (
+          <div className="admin-q-chip-row">
+            {q.destacada && !cerrada && (
+              <span className="admin-q-chip admin-q-chip--featured">Principal</span>
+            )}
+            {pagosPendientes > 0 && (
+              <span className="admin-q-chip admin-q-chip--warning">
+                {pagosPendientes} pago{pagosPendientes !== 1 ? 's' : ''}
               </span>
-            </>
+            )}
+            {dueno && <span className="admin-q-chip admin-q-chip--owner">{dueno}</span>}
+          </div>
+        ) : null}
+        <div className={`admin-q-metrics${conPremio ? '' : ' admin-q-metrics--no-prize'}`}>
+          {conPremio && (
+            <div className="admin-q-prize">
+              <span className="admin-q-prize-label">{finalizada ? 'Bote repartido' : 'Bote'}</span>
+              <span className="admin-q-prize-value">{formatearMXN(bote)}</span>
+            </div>
           )}
-        </p>
+          {!conPremio && (
+            <div className="admin-q-fun-prize">
+              <span className="admin-q-fun-label">{finalizada ? 'Se jugó por' : 'Se juega por'}</span>
+              <span className="admin-q-fun-chip" aria-label="Diversión">
+                <AdminIcon name="party" size={17} strokeWidth={2.2} />
+                Diversión
+              </span>
+            </div>
+          )}
+          <div className="admin-q-stat">
+            <span className="admin-q-stat-value">{n}</span>
+            <span className="admin-q-stat-label">participantes</span>
+          </div>
+          <div className="admin-q-stat">
+            <span className="admin-q-stat-value">{totalPartidos}</span>
+            <span className="admin-q-stat-label">partidos</span>
+          </div>
+        </div>
+        {enJuego && (
+          <div className="admin-q-progress-block">
+            <div className="admin-q-progress-copy">
+              <span>{jugados} de {totalPartidos} partidos jugados</span>
+              <span className={enVivoAhora > 0 ? 'is-live' : ''}>
+                {enVivoAhora > 0 ? `${enVivoAhora} en juego ahora` : 'sin partido ahora'}
+              </span>
+            </div>
+            <div className="admin-q-progress-track">
+              <span className="admin-q-progress-fill" style={{ width: `${progreso}%` }} />
+            </div>
+          </div>
+        )}
       </div>
-      <button
-        onClick={() => onGestionar(q)}
-        className={softManage ? `super-soft-manage${superCompact ? ' super-soft-manage--full' : ''}` : undefined}
-        style={softManage ? undefined : { ...greenCtaStyle(false), whiteSpace: 'nowrap', flexShrink: 0, width: superCompact ? '100%' : undefined, padding: superCompact ? '10px 12px' : undefined }}
-      >
-        Gestionar
-      </button>
+      <div className="admin-q-card-footer">
+        <span className="admin-q-footer-note">
+          {finalizada && <AdminIcon name="trophy" size={13} strokeWidth={2.2} />}
+          {footer}
+        </span>
+        <button type="button" onClick={() => onGestionar(q)} className={`admin-q-action${finalizada ? ' admin-q-action--secondary' : ''}`}>
+          {boton}
+        </button>
+      </div>
     </div>
   )
 }
