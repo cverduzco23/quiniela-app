@@ -196,6 +196,7 @@ function CodeEntry({ codigoBusqueda, setCodigoBusqueda, errorBusqueda, setErrorB
             placeholder="ej. MX26GP"
             value={codigoBusqueda}
             maxLength={10}
+            autoCapitalize="characters"
             onChange={e => {
               setCodigoBusqueda(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))
               setErrorBusqueda('')
@@ -667,6 +668,19 @@ export default function Home() {
 
   const ordenHome = ordenSeccionesHome(homeConfig)
   const ordenDe = (clave) => ordenHome.indexOf(clave)
+  const hayMisQuinielas = misQuinielas.length > 0
+  const hayQuinielasPublicas = quinielasPublicas.length > 0
+  const seccionesVisibles = [
+    { clave: 'mostrarComoFunciona', visible: verSeccion('mostrarComoFunciona') },
+    { clave: 'mostrarCrearQuiniela', visible: verSeccion('mostrarCrearQuiniela') },
+    { clave: 'mostrarMisQuinielas', visible: verSeccion('mostrarMisQuinielas') && hayMisQuinielas },
+    { clave: 'mostrarPublicas', visible: verSeccion('mostrarPublicas') && hayQuinielasPublicas },
+    { clave: 'mostrarFaq', visible: verSeccion('mostrarFaq') },
+    { clave: 'mostrarImagen', visible: verSeccion('mostrarImagen') },
+  ]
+    .filter(s => s.visible)
+    .sort((a, b) => ordenDe(a.clave) - ordenDe(b.clave))
+  const mainClassName = `public-home-main${seccionesVisibles[0]?.clave === 'mostrarComoFunciona' ? ' public-home-main--starts-with-how' : ''}`
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
@@ -711,7 +725,7 @@ export default function Home() {
         </section>
       </div>
 
-      <main className="public-home-main" style={{ display: 'flex', flexDirection: 'column', gap: 32, padding: '32px 0' }}>
+      <main className={mainClassName} style={{ display: 'flex', flexDirection: 'column', gap: 32, padding: '32px 0' }}>
         {verSeccion('mostrarComoFunciona') && (
           <div style={{ order: ordenDe('mostrarComoFunciona') }}>
             <HowItWorks />
@@ -724,7 +738,7 @@ export default function Home() {
           </section>
         )}
 
-        {verSeccion('mostrarMisQuinielas') && (
+        {verSeccion('mostrarMisQuinielas') && hayMisQuinielas && (
           <div style={{ order: ordenDe('mostrarMisQuinielas') }}>
             <TusQuinielasSection
               quinielas={misQuinielas}
@@ -735,7 +749,7 @@ export default function Home() {
           </div>
         )}
 
-        {verSeccion('mostrarPublicas') && (
+        {verSeccion('mostrarPublicas') && hayQuinielasPublicas && (
           <div style={{ order: ordenDe('mostrarPublicas') }}>
             <QuinielasPublicasSection quinielas={quinielasPublicas} conteos={conteos} />
           </div>

@@ -82,6 +82,10 @@ function generarCodigoAcceso() {
   return s
 }
 
+function normalizarCodigoAccesoInput(value) {
+  return (value ?? '').toUpperCase()
+}
+
 // Heurística mínima para advertir (no bloquear) sobre códigos fáciles de adivinar:
 // los muy cortos. Los autogenerados (6 chars) nunca caen aquí.
 function esCodigoDebil(codigo) {
@@ -118,6 +122,20 @@ function DateTimeWrap({ vacio, texto = 'Elige fecha y hora', children }) {
           <AdminIcon name="calendar" size={15} />{texto}
         </span>
       )}
+    </div>
+  )
+}
+
+function SmoothCollapse({ open, children, className = '', style }) {
+  return (
+    <div
+      className={`admin-smooth-collapse${open ? ' is-open' : ''}${className ? ` ${className}` : ''}`}
+      style={style}
+      aria-hidden={!open}
+    >
+      <div className="admin-smooth-collapse-inner">
+        {children}
+      </div>
     </div>
   )
 }
@@ -180,6 +198,7 @@ function AdminIcon({ name, size = 14, style, strokeWidth = 2 }) {
   if (name === 'chevron-right') return <svg {...common}><path d="m9 18 6-6-6-6" /></svg>
   if (name === 'chevron-down') return <svg {...common}><path d="m6 9 6 6 6-6" /></svg>
   if (name === 'star') return <svg {...common}><path d="m12 3 2.9 5.9 6.5.9-4.7 4.6 1.1 6.5L12 18.4 6.2 21.4l1.1-6.5L2.6 9.8l6.5-.9L12 3Z" /></svg>
+  if (name === 'smile') return <svg {...common}><circle cx="12" cy="12" r="9" /><path d="M8 14s1.4 2 4 2 4-2 4-2" /><path d="M9 9h.01" /><path d="M15 9h.01" /></svg>
   return <svg {...common}><circle cx="12" cy="12" r="9" /></svg>
 }
 
@@ -369,6 +388,16 @@ function TabBarCliente({ activo, onNav }) {
   )
 }
 
+function MobileAdminHeader() {
+  return (
+    <header className="admin-mobile-topbar">
+      <a href="/" className="admin-mobile-brand" aria-label="Volver al Home de QuinielApp">
+        <BrandWordmark markSize={24} fontSize={17} />
+      </a>
+    </header>
+  )
+}
+
 function formatFecha(value) {
   const d = cierreToDate(value)
   if (!d) return '—'
@@ -473,6 +502,16 @@ function ordenarPorHora(partidos) {
     .map(x => x.p)
 }
 
+function fechaCreacionMs(q) {
+  const creada = q?.creada
+  if (!creada) return 0
+  if (typeof creada.toDate === 'function') return creada.toDate().getTime()
+  if (typeof creada.toMillis === 'function') return creada.toMillis()
+  if (typeof creada.seconds === 'number') return creada.seconds * 1000
+  const t = new Date(creada).getTime()
+  return Number.isNaN(t) ? 0 : t
+}
+
 // Cierre sugerido (valor listo para <input datetime-local>) = primer partido − margen.
 // Devuelve '' si ningún partido tiene hora todavía (ej. manuales sin capturar).
 function cierreSugerido(partidos) {
@@ -552,6 +591,7 @@ export default function Admin() {
   const [cuentaTel, setCuentaTel]         = useState('')
   const [guardandoCuenta, setGuardandoCuenta] = useState(false)
   const [cuentaMsg, setCuentaMsg]         = useState(null) // { tipo: 'ok'|'error', texto }
+  const [editandoCuentaCampo, setEditandoCuentaCampo] = useState(null) // 'nombre'|'telefono'|null
   // Cambio de contraseña dentro de Mi cuenta.
   const [cuentaP1, setCuentaP1]           = useState('')
   const [cuentaP2, setCuentaP2]           = useState('')
@@ -585,6 +625,46 @@ export default function Admin() {
   // ¿Puede crear una quiniela? El super admin siempre; un cliente si está activo.
   // (El gate duro real vive en firestore.rules: adminActivo()). Ya no hay límite de cuota.
   const puedeCrear = soySuper || !!adminDoc?.activo
+  const soporteOpciones = ({ framed = true } = {}) => {
+    const actionStyle = (primera = false) => framed
+      ? { ...card, marginBottom: 0, display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', textAlign: 'left', width: '100%' }
+      : {
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          width: '100%',
+          padding: '13px 0',
+          border: 'none',
+          borderTop: primera ? 'none' : '1px solid var(--border)',
+          background: 'transparent',
+          cursor: 'pointer',
+          textAlign: 'left',
+        }
+    const labelStyle = { display: 'block', fontSize: 13.5, fontWeight: 700, color: 'var(--text-strong)' }
+    const subStyle = { fontSize: 12, color: 'var(--muted)' }
+    const soporteLink = waLink(MENSAJES_WA?.soporte || 'Hola, necesito ayuda con mi panel de QuinielApp.')
+
+    return (
+      <div style={{ display: 'grid', gap: framed ? 10 : 0, maxWidth: framed ? 560 : undefined }}>
+        <button type="button" onClick={() => setAyudaAbierta(true)} style={actionStyle(true)}>
+          <AdminIcon name="info" size={18} style={{ color: 'var(--green)' }} />
+          <span style={{ flex: 1 }}>
+            <span style={labelStyle}>Centro de ayuda</span>
+            <span style={subStyle}>Cómo funciona la app, paso a paso</span>
+          </span>
+          <AdminIcon name="chevron-right" size={16} style={{ color: 'var(--muted)' }} />
+        </button>
+        <a href={soporteLink} target="_blank" rel="noreferrer" style={{ ...actionStyle(false), textDecoration: 'none' }}>
+          <AdminIcon name="message" size={18} style={{ color: '#25D366' }} />
+          <span style={{ flex: 1 }}>
+            <span style={labelStyle}>Soporte por WhatsApp</span>
+            <span style={subStyle}>Escríbenos y te ayudamos</span>
+          </span>
+          <AdminIcon name="chevron-right" size={16} style={{ color: 'var(--muted)' }} />
+        </a>
+      </div>
+    )
+  }
 
   // Tour de bienvenida: solo la primera vez que un cliente-admin entra al panel.
   // El "visto" se guarda en localStorage (sin tocar Firestore ni sus reglas).
@@ -606,8 +686,16 @@ export default function Admin() {
     setCuentaTel(adminDoc?.telefono ?? '')
     setCuentaMsg(null)
     setCuentaPassMsg(null)
+    setEditandoCuentaCampo(null)
     setCuentaP1(''); setCuentaP2('')
     setVista('cuenta')
+  }
+
+  const cancelarEdicionCuenta = () => {
+    setCuentaNombre(adminDoc?.nombre ?? '')
+    setCuentaTel(adminDoc?.telefono ?? '')
+    setCuentaMsg(null)
+    setEditandoCuentaCampo(null)
   }
 
   // Guarda nombre/teléfono (las reglas congelan activo/correo).
@@ -624,6 +712,7 @@ export default function Admin() {
       await updateDoc(doc(db, 'admins', miUid), datos)
       setAdminDoc(d => (d ? { ...d, ...datos } : d))
       setCuentaMsg({ tipo: 'ok', texto: 'Datos guardados.' })
+      setEditandoCuentaCampo(null)
     } catch {
       setCuentaMsg({ tipo: 'error', texto: 'No se pudieron guardar los datos. Intenta de nuevo.' })
     } finally {
@@ -845,6 +934,7 @@ export default function Admin() {
   const [busquedaMisSuper, setBusquedaMisSuper] = useState('')
   // Pestaña activa del panel cliente (nuevo shell escritorio/móvil): inicio | quinielas | caja | stats | cuenta | soporte
   const [clienteTab, setClienteTab]       = useState('inicio')
+  const [filtroQuinielasCliente, setFiltroQuinielasCliente] = useState('todas')
   // Estadísticas (analítica propia, solo super admin).
   const [statsDias, setStatsDias]         = useState(null)   // resumen últimos días
   const [statsGlobal, setStatsGlobal]     = useState(null)   // doc analytics/global (dispositivos únicos)
@@ -1090,7 +1180,7 @@ export default function Admin() {
     setEditPremioFijo(quinielaActual.premioFijo != null ? String(quinielaActual.premioFijo) : '')
     setEditCuota(quinielaActual.cuota != null ? String(quinielaActual.cuota) : '')
     setEditModeloPremio(quinielaActual.modeloPremio ?? MODELO_PREMIO.GANADOR_UNICO)
-    setEditCodigoAcceso(quinielaActual.codigoAcceso ?? '')
+    setEditCodigoAcceso(normalizarCodigoAccesoInput(quinielaActual.codigoAcceso ?? ''))
     setEditPrivada(!!quinielaActual.privada)
     setFixtures([]); setSeleccionados([])
     setConteoPredicciones(null)
@@ -2252,6 +2342,7 @@ export default function Admin() {
         <SidebarCliente activo={clienteTab} onNav={navCliente} adminDoc={adminDoc} onSalir={salir} />
       )}
       <div style={{ flex: (superDesktop || clienteDesktop) ? 1 : undefined, minWidth: 0, paddingBottom: clienteMobile ? 68 : undefined }}>
+        {clienteMobile && <MobileAdminHeader />}
       {/* Hero */}
       {!superDesktop && !clienteShell && (
       <div className="hero-pad" style={{ background: 'var(--hero-gradient)', color: 'var(--text)', borderBottom: '1px solid var(--border)', padding: soySuper ? '1.35rem 1rem 1.1rem' : undefined }}>
@@ -2878,7 +2969,7 @@ export default function Admin() {
                         autoComplete="off"
                       />
                     </div>
-                    {crearAb && (
+                    <SmoothCollapse open={!!crearAb}>
                       <div className="super-mobile-card">
                         <p style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13.5, fontWeight: 800, color: 'var(--text-strong)', margin: '0 0 12px' }}>
                           <AdminIcon name="plus" size={15} /> Nuevo cliente
@@ -2932,7 +3023,7 @@ export default function Admin() {
                           </div>
                         )}
                       </div>
-                    )}
+                    </SmoothCollapse>
                     {loadingClientes ? (
                       <p style={{ fontSize: 12.5, color: 'var(--muted)' }}>Cargando…</p>
                     ) : clientes.length === 0 ? (
@@ -3043,7 +3134,7 @@ export default function Admin() {
                                   <AdminIcon name="chevron-right" size={15} />
                                 </span>
                               </div>
-                              {abierto && (
+                              <SmoothCollapse open={abierto}>
                                 <div style={{ padding: '0 18px 14px', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                                   {c.debeCambiarPassword && <span style={{ width: '100%', fontSize: 11.5, color: 'var(--yellow)', marginBottom: 2 }}>Contraseña sin cambiar</span>}
                                   {c.notas && <span style={{ width: '100%', fontSize: 12, color: 'var(--muted)', marginBottom: 4 }}>{c.notas}</span>}
@@ -3053,7 +3144,7 @@ export default function Admin() {
                                     {eliminandoCliente === c.id ? 'Eliminando…' : inlineIconLabel('trash', 'Eliminar')}
                                   </button>
                                 </div>
-                              )}
+                              </SmoothCollapse>
                             </div>
                           )
                         })}
@@ -3271,13 +3362,13 @@ export default function Admin() {
                                     </span>
                                   </div>
                                 </div>
-                                <span style={{ fontSize: 16, fontWeight: 700, color: admAb ? 'var(--green)' : 'var(--muted)', transform: admAb ? 'rotate(90deg)' : 'none', flexShrink: 0 }}>›</span>
+                                <span style={{ fontSize: 16, fontWeight: 700, color: admAb ? 'var(--green)' : 'var(--muted)', transform: admAb ? 'rotate(90deg)' : 'none', transition: 'transform .15s, color .15s', flexShrink: 0 }}>›</span>
                               </button>
-                              {admAb && (
+                              <SmoothCollapse open={admAb}>
                                 <div className="super-admin-children">
                                   {adm.flat.map(q => <QuinielaCard key={q.id} q={q} conteos={conteos} onGestionar={gestionarQuiniela} dueno={labelDueno(q)} superCompact softManage />)}
                                 </div>
-                              )}
+                              </SmoothCollapse>
                             </div>
                           )
                         })}
@@ -3328,13 +3419,13 @@ export default function Admin() {
                               <AdminIcon name="chevron-right" size={16} />
                             </span>
                           </button>
-                          {admAb && (
+                          <SmoothCollapse open={admAb}>
                             <div style={{ padding: '4px 18px 14px' }}>
                               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12, alignItems: 'start' }}>
                                 {adm.flat.map(q => <QuinielaCard key={q.id} q={q} conteos={conteos} onGestionar={gestionarQuiniela} dueno={labelDueno(q)} superCompact softManage />)}
                               </div>
                             </div>
-                          )}
+                          </SmoothCollapse>
                         </div>
                       )
                     })}
@@ -3417,11 +3508,13 @@ export default function Admin() {
                       <AdminIcon name="info" size={13} />
                     </button>
                   )
-                  const defBox = (k) => (infoStat === k && DEFINICIONES_STATS[k]) ? (
-                    <div style={{ background: 'var(--green-bg)', border: '1px solid var(--green)', borderRadius: 'var(--radius-sm)', padding: '9px 11px', marginBottom: 12 }}>
-                      <p style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-strong)', marginBottom: 3 }}>{DEFINICIONES_STATS[k].t}</p>
-                      <p style={{ fontSize: 11.5, color: 'var(--text)', lineHeight: 1.5 }}>{DEFINICIONES_STATS[k].d}</p>
-                    </div>
+                  const defBox = (k) => DEFINICIONES_STATS[k] ? (
+                    <SmoothCollapse open={infoStat === k}>
+                      <div style={{ background: 'var(--green-bg)', border: '1px solid var(--green)', borderRadius: 'var(--radius-sm)', padding: '9px 11px', marginBottom: 12 }}>
+                        <p style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-strong)', marginBottom: 3 }}>{DEFINICIONES_STATS[k].t}</p>
+                        <p style={{ fontSize: 11.5, color: 'var(--text)', lineHeight: 1.5 }}>{DEFINICIONES_STATS[k].d}</p>
+                      </div>
+                    </SmoothCollapse>
                   ) : null
                   const metricCard = (k, valor, etiqueta, icon) => (
                     <button
@@ -3896,7 +3989,7 @@ export default function Admin() {
                           </span>
                           <AdminIcon name="chevron-down" size={16} style={{ color: 'var(--muted-soft)', transform: seguridadAbierta ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }} />
                         </button>
-                        {seguridadAbierta && (
+                        <SmoothCollapse open={seguridadAbierta}>
                           <div style={{ padding: 12, borderRadius: 'var(--radius-sm)', background: 'var(--bg-soft)', border: '1px solid var(--border)' }}>
                             <label htmlFor="super-p1" style={lbl}>Nueva contraseña</label>
                             <input id="super-p1" type="password" placeholder="Mínimo 8 caracteres" value={cuentaP1} onChange={e => { setCuentaP1(e.target.value); setCuentaPassMsg(null) }} style={{ marginBottom: 8 }} />
@@ -3908,7 +4001,7 @@ export default function Admin() {
                               {cambiandoPass ? 'Guardando…' : 'Guardar contraseña'}
                             </button>
                           </div>
-                        )}
+                        </SmoothCollapse>
                         <div className="super-tool-grid">
                           {[
                             ['GitHub', 'https://github.com/cverduzco23/quiniela-app', 'external'],
@@ -3952,36 +4045,102 @@ export default function Admin() {
               const renderGrupo = (items, titulo, clave, limite, marginTop) => {
                 if (items.length === 0) return null
                 const abierto = verTodo[clave]
-                const visibles = abierto ? items : items.slice(0, limite)
-                const ocultas = items.length - visibles.length
+                const visibles = items.slice(0, limite)
+                const extras = items.slice(limite)
+                const gridQuinielasStyle = { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12, alignItems: 'start' }
                 return (
                   <>
                     <p style={{ ...tituloGrupo, marginTop }}>{titulo}</p>
                     {clienteDesktop ? (
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12, alignItems: 'start' }}>
-                        {visibles.map(q => <QuinielaCard key={q.id} q={q} conteos={conteos} onGestionar={gestionarQuiniela} superCompact softManage />)}
-                      </div>
+                      <>
+                        <div style={gridQuinielasStyle}>
+                          {visibles.map(q => <QuinielaCard key={q.id} q={q} conteos={conteos} onGestionar={gestionarQuiniela} superCompact softManage />)}
+                        </div>
+                        {extras.length > 0 && (
+                          <SmoothCollapse open={!!abierto}>
+                            <div style={{ ...gridQuinielasStyle, marginTop: 12 }}>
+                              {extras.map(q => <QuinielaCard key={q.id} q={q} conteos={conteos} onGestionar={gestionarQuiniela} superCompact softManage />)}
+                            </div>
+                          </SmoothCollapse>
+                        )}
+                      </>
                     ) : (
-                      visibles.map(q => <QuinielaCard key={q.id} q={q} conteos={conteos} onGestionar={gestionarQuiniela} superCompact softManage />)
+                      <>
+                        {visibles.map(q => <QuinielaCard key={q.id} q={q} conteos={conteos} onGestionar={gestionarQuiniela} superCompact softManage />)}
+                        {extras.length > 0 && (
+                          <SmoothCollapse open={!!abierto}>
+                            <div>
+                              {extras.map(q => <QuinielaCard key={q.id} q={q} conteos={conteos} onGestionar={gestionarQuiniela} superCompact softManage />)}
+                            </div>
+                          </SmoothCollapse>
+                        )}
+                      </>
                     )}
-                    {items.length > limite && (
+                    {extras.length > 0 && (
                       <button
                         onClick={() => setVerTodo(v => ({ ...v, [clave]: !abierto }))}
                         style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%', padding: '9px', margin: '8px 0 4px', background: 'transparent', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--muted)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}
                       >
-                        {abierto ? 'Mostrar menos' : `Mostrar ${ocultas} más`}
+                        {abierto ? 'Mostrar menos' : `Mostrar ${extras.length} más`}
                         <AdminIcon name="chevron-down" size={15} style={{ color: 'var(--muted-soft)', transform: abierto ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }} />
                       </button>
                     )}
                   </>
                 )
               }
+              const ordenarRecientes = (arr) => [...arr].sort((a, b) => fechaCreacionMs(b) - fechaCreacionMs(a))
+              const miasOrdenadas = {
+                activas: ordenarRecientes(mias.activas),
+                enJuego: ordenarRecientes(mias.enJuego),
+                finalizadas: ordenarRecientes(mias.finalizadas),
+              }
+              const filtrosQuinielasCliente = [
+                ['todas', 'Todas', quinielasMias.length],
+                ['abiertas', 'Abiertas', miasOrdenadas.activas.length],
+                ['jugando', 'Jugándose', miasOrdenadas.enJuego.length],
+                ['finalizadas', 'Finalizadas', miasOrdenadas.finalizadas.length],
+              ]
+              const quinielasClienteFiltradas = filtroQuinielasCliente === 'abiertas'
+                ? miasOrdenadas.activas
+                : filtroQuinielasCliente === 'jugando'
+                  ? miasOrdenadas.enJuego
+                  : filtroQuinielasCliente === 'finalizadas'
+                    ? miasOrdenadas.finalizadas
+                    : [...miasOrdenadas.activas, ...miasOrdenadas.enJuego, ...miasOrdenadas.finalizadas]
+              const filtroQuinielasActual = filtrosQuinielasCliente.find(([key]) => key === filtroQuinielasCliente)
               const listaQuinielas = quinielasMias.length === 0 ? (
                 <div style={{ ...card, textAlign: 'center', padding: '3rem 2rem' }}>
                   <div style={{ color: 'var(--muted)', marginBottom: 12, display: 'flex', justifyContent: 'center' }}><AdminIcon name="ball" size={40} /></div>
                   <p style={{ fontWeight: 700, fontSize: 16, color: 'var(--text)', marginBottom: 8 }}>Sin quinielas todavía</p>
                   <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 20 }}>Crea tu primera quiniela para comenzar.</p>
                   <button onClick={abrirNuevaQuiniela} style={{ ...greenCtaStyle(false) }}>Crear ahora →</button>
+                </div>
+              ) : clienteMobile ? (
+                <div>
+                  <div className="super-filter-row admin-quiniela-filter-row" role="tablist" aria-label="Filtrar quinielas">
+                    {filtrosQuinielasCliente.map(([key, label, count]) => (
+                      <button
+                        key={key}
+                        type="button"
+                        role="tab"
+                        className={`super-filter-chip${filtroQuinielasCliente === key ? ' is-active' : ''}`}
+                        onClick={() => setFiltroQuinielasCliente(key)}
+                        aria-selected={filtroQuinielasCliente === key}
+                      >
+                        <span>{label}</span>
+                        <span className="super-filter-chip-count">{count}</span>
+                      </button>
+                    ))}
+                  </div>
+                  {quinielasClienteFiltradas.length === 0 ? (
+                    <p style={{ fontSize: 13, color: 'var(--muted)', fontStyle: 'italic' }}>
+                      No hay quinielas {filtroQuinielasActual?.[1]?.toLowerCase() ?? 'en este filtro'}.
+                    </p>
+                  ) : (
+                    <div className="super-mobile-card-list">
+                      {quinielasClienteFiltradas.map(q => <QuinielaCard key={q.id} q={q} conteos={conteos} onGestionar={gestionarQuiniela} superCompact softManage />)}
+                    </div>
+                  )}
                 </div>
               ) : (
                 <>
@@ -3992,9 +4151,9 @@ export default function Admin() {
                     const limFinalizadas = clienteDesktop ? 4 : (sinAbiertas ? 2 : 0)
                     return (
                       <>
-                        {renderGrupo(mias.activas, 'Activas', 'mias-activas', clienteDesktop ? 6 : 2, 0)}
-                        {renderGrupo(mias.enJuego, 'Jugándose', 'mias-enjuego', clienteDesktop ? 6 : 2, mias.activas.length > 0 ? 20 : 0)}
-                        {renderGrupo(mias.finalizadas, 'Finalizadas', 'mias-finalizadas', limFinalizadas, sinAbiertas ? 0 : 20)}
+                        {renderGrupo(miasOrdenadas.activas, 'Activas', 'mias-activas', clienteDesktop ? 6 : 2, 0)}
+                        {renderGrupo(miasOrdenadas.enJuego, 'Jugándose', 'mias-enjuego', clienteDesktop ? 6 : 2, miasOrdenadas.activas.length > 0 ? 20 : 0)}
+                        {renderGrupo(miasOrdenadas.finalizadas, 'Finalizadas', 'mias-finalizadas', limFinalizadas, sinAbiertas ? 0 : 20)}
                       </>
                     )
                   })()}
@@ -4023,18 +4182,7 @@ export default function Admin() {
                 return (
                   <>
                     {headerCli('Soporte', '¿Necesitas ayuda con tu panel?')}
-                    <div style={{ display: 'grid', gap: 10, maxWidth: 560 }}>
-                      <button onClick={() => setAyudaAbierta(true)} style={{ ...card, marginBottom: 0, display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', textAlign: 'left', width: '100%' }}>
-                        <AdminIcon name="info" size={18} style={{ color: 'var(--green)' }} />
-                        <span style={{ flex: 1 }}><span style={{ display: 'block', fontSize: 13.5, fontWeight: 700, color: 'var(--text-strong)' }}>Centro de ayuda</span><span style={{ fontSize: 12, color: 'var(--muted)' }}>Cómo funciona la app, paso a paso</span></span>
-                        <AdminIcon name="chevron-right" size={16} style={{ color: 'var(--muted)' }} />
-                      </button>
-                      <a href={waLink(MENSAJES_WA?.soporte || 'Hola, necesito ayuda con mi panel de QuinielApp.', '')} target="_blank" rel="noreferrer" style={{ ...card, marginBottom: 0, display: 'flex', alignItems: 'center', gap: 12, textDecoration: 'none' }}>
-                        <AdminIcon name="message" size={18} style={{ color: '#25D366' }} />
-                        <span style={{ flex: 1 }}><span style={{ display: 'block', fontSize: 13.5, fontWeight: 700, color: 'var(--text-strong)' }}>Soporte por WhatsApp</span><span style={{ fontSize: 12, color: 'var(--muted)' }}>Escríbenos y te ayudamos</span></span>
-                        <AdminIcon name="chevron-right" size={16} style={{ color: 'var(--muted)' }} />
-                      </a>
-                    </div>
+                    {soporteOpciones()}
                   </>
                 )
               }
@@ -4058,7 +4206,7 @@ export default function Admin() {
                   {abiertas.length > 0 ? (
                     <>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                        <p style={tituloGrupo}>Próximos cierres</p>
+                        <p style={tituloGrupo}>Tus quinielas</p>
                         <button onClick={() => navCliente('quinielas')} style={{ background: 'transparent', border: 'none', color: 'var(--green)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Ver todas ›</button>
                       </div>
                       {clienteDesktop ? (
@@ -4066,7 +4214,7 @@ export default function Admin() {
                           {abiertas.map(q => <QuinielaCard key={q.id} q={q} conteos={conteos} onGestionar={gestionarQuiniela} superCompact softManage />)}
                         </div>
                       ) : (
-                        abiertas.map(q => <QuinielaCard key={q.id} q={q} conteos={conteos} onGestionar={gestionarQuiniela} softManage />)
+                        abiertas.map(q => <QuinielaCard key={q.id} q={q} conteos={conteos} onGestionar={gestionarQuiniela} superCompact softManage />)
                       )}
                     </>
                   ) : quinielasMias.length === 0 ? listaQuinielas : null}
@@ -4168,22 +4316,81 @@ export default function Admin() {
 
             {/* Tus datos */}
             <div style={card}>
-              <p style={{ ...lbl, marginBottom: 12 }}>Tus datos</p>
+              <div className="admin-account-profile">
+                <span className="admin-account-avatar">
+                  {iniciales(cuentaNombre || adminDoc?.nombre || adminDoc?.email || auth.currentUser?.email)}
+                </span>
+                <div style={{ minWidth: 0 }}>
+                  <p className="admin-account-name">{cuentaNombre.trim() || adminDoc?.nombre || 'Mi cuenta'}</p>
+                  <p className="admin-account-role">Organizador</p>
+                </div>
+              </div>
 
-              <label htmlFor="cuenta-nombre" style={{ ...lbl, marginBottom: 4 }}>Nombre</label>
-              <input id="cuenta-nombre" type="text" value={cuentaNombre} onChange={e => { setCuentaNombre(e.target.value); setCuentaMsg(null) }} style={{ marginBottom: 14 }} />
+              <div className="admin-account-fields">
+                <div className={`admin-account-field${editandoCuentaCampo === 'nombre' ? ' is-editing' : ''}`}>
+                  <label htmlFor="cuenta-nombre" className="admin-account-label">Nombre</label>
+                  {editandoCuentaCampo === 'nombre' ? (
+                    <input
+                      id="cuenta-nombre"
+                      type="text"
+                      value={cuentaNombre}
+                      autoFocus
+                      onChange={e => { setCuentaNombre(e.target.value); setCuentaMsg(null) }}
+                      onKeyDown={e => e.key === 'Enter' && guardarMiCuenta()}
+                    />
+                  ) : (
+                    <div className="admin-account-read-row">
+                      <span className="admin-account-value">{cuentaNombre.trim() || 'Sin nombre'}</span>
+                      <button type="button" className="admin-account-edit-btn" onClick={() => { setEditandoCuentaCampo('nombre'); setCuentaMsg(null) }} aria-label="Editar nombre" title="Editar nombre">
+                        <AdminIcon name="pencil" size={15} />
+                      </button>
+                    </div>
+                  )}
+                </div>
 
-              <label htmlFor="cuenta-tel" style={{ ...lbl, marginBottom: 4 }}>Teléfono <span style={{ color: 'var(--muted)', fontWeight: 500, textTransform: 'none', letterSpacing: 0 }}>(opcional)</span></label>
-              <input id="cuenta-tel" type="tel" placeholder="Ej. 55 1234 5678" value={cuentaTel} onChange={e => { setCuentaTel(e.target.value); setCuentaMsg(null) }} style={{ marginBottom: 14 }} />
+                <div className={`admin-account-field${editandoCuentaCampo === 'telefono' ? ' is-editing' : ''}`}>
+                  <label htmlFor="cuenta-tel" className="admin-account-label">Teléfono</label>
+                  {editandoCuentaCampo === 'telefono' ? (
+                    <input
+                      id="cuenta-tel"
+                      type="tel"
+                      placeholder="Ej. 55 1234 5678"
+                      value={cuentaTel}
+                      autoFocus
+                      onChange={e => { setCuentaTel(e.target.value); setCuentaMsg(null) }}
+                      onKeyDown={e => e.key === 'Enter' && guardarMiCuenta()}
+                    />
+                  ) : (
+                    <div className="admin-account-read-row">
+                      <span className={`admin-account-value${cuentaTel.trim() ? '' : ' is-empty'}`}>{cuentaTel.trim() || 'Sin teléfono'}</span>
+                      <button type="button" className="admin-account-edit-btn" onClick={() => { setEditandoCuentaCampo('telefono'); setCuentaMsg(null) }} aria-label="Editar teléfono" title="Editar teléfono">
+                        <AdminIcon name="pencil" size={15} />
+                      </button>
+                    </div>
+                  )}
+                </div>
 
-              <label style={{ ...lbl, marginBottom: 4 }}>Correo</label>
-              <input type="email" value={adminDoc?.email ?? ''} disabled style={{ marginBottom: 6, opacity: 0.6, cursor: 'not-allowed' }} />
-              <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 14, lineHeight: 1.4 }}>Es tu usuario de acceso. Para cambiarlo, escríbenos por WhatsApp.</p>
+                <div className="admin-account-field">
+                  <span className="admin-account-label">Correo</span>
+                  <div className="admin-account-read-row admin-account-read-row--locked">
+                    <span className="admin-account-value">{adminDoc?.email ?? auth.currentUser?.email ?? ''}</span>
+                    <AdminIcon name="lock" size={14} style={{ color: 'var(--muted-soft)' }} />
+                  </div>
+                  <p style={{ fontSize: 11, color: 'var(--muted)', margin: '7px 0 0', lineHeight: 1.4 }}>Es tu usuario de acceso. Para cambiarlo, escríbenos por WhatsApp.</p>
+                </div>
+              </div>
 
               {cuentaMsg && <p style={{ fontSize: 12, color: cuentaMsg.tipo === 'ok' ? 'var(--green)' : 'var(--red)', marginBottom: 10 }}>{cuentaMsg.texto}</p>}
-              <button onClick={guardarMiCuenta} disabled={guardandoCuenta} style={greenCtaStyle(guardandoCuenta)}>
-                {guardandoCuenta ? 'Guardando…' : 'Guardar cambios'}
-              </button>
+              <SmoothCollapse open={!!editandoCuentaCampo}>
+                <div className="admin-account-actions">
+                  <button onClick={guardarMiCuenta} disabled={guardandoCuenta} style={{ ...greenCtaStyle(guardandoCuenta), flex: 1 }}>
+                    {guardandoCuenta ? 'Guardando…' : 'Guardar cambios'}
+                  </button>
+                  <button type="button" onClick={cancelarEdicionCuenta} disabled={guardandoCuenta} className="admin-account-cancel-btn">
+                    Cancelar
+                  </button>
+                </div>
+              </SmoothCollapse>
             </div>
 
             {/* Seguridad — colapsada por default */}
@@ -4193,10 +4400,10 @@ export default function Admin() {
                 aria-expanded={seguridadAbierta}
                 style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
               >
-                <span style={{ ...lbl, marginBottom: 0 }}>Seguridad — cambiar contraseña</span>
+                <span style={{ ...lbl, marginBottom: 0 }}>Cambiar contraseña</span>
                 <span style={{ fontSize: 13, color: 'var(--muted)', transform: seguridadAbierta ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} aria-hidden="true">⌄</span>
               </button>
-              {seguridadAbierta && (
+              <SmoothCollapse open={seguridadAbierta}>
                 <div style={{ marginTop: 14 }}>
                   <label htmlFor="cuenta-p1" style={lbl}>Nueva contraseña</label>
                   <input id="cuenta-p1" type="password" placeholder="Mínimo 8 caracteres" value={cuentaP1} onChange={e => { setCuentaP1(e.target.value); setCuentaPassMsg(null) }} style={{ marginBottom: 8 }} />
@@ -4209,13 +4416,13 @@ export default function Admin() {
                     {cambiandoPass ? 'Guardando…' : 'Cambiar contraseña'}
                   </button>
                 </div>
-              )}
+              </SmoothCollapse>
             </div>
 
-            {/* Ayuda */}
-            <div style={{ ...card, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-              <span style={{ fontSize: 12.5, color: 'var(--text)' }}>¿Necesitas ayuda?</span>
-              <a href={waLink(MENSAJES_WA.soporte)} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, fontWeight: 700, color: 'var(--green)', textDecoration: 'none' }}>Escríbenos por WhatsApp →</a>
+            {/* Soporte */}
+            <div style={card}>
+              <p style={{ ...lbl, marginBottom: 2 }}>Soporte</p>
+              {soporteOpciones({ framed: false })}
             </div>
           </>
         )}
@@ -4269,9 +4476,7 @@ export default function Admin() {
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginTop: 6 }}>
                     <span style={{ fontSize: 11, color: 'var(--muted)' }}>{p.hora ? formatFixtureDate(p.hora) : ''}</span>
-                    {partidos.length > 1 && (
-                      <button onClick={() => quitarPartido(i)} aria-label="Quitar partido" title="Quitar" style={{ background: 'none', border: 'none', color: 'var(--red)', cursor: 'pointer', fontSize: 12, fontWeight: 700, padding: '2px 6px', flexShrink: 0 }}>Quitar ✕</button>
-                    )}
+                    <button type="button" onClick={() => quitarPartido(i)} aria-label="Quitar partido" title="Quitar" style={{ background: 'none', border: 'none', color: 'var(--red)', cursor: 'pointer', fontSize: 12, fontWeight: 700, padding: '2px 6px', flexShrink: 0 }}>Quitar ✕</button>
                   </div>
                 </div>
               ))}
@@ -4304,7 +4509,7 @@ export default function Admin() {
               <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>
                 Generado automático. Puedes cambiarlo, pero evita un código muy fácil. Solo quien lo tenga puede participar.
               </p>
-              <input id="quiniela-codigo" type="text" placeholder="Ej. ACME2026" value={codigoAcceso} onChange={e => setCodigoAcceso(e.target.value)} />
+              <input id="quiniela-codigo" type="text" placeholder="Ej. ACME2026" value={codigoAcceso} autoCapitalize="characters" onChange={e => setCodigoAcceso(normalizarCodigoAccesoInput(e.target.value))} />
 
               {soySuper && (
                 <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', marginTop: 14 }}>
@@ -4929,10 +5134,12 @@ export default function Admin() {
                         </button>
                       )}
                     </div>
-                    {conteoPredicciones > 0 && partidosFijosInfo && (
-                      <div style={{ background: 'var(--neutral-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '8px 12px', marginBottom: 12, fontSize: 12, color: 'var(--muted)', lineHeight: 1.5 }}>
-                        Ya hay {conteoPredicciones} predicción{conteoPredicciones !== 1 ? 'es' : ''} registrada{conteoPredicciones !== 1 ? 's' : ''}, así que la lista de partidos queda fija: no se puede agregar ni quitar. Si necesitas otros partidos, crea una quiniela nueva.
-                      </div>
+                    {conteoPredicciones > 0 && (
+                      <SmoothCollapse open={partidosFijosInfo}>
+                        <div style={{ background: 'var(--neutral-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '8px 12px', marginBottom: 12, fontSize: 12, color: 'var(--muted)', lineHeight: 1.5 }}>
+                          Ya hay {conteoPredicciones} predicción{conteoPredicciones !== 1 ? 'es' : ''} registrada{conteoPredicciones !== 1 ? 's' : ''}, así que la lista de partidos queda fija: no se puede agregar ni quitar. Si necesitas otros partidos, crea una quiniela nueva.
+                        </div>
+                      </SmoothCollapse>
                     )}
                     {editPartidos.map((p, i) => (
                       // ── Tarjeta solo lectura (los partidos vienen de ESPN, no se editan) ──
@@ -4991,7 +5198,7 @@ export default function Admin() {
                     <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>
                       Solo quien lo tenga puede participar. Evita uno muy fácil.
                     </p>
-                    <input id="edit-codigo" type="text" placeholder="Ej. ACME2026" value={editCodigoAcceso} onChange={e => setEditCodigoAcceso(e.target.value)} />
+                    <input id="edit-codigo" type="text" placeholder="Ej. ACME2026" value={editCodigoAcceso} autoCapitalize="characters" onChange={e => setEditCodigoAcceso(normalizarCodigoAccesoInput(e.target.value))} />
 
                     {soySuper && (
                       <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', marginTop: 14 }}>
@@ -5259,12 +5466,15 @@ function QuinielaCard({ q, conteos, onGestionar, dueno, superCompact = false, so
               {pagosPendientes} pago{pagosPendientes !== 1 ? 's' : ''}
             </span>
           )}
-          {(q.privada || q.codigoAcceso) && (
+          {!tienePremio(q) && (
             <span style={{
-              fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 'var(--radius-full)', flexShrink: 0,
-              background: 'var(--neutral-bg)', color: 'var(--text)', border: '1px solid var(--border-strong)',
+              display: 'inline-flex', alignItems: 'center', gap: 4,
+              fontSize: 10, fontWeight: 800, padding: '3px 9px 3px 7px', borderRadius: 'var(--radius-full)', flexShrink: 0,
+              background: 'linear-gradient(135deg, rgba(250,204,21,0.18), rgba(34,197,94,0.18))',
+              color: 'var(--green-light)', border: '1px solid rgba(134,239,172,0.42)',
             }}>
-              {superCompact ? 'Privada' : '🔒 Privada'}
+              <AdminIcon name="smile" size={11} strokeWidth={2.4} />
+              Solo por diversión
             </span>
           )}
         </div>
@@ -5287,7 +5497,7 @@ function QuinielaCard({ q, conteos, onGestionar, dueno, superCompact = false, so
       </div>
       <button
         onClick={() => onGestionar(q)}
-        className={softManage ? 'super-soft-manage' : undefined}
+        className={softManage ? `super-soft-manage${superCompact ? ' super-soft-manage--full' : ''}` : undefined}
         style={softManage ? undefined : { ...greenCtaStyle(false), whiteSpace: 'nowrap', flexShrink: 0, width: superCompact ? '100%' : undefined, padding: superCompact ? '10px 12px' : undefined }}
       >
         Gestionar

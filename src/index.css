@@ -647,6 +647,13 @@ a:focus-visible {
   white-space: nowrap;
 }
 
+.public-home-main.public-home-main--starts-with-how {
+  padding-top: 0 !important;
+}
+.public-home-main.public-home-main--starts-with-how #como-funciona {
+  border-top: none !important;
+}
+
 @media (max-width: 920px) {
   .public-home-hero {
     grid-template-columns: 1fr !important;
@@ -1052,8 +1059,6 @@ a:focus-visible {
     --pred-review-score-min-width: 54px;
     --pred-review-badge-size: 9.5px;
     --pred-review-badge-padding: 2px 7px;
-    --pred-final-note-padding: 7px 10px;
-    --pred-final-note-size: 11.5px;
   }
 }
 
@@ -1439,6 +1444,44 @@ a:focus-visible {
     padding: 3px 6px;
     font-size: 9.5px;
   }
+}
+.admin-mobile-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 850;
+  min-height: 58px;
+  padding: 11px 16px;
+  padding-top: calc(11px + env(safe-area-inset-top));
+  background: rgba(11, 18, 32, 0.94);
+  border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(12px);
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+}
+.admin-mobile-brand {
+  display: inline-flex;
+  min-width: 0;
+  text-decoration: none;
+}
+.admin-smooth-collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  visibility: hidden;
+  overflow: hidden;
+  transition: grid-template-rows 0.24s ease, opacity 0.18s ease, visibility 0s linear 0.24s;
+}
+.admin-smooth-collapse.is-open {
+  grid-template-rows: 1fr;
+  opacity: 1;
+  visibility: visible;
+  transition: grid-template-rows 0.24s ease, opacity 0.18s ease;
+}
+.admin-smooth-collapse-inner {
+  min-height: 0;
+  overflow: hidden;
 }
 .super-mobile-search {
   display: flex;
@@ -1980,12 +2023,47 @@ a:focus-visible {
   font-size: 12.5px;
   font-weight: 600;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
 }
 .super-filter-chip.is-active {
   background: rgba(34,197,94,0.14);
   border-color: rgba(34,197,94,0.4);
   color: var(--green-light);
   font-weight: 700;
+}
+.super-filter-chip-count {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: var(--radius-full);
+  background: rgba(255,255,255,0.06);
+  color: var(--muted-soft);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10.5px;
+  font-weight: 800;
+  line-height: 1;
+}
+.super-filter-chip.is-active .super-filter-chip-count {
+  background: rgba(34,197,94,0.24);
+  color: var(--green-light);
+}
+.admin-quiniela-filter-row {
+  margin: 0 0 14px;
+  padding: 0 0 4px;
+  overflow-x: visible;
+  flex-wrap: wrap;
+}
+.admin-quiniela-filter-row .super-filter-chip {
+  flex: 1 1 calc(50% - 4px);
+  justify-content: center;
+  min-width: 0;
+  padding-left: 10px;
+  padding-right: 10px;
 }
 .super-state-label {
   display: flex;
@@ -2013,7 +2091,8 @@ a:focus-visible {
   font-weight: 800;
 }
 .super-soft-manage {
-  width: 100%;
+  min-width: 116px;
+  min-height: 38px;
   padding: 10px 12px;
   border-radius: var(--radius-sm);
   border: 1px solid rgba(34,197,94,0.4);
@@ -2023,6 +2102,13 @@ a:focus-visible {
   font-weight: 700;
   cursor: pointer;
   box-shadow: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.super-soft-manage--full {
+  width: 100%;
 }
 .super-admin-row {
   width: 100%;
@@ -2069,6 +2155,126 @@ a:focus-visible {
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+.admin-account-profile {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 15px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+}
+.admin-account-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, var(--green), var(--green-light));
+  color: #07120A;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 16px;
+  font-weight: 900;
+}
+.admin-account-name {
+  color: var(--text-strong);
+  font-size: 16px;
+  font-weight: 850;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.admin-account-role {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 650;
+  margin-top: 3px;
+}
+.admin-account-fields {
+  display: grid;
+  gap: 10px;
+}
+.admin-account-field {
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 11px 12px;
+}
+.admin-account-field.is-editing {
+  border-color: rgba(34, 197, 94, 0.5);
+  background: rgba(34, 197, 94, 0.06);
+}
+.admin-account-label {
+  display: block;
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 7px;
+}
+.admin-account-field input {
+  min-height: 44px;
+  border-radius: var(--radius-sm);
+  background: var(--card-light);
+  margin: 0;
+}
+.admin-account-read-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 34px;
+}
+.admin-account-read-row--locked {
+  align-items: flex-start;
+}
+.admin-account-value {
+  min-width: 0;
+  color: var(--text-strong);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.admin-account-value.is-empty {
+  color: var(--muted-soft);
+  font-weight: 650;
+}
+.admin-account-edit-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong);
+  background: var(--neutral-bg);
+  color: var(--green-light);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 0;
+}
+.admin-account-actions {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  margin-top: 14px;
+}
+.admin-account-cancel-btn {
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong);
+  background: var(--neutral-bg);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 800;
+}
+.admin-account-cancel-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 .super-tool-grid {
   display: grid;
@@ -2131,6 +2337,9 @@ a:focus-visible {
   }
   .super-tool-grid {
     grid-template-columns: 1fr;
+  }
+  .admin-account-actions {
+    flex-direction: column;
   }
   .super-mobile-kpi-card {
     padding: 10px;

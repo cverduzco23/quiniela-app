@@ -770,7 +770,8 @@ export default function Predicciones() {
                 type="text"
                 placeholder="Ej. ACME2026"
                 value={codigoInput}
-                onChange={e => { setCodigoInput(e.target.value); setCodigoError('') }}
+                autoCapitalize="characters"
+                onChange={e => { setCodigoInput(e.target.value.toUpperCase()); setCodigoError('') }}
                 onKeyDown={e => e.key === 'Enter' && validarCodigo()}
                 autoFocus
                 style={{
@@ -1056,16 +1057,6 @@ export default function Predicciones() {
               </div>
             )}
 
-            <div style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
-              marginBottom: 10, padding: 'var(--pred-final-note-padding, 9px 12px)',
-              borderRadius: 'var(--radius-md)', border: '1px solid var(--green)',
-              background: 'var(--green-bg)', color: 'var(--green-light)',
-              fontSize: 'var(--pred-final-note-size, 12.5px)', fontWeight: 800, textAlign: 'center',
-            }}>
-              <PredIcon name="check" size={14} />
-              Último paso: toca el botón verde.
-            </div>
             <button onClick={enviar} disabled={enviando} className={enviando ? undefined : 'green-shine-button'} style={{ ...ctaPrimary(enviando), marginBottom: 10 }}>
               <span style={{ position: 'relative', zIndex: 1 }}>
                 {enviando ? 'Enviando…' : 'Enviar predicciones ahora →'}
