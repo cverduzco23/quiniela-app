@@ -3811,8 +3811,8 @@ export default function Admin() {
                   return partes.some(parte => normalizaTexto(parte).includes(busqueda))
                 }
                 const enMovimientoSuper = [
-                  ...quinielas.filter(q => esCerradaQ(q) && !esFinalizadaQ(q)),
-                  ...quinielas.filter(q => !esCerradaQ(q)),
+                  ...mias.enJuego,
+                  ...mias.activas,
                 ].filter(q => coincideBusqueda(q.nombre))
                 const gestionModules = [
                   { modulo: 'caja', icon: 'wallet', title: 'Caja', meta: `${saldos.length}`, desc: 'Saldos y movimientos por participante.', keywords: 'saldos movimientos participante' },

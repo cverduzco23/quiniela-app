@@ -512,26 +512,20 @@ function FaqSection() {
 
 function PromoCreateCard() {
   return (
-    <div style={{
-      background: 'var(--card)',
-      borderRadius: 16,
-      padding: 20,
-      border: '1px solid var(--border)',
-      boxShadow: 'var(--shadow-sm)',
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
-        <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, borderRadius: 12, color: 'var(--green-light)', background: 'var(--green-bg)', border: '1px solid rgba(34,197,94,0.35)', flexShrink: 0 }}>
-          <HomeIcon name="ball" size={22} />
+    <div className="public-create-card">
+      <div className="public-create-copy">
+        <span className="public-create-icon">
+          <HomeIcon name="ball" size={26} />
         </span>
-        <div style={{ minWidth: 0 }}>
-          <p style={{ fontSize: 16, fontWeight: 850, color: 'var(--text-strong)' }}>¿Quieres crear tu propia quiniela?</p>
-          <p style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 3, lineHeight: 1.45 }}>
+        <div className="public-create-text">
+          <p className="public-create-title">¿Quieres crear tu propia quiniela?</p>
+          <p className="public-create-subtitle">
             Para tu equipo, empresa o grupo de amigos.
           </p>
         </div>
       </div>
-      <a href={waLink(MENSAJES_WA.crearQuiniela)} target="_blank" rel="noreferrer" onClick={() => track('cta_crear_quiniela')} style={{ ...ctaPrimary, width: '100%' }}>
-        <HomeIcon name="whatsapp" size={16} />
+      <a href={waLink(MENSAJES_WA.crearQuiniela)} target="_blank" rel="noreferrer" onClick={() => track('cta_crear_quiniela')} className="public-create-button">
+        <HomeIcon name="whatsapp" size={19} />
         Crear por WhatsApp
       </a>
     </div>

@@ -1,11 +1,11 @@
 import { BrandMark } from './Brand'
 
-export function Footer({ maxWidth = 560 }) {
+export function Footer({ maxWidth = '100%' }) {
   const year = new Date().getFullYear()
 
   return (
     <footer style={{
-      maxWidth, margin: '24px auto 0', padding: '18px 0 6px',
+      width: '100%', maxWidth, margin: '24px auto 0', padding: '18px 0 6px',
       borderTop: '1px solid var(--border)',
     }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
