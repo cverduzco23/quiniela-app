@@ -1786,7 +1786,8 @@ a:focus-visible {
 .super-mobile-fab {
   position: fixed;
   right: 16px;
-  bottom: calc(22px + env(safe-area-inset-bottom));
+  /* Despeja la barra de pestañas inferior (60px) del shell del super móvil. */
+  bottom: calc(74px + env(safe-area-inset-bottom));
   z-index: 901;
   height: 52px;
   padding: 0 20px;

@@ -15,7 +15,6 @@ import { TIPO_PREMIO, MODELO_PREMIO, calcularBote, tienePremio, formatearMXN } f
 import { normalizarNombre } from '../utils/nombres'
 import { detectarSimilares } from '../utils/duplicados'
 import { findEventByTeamsAndDate } from '../utils/espn'
-import { LABELS_SECCIONES_HOME, ordenSeccionesHome } from '../utils/homeSections'
 import { leerDias, leerQuiniela, leerGlobal, estaExcluido, marcarExcluido } from '../utils/analytics'
 import { EmojiPicker } from '../components/EmojiPicker'
 
@@ -285,7 +284,6 @@ function SidebarSuper({ activo, onNav, counts, email }) {
         {item('mis', 'ball', 'Mis quinielas', counts.mis)}
         {group('Plataforma')}
         {item('estadisticas', 'chart', 'Estadísticas')}
-        {item('home', 'settings', 'Inicio público')}
         {item('cuenta', 'key', 'Mi cuenta')}
       </nav>
       <div style={{ marginTop: 'auto', display: 'flex', alignItems: 'center', gap: 10, padding: '6px 4px' }}>
@@ -978,7 +976,6 @@ export default function Admin() {
   // ─── Estado principal ─────────────────────────────────────────────────────
   const [vista, setVista]                 = useState('lista')
   const [superModulo, setSuperModulo]     = useState(null)
-  const [busquedaSuper, setBusquedaSuper] = useState('')
   const [busquedaClientesSuper, setBusquedaClientesSuper] = useState('')
   const [filtroMisSuper, setFiltroMisSuper] = useState('todas')
   const [busquedaMisSuper, setBusquedaMisSuper] = useState('')
@@ -1006,60 +1003,12 @@ export default function Admin() {
   // Admin seleccionado en la sección "Otros admins" para ver sus quinielas.
   const [adminExpandido, setAdminExpandido] = useState(null)
 
-  // ─── Config del inicio (solo super admin) ─────────────────────────────────
-  // Qué secciones del home se muestran. Campo ausente = visible (default seguro).
-  const [homeConfig, setHomeConfig]       = useState(null)
-  const [guardandoHome, setGuardandoHome] = useState(null)
-
   // Cargar la lista de clientes para el super admin: en el tab Clientes y también
   // en la lista (para etiquetar de quién es cada quiniela de "otros admins").
   useEffect(() => {
     if (autenticado && authListo && soySuper && vista === 'lista') cargarClientes()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autenticado, authListo, soySuper, vista])
-
-  // Cargar la config del inicio (qué secciones se muestran) — solo super admin.
-  useEffect(() => {
-    if (!autenticado || !authListo || !soySuper) return
-    getDoc(doc(db, 'config', 'home'))
-      .then(s => setHomeConfig(s.exists() ? s.data() : {}))
-      .catch(() => setHomeConfig({}))
-  }, [autenticado, authListo, soySuper])
-
-  // Activar/desactivar una sección del inicio. `clave` = campo en config/home.
-  // Default (campo ausente) = visible, por eso el toggle invierte `!== false`.
-  const toggleSeccionHome = async (clave) => {
-    const visibleActual = homeConfig?.[clave] !== false
-    const nuevoValor = !visibleActual
-    setGuardandoHome(clave)
-    try {
-      await setDoc(doc(db, 'config', 'home'), { [clave]: nuevoValor }, { merge: true })
-      setHomeConfig(c => ({ ...(c ?? {}), [clave]: nuevoValor }))
-    } catch {
-      alerta('No se pudo guardar el cambio. Intenta de nuevo.')
-    } finally {
-      setGuardandoHome(null)
-    }
-  }
-
-  // Mover una sección del inicio hacia arriba (dir=-1) o abajo (dir=+1).
-  // Guarda el orden completo en config/home.orden.
-  const moverSeccionHome = async (clave, dir) => {
-    const arr = ordenSeccionesHome(homeConfig)
-    const i = arr.indexOf(clave)
-    const j = i + dir
-    if (i < 0 || j < 0 || j >= arr.length) return
-    ;[arr[i], arr[j]] = [arr[j], arr[i]]
-    setGuardandoHome(clave)
-    try {
-      await setDoc(doc(db, 'config', 'home'), { orden: arr }, { merge: true })
-      setHomeConfig(c => ({ ...(c ?? {}), orden: arr }))
-    } catch {
-      alerta('No se pudo guardar el orden. Intenta de nuevo.')
-    } finally {
-      setGuardandoHome(null)
-    }
-  }
 
   // ─── Formulario nueva quiniela ────────────────────────────────────────────
   const [nombre, setNombre]     = useState('')
@@ -1158,9 +1107,11 @@ export default function Admin() {
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { if (autenticado && authListo) cargarQuinielas() }, [autenticado, authListo])
 
-  // Estadísticas: carga el resumen (días + total de dispositivos) en la primera pantalla.
+  // Estadísticas: carga el resumen (días + total de dispositivos). Se necesita en el
+  // tablero de escritorio (superModulo vacío) y en la pestaña Estadísticas del móvil
+  // (superModulo === 'estadisticas').
   useEffect(() => {
-    if (!soySuper || vista !== 'lista' || superModulo) return
+    if (!soySuper || vista !== 'lista' || (superModulo && superModulo !== 'estadisticas')) return
     let vivo = true
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setStatsCargando(true)
@@ -2379,31 +2330,18 @@ export default function Admin() {
     setSuperModulo(modulo)
   }
   // ─── Cliente: nuevo shell (barra lateral escritorio / pestañas móvil) ─────────
-  const clienteShell = !soySuper                 // el cliente siempre usa el shell nuevo
+  // El super admin en MÓVIL también usa este shell (barra inferior idéntica al
+  // admin): así maneja su panel tal cual lo haría un organizador. Solo el super
+  // de ESCRITORIO conserva su barra lateral propia (SidebarSuper).
+  const clienteShell = !superDesktop
   const clienteDesktop = clienteShell && esEscritorio
   const clienteMobile = clienteShell && !esEscritorio
-  const superMobileHome = soySuper && !superDesktop && vista === 'lista' && !superModulo
-  const superMobileModule = soySuper && !superDesktop && (
-    (vista === 'lista' && !!superModulo) ||
-    (vista === 'caja' && cajaNombre !== null)
-  )
-  const superMobileModuleInfo = (() => {
-    if (!soySuper || superDesktop) return null
-    if (vista === 'caja' && cajaNombre !== null) {
-      return { icon: 'wallet', eyebrow: 'Caja · participante', title: cajaNombre || 'Participante' }
-    }
-    if (vista !== 'lista' || !superModulo) return null
-    const map = {
-      caja: { icon: 'wallet', eyebrow: 'Súper Admin', title: 'Caja' },
-      clientes: { icon: 'users', eyebrow: 'Súper Admin', title: 'Clientes', count: clientes.length },
-      mis: { icon: 'ball', eyebrow: 'Súper Admin', title: 'Mis quinielas', count: quinielasMias.length },
-      otros: { icon: 'user', eyebrow: 'Súper Admin', title: 'Otros admins', badge: 'Solo lectura' },
-      estadisticas: { icon: 'chart', eyebrow: 'Súper Admin', title: 'Estadísticas' },
-      home: { icon: 'settings', eyebrow: 'Súper Admin', title: 'Inicio público' },
-      cuenta: { icon: 'key', eyebrow: 'Súper Admin', title: 'Mi cuenta' },
-    }
-    return map[superModulo] ?? null
-  })()
+  // El super móvil ya no tiene "home" ni "módulo" propios: navega por pestañas.
+  const superMobileHome = false
+  const superMobileModule = false
+  // Navegación por pestañas (barra inferior). El super móvil comparte este shell:
+  // Inicio/Quinielas se pintan con la rama cliente (diseño admin); Caja/Estadísticas
+  // reusan sus módulos ya hechos fijando `superModulo`. Cuenta abre la ficha común.
   const navCliente = (tab) => {
     if (tab === 'cuenta') { abrirMiCuenta() }     // precarga el formulario y pone vista='cuenta'
     else { setVista('lista') }
@@ -2411,6 +2349,10 @@ export default function Admin() {
     setFixtures([])
     setSeleccionados([])
     setCajaNombre(null)
+    if (soySuper) {
+      // Caja/Estadísticas del super se renderizan por su módulo; el resto limpia.
+      setSuperModulo(tab === 'caja' ? 'caja' : tab === 'stats' ? 'estadisticas' : null)
+    }
     setClienteTab(tab)
   }
   return (
@@ -2428,160 +2370,6 @@ export default function Admin() {
       )}
       <div style={{ flex: (superDesktop || clienteDesktop) ? 1 : undefined, minWidth: 0, paddingBottom: clienteMobile ? 68 : undefined }}>
         {clienteMobile && <MobileAdminHeader />}
-      {/* Hero */}
-      {!superDesktop && !clienteShell && (
-      <div className="hero-pad" style={{ background: 'var(--hero-gradient)', color: 'var(--text)', borderBottom: '1px solid var(--border)', padding: soySuper ? '1.35rem 1rem 1.1rem' : undefined }}>
-        <div style={{ maxWidth: 580, margin: '0 auto' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
-            <div style={{ display: 'flex', alignItems: superMobileModuleInfo ? 'center' : 'flex-start', gap: 12, minWidth: 0, flex: 1 }}>
-              {soySuper && (
-                <button
-                  className="app-back-button"
-                  onClick={() => {
-                    if (vista === 'caja') {
-                      // Detalle de un jugador → regresa a la lista de participantes
-                      // (conserva superModulo='caja' para re-render del módulo Caja).
-                      setVista('lista')
-                      setCajaNombre(null)
-                    } else if (vista === 'gestionar') {
-                      // Gestión de una quiniela → regresa a la lista de su módulo
-                      // de origen ('mis' / 'otros'), que se conservó al entrar.
-                      setVista('lista')
-                      setQuinielaActual(null)
-                      setFixtures([])
-                      setSeleccionados([])
-                    } else if (superModulo && vista === 'lista') {
-                      setSuperModulo(null)
-                    } else if (vista === 'lista') {
-                      window.location.href = '/'
-                    } else {
-                      setVista('lista')
-                      setSuperModulo(null)
-                      setQuinielaActual(null)
-                      setFixtures([])
-                      setSeleccionados([])
-                      setCajaNombre(null)
-                    }
-                  }}
-                  aria-label="Atrás"
-                  title="Atrás"
-                  style={{ marginTop: 0 }}
-                >
-                  <AdminIcon name="arrow-left" size={15} />
-                </button>
-              )}
-              {superMobileModuleInfo ? (
-                <>
-                  <span className="super-module-header-icon">
-                    <AdminIcon name={superMobileModuleInfo.icon} size={21} />
-                  </span>
-                  <div style={{ minWidth: 0, flex: 1 }}>
-                    <div className="super-module-header-eyebrow">{superMobileModuleInfo.eyebrow}</div>
-                    <h1 className="super-module-header-title" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {superMobileModuleInfo.title}
-                      {superMobileModuleInfo.count != null && (
-                        <span className="super-module-header-count"> · {superMobileModuleInfo.count}</span>
-                      )}
-                    </h1>
-                  </div>
-                  {superMobileModuleInfo.badge && <span className="super-module-header-badge">{superMobileModuleInfo.badge}</span>}
-                </>
-              ) : (
-                <div>
-                  <a href="/" style={{ marginBottom: 8, textDecoration: 'none', display: 'inline-flex' }}>
-                    {soySuper ? (
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, color: 'var(--text)', fontWeight: 800, fontSize: 18 }}>
-                        <BrandMark size={22} />
-                        Quiniel<span style={{ color: 'var(--green)', marginLeft: -8 }}>App</span>
-                      </span>
-                    ) : (
-                      <BrandWordmark markSize={22} fontSize={18} />
-                    )}
-                  </a>
-                  {soySuper ? (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                      <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, letterSpacing: '-0.01em' }}>
-                        Súper Administrador
-                      </h1>
-                      <span style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', padding: '3px 8px', borderRadius: 'var(--radius-full)', background: 'var(--green-bg)', color: 'var(--green-light)', border: '1px solid rgba(34,197,94,0.35)' }}>
-                        Súper Admin
-                      </span>
-                    </div>
-                  ) : (
-                  <>
-                    <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, letterSpacing: '-0.01em' }}>
-                      Panel de Administrador
-                    </h1>
-                    {adminDoc?.nombre && (
-                      <p style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 4 }}>
-                        👤 {adminDoc.nombre}
-                      </p>
-                    )}
-                  </>
-                  )}
-                </div>
-              )}
-            </div>
-            {!soySuper && (
-              <button
-                onClick={salir}
-                style={{ background: 'transparent', border: '1px solid var(--border-strong)', color: 'var(--muted)', padding: '7px 14px', borderRadius: 'var(--radius-sm)', fontSize: 13, fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}
-              >
-                Salir
-              </button>
-            )}
-          </div>
-          {soySuper ? null : (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', gap: 8, marginTop: 16 }}>
-            <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
-              {vista !== 'lista' && (
-                <button
-                  onClick={() => {
-                    setVista('lista')
-                    setQuinielaActual(null)
-                    setFixtures([])
-                    setSeleccionados([])
-                    setCajaNombre(null)
-                  }}
-                  style={{ background: 'var(--neutral-bg)', border: '1px solid var(--border)', color: 'var(--text)', padding: '7px 14px', borderRadius: 'var(--radius-sm)', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
-                >
-                  {'← Atrás'}
-                </button>
-              )}
-            </div>
-            <a
-              href="/"
-              style={{
-                background: 'var(--neutral-bg)',
-                border: '1px solid var(--border)',
-                color: 'var(--text)',
-                padding: '7px 14px',
-                borderRadius: 'var(--radius-md)',
-                fontSize: 13,
-                fontWeight: 800,
-                cursor: 'pointer',
-                textDecoration: 'none',
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              Inicio
-            </a>
-            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-              <button
-                onClick={() => setAyudaAbierta(true)}
-                style={{ background: 'var(--neutral-bg)', border: '1px solid var(--border)', color: 'var(--text)', padding: '7px 14px', borderRadius: 'var(--radius-sm)', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
-              >
-                ❓ Ayuda
-              </button>
-            </div>
-          </div>
-          )}
-        </div>
-      </div>
-      )}
 
       {ayudaAbierta && <ComoFunciona onClose={() => setAyudaAbierta(false)} />}
       {tourAbierto && <TourBienvenida onClose={cerrarTour} />}
@@ -2605,128 +2393,11 @@ export default function Admin() {
               </div>
             </div>}
 
-            {/* Secciones del inicio (solo super admin): mostrar/ocultar y reordenar bloques del home. */}
-            {soySuper && superModulo === 'home' && (() => {
-              const orden = ordenSeccionesHome(homeConfig)
-              const flecha = (clave, dir, deshabilitada) => (
-                <button
-                  onClick={() => !deshabilitada && guardandoHome === null && moverSeccionHome(clave, dir)}
-                  disabled={deshabilitada || guardandoHome !== null}
-                  aria-label={dir < 0 ? 'Subir' : 'Bajar'}
-                  style={{
-                    width: 36, height: 36, lineHeight: 1, padding: 0, borderRadius: 'var(--radius-sm)',
-                    border: '1px solid var(--border-strong)', background: 'var(--card-light)',
-                    color: deshabilitada ? 'var(--border-strong)' : 'var(--text)',
-                    cursor: deshabilitada || guardandoHome !== null ? 'not-allowed' : 'pointer',
-                    fontSize: 14, fontWeight: 700,
-                  }}
-                >
-                  {dir < 0 ? '↑' : '↓'}
-                </button>
-              )
-              if (superDesktop) {
-                return (
-                  <div>
-                    <div style={{ marginBottom: 20 }}>
-                      <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 27, fontWeight: 700, color: 'var(--text-strong)', margin: 0, lineHeight: 1.1 }}>Inicio público</h2>
-                      <p style={{ fontSize: 12.5, color: 'var(--muted)', margin: '4px 0 0' }}>Controla qué bloques ve el visitante en quinielapp.fun y su orden. Los cambios aplican de inmediato.</p>
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.05fr', gap: 16, alignItems: 'start' }}>
-                      {/* Config de secciones */}
-                      <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 13, padding: '16px 18px' }}>
-                        <p style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 14, fontWeight: 800, color: 'var(--text-strong)', margin: '0 0 6px' }}>
-                          <AdminIcon name="settings" size={15} /> Secciones del inicio
-                        </p>
-                        {homeConfig === null ? (
-                          <p style={{ fontSize: 13, color: 'var(--muted)' }}>Cargando…</p>
-                        ) : orden.map((clave, idx) => {
-                          const label = LABELS_SECCIONES_HOME[clave] ?? clave
-                          const visible = homeConfig?.[clave] !== false
-                          const cargando = guardandoHome === clave
-                          return (
-                            <div key={clave} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 0', borderTop: '1px solid var(--border)', opacity: cargando ? 0.6 : 1 }}>
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                                {flecha(clave, -1, idx === 0)}
-                                {flecha(clave, 1, idx === orden.length - 1)}
-                              </div>
-                              <label style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, cursor: cargando ? 'wait' : 'pointer', minHeight: 40 }}>
-                                <input type="checkbox" checked={visible} disabled={cargando} onChange={() => toggleSeccionHome(clave)} style={{ width: 18, height: 18, accentColor: 'var(--green)', cursor: 'inherit', flexShrink: 0 }} />
-                                <span style={{ fontSize: 13.5, color: visible ? 'var(--text)' : 'var(--muted)', flex: 1 }}>{label}</span>
-                                <span style={{ fontSize: 10.5, fontWeight: 800, padding: '3px 9px', borderRadius: 'var(--radius-full)', flexShrink: 0, background: visible ? 'var(--green-bg)' : 'var(--neutral-bg)', color: visible ? 'var(--green)' : 'var(--muted)' }}>
-                                  {visible ? 'Visible' : 'Oculta'}
-                                </span>
-                              </label>
-                            </div>
-                          )
-                        })}
-                      </div>
-                      {/* Vista previa */}
-                      <div>
-                        <p style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--muted-soft)', margin: '0 0 8px' }}>Vista previa</p>
-                        <div style={{ borderRadius: 12, overflow: 'hidden', border: '1px solid var(--border-strong)', background: 'var(--bg)' }}>
-                          <div style={{ height: 34, background: '#0E1626', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8, padding: '0 12px' }}>
-                            <span style={{ display: 'flex', gap: 5 }}>
-                              {['#FF5F57', '#FEBC2E', '#28C840'].map(c => <span key={c} style={{ width: 9, height: 9, borderRadius: '50%', background: c }} />)}
-                            </span>
-                            <span style={{ flex: 1, textAlign: 'center', fontSize: 11, color: 'var(--muted)' }}>quinielapp.fun</span>
-                          </div>
-                          <div style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 10, minHeight: 320 }}>
-                            {orden.filter(c => homeConfig?.[c] !== false).map(clave => (
-                              <div key={clave} style={{ borderRadius: 10, border: '1px solid var(--border)', background: 'linear-gradient(145deg, rgba(34,197,94,0.06), transparent 60%), var(--card)', padding: '16px 14px', textAlign: 'center' }}>
-                                <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text)' }}>{LABELS_SECCIONES_HOME[clave] ?? clave}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )
-              }
-              return (
-                <div className="super-module-content">
-                  <p className="super-module-guide">
-                    Marca qué bloques se ven en quinielapp.fun y usa las flechas para ordenarlos. Los cambios aplican de inmediato.
-                  </p>
-                  {homeConfig === null ? (
-                    <p style={{ fontSize: 12.5, color: 'var(--muted)' }}>Cargando…</p>
-                  ) : (
-                    <div className="super-home-list">
-                      {orden.map((clave, idx) => {
-                        const label = LABELS_SECCIONES_HOME[clave] ?? clave
-                        const visible = homeConfig?.[clave] !== false
-                        const cargando = guardandoHome === clave
-                        return (
-                          <div key={clave} className="super-home-row" style={{ opacity: cargando ? 0.6 : 1 }}>
-                            <div className="super-home-arrows">
-                              {flecha(clave, -1, idx === 0)}
-                              {flecha(clave, 1, idx === orden.length - 1)}
-                            </div>
-                            <label style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0, cursor: cargando ? 'wait' : 'pointer' }}>
-                              <input
-                                type="checkbox"
-                                checked={visible}
-                                disabled={cargando}
-                                onChange={() => toggleSeccionHome(clave)}
-                                style={{ width: 20, height: 20, cursor: 'inherit', flexShrink: 0 }}
-                              />
-                              <span style={{ fontSize: 14, color: visible ? 'var(--text)' : 'var(--muted)', flex: 1, minWidth: 0 }}>{label}</span>
-                              <span style={{ fontSize: 11, fontWeight: 700, color: visible ? 'var(--green)' : 'var(--muted)', flexShrink: 0 }}>
-                                {visible ? 'Visible' : 'Oculta'}
-                              </span>
-                            </label>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )}
-                </div>
-              )
-            })()}
-
             {loadingLista ? (
               <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--muted)', fontSize: 14 }}>Cargando…</div>
-            ) : soySuper ? (
+            ) : (superDesktop || (soySuper && superModulo)) ? (
+              // Super escritorio (dashboard + módulos por sidebar) y super móvil en
+              // Caja/Estadísticas (superModulo fijado por la barra inferior).
               (() => {
                 const secLabel = { display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, fontWeight: 700, color: 'var(--text-strong)' }
                 const secCard = { ...card, marginTop: 12, padding: '0.9rem 1.1rem' }
@@ -2736,45 +2407,6 @@ export default function Admin() {
                     {label}
                   </span>
                 )
-                const moduleCard = ({ modulo, icon, title, meta, desc, wide = false }) => (
-                  <button
-                    key={modulo}
-                    type="button"
-                    className={`super-module-tile${wide ? ' super-module-tile--wide' : ''}`}
-                    onClick={() => setSuperModulo(modulo)}
-                  >
-                    {wide ? (
-                      <>
-                        <span className="super-module-icon">
-                          <AdminIcon name={icon} size={22} />
-                        </span>
-                        <span className="super-module-copy">
-                          <span className="super-module-title">{title}</span>
-                          <span className="super-module-desc">{desc}</span>
-                        </span>
-                        <AdminIcon name="chevron-right" size={18} style={{ color: 'var(--muted-dim)' }} />
-                      </>
-                    ) : (
-                      <>
-                        <span className="super-module-top">
-                          <span className="super-module-icon">
-                            <AdminIcon name={icon} size={22} />
-                          </span>
-                          {meta != null ? (
-                            <span className="super-module-meta">{meta}</span>
-                          ) : (
-                            <AdminIcon name="chevron-right" size={18} style={{ color: 'var(--muted-dim)' }} />
-                          )}
-                        </span>
-                        <span className="super-module-copy">
-                          <span className="super-module-title">{title}</span>
-                          <span className="super-module-desc">{desc}</span>
-                        </span>
-                      </>
-                    )}
-                  </button>
-                )
-
                 // ── Caja ───────────────────────────────────────────────────────
                 const cajaNeto = saldos.reduce((a, s) => a + s.saldo, 0)
                 const cajaAFavor = saldos.filter(s => s.saldo > 0).reduce((a, s) => a + s.saldo, 0)
@@ -3800,39 +3432,7 @@ export default function Admin() {
                   )
                 })()
 
-                const normalizaTexto = (txt) => String(txt ?? '')
-                  .normalize('NFD')
-                  .replace(/[\u0300-\u036f]/g, '')
-                  .toLowerCase()
-                  .trim()
-                const busqueda = normalizaTexto(busquedaSuper)
-                const coincideBusqueda = (...partes) => {
-                  if (!busqueda) return true
-                  return partes.some(parte => normalizaTexto(parte).includes(busqueda))
-                }
-                const enMovimientoSuper = [
-                  ...mias.enJuego,
-                  ...mias.activas,
-                ].filter(q => coincideBusqueda(q.nombre))
-                const gestionModules = [
-                  { modulo: 'caja', icon: 'wallet', title: 'Caja', meta: `${saldos.length}`, desc: 'Saldos y movimientos por participante.', keywords: 'saldos movimientos participante' },
-                  { modulo: 'clientes', icon: 'users', title: 'Clientes', meta: `${clientes.length}`, desc: 'Altas, notas y estado de clientes.', keywords: 'altas notas estado clientes cuentas' },
-                  { modulo: 'mis', icon: 'ball', title: 'Mis quinielas', meta: `${misFlat.length}`, desc: 'Quinielas creadas desde la cuenta principal.', keywords: 'mis quinielas cuenta principal' },
-                  ...(quinielasOtras.length > 0 ? [{ modulo: 'otros', icon: 'user', title: 'Otros admins', meta: `${quinielasOtras.length}`, desc: 'Quinielas agrupadas por cliente administrador.', keywords: 'otros admins cliente administrador' }] : []),
-                ].filter(m => coincideBusqueda(m.title, m.desc, m.keywords))
-                const plataformaModules = [
-                  { modulo: 'estadisticas', icon: 'chart', title: 'Estadísticas', desc: 'Visitas, dispositivos y conversión.', keywords: 'estadisticas analitica visitas dispositivos conversion' },
-                  { modulo: 'home', icon: 'settings', title: 'Inicio público', desc: 'Mostrar, ocultar y ordenar bloques del home.', keywords: 'inicio publico home secciones bloques' },
-                  { modulo: 'cuenta', icon: 'key', title: 'Mi cuenta', desc: 'Accesos, seguridad y herramientas externas.', keywords: 'cuenta accesos seguridad herramientas externas', wide: true },
-                ].filter(m => coincideBusqueda(m.title, m.desc, m.keywords))
-                const renderMobileGroup = (label, modules, withBottomMargin = false) => modules.length > 0 ? (
-                  <>
-                    <div className="super-mobile-group-label">{label}</div>
-                    <div className={`super-module-grid${withBottomMargin ? ' super-module-grid--section' : ''}`}>
-                      {modules.map(moduleCard)}
-                    </div>
-                  </>
-                ) : null
+                const enMovimientoSuper = [...mias.enJuego, ...mias.activas]
                 const movingCard = (q) => {
                   const enJuego = esCerradaQ(q) && !esFinalizadaQ(q)
                   const jugadores = conteos[q.id] ?? 0
@@ -3854,38 +3454,23 @@ export default function Admin() {
                   )
                 }
 
+                // Título de página en móvil (mismo estilo que headerCli del admin),
+                // para que Caja/Estadísticas del super se vean igual que en un admin.
+                const tituloTabSuper = (titulo, sub, onBack) => superDesktop ? null : (
+                  <div style={{ marginBottom: 18 }}>
+                    {onBack && (
+                      <button onClick={onBack} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: 'transparent', border: 'none', color: 'var(--muted)', fontSize: 13, fontWeight: 700, cursor: 'pointer', padding: 0, marginBottom: 10 }}>
+                        <AdminIcon name="arrow-left" size={15} /> Mi cuenta
+                      </button>
+                    )}
+                    <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 700, color: 'var(--text-strong)', margin: 0, lineHeight: 1.1 }}>{titulo}</h2>
+                    {sub && <p style={{ fontSize: 12.5, color: 'var(--muted)', margin: '4px 0 0' }}>{sub}</p>}
+                  </div>
+                )
+                // Vuelve a la ficha de Mi cuenta desde las sub-vistas (Otros/Clientes).
+                const volverACuentaSuper = () => { setSuperModulo(null); setVista('cuenta') }
                 return (
                   <>
-                    {!superModulo && !superDesktop && (
-                      <>
-                        <div className="super-mobile-search">
-                          <AdminIcon name="search" size={16} />
-                          <input
-                            type="text"
-                            value={busquedaSuper}
-                            onChange={e => setBusquedaSuper(e.target.value)}
-                            placeholder="Buscar sección o quiniela…"
-                            aria-label="Buscar sección o quiniela"
-                            autoComplete="off"
-                          />
-                        </div>
-                        {enMovimientoSuper.length > 0 && (
-                          <section className="super-mobile-moving" aria-label="En movimiento">
-                            <div className="super-mobile-moving-label">
-                              <svg className="super-mobile-moving-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                                <path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z" fill="currentColor" />
-                              </svg>
-                              <span>En movimiento</span>
-                            </div>
-                            <div className="super-mobile-moving-row">
-                              {enMovimientoSuper.map(movingCard)}
-                            </div>
-                          </section>
-                        )}
-                        {renderMobileGroup('Gestión', gestionModules, true)}
-                        {renderMobileGroup('Plataforma', plataformaModules)}
-                      </>
-                    )}
                     {!superModulo && superDesktop && (() => {
                       // ── Inicio / tablero maestro (escritorio) ──────────────────
                       const d7 = statsDias ?? []
@@ -3979,7 +3564,6 @@ export default function Admin() {
                             {deskModule({ modulo: 'caja', icon: 'wallet', title: 'Caja global', desc: 'Saldos y movimientos de todos los participantes.' })}
                             {deskModule({ modulo: 'clientes', icon: 'users', title: 'Clientes', meta: clientes.length || null, desc: 'Altas, notas y estado de cuentas.' })}
                             {quinielasOtras.length > 0 && deskModule({ modulo: 'otros', icon: 'user', title: 'Otros admins', meta: quinielasOtras.length, desc: 'Quinielas agrupadas por cliente.' })}
-                            {deskModule({ modulo: 'home', icon: 'settings', title: 'Inicio público', desc: 'Mostrar, ocultar y ordenar bloques del home.' })}
                             {deskModule({ modulo: 'mis', icon: 'ball', title: 'Mis quinielas', meta: misFlat.length || null, desc: 'Quinielas creadas desde tu cuenta.' })}
                             {deskModule({ modulo: 'cuenta', icon: 'key', title: 'Mi cuenta', desc: 'Accesos, seguridad y herramientas.' })}
                           </div>
@@ -4004,11 +3588,11 @@ export default function Admin() {
                         </div>
                       )
                     })()}
-                    {superModulo === 'caja' && (superDesktop ? cajaDesktop : cajaSection)}
-                    {superModulo === 'clientes' && (superDesktop ? clientesDesktop : clientesSection)}
+                    {superModulo === 'caja' && (superDesktop ? cajaDesktop : (<>{tituloTabSuper('Caja', 'Depósitos, premios y saldos por participante')}{cajaSection}</>))}
+                    {superModulo === 'clientes' && (superDesktop ? clientesDesktop : (<>{tituloTabSuper('Clientes', 'Altas, notas y estado de cuentas', volverACuentaSuper)}{clientesSection}</>))}
                     {superModulo === 'mis' && (superDesktop ? misDesktop : misQuinielasSection)}
-                    {superModulo === 'otros' && (superDesktop ? otrosDesktop : otrosSection)}
-                    {superModulo === 'estadisticas' && statsSection}
+                    {superModulo === 'otros' && (superDesktop ? otrosDesktop : (<>{tituloTabSuper('Otros admins', 'Quinielas agrupadas por cliente', volverACuentaSuper)}{otrosSection}</>))}
+                    {superModulo === 'estadisticas' && (superDesktop ? statsSection : (<>{tituloTabSuper('Estadísticas', 'Actividad de tus quinielas')}{statsSection}</>))}
                     {superModulo === 'cuenta' && superDesktop && (
                       <div style={{ maxWidth: 820, margin: '0 auto' }}>
                         <div style={{ marginBottom: 20 }}>
@@ -4055,54 +3639,6 @@ export default function Admin() {
                             <span style={{ flex: 1 }}>Cerrar sesión</span>
                           </button>
                         </div>
-                      </div>
-                    )}
-                    {superModulo === 'cuenta' && !superDesktop && (
-                      <div className="super-account-stack">
-                        <div style={{ padding: 12, borderRadius: 'var(--radius-sm)', background: 'var(--bg-soft)', border: '1px solid var(--border)' }}>
-                          <p style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.8, fontWeight: 800, marginBottom: 6 }}>Sesión</p>
-                          <p style={{ fontSize: 13, color: 'var(--text)', wordBreak: 'break-all' }}>{auth.currentUser?.email || 'Super admin'}</p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setSeguridadAbierta(v => !v)}
-                          style={{ width: '100%', padding: '13px 14px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-strong)', background: 'var(--neutral-bg)', color: 'var(--text)', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}
-                        >
-                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                            <AdminIcon name="key" size={15} />
-                            {seguridadAbierta ? 'Ocultar cambio de contraseña' : 'Cambiar contraseña'}
-                          </span>
-                          <AdminIcon name="chevron-down" size={16} style={{ color: 'var(--muted-soft)', transform: seguridadAbierta ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }} />
-                        </button>
-                        <SmoothCollapse open={seguridadAbierta}>
-                          <div style={{ padding: 12, borderRadius: 'var(--radius-sm)', background: 'var(--bg-soft)', border: '1px solid var(--border)' }}>
-                            <label htmlFor="super-p1" style={lbl}>Nueva contraseña</label>
-                            <input id="super-p1" type="password" placeholder="Mínimo 8 caracteres" value={cuentaP1} onChange={e => { setCuentaP1(e.target.value); setCuentaPassMsg(null) }} style={{ marginBottom: 8 }} />
-                            <MedidorPassword pwd={cuentaP1} />
-                            <label htmlFor="super-p2" style={{ ...lbl, marginTop: 12 }}>Confirmar contraseña</label>
-                            <input id="super-p2" type="password" placeholder="Repite tu contraseña" value={cuentaP2} onChange={e => { setCuentaP2(e.target.value); setCuentaPassMsg(null) }} style={{ marginBottom: 10 }} />
-                            {cuentaPassMsg && <p style={{ fontSize: 12, color: cuentaPassMsg.tipo === 'ok' ? 'var(--green)' : 'var(--red)', marginBottom: 10 }}>{cuentaPassMsg.texto}</p>}
-                            <button onClick={cambiarMiPassword} disabled={cambiandoPass} style={{ ...greenCtaStyle(cambiandoPass), width: '100%' }}>
-                              {cambiandoPass ? 'Guardando…' : 'Guardar contraseña'}
-                            </button>
-                          </div>
-                        </SmoothCollapse>
-                        <div className="super-tool-grid">
-                          {[
-                            ['GitHub', 'https://github.com/cverduzco23/quiniela-app', 'external'],
-                            ['Vercel', 'https://vercel.com', 'external'],
-                            ['Firebase', 'https://console.firebase.google.com/project/quiniela-app-24896/overview', 'external'],
-                          ].map(([label, href, icon]) => (
-                            <a key={label} href={href} target="_blank" rel="noreferrer" className="super-tool-link">
-                              <AdminIcon name={icon} size={13} />
-                              {label}
-                            </a>
-                          ))}
-                        </div>
-                        <button onClick={salir} style={{ width: '100%', padding: 11, borderRadius: 'var(--radius-sm)', border: '1px solid var(--red)', background: 'var(--red-bg)', color: 'var(--red)', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                          <AdminIcon name="logout" size={15} />
-                          Cerrar sesión
-                        </button>
                       </div>
                     )}
                   </>
@@ -4313,6 +3849,14 @@ export default function Admin() {
         {/* ── Vista: Caja — detalle de participante ────────────────────── */}
         {vista === 'caja' && cajaNombre !== null && (
           <div className="super-module-content">
+            {clienteShell && (
+              <div style={{ marginBottom: 14 }}>
+                <button onClick={() => { setVista('lista'); setCajaNombre(null) }} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: 'transparent', border: 'none', color: 'var(--muted)', fontSize: 13, fontWeight: 700, cursor: 'pointer', padding: 0, marginBottom: 10 }}>
+                  <AdminIcon name="arrow-left" size={15} /> Caja
+                </button>
+                <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 700, color: 'var(--text-strong)', margin: 0, lineHeight: 1.1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cajaNombre}</h2>
+              </div>
+            )}
             <div className="super-balance-current">
               <span className="super-balance-current-label">Saldo actual</span>
               <span className="super-balance-current-value" style={{ color: saldoParticipante > 0 ? 'var(--green)' : saldoParticipante === 0 ? 'var(--muted)' : 'var(--red)' }}>
@@ -4421,7 +3965,7 @@ export default function Admin() {
                     {iniciales(cuentaNombre || adminDoc?.nombre || adminDoc?.email || auth.currentUser?.email)}
                   </span>
                   <h2 className="admin-account-name">{nombreCuenta}</h2>
-                  <span className="admin-account-role">Organizador</span>
+                  <span className="admin-account-role">{soySuper ? 'Super Admin' : 'Organizador'}</span>
                 </section>
 
                 <p className="admin-account-group-label">Datos</p>
@@ -4580,6 +4124,28 @@ export default function Admin() {
                     <AdminIcon name="chevron-right" size={16} style={{ color: 'var(--muted)' }} />
                   </a>
                 </section>
+
+                {soySuper && (
+                  <>
+                    <p className="admin-account-group-label">Súper admin</p>
+                    <section className="admin-account-group" aria-label="Herramientas de super admin">
+                      <button type="button" className="admin-account-setting-row" onClick={() => { setSuperModulo('otros'); setVista('lista') }}>
+                        <span className="admin-account-setting-icon">
+                          <AdminIcon name="user" size={16} />
+                        </span>
+                        <span className="admin-account-setting-label">Otros admins</span>
+                        <AdminIcon name="chevron-right" size={16} style={{ color: 'var(--muted)' }} />
+                      </button>
+                      <button type="button" className="admin-account-setting-row" onClick={() => { setSuperModulo('clientes'); setVista('lista') }}>
+                        <span className="admin-account-setting-icon">
+                          <AdminIcon name="users" size={16} />
+                        </span>
+                        <span className="admin-account-setting-label">Clientes</span>
+                        <AdminIcon name="chevron-right" size={16} style={{ color: 'var(--muted)' }} />
+                      </button>
+                    </section>
+                  </>
+                )}
 
                 <button type="button" className="admin-account-logout-btn" onClick={salir}>
                   <AdminIcon name="logout" size={17} />
