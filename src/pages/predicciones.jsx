@@ -310,20 +310,44 @@ export default function Predicciones() {
   }
 
   // Detectar si ya se envió una predicción para esta quiniela desde este dispositivo.
-  // (Mitigación anti-duplicado — bypaseable con incógnito/otro navegador, pero cubre
-  // el caso honesto de gente que reabre el link sin querer.)
+  // Antes de bloquear, verificamos en el servidor que la predicción SIGA existiendo:
+  // si el organizador ya la borró (para que el jugador re-capture sus picks), limpiamos
+  // la marca local sola — así puede volver a registrarse en el mismo navegador, sin
+  // incógnito ni borrar caché. Si no existe nada, no hay nada que bloquear.
   useEffect(() => {
     if (!quiniela || cerrada || !lsEnviadoKey) return
+    let data
     try {
       const raw = localStorage.getItem(lsEnviadoKey)
       if (!raw) return
-      const data = JSON.parse(raw)
-      if (data?.nombre) {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        setYaEnviadoAntes(data.nombre)
+      data = JSON.parse(raw)
+    } catch { return /* corrupto, ignorar */ }
+    if (!data?.nombre) return
+
+    let cancelado = false
+    const objetivo = normalizarNombre(data.nombre)
+    ;(async () => {
+      try {
+        const snap = await getDocs(query(
+          collection(db, 'predicciones'),
+          where('quinielaId', '==', quinielaId),
+        ))
+        if (cancelado) return
+        const sigueExistiendo = snap.docs.some(d => normalizarNombre(d.data().nombre) === objetivo)
+        if (sigueExistiendo) {
+          setYaEnviadoAntes(data.nombre)
+        } else {
+          // El organizador la borró: liberamos este dispositivo para re-capturar.
+          try { localStorage.removeItem(lsEnviadoKey) } catch { /* noop */ }
+        }
+      } catch {
+        // Sin conexión / error: mantenemos el bloqueo por precaución.
+        if (!cancelado) setYaEnviadoAntes(data.nombre)
       }
-    } catch { /* corrupto, ignorar */ }
-  }, [quiniela, cerrada, lsEnviadoKey])
+    })()
+
+    return () => { cancelado = true }
+  }, [quiniela, cerrada, lsEnviadoKey, quinielaId])
 
   // Restaurar progreso desde localStorage cuando se carga la quiniela (si no está cerrada)
   // En quinielas tipo "bote" NO restauramos confirmadoRegla — forzamos reconfirmación cada vez

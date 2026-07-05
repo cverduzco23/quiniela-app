@@ -923,9 +923,6 @@ export default function Admin() {
   const [nombre, setNombre]     = useState('')
   const [cierre, setCierre]     = useState('')
   const [partidos, setPartidos] = useState([])
-  // Índice del partido que se está editando en el formulario de crear (null = ninguno).
-  // Los partidos completos se muestran colapsados; este abre uno para editarlo.
-  const [editandoPartido, setEditandoPartido] = useState(null)
   const [guardando, setGuardando] = useState(false)
   const [premioFijo, setPremioFijo]     = useState('')
   const [cuota, setCuota]               = useState('')
@@ -935,12 +932,8 @@ export default function Admin() {
 
   // ─── Resultados ───────────────────────────────────────────────────────────
   const [resultados, setResultados]       = useState({})
-  const [guardandoRes, setGuardandoRes]   = useState(false)
-  const [guardadoRes, setGuardadoRes]     = useState(false)
   const [sincronizando, setSincronizando] = useState(false)
   const [sincrMsg, setSincrMsg]           = useState('')
-  const [confirmacionRes, setConfirmacionRes] = useState(null)
-  const [validandoEspn, setValidandoEspn] = useState(false)
   // Cuando ESPN reasigna el ID de un partido, lo buscamos por nombres + día.
   // Si encontramos un único candidato, lo proponemos al admin para confirmar.
   const [sugerenciasIdMismatch, setSugerenciasIdMismatch] = useState([])
@@ -958,7 +951,6 @@ export default function Admin() {
   const [editNombre, setEditNombre]             = useState('')
   const [editPartidos, setEditPartidos]         = useState([])
   const [editPartidosOriginales, setEditPartidosOriginales] = useState(0)
-  const [editandoPartidoEdicion, setEditandoPartidoEdicion] = useState(null)
   const [editCierre, setEditCierre]             = useState('')
   const [editPremioFijo, setEditPremioFijo]     = useState('')
   const [editCuota, setEditCuota]               = useState('')
@@ -966,6 +958,7 @@ export default function Admin() {
   const [editCodigoAcceso, setEditCodigoAcceso] = useState('')
   const [editPrivada, setEditPrivada]           = useState(false)
   const [conteoPredicciones, setConteoPredicciones] = useState(null)
+  const [partidosFijosInfo, setPartidosFijosInfo] = useState(false)
   const [guardandoEdicion, setGuardandoEdicion] = useState(false)
   const [deleteConfirm, setDeleteConfirm]       = useState('')
   const [eliminando, setEliminando]             = useState(false)
@@ -1100,7 +1093,6 @@ export default function Admin() {
     setEditCodigoAcceso(quinielaActual.codigoAcceso ?? '')
     setEditPrivada(!!quinielaActual.privada)
     setFixtures([]); setSeleccionados([])
-    setEditandoPartidoEdicion(null)
     setConteoPredicciones(null)
     getDocs(query(collection(db, 'predicciones'), where('quinielaId', '==', quinielaActual.id)))
       .then(snap => setConteoPredicciones(snap.size))
@@ -1122,14 +1114,8 @@ export default function Admin() {
   useEffect(() => { if (autenticado && authListo && (vista === 'caja' || (vista === 'lista' && soySuper))) cargarMovimientos() }, [autenticado, authListo, vista, soySuper])
 
   // ─── CRUD partidos ────────────────────────────────────────────────────────
-  const actualizarPartido = (i, campo, valor) =>
-    setPartidos(prev => prev.map((p, idx) => idx === i ? { ...p, [campo]: valor } : p))
-  const quitarPartido = (i) => {
+  const quitarPartido = (i) =>
     setPartidos(prev => prev.filter((_, idx) => idx !== i))
-    setEditandoPartido(null) // evita índices obsoletos tras el reordenamiento
-  }
-  // ¿Le falta nombre a algún equipo? Un partido incompleto no se puede colapsar.
-  const partidoIncompleto = (p) => !(p.local ?? '').trim() || !(p.visitante ?? '').trim()
   // Escudo del equipo, o un círculo con la inicial si es manual (sin logo de ESPN).
   const escudoMini = (url, nombre) => (
     url
@@ -1287,9 +1273,6 @@ export default function Admin() {
     setFixtures([])
   }
 
-  const actualizarEditPartido = (i, campo, valor) =>
-    setEditPartidos(prev => prev.map((p, idx) => idx === i ? { ...p, [campo]: valor } : p))
-
   // ─── Edición de quiniela existente ───────────────────────────────────────
   const guardarEdicion = async () => {
     if (!quinielaActual || guardandoEdicion) return
@@ -1305,8 +1288,8 @@ export default function Admin() {
         `Lo ajusté a ${formatFixtureDate(chkCierre.sugerencia)} (${MARGEN_CIERRE_MIN} min antes). Revísalo y guarda de nuevo.`
       )
     }
-    if ((conteoPredicciones ?? 0) > 0 && editPartidos.length < editPartidosOriginales) {
-      return alerta('No puedes quitar partidos existentes cuando ya hay predicciones registradas. Solo puedes agregar nuevos al final.')
+    if ((conteoPredicciones ?? 0) > 0 && editPartidos.length !== editPartidosOriginales) {
+      return alerta('Ya hay predicciones registradas: la lista de partidos queda fija. Si necesitas otros partidos, crea una quiniela nueva.')
     }
     const { campos: premioFields } = camposPremio(editPremioFijo, editCuota, editModeloPremio)
     setGuardandoEdicion(true)
@@ -1355,24 +1338,60 @@ export default function Admin() {
   }
 
   // ─── Cerrar / reabrir quiniela ───────────────────────────────────────────
+  // ¿El primer partido ya arrancó? Es el punto de no retorno: después de eso
+  // ya no tiene sentido reabrir (empiezan los resultados).
+  const primerPartidoArranco = (q) => {
+    const primera = primeraHoraPartido(q?.partidos)
+    if (!primera) return false
+    const d = new Date(primera)
+    return !isNaN(d.getTime()) && new Date().getTime() >= d.getTime()
+  }
+
   const toggleCerrar = async () => {
     if (!quinielaActual || toggling) return
     const estaCerrada = esCerradaQ(quinielaActual)
-    // Reabrir es delicado: puede permitir entradas tardías y descuadrar el ranking.
-    if (estaCerrada && !(await confirmar(
-      'Vas a REABRIR esta quiniela. Quedará sin fecha de cierre y la gente podrá volver a registrar o cambiar predicciones, lo que puede afectar el ranking. ¿Continuar?',
-      { titulo: 'Reabrir quiniela', confirmar: 'Reabrir', peligro: true }
-    ))) return
-    // Cerrar manualmente también merece confirmación: bloquea registros y picks al instante.
-    if (!estaCerrada && !(await confirmar(
-      'Vas a CERRAR esta quiniela ahora mismo.\n\n• Nadie podrá registrar predicciones nuevas ni cambiar las suyas.\n• El ranking queda fijo con los participantes actuales.\n• Podrás reabrirla más tarde si lo necesitas.\n\n¿Cerrar ahora?',
+
+    if (estaCerrada) {
+      // ── Reabrir ── Solo mientras no arranque el primer partido: así nunca
+      // entran registros tardíos (los partidos aún no empiezan).
+      if (primerPartidoArranco(quinielaActual)) {
+        return alerta('Ya no se puede reabrir: el primer partido ya empezó. Si necesitas otra ronda, crea una quiniela nueva.')
+      }
+      if (!(await confirmar(
+        'Vas a REABRIR esta quiniela. La gente podrá volver a registrar predicciones hasta la hora de cierre. ¿Continuar?',
+        { titulo: 'Reabrir quiniela', confirmar: 'Reabrir' }
+      ))) return
+      setToggling(true)
+      try {
+        // Garantizamos una fecha de cierre válida (futura). Si la actual ya venció
+        // (ej. la pusieron mal), la reajustamos sola a 5 min antes del primer partido.
+        const cierreActual = cierreToDate(quinielaActual.cierre)
+        let nuevoCierre = quinielaActual.cierre ?? null
+        if (!cierreActual || cierreActual.getTime() <= new Date().getTime()) {
+          const sugerido = cierreSugerido(quinielaActual.partidos)
+          nuevoCierre = sugerido ? inputValueACierre(sugerido) : null
+        }
+        const changes = { cerrada: false, cierre: nuevoCierre }
+        await updateDoc(doc(db, 'quinielas', quinielaActual.id), changes)
+        const actualizado = { ...quinielaActual, ...changes }
+        setQuinielaActual(actualizado)
+        setQuinielas(prev => prev.map(q => q.id === quinielaActual.id ? actualizado : q))
+      } catch {
+        alerta('Error al actualizar el estado.')
+      } finally {
+        setToggling(false)
+      }
+      return
+    }
+
+    // ── Cerrar ahora ── Solo restringe (bloquea registros), nunca es injusto.
+    if (!(await confirmar(
+      'Vas a CERRAR esta quiniela ahora mismo.\n\n• Nadie podrá registrar predicciones nuevas.\n• El ranking queda fijo con los participantes actuales.\n• Podrás reabrirla mientras no arranque el primer partido.\n\n¿Cerrar ahora?',
       { titulo: 'Cerrar quiniela', confirmar: 'Cerrar quiniela', cancelar: 'Cancelar' }
     ))) return
     setToggling(true)
     try {
-      const changes = estaCerrada
-        ? { cerrada: false, cierre: null }
-        : { cerrada: true }
+      const changes = { cerrada: true }
       await updateDoc(doc(db, 'quinielas', quinielaActual.id), changes)
       const actualizado = { ...quinielaActual, ...changes }
       setQuinielaActual(actualizado)
@@ -1648,100 +1667,6 @@ export default function Admin() {
   }
 
   // ─── Validar contra ESPN antes de mostrar la confirmación ──────────────
-  const iniciarGuardarResultados = async () => {
-    if (!quinielaActual || guardandoRes) return
-    const partidos = quinielaActual.partidos ?? []
-    const items = partidos.map((p, i) => {
-      const r = resultados[i] ?? {}
-      const cancelado = !!r.cancelado
-      const tiene = !cancelado && String(r.local ?? '').trim() !== '' && String(r.visitante ?? '').trim() !== ''
-      if (!cancelado && !tiene) return null
-      return {
-        idx: i, partido: p,
-        local: cancelado ? '' : String(r.local),
-        visitante: cancelado ? '' : String(r.visitante),
-        cancelado,
-        espnLocal: undefined, espnVisitante: undefined, espnEstado: undefined,
-      }
-    }).filter(Boolean)
-
-    if (items.length === 0) {
-      return alerta('No hay resultados que guardar.')
-    }
-
-    setConfirmacionRes({ items })
-
-    // Validar contra ESPN en background
-    const conEspn = items.filter(it => it.partido.espnId && it.partido.ligaId && !it.cancelado)
-    if (conEspn.length === 0) return
-
-    setValidandoEspn(true)
-    const porLiga = {}
-    conEspn.forEach(it => {
-      if (!porLiga[it.partido.ligaId]) porLiga[it.partido.ligaId] = []
-      porLiga[it.partido.ligaId].push(it)
-    })
-    const actualizadas = [...items]
-    for (const [liga, its] of Object.entries(porLiga)) {
-      try {
-        const fechas = its.map(it => it.partido.hora).filter(Boolean).sort()
-        const inicio = fechas[0] ? fechas[0].slice(0, 10).replace(/-/g, '') : ''
-        const hoy = new Date().toISOString().slice(0, 10).replace(/-/g, '')
-        const url = inicio
-          ? `https://site.api.espn.com/apis/site/v2/sports/soccer/${liga}/scoreboard?dates=${inicio}-${hoy}`
-          : `https://site.api.espn.com/apis/site/v2/sports/soccer/${liga}/scoreboard`
-        const r = await fetch(url)
-        const d = await r.json()
-        const events = d.events ?? []
-        its.forEach(it => {
-          const ev = events.find(e => e.id === it.partido.espnId)
-          if (!ev) return
-          const state = ev.status?.type?.state
-          const comps = ev.competitions?.[0]?.competitors ?? []
-          const home = comps.find(c => c.homeAway === 'home')
-          const away = comps.find(c => c.homeAway === 'away')
-          const i = actualizadas.findIndex(x => x.idx === it.idx)
-          if (i >= 0) {
-            actualizadas[i] = {
-              ...actualizadas[i],
-              espnLocal: home?.score,
-              espnVisitante: away?.score,
-              espnEstado: state,
-            }
-          }
-        })
-      } catch { /* silencioso */ }
-    }
-    setConfirmacionRes({ items: actualizadas })
-    setValidandoEspn(false)
-  }
-
-  // ─── Guardar resultados ───────────────────────────────────────────────────
-  const guardarResultados = async () => {
-    if (!quinielaActual || guardandoRes) return
-    setGuardandoRes(true)
-    try {
-      const resGuardar = {}
-      Object.entries(resultados).forEach(([idx, r]) => {
-        if (r?.cancelado) {
-          resGuardar[idx] = { cancelado: true }
-        } else if (String(r.local).trim() !== '' && String(r.visitante).trim() !== '') {
-          const resultado = goalsToResultado(r.local, r.visitante)
-          resGuardar[idx] = { local: r.local, visitante: r.visitante, resultado }
-        }
-      })
-      const completos = resultadosCompletos({ partidos: quinielaActual.partidos, resultados: resGuardar })
-      const patch = completos ? { resultados: resGuardar, finalizada: true, finalizadaEn: new Date().toISOString() } : { resultados: resGuardar }
-      await updateDoc(doc(db, 'quinielas', quinielaActual.id), patch)
-      setGuardadoRes(true)
-      setTimeout(() => setGuardadoRes(false), 3000)
-      setQuinielaActual(prev => ({ ...prev, ...patch }))
-      setQuinielas(prev => prev.map(q => q.id === quinielaActual.id ? { ...q, ...patch } : q))
-      setConfirmacionRes(null)
-    } catch { alerta('Error al guardar resultados.') }
-    finally { setGuardandoRes(false) }
-  }
-
   // ─── Sincronizar desde ESPN ───────────────────────────────────────────────
   const sincronizarDesdeESPN = async () => {
     if (!quinielaActual || sincronizando) return
@@ -2126,7 +2051,7 @@ export default function Admin() {
           </div>
         </div>
         {!tienePremioLocal && (
-          <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 14 }}>Deja ambos en 0 para una quiniela gratis sin premio.</p>
+          <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 14 }}>Deja ambos en 0 para una quiniela gratis sin premio, solo por diversión.</p>
         )}
 
         {tienePremioLocal && (
@@ -4037,14 +3962,15 @@ export default function Admin() {
                         {visibles.map(q => <QuinielaCard key={q.id} q={q} conteos={conteos} onGestionar={gestionarQuiniela} superCompact softManage />)}
                       </div>
                     ) : (
-                      visibles.map(q => <QuinielaCard key={q.id} q={q} conteos={conteos} onGestionar={gestionarQuiniela} softManage />)
+                      visibles.map(q => <QuinielaCard key={q.id} q={q} conteos={conteos} onGestionar={gestionarQuiniela} superCompact softManage />)
                     )}
                     {items.length > limite && (
                       <button
                         onClick={() => setVerTodo(v => ({ ...v, [clave]: !abierto }))}
-                        style={{ display: 'block', width: '100%', padding: '8px', margin: '8px 0 4px', background: 'transparent', border: '1px dashed var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--muted)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}
+                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%', padding: '9px', margin: '8px 0 4px', background: 'transparent', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--muted)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}
                       >
-                        {abierto ? '▲ Mostrar menos' : `▼ Mostrar ${ocultas} más`}
+                        {abierto ? 'Mostrar menos' : `Mostrar ${ocultas} más`}
+                        <AdminIcon name="chevron-down" size={15} style={{ color: 'var(--muted-soft)', transform: abierto ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }} />
                       </button>
                     )}
                   </>
@@ -4059,9 +3985,19 @@ export default function Admin() {
                 </div>
               ) : (
                 <>
-                  {renderGrupo(mias.activas, 'Activas', 'mias-activas', clienteDesktop ? 6 : 2, 0)}
-                  {renderGrupo(mias.enJuego, 'Jugándose', 'mias-enjuego', clienteDesktop ? 6 : 2, mias.activas.length > 0 ? 20 : 0)}
-                  {renderGrupo(mias.finalizadas, 'Finalizadas', 'mias-finalizadas', clienteDesktop ? 4 : 0, (mias.activas.length > 0 || mias.enJuego.length > 0) ? 20 : 0)}
+                  {(() => {
+                    const sinAbiertas = mias.activas.length === 0 && mias.enJuego.length === 0
+                    // Si no hay quinielas abiertas ni jugándose, mostramos las finalizadas
+                    // en vez de esconderlas todas tras el "Mostrar más".
+                    const limFinalizadas = clienteDesktop ? 4 : (sinAbiertas ? 2 : 0)
+                    return (
+                      <>
+                        {renderGrupo(mias.activas, 'Activas', 'mias-activas', clienteDesktop ? 6 : 2, 0)}
+                        {renderGrupo(mias.enJuego, 'Jugándose', 'mias-enjuego', clienteDesktop ? 6 : 2, mias.activas.length > 0 ? 20 : 0)}
+                        {renderGrupo(mias.finalizadas, 'Finalizadas', 'mias-finalizadas', limFinalizadas, sinAbiertas ? 0 : 20)}
+                      </>
+                    )
+                  })()}
                 </>
               )
               const proximamente = (icon, titulo, desc) => (
@@ -4320,67 +4256,25 @@ export default function Admin() {
               {partidos.length === 0 && (
                 <p style={{ fontSize: 13, color: 'var(--muted)', textAlign: 'center', padding: '1rem 0' }}>Aún no hay partidos. Búscalos arriba y agrégalos.</p>
               )}
-              {partidos.map((p, i) => {
-                const incompleto = partidoIncompleto(p)
-                // Modo edición si el usuario lo abrió, o si está incompleto (no se puede colapsar vacío).
-                const enEdicion = editandoPartido === i || incompleto
-
-                if (!enEdicion) {
-                  // ── Tarjeta colapsada (solo lectura) ──
-                  return (
-                    <div key={i} style={{ padding: '10px 12px', marginBottom: 10, background: 'var(--card-light)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', flexShrink: 0 }}>{i + 1}</span>
-                        {escudoMini(p.escudoLocal, p.local)}
-                        <span style={{ fontSize: 13, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: '1 1 0%', minWidth: 0 }}>{p.local}</span>
-                        <span style={{ fontSize: 11, color: 'var(--muted)', flexShrink: 0 }}>vs</span>
-                        <span style={{ fontSize: 13, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: '1 1 0%', minWidth: 0, textAlign: 'right' }}>{p.visitante}</span>
-                        {escudoMini(p.escudoVisitante, p.visitante)}
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginTop: 6 }}>
-                        <span style={{ fontSize: 11, color: 'var(--muted)' }}>{p.hora ? formatFixtureDate(p.hora) : ''}</span>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
-                          <button onClick={() => setEditandoPartido(i)} aria-label="Editar partido" title="Editar" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, padding: '2px 4px', flexShrink: 0 }}>✏️</button>
-                          {partidos.length > 1 && (
-                            <button onClick={() => quitarPartido(i)} aria-label="Quitar partido" title="Quitar" style={{ background: 'none', border: 'none', color: 'var(--red)', cursor: 'pointer', fontSize: 13, fontWeight: 700, padding: '2px 4px', flexShrink: 0 }}>✕</button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  )
-                }
-
-                // ── Modo edición ──
-                return (
-                  <div key={i} style={{ marginBottom: 16, paddingBottom: 16, borderBottom: i < partidos.length - 1 ? '1px solid var(--border)' : 'none' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                      <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.8 }}>
-                        Partido {i + 1}
-                      </span>
-                      {partidos.length > 1 && (
-                        <button onClick={() => quitarPartido(i)} style={{ background: 'none', border: 'none', color: 'var(--red)', fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: '2px 6px', borderRadius: 6 }}>
-                          Quitar ✕
-                        </button>
-                      )}
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: 8, marginBottom: 8, alignItems: 'center' }}>
-                      <input type="text" placeholder="Equipo local"     value={p.local}     onChange={e => actualizarPartido(i, 'local', e.target.value)} />
-                      <span style={{ color: 'var(--muted)', fontSize: 12, fontWeight: 700, textAlign: 'center' }}>VS</span>
-                      <input type="text" placeholder="Equipo visitante" value={p.visitante} onChange={e => actualizarPartido(i, 'visitante', e.target.value)} />
-                    </div>
-                    <DateTimeWrap vacio={!p.hora} texto="Fecha y hora del partido">
-                      <input type="datetime-local" value={p.hora} onChange={e => actualizarPartido(i, 'hora', e.target.value)} />
-                    </DateTimeWrap>
-                    {!incompleto && (
-                      <div style={{ textAlign: 'right', marginTop: 8 }}>
-                        <button onClick={() => setEditandoPartido(null)} style={{ background: 'none', border: '1px solid var(--border-strong)', color: 'var(--text)', fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: '6px 14px', borderRadius: 'var(--radius-sm)' }}>
-                          Listo ✓
-                        </button>
-                      </div>
+              {partidos.map((p, i) => (
+                // ── Tarjeta solo lectura (los partidos vienen de ESPN, no se editan) ──
+                <div key={i} style={{ padding: '10px 12px', marginBottom: 10, background: 'var(--card-light)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', flexShrink: 0 }}>{i + 1}</span>
+                    {escudoMini(p.escudoLocal, p.local)}
+                    <span style={{ fontSize: 13, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: '1 1 0%', minWidth: 0 }}>{p.local}</span>
+                    <span style={{ fontSize: 11, color: 'var(--muted)', flexShrink: 0 }}>vs</span>
+                    <span style={{ fontSize: 13, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: '1 1 0%', minWidth: 0, textAlign: 'right' }}>{p.visitante}</span>
+                    {escudoMini(p.escudoVisitante, p.visitante)}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginTop: 6 }}>
+                    <span style={{ fontSize: 11, color: 'var(--muted)' }}>{p.hora ? formatFixtureDate(p.hora) : ''}</span>
+                    {partidos.length > 1 && (
+                      <button onClick={() => quitarPartido(i)} aria-label="Quitar partido" title="Quitar" style={{ background: 'none', border: 'none', color: 'var(--red)', cursor: 'pointer', fontSize: 12, fontWeight: 700, padding: '2px 6px', flexShrink: 0 }}>Quitar ✕</button>
                     )}
                   </div>
-                )
-              })}
+                </div>
+              ))}
             </div>
 
             {/* 3. Cierre — depende de los partidos, por eso va después de ellos */}
@@ -4406,8 +4300,6 @@ export default function Admin() {
 
             {/* 4. Acceso — quién puede entrar */}
             <div style={card}>
-              <p style={{ ...lbl, marginBottom: 10 }}>Acceso</p>
-
               <label htmlFor="quiniela-codigo" style={{ ...lbl, marginBottom: 4 }}>Código de acceso{!soySuper && <span style={{ color: 'var(--red)' }}> *</span>}</label>
               <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>
                 Generado automático. Puedes cambiarlo, pero evita un código muy fácil. Solo quien lo tenga puede participar.
@@ -4443,6 +4335,8 @@ export default function Admin() {
         {vista === 'gestionar' && quinielaActual && (() => {
           const estaCerrada = esCerradaQ(quinielaActual)
           const estaFinalizada = esFinalizadaQ(quinielaActual)
+          // Reabrir solo mientras no arranque el primer partido (ni esté finalizada).
+          const puedeReabrir = estaCerrada && !estaFinalizada && !primerPartidoArranco(quinielaActual)
           const estadoBadge = estaFinalizada
             ? { label: 'Finalizada', bg: 'var(--neutral-bg)', color: 'var(--muted)' }
             : estaCerrada
@@ -4473,30 +4367,27 @@ export default function Admin() {
                     </span>
                   </div>
                 </div>
-                <button
-                  onClick={toggleCerrar}
-                  disabled={toggling}
-                  aria-label={toggling ? undefined : (estaCerrada ? 'Reabrir quiniela' : 'Cerrar quiniela')}
-                  style={{
-                    padding: '8px 14px', fontSize: 12, flexShrink: 0,
-                    borderRadius: 'var(--radius-sm)', border: 'none', fontWeight: 700, cursor: toggling ? 'not-allowed' : 'pointer',
-                    background: toggling ? 'var(--card-light)' : (estaCerrada ? 'var(--green)' : 'var(--yellow)'),
-                    color: toggling ? 'var(--muted)' : (estaCerrada ? '#07120A' : '#3F2700'),
-                  }}
-                >
-                  {toggling ? '…' : (
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                      <AdminIcon name={estaCerrada ? 'unlock' : 'lock'} size={13} />
-                      {estaCerrada ? 'Reabrir' : 'Cerrar'}
-                    </span>
-                  )}
-                </button>
+                {(!estaCerrada || puedeReabrir) && (
+                  <button
+                    onClick={toggleCerrar}
+                    disabled={toggling}
+                    aria-label={toggling ? undefined : (estaCerrada ? 'Reabrir quiniela' : 'Cerrar quiniela')}
+                    style={{
+                      padding: '8px 14px', fontSize: 12, flexShrink: 0,
+                      borderRadius: 'var(--radius-sm)', border: 'none', fontWeight: 700, cursor: toggling ? 'not-allowed' : 'pointer',
+                      background: toggling ? 'var(--card-light)' : (estaCerrada ? 'var(--green)' : 'var(--yellow)'),
+                      color: toggling ? 'var(--muted)' : (estaCerrada ? '#07120A' : '#3F2700'),
+                    }}
+                  >
+                    {toggling ? '…' : (
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                        <AdminIcon name={estaCerrada ? 'unlock' : 'lock'} size={13} />
+                        {estaCerrada ? 'Reabrir' : 'Cerrar'}
+                      </span>
+                    )}
+                  </button>
+                )}
               </div>
-              {!estaCerrada && !quinielaActual.cierre && (
-                <div style={{ background: 'var(--yellow-bg)', border: '1px solid var(--yellow)', borderRadius: 'var(--radius-sm)', padding: '8px 12px', marginBottom: 12, fontSize: 12, color: 'var(--yellow-soft)' }}>
-                  ⚠️ Quiniela reabierta sin fecha de cierre. Ve a Editar para configurar una si la necesitas.
-                </div>
-              )}
 
               {!estaCerrada && soySuper && (() => {
                 const esDestacada = !!quinielaActual.destacada
@@ -4627,7 +4518,7 @@ export default function Admin() {
 
                   <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginBottom: 14 }}>
                     <div style={{ fontSize: 13, fontWeight: 600, color: sincrMsg.startsWith('✓') ? 'var(--green)' : sincrMsg.startsWith('⚠') ? 'var(--yellow)' : 'var(--muted)' }}>
-                      {sincrMsg || (guardadoRes ? '✓ Ranking actualizado' : '')}
+                      {sincrMsg}
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto' }}>
                       <button
@@ -4641,17 +4532,6 @@ export default function Admin() {
                             Sincronizar resultados
                           </span>
                         )}
-                      </button>
-                      <button
-                        onClick={iniciarGuardarResultados} disabled={guardandoRes}
-                        style={{
-                          padding: '10px 20px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-strong)',
-                          background: 'var(--card-light)', color: 'var(--text)',
-                          fontSize: 13, fontWeight: 600, cursor: guardandoRes ? 'not-allowed' : 'pointer',
-                          opacity: guardandoRes ? 0.5 : 1,
-                        }}
-                      >
-                        {guardandoRes ? 'Guardando…' : 'Guardar manual'}
                       </button>
                       <button
                         type="button"
@@ -4689,20 +4569,23 @@ export default function Admin() {
                           </button>
                         </div>
                         <div style={{ fontSize: 12.5, color: 'var(--muted)', lineHeight: 1.6 }}>
-                          <p style={{ marginBottom: 8 }}><AdminIcon name="pin" size={13} style={{ verticalAlign: '-2px', marginRight: 4 }} /><strong style={{ color: 'var(--text)' }}>Al terminar los partidos</strong>, espera unos minutos (a que se marquen como finalizados) y da <strong style={{ color: 'var(--green)' }}><AdminIcon name="bolt" size={12} style={{ verticalAlign: '-1px', marginRight: 2 }} />Sincronizar resultados</strong> para dejarlos guardados.</p>
-                          <p style={{ marginBottom: 8 }}><strong style={{ color: 'var(--green)' }}><AdminIcon name="bolt" size={12} style={{ verticalAlign: '-1px', marginRight: 2 }} />Sincronizar resultados</strong> — trae los marcadores reales para partidos que agregaste con el buscador. <strong style={{ color: 'var(--green)', background: 'var(--green-bg)', padding: '1px 6px', borderRadius: 'var(--radius-full)', fontSize: 11 }}>Recomendado</strong></p>
-                          <p><strong style={{ color: 'var(--text)' }}>Guardar manual</strong> — guarda los marcadores que escribas tú. Úsalo solo para partidos que agregaste manualmente.</p>
+                          <p><AdminIcon name="pin" size={13} style={{ verticalAlign: '-2px', marginRight: 4 }} /><strong style={{ color: 'var(--text)' }}>Al terminar un partido</strong>, espera unos minutos (a que se marque como finalizado) y da <strong style={{ color: 'var(--green)' }}><AdminIcon name="bolt" size={12} style={{ verticalAlign: '-1px', marginRight: 2 }} />Sincronizar resultados</strong> para llenar los marcadores automáticamente y dejarlos guardados.</p>
                         </div>
                       </div>
                     </div>
                   )}
 
                   <div style={card}>
-                    <label style={{ ...lbl, marginBottom: 14 }}>Registrar marcadores</label>
+                    <label style={{ ...lbl, marginBottom: 6 }}>Marcadores</label>
+                    <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 14, lineHeight: 1.5 }}>
+                      Se llenan solos al dar <strong style={{ color: 'var(--green)' }}>Sincronizar resultados</strong>.
+                    </p>
                     {(quinielaActual.partidos ?? []).map((p, i) => {
-                      const r = resultados[i] ?? { local: '', visitante: '' }
-                      const cancelado  = !!r.cancelado
-                      const resultado  = cancelado ? null : goalsToResultado(r.local, r.visitante)
+                      const r = resultados[i] ?? {}
+                      const cancelado    = !!r.cancelado
+                      const tieneMarcador = !cancelado && String(r.local ?? '').trim() !== '' && String(r.visitante ?? '').trim() !== ''
+                      const resultado    = tieneMarcador ? goalsToResultado(r.local, r.visitante) : null
+                      const pendiente    = !cancelado && !tieneMarcador
                       const resColor   = cancelado ? { bg: 'var(--neutral-bg)', color: 'var(--muted)' }
                         : resultado === 'home' ? { bg: 'var(--green-bg)',  color: 'var(--green)' }
                         : resultado === 'draw' ? { bg: 'var(--neutral-bg)', color: 'var(--muted)' }
@@ -4713,66 +4596,45 @@ export default function Admin() {
                         : resultado === 'draw' ? 'Empate'
                         : resultado === 'away' ? 'Visitante'
                         : 'Pendiente'
-
-                      const toggleCancelado = () => setResultados(prev => {
-                        const cur = prev[i] ?? {}
-                        return { ...prev, [i]: cur.cancelado ? { local: '', visitante: '' } : { cancelado: true } }
-                      })
+                      const ultimo = i === (quinielaActual.partidos?.length ?? 0) - 1
 
                       return (
                         <div
                           key={i}
                           style={{
-                            padding: 12, marginBottom: i < (quinielaActual.partidos?.length ?? 0) - 1 ? 10 : 0,
-                            background: 'var(--card-light)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)',
+                            padding: '12px 4px',
+                            borderBottom: ultimo ? 'none' : '1px solid var(--border)',
                           }}
                         >
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                            {escudoMini(p.escudoLocal, p.local)}
-                            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {p.local || `Local ${i + 1}`}
+                          {/* Fila horizontal estilo ranking: local — marcador — visitante */}
+                          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) auto minmax(0,1fr)', gap: 10, alignItems: 'center' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0, justifyContent: 'flex-end' }}>
+                              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'right' }}>
+                                {p.local || `Local ${i + 1}`}
+                              </span>
+                              {escudoMini(p.escudoLocal, p.local)}
+                            </div>
+                            <span style={{
+                              minWidth: 52, textAlign: 'center',
+                              fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 800,
+                              padding: '3px 8px', borderRadius: 'var(--radius-sm)',
+                              background: 'var(--card-light)',
+                              color: cancelado ? 'var(--muted)' : pendiente ? 'var(--muted-soft)' : 'var(--text-strong)',
+                              textDecoration: cancelado ? 'line-through' : 'none',
+                            }}>
+                              {cancelado ? '—' : pendiente ? 'vs' : `${r.local}–${r.visitante}`}
                             </span>
-                            <input
-                              type="number" min="0" max="99" placeholder="0"
-                              value={cancelado ? '' : (r.local ?? '')}
-                              disabled={cancelado}
-                              onChange={e => setResultados(prev => ({ ...prev, [i]: { ...(prev[i] ?? {}), cancelado: false, local: e.target.value } }))}
-                              style={{ width: 44, flexShrink: 0, textAlign: 'center', padding: '6px 4px', fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 700, opacity: cancelado ? 0.4 : 1 }}
-                            />
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
+                              {escudoMini(p.escudoVisitante, p.visitante)}
+                              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {p.visitante || `Visitante ${i + 1}`}
+                              </span>
+                            </div>
                           </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                            {escudoMini(p.escudoVisitante, p.visitante)}
-                            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {p.visitante || `Visitante ${i + 1}`}
-                            </span>
-                            <input
-                              type="number" min="0" max="99" placeholder="0"
-                              value={cancelado ? '' : (r.visitante ?? '')}
-                              disabled={cancelado}
-                              onChange={e => setResultados(prev => ({ ...prev, [i]: { ...(prev[i] ?? {}), cancelado: false, visitante: e.target.value } }))}
-                              style={{ width: 44, flexShrink: 0, textAlign: 'center', padding: '6px 4px', fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 700, opacity: cancelado ? 0.4 : 1 }}
-                            />
-                          </div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                          <div style={{ display: 'flex', justifyContent: 'center', marginTop: 8 }}>
                             <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 'var(--radius-full)', background: resColor.bg, color: resColor.color, whiteSpace: 'nowrap', letterSpacing: 0.3 }}>
                               {resLabel}
                             </span>
-                            <button
-                              type="button"
-                              onClick={toggleCancelado}
-                              aria-pressed={cancelado}
-                              style={{
-                                fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 'var(--radius-full)',
-                                border: `1px solid ${cancelado ? 'var(--red)' : 'var(--border-strong)'}`,
-                                background: cancelado ? 'var(--red-bg)' : 'transparent',
-                                color: cancelado ? '#FCA5A5' : 'var(--muted)',
-                                cursor: 'pointer',
-                                display: 'inline-flex', alignItems: 'center', gap: 4,
-                              }}
-                            >
-                              {cancelado && <AdminIcon name="check" size={12} />}
-                              {cancelado ? 'Cancelado' : 'Marcar cancelado'}
-                            </button>
                           </div>
                         </div>
                       )
@@ -4865,12 +4727,26 @@ export default function Admin() {
                           Revisa los nombres marcados como <strong>Similar</strong> y elimina los que sean repetidos.
                         </div>
                       )}
-                      <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 12 }}>
-                        {esTipoBote
-                          ? 'Cuando confirmes el pago (transferencia o efectivo), pulsa el botón Pendiente del jugador para cambiarlo a Pagado. Eliminar lo quita del ranking.'
-                          : 'Al eliminar una predicción el jugador podrá volver a registrarse con su nombre.'}
-                        {' '}Usa el botón <AdminIcon name="eye" size={12} style={{ verticalAlign: '-2px' }} /> para ocultar a alguien del ranking público (por ejemplo, mientras no haya pagado): su predicción sigue guardada y no cuenta para el bote, y puedes mostrarla de nuevo cuando quieras.
-                      </p>
+                      <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 12, lineHeight: 1.5, display: 'grid', gap: 5 }}>
+                        {esTipoBote && (
+                          <span style={{ display: 'inline-flex', alignItems: 'flex-start', gap: 6 }}>
+                            <AdminIcon name="clock" size={13} style={{ flexShrink: 0, marginTop: 1 }} />
+                            <span><strong style={{ color: 'var(--text)' }}>Pendiente → Pagado</strong>: pulsa el botón cuando confirmes el pago del jugador.</span>
+                          </span>
+                        )}
+                        <span style={{ display: 'inline-flex', alignItems: 'flex-start', gap: 6 }}>
+                          <AdminIcon name="eye" size={13} style={{ flexShrink: 0, marginTop: 1 }} />
+                          <span><strong style={{ color: 'var(--text)' }}>Ocultar</strong>: lo quita del ranking público sin borrarlo{esTipoBote ? ' (no cuenta para el bote)' : ''}. Es reversible.</span>
+                        </span>
+                        <span style={{ display: 'inline-flex', alignItems: 'flex-start', gap: 6 }}>
+                          <AdminIcon name="trash" size={13} style={{ flexShrink: 0, marginTop: 1 }} />
+                          <span><strong style={{ color: 'var(--text)' }}>Eliminar</strong>: lo saca de la quiniela; el jugador podrá registrarse de nuevo.</span>
+                        </span>
+                      </div>
+                      <div style={{ background: 'var(--neutral-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '8px 12px', marginBottom: 12, fontSize: 12, color: 'var(--muted)', lineHeight: 1.5, display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+                        <AdminIcon name="info" size={13} style={{ flexShrink: 0, marginTop: 1, color: 'var(--green)' }} />
+                        <span><strong style={{ color: 'var(--text)' }}>¿Alguien quiere cambiar sus predicciones?</strong> Elimínalo aquí y pídele que se registre otra vez. En realidad no se editan: se capturan de nuevo. Solo mientras la quiniela esté abierta.</span>
+                      </div>
                       <input
                         type="text"
                         placeholder={`Buscar entre ${listaPredicciones.length} participantes…`}
@@ -4901,12 +4777,15 @@ export default function Admin() {
                           <div
                             key={pred.id}
                             style={{
-                              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap',
+                              display: 'flex',
+                              flexDirection: esEscritorio ? 'row' : 'column',
+                              alignItems: esEscritorio ? 'center' : 'stretch',
+                              justifyContent: 'space-between', gap: esEscritorio ? 10 : 8,
                               padding: '10px 0',
                               borderBottom: i < listaFiltrada.length - 1 ? '1px solid var(--border)' : 'none',
                             }}
                           >
-                            <div style={{ flex: 1, minWidth: 140 }}>
+                            <div style={{ flex: 1, minWidth: 0 }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
                                 <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
                                   {pred.nombre}
@@ -4949,7 +4828,7 @@ export default function Admin() {
                                 {fecha}
                               </p>
                             </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, flexWrap: 'wrap' }}>
                               {esTipoBote && (
                                 <button
                                   onClick={() => togglePago(pred.id)}
@@ -5031,88 +4910,55 @@ export default function Admin() {
                     </div>
                   </div>
 
-                  {/* 2. Partidos: buscador + lista */}
-                  {renderBuscadorFixtures(agregarSeleccionadosAEdicion)}
+                  {/* 2. Partidos: el buscador solo aparece si aún no hay predicciones */}
+                  {conteoPredicciones === 0 && renderBuscadorFixtures(agregarSeleccionadosAEdicion)}
 
                   <div style={card}>
-                    <label style={{ ...lbl, marginBottom: 14 }}>Partidos</label>
-                    {conteoPredicciones > 0 && (
-                      <div style={{ background: 'var(--yellow-bg)', border: '1px solid var(--yellow)', borderRadius: 'var(--radius-sm)', padding: '8px 12px', marginBottom: 12, fontSize: 12, color: 'var(--yellow-soft)' }}>
-                        ⚠️ Hay {conteoPredicciones} predicción(es) registrada(s). Los partidos existentes 🔒 no se pueden modificar — solo puedes agregar nuevos al final.
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+                      <label style={{ ...lbl, marginBottom: 0 }}>Partidos</label>
+                      {conteoPredicciones > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setPartidosFijosInfo(v => !v)}
+                          aria-label="Por qué la lista de partidos está fija"
+                          aria-expanded={partidosFijosInfo}
+                          title="Lista fija"
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: partidosFijosInfo ? 'var(--text)' : 'var(--muted)', padding: 2, display: 'inline-flex', alignItems: 'center', lineHeight: 1 }}
+                        >
+                          <AdminIcon name="lock" size={14} />
+                        </button>
+                      )}
+                    </div>
+                    {conteoPredicciones > 0 && partidosFijosInfo && (
+                      <div style={{ background: 'var(--neutral-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '8px 12px', marginBottom: 12, fontSize: 12, color: 'var(--muted)', lineHeight: 1.5 }}>
+                        Ya hay {conteoPredicciones} predicción{conteoPredicciones !== 1 ? 'es' : ''} registrada{conteoPredicciones !== 1 ? 's' : ''}, así que la lista de partidos queda fija: no se puede agregar ni quitar. Si necesitas otros partidos, crea una quiniela nueva.
                       </div>
                     )}
-                    {editPartidos.map((p, i) => {
-                      const esOriginal = i < editPartidosOriginales
-                      const bloqueado = esOriginal && conteoPredicciones > 0
-                      const incompleto = partidoIncompleto(p)
-                      const enEdicion = !bloqueado && (editandoPartidoEdicion === i || incompleto)
-
-                      if (!enEdicion) {
-                        // ── Tarjeta colapsada (solo lectura) ──
-                        return (
-                          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: i < editPartidos.length - 1 ? '1px solid var(--border)' : 'none' }}>
-                            {bloqueado && (
-                              <span aria-label="Partido fijo" title="No editable: ya hay predicciones" style={{ fontSize: 12, opacity: 0.7, flexShrink: 0 }}>🔒</span>
-                            )}
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                {escudoMini(p.escudoLocal, p.local)}
-                                <span style={{ fontSize: 13, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: '1 1 0%', minWidth: 0 }}>{p.local}</span>
-                                <span style={{ fontSize: 11, color: 'var(--muted)', flexShrink: 0 }}>vs</span>
-                                <span style={{ fontSize: 13, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: '1 1 0%', minWidth: 0, textAlign: 'right' }}>{p.visitante}</span>
-                                {escudoMini(p.escudoVisitante, p.visitante)}
-                              </div>
-                              {p.hora && <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{formatFixtureDate(p.hora)}</div>}
-                            </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
-                              {!bloqueado && (
-                                <button onClick={() => setEditandoPartidoEdicion(i)} aria-label="Editar partido" title="Editar" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, padding: '2px 4px', flexShrink: 0 }}>✏️</button>
-                              )}
-                              {!bloqueado && !esOriginal && (
-                                <button
-                                  onClick={() => setEditPartidos(prev => prev.filter((_, idx) => idx !== i))}
-                                  aria-label="Quitar partido nuevo"
-                                  style={{ background: 'none', border: 'none', color: 'var(--red)', fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: '2px 6px', borderRadius: 6, flexShrink: 0 }}
-                                >
-                                  Quitar ✕
-                                </button>
-                              )}
-                            </div>
+                    {editPartidos.map((p, i) => (
+                      // ── Tarjeta solo lectura (los partidos vienen de ESPN, no se editan) ──
+                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: i < editPartidos.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            {escudoMini(p.escudoLocal, p.local)}
+                            <span style={{ fontSize: 13, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: '1 1 0%', minWidth: 0 }}>{p.local}</span>
+                            <span style={{ fontSize: 11, color: 'var(--muted)', flexShrink: 0 }}>vs</span>
+                            <span style={{ fontSize: 13, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: '1 1 0%', minWidth: 0, textAlign: 'right' }}>{p.visitante}</span>
+                            {escudoMini(p.escudoVisitante, p.visitante)}
                           </div>
-                        )
-                      }
-
-                      // ── Modo edición ──
-                      return (
-                        <div key={i} style={{ marginBottom: 16, paddingBottom: 16, borderBottom: i < editPartidos.length - 1 ? '1px solid var(--border)' : 'none' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.8 }}>
-                              Partido {i + 1}
-                            </span>
-                            {!esOriginal && (
-                              <button onClick={() => setEditPartidos(prev => prev.filter((_, idx) => idx !== i))} style={{ background: 'none', border: 'none', color: 'var(--red)', fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: '2px 6px', borderRadius: 6 }}>
-                                Quitar ✕
-                              </button>
-                            )}
-                          </div>
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: 8, marginBottom: 8, alignItems: 'center' }}>
-                            <input type="text" placeholder="Equipo local"     value={p.local}     onChange={e => actualizarEditPartido(i, 'local', e.target.value)} />
-                            <span style={{ color: 'var(--muted)', fontSize: 12, fontWeight: 700, textAlign: 'center' }}>VS</span>
-                            <input type="text" placeholder="Equipo visitante" value={p.visitante} onChange={e => actualizarEditPartido(i, 'visitante', e.target.value)} />
-                          </div>
-                          <DateTimeWrap vacio={!p.hora} texto="Fecha y hora del partido">
-                            <input type="datetime-local" value={p.hora} onChange={e => actualizarEditPartido(i, 'hora', e.target.value)} />
-                          </DateTimeWrap>
-                          {!incompleto && (
-                            <div style={{ textAlign: 'right', marginTop: 8 }}>
-                              <button onClick={() => setEditandoPartidoEdicion(null)} style={{ background: 'none', border: '1px solid var(--border-strong)', color: 'var(--text)', fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: '6px 14px', borderRadius: 'var(--radius-sm)' }}>
-                                Listo ✓
-                              </button>
-                            </div>
-                          )}
+                          {p.hora && <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{formatFixtureDate(p.hora)}</div>}
                         </div>
-                      )
-                    })}
+                        {conteoPredicciones === 0 && (
+                          <button
+                            onClick={() => setEditPartidos(prev => prev.filter((_, idx) => idx !== i))}
+                            aria-label="Quitar partido"
+                            title="Quitar"
+                            style={{ background: 'none', border: 'none', color: 'var(--red)', fontSize: 12, fontWeight: 700, cursor: 'pointer', padding: '2px 6px', borderRadius: 6, flexShrink: 0 }}
+                          >
+                            Quitar ✕
+                          </button>
+                        )}
+                      </div>
+                    ))}
                     {editPartidos.length === 0 && (
                       <p style={{ fontSize: 13, color: 'var(--muted)', textAlign: 'center', padding: '1rem 0' }}>Sin partidos. Agrégalos desde el buscador de arriba.</p>
                     )}
@@ -5141,11 +4987,9 @@ export default function Admin() {
 
                   {/* 4. Acceso — quién puede entrar */}
                   <div style={card}>
-                    <p style={{ ...lbl, marginBottom: 10 }}>Acceso</p>
-
                     <label htmlFor="edit-codigo" style={{ ...lbl, marginBottom: 4 }}>Código de acceso {soySuper ? <span style={{ color: 'var(--muted)', fontWeight: 500, textTransform: 'none', letterSpacing: 0 }}>(opcional)</span> : <span style={{ color: 'var(--red)' }}>*</span>}</label>
                     <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>
-                      Si pones un código, solo quien lo tenga puede participar. Evita uno muy fácil.
+                      Solo quien lo tenga puede participar. Evita uno muy fácil.
                     </p>
                     <input id="edit-codigo" type="text" placeholder="Ej. ACME2026" value={editCodigoAcceso} onChange={e => setEditCodigoAcceso(e.target.value)} />
 
@@ -5329,95 +5173,6 @@ export default function Admin() {
           )
         })()}
       </div>
-
-      {/* Modal de confirmación de guardado de resultados */}
-      {confirmacionRes && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          onClick={() => !guardandoRes && setConfirmacionRes(null)}
-          style={{
-            position: 'fixed', inset: 0, zIndex: 1000,
-            background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(3px)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem',
-          }}
-        >
-          <div
-            onClick={e => e.stopPropagation()}
-            style={{
-              background: 'var(--card)', borderRadius: 'var(--radius-lg)',
-              border: '1px solid var(--border-strong)', boxShadow: 'var(--shadow-lg)',
-              maxWidth: 520, width: '100%', maxHeight: '85vh', overflowY: 'auto',
-              padding: '1.5rem',
-            }}
-          >
-            <p style={{ fontSize: 17, fontWeight: 700, color: 'var(--text-strong)', marginBottom: 4 }}>
-              Confirmar resultados
-            </p>
-            <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 16 }}>
-              Vas a guardar {confirmacionRes.items.length} resultado{confirmacionRes.items.length !== 1 ? 's' : ''}.
-              {validandoEspn ? ' Validando resultados…' : ''}
-            </p>
-            <div style={{ display: 'grid', gap: 8, marginBottom: 16 }}>
-              {confirmacionRes.items.map(it => {
-                const espnTexto = (it.espnLocal != null && it.espnVisitante != null)
-                  ? `${it.espnLocal}-${it.espnVisitante}`
-                  : null
-                const tuValor = it.cancelado ? 'Cancelado' : `${it.local}-${it.visitante}`
-                const divergente = !it.cancelado && espnTexto && espnTexto !== tuValor && it.espnEstado === 'post'
-                return (
-                  <div
-                    key={it.idx}
-                    style={{
-                      background: divergente ? 'var(--yellow-bg)' : 'var(--bg-soft)',
-                      border: `1px solid ${divergente ? 'var(--yellow)' : 'var(--border)'}`,
-                      borderRadius: 'var(--radius-sm)', padding: '10px 12px',
-                    }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {it.partido.local} vs {it.partido.visitante}
-                      </span>
-                      <span style={{
-                        fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 800,
-                        color: it.cancelado ? 'var(--muted)' : 'var(--green)', flexShrink: 0,
-                      }}>
-                        {tuValor}
-                      </span>
-                    </div>
-                    {divergente && (
-                      <p style={{ fontSize: 11, color: 'var(--yellow-soft)', marginTop: 6, fontWeight: 600 }}>
-                        ⚠️ El marcador oficial reporta <strong>{espnTexto}</strong>. ¿Es correcto tu valor?
-                      </p>
-                    )}
-                    {!divergente && espnTexto && espnTexto === tuValor && (
-                      <p style={{ fontSize: 11, color: 'var(--green)', marginTop: 6 }}>
-                        ✓ Coincide con el marcador oficial
-                      </p>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-              <button
-                onClick={() => setConfirmacionRes(null)}
-                disabled={guardandoRes}
-                style={{
-                  padding: '10px 18px', borderRadius: 'var(--radius-sm)',
-                  border: '1px solid var(--border-strong)', background: 'transparent',
-                  color: 'var(--muted)', fontSize: 13, fontWeight: 600, cursor: guardandoRes ? 'not-allowed' : 'pointer',
-                }}
-              >
-                Cancelar
-              </button>
-              <button onClick={guardarResultados} disabled={guardandoRes} style={greenCtaStyle(guardandoRes)}>
-                {guardandoRes ? 'Guardando…' : 'Confirmar y guardar →'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Panel cliente móvil: barra de pestañas + botón flotante para crear */}
       {clienteMobile && <TabBarCliente activo={clienteTab} onNav={navCliente} />}
