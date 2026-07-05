@@ -191,6 +191,7 @@ function AdminIcon({ name, size = 14, style, strokeWidth = 2 }) {
   if (name === 'trophy') return <svg {...common}><path d="M8 21h8" /><path d="M12 17v4" /><path d="M7 4h10v5a5 5 0 0 1-10 0V4Z" /><path d="M7 6H4v1a3 3 0 0 0 3 3" /><path d="M17 6h3v1a3 3 0 0 1-3 3" /></svg>
   if (name === 'megaphone') return <svg {...common}><path d="m3 11 15-6v14l-15-6Z" /><path d="M3 11v4" /><path d="M8 13v5a2 2 0 0 0 4 0v-3" /></svg>
   if (name === 'check') return <svg {...common}><path d="m20 6-11 11-5-5" /></svg>
+  if (name === 'x') return <svg {...common}><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>
   if (name === 'undo') return <svg {...common}><path d="M3 7v6h6" /><path d="M3.5 13a8 8 0 1 1 1.9 5" /></svg>
   if (name === 'banknote') return <svg {...common}><rect x="2" y="6" width="20" height="12" rx="2" /><circle cx="12" cy="12" r="2.5" /><path d="M6 9v.01" /><path d="M18 15v.01" /></svg>
   if (name === 'refresh') return <svg {...common}><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" /><path d="M21 3v5h-5" /><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" /><path d="M8 16H3v5" /></svg>
@@ -392,7 +393,7 @@ function MobileAdminHeader() {
   return (
     <header className="admin-mobile-topbar">
       <a href="/" className="admin-mobile-brand" aria-label="Volver al Home de QuinielApp">
-        <BrandWordmark markSize={24} fontSize={17} />
+        <BrandWordmark markSize={26} fontSize={19} />
       </a>
     </header>
   )
@@ -600,6 +601,7 @@ export default function Admin() {
   // La sección de cambio de contraseña va colapsada por default: solo se
   // despliega cuando el usuario realmente la necesita.
   const [seguridadAbierta, setSeguridadAbierta] = useState(false)
+  const [correoCuentaSheetAbierto, setCorreoCuentaSheetAbierto] = useState(false)
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async user => {
@@ -687,6 +689,7 @@ export default function Admin() {
     setCuentaMsg(null)
     setCuentaPassMsg(null)
     setEditandoCuentaCampo(null)
+    setCorreoCuentaSheetAbierto(false)
     setCuentaP1(''); setCuentaP2('')
     setVista('cuenta')
   }
@@ -696,6 +699,7 @@ export default function Admin() {
     setCuentaTel(adminDoc?.telefono ?? '')
     setCuentaMsg(null)
     setEditandoCuentaCampo(null)
+    setCorreoCuentaSheetAbierto(false)
   }
 
   // Guarda nombre/teléfono (las reglas congelan activo/correo).
@@ -2501,7 +2505,7 @@ export default function Admin() {
       {ayudaAbierta && <ComoFunciona onClose={() => setAyudaAbierta(false)} />}
       {tourAbierto && <TourBienvenida onClose={cerrarTour} />}
 
-      <div style={{ maxWidth: superDesktop ? 1200 : clienteDesktop ? 1040 : 580, margin: '0 auto', padding: (superDesktop || clienteDesktop) ? '26px 30px 48px' : superMobileHome || superMobileModule ? '18px 16px 108px' : '1.25rem 1rem 3rem' }}>
+      <div style={{ maxWidth: superDesktop ? 1200 : clienteDesktop ? 1040 : 580, margin: '0 auto', padding: (superDesktop || clienteDesktop) ? '26px 30px 48px' : (clienteMobile && vista === 'cuenta') ? '30px 20px 90px' : superMobileHome || superMobileModule ? '18px 16px 108px' : '1.25rem 1rem 3rem' }}>
 
         {/* ── Vista: Lista ────────────────────────────────────────────────── */}
         {vista === 'lista' && (
@@ -4310,122 +4314,222 @@ export default function Admin() {
         )}
 
         {/* ── Vista: Mi cuenta ─────────────────────────────────────────────── */}
-        {vista === 'cuenta' && (
-          <>
-            <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)', marginBottom: 14 }}>Mi cuenta</p>
+        {vista === 'cuenta' && (() => {
+          const cuentaEmail = adminDoc?.email ?? auth.currentUser?.email ?? ''
+          const nombreCuenta = cuentaNombre.trim() || adminDoc?.nombre || 'Mi cuenta'
+          const telefonoCuenta = cuentaTel.trim()
+          const passwordEval = evaluarPassword(cuentaP1)
+          const passwordListo = !!cuentaP2 && passwordEval.ok && cuentaP1 === cuentaP2
+          const passwordCoincide = !!cuentaP2 && cuentaP1 === cuentaP2
+          const soporteLink = waLink(MENSAJES_WA?.soporte || 'Hola, necesito ayuda con mi panel de QuinielApp.')
+          const correoLink = waLink('¡Hola! Quiero cambiar el correo de acceso de mi cuenta en QuinielApp.')
+          const editarCampo = (campo) => {
+            setEditandoCuentaCampo(campo)
+            setCuentaMsg(null)
+          }
+          const guardarPasswordCuenta = () => {
+            if (!passwordListo || cambiandoPass) return
+            cambiarMiPassword()
+          }
 
-            {/* Tus datos */}
-            <div style={card}>
-              <div className="admin-account-profile">
-                <span className="admin-account-avatar">
-                  {iniciales(cuentaNombre || adminDoc?.nombre || adminDoc?.email || auth.currentUser?.email)}
-                </span>
-                <div style={{ minWidth: 0 }}>
-                  <p className="admin-account-name">{cuentaNombre.trim() || adminDoc?.nombre || 'Mi cuenta'}</p>
-                  <p className="admin-account-role">Organizador</p>
-                </div>
-              </div>
+          return (
+            <>
+              <div className={`admin-account-page${correoCuentaSheetAbierto ? ' is-sheet-open' : ''}`}>
+                <section className="admin-account-profile">
+                  <span className="admin-account-avatar">
+                    {iniciales(cuentaNombre || adminDoc?.nombre || adminDoc?.email || auth.currentUser?.email)}
+                  </span>
+                  <h2 className="admin-account-name">{nombreCuenta}</h2>
+                  <span className="admin-account-role">Organizador</span>
+                </section>
 
-              <div className="admin-account-fields">
-                <div className={`admin-account-field${editandoCuentaCampo === 'nombre' ? ' is-editing' : ''}`}>
-                  <label htmlFor="cuenta-nombre" className="admin-account-label">Nombre</label>
+                <p className="admin-account-group-label">Datos</p>
+                <section className="admin-account-group" aria-label="Datos de cuenta">
                   {editandoCuentaCampo === 'nombre' ? (
-                    <input
-                      id="cuenta-nombre"
-                      type="text"
-                      value={cuentaNombre}
-                      autoFocus
-                      onChange={e => { setCuentaNombre(e.target.value); setCuentaMsg(null) }}
-                      onKeyDown={e => e.key === 'Enter' && guardarMiCuenta()}
-                    />
-                  ) : (
-                    <div className="admin-account-read-row">
-                      <span className="admin-account-value">{cuentaNombre.trim() || 'Sin nombre'}</span>
-                      <button type="button" className="admin-account-edit-btn" onClick={() => { setEditandoCuentaCampo('nombre'); setCuentaMsg(null) }} aria-label="Editar nombre" title="Editar nombre">
-                        <AdminIcon name="pencil" size={15} />
-                      </button>
+                    <div className="admin-account-data-row is-editing">
+                      <p className="admin-account-editing-label">Editando nombre</p>
+                      <div className="admin-account-edit-line">
+                        <input
+                          id="cuenta-nombre"
+                          className="admin-account-edit-input"
+                          type="text"
+                          value={cuentaNombre}
+                          autoFocus
+                          onChange={e => { setCuentaNombre(e.target.value); setCuentaMsg(null) }}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') guardarMiCuenta()
+                            if (e.key === 'Escape') cancelarEdicionCuenta()
+                          }}
+                        />
+                        <button type="button" className="admin-account-inline-btn is-cancel" onClick={cancelarEdicionCuenta} disabled={guardandoCuenta} aria-label="Cancelar edición de nombre">
+                          <AdminIcon name="x" size={16} strokeWidth={2.2} />
+                        </button>
+                        <button type="button" className="admin-account-inline-btn is-save" onClick={guardarMiCuenta} disabled={guardandoCuenta} aria-label="Guardar nombre">
+                          <AdminIcon name="check" size={18} strokeWidth={2.4} />
+                        </button>
+                      </div>
                     </div>
+                  ) : (
+                    <button type="button" className="admin-account-data-row" onClick={() => editarCampo('nombre')}>
+                      <span className="admin-account-row-copy">
+                        <span className="admin-account-row-label">Nombre</span>
+                        <span className="admin-account-row-value">{nombreCuenta}</span>
+                      </span>
+                      <span className="admin-account-edit-chip" aria-hidden="true">
+                        <AdminIcon name="pencil" size={15} />
+                      </span>
+                    </button>
                   )}
-                </div>
 
-                <div className={`admin-account-field${editandoCuentaCampo === 'telefono' ? ' is-editing' : ''}`}>
-                  <label htmlFor="cuenta-tel" className="admin-account-label">Teléfono</label>
                   {editandoCuentaCampo === 'telefono' ? (
-                    <input
-                      id="cuenta-tel"
-                      type="tel"
-                      placeholder="Ej. 55 1234 5678"
-                      value={cuentaTel}
-                      autoFocus
-                      onChange={e => { setCuentaTel(e.target.value); setCuentaMsg(null) }}
-                      onKeyDown={e => e.key === 'Enter' && guardarMiCuenta()}
-                    />
+                    <div className="admin-account-data-row is-editing">
+                      <p className="admin-account-editing-label">Editando teléfono</p>
+                      <div className="admin-account-edit-line">
+                        <input
+                          id="cuenta-tel"
+                          className="admin-account-edit-input"
+                          type="tel"
+                          inputMode="tel"
+                          placeholder="Ej. 55 1234 5678"
+                          value={cuentaTel}
+                          autoFocus
+                          onChange={e => { setCuentaTel(e.target.value); setCuentaMsg(null) }}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') guardarMiCuenta()
+                            if (e.key === 'Escape') cancelarEdicionCuenta()
+                          }}
+                        />
+                        <button type="button" className="admin-account-inline-btn is-cancel" onClick={cancelarEdicionCuenta} disabled={guardandoCuenta} aria-label="Cancelar edición de teléfono">
+                          <AdminIcon name="x" size={16} strokeWidth={2.2} />
+                        </button>
+                        <button type="button" className="admin-account-inline-btn is-save" onClick={guardarMiCuenta} disabled={guardandoCuenta} aria-label="Guardar teléfono">
+                          <AdminIcon name="check" size={18} strokeWidth={2.4} />
+                        </button>
+                      </div>
+                      <p className="admin-account-edit-note">Opcional. Sirve para que te contactemos si hay algún problema con tu cuenta.</p>
+                    </div>
                   ) : (
-                    <div className="admin-account-read-row">
-                      <span className={`admin-account-value${cuentaTel.trim() ? '' : ' is-empty'}`}>{cuentaTel.trim() || 'Sin teléfono'}</span>
-                      <button type="button" className="admin-account-edit-btn" onClick={() => { setEditandoCuentaCampo('telefono'); setCuentaMsg(null) }} aria-label="Editar teléfono" title="Editar teléfono">
+                    <button type="button" className="admin-account-data-row" onClick={() => editarCampo('telefono')}>
+                      <span className="admin-account-row-copy">
+                        <span className="admin-account-row-label">Teléfono</span>
+                        <span className={`admin-account-row-value${telefonoCuenta ? '' : ' is-empty'}`}>{telefonoCuenta || 'Agregar teléfono'}</span>
+                      </span>
+                      <span className="admin-account-edit-chip" aria-hidden="true">
                         <AdminIcon name="pencil" size={15} />
+                      </span>
+                    </button>
+                  )}
+
+                  <div className="admin-account-data-row">
+                    <span className="admin-account-row-copy">
+                      <span className="admin-account-row-label">Correo <span>· acceso</span></span>
+                      <span className="admin-account-row-value is-email">{cuentaEmail}</span>
+                    </span>
+                    <button type="button" className="admin-account-lock-btn" onClick={() => setCorreoCuentaSheetAbierto(true)} aria-label="Por qué no puedo editar el correo">
+                      <AdminIcon name="lock" size={15} />
+                    </button>
+                  </div>
+                </section>
+
+                {cuentaMsg && <p className={`admin-account-message is-${cuentaMsg.tipo}`}>{cuentaMsg.texto}</p>}
+
+                <p className="admin-account-group-label">Ajustes</p>
+                <section className="admin-account-group" aria-label="Ajustes de cuenta">
+                  <button
+                    type="button"
+                    className="admin-account-setting-row"
+                    onClick={() => setSeguridadAbierta(v => !v)}
+                    aria-expanded={seguridadAbierta}
+                  >
+                    <span className="admin-account-setting-icon">
+                      <AdminIcon name="key" size={16} />
+                    </span>
+                    <span className="admin-account-setting-label">Cambiar contraseña</span>
+                    <AdminIcon name="chevron-down" size={16} style={{ color: 'var(--muted-soft)', transform: seguridadAbierta ? 'rotate(180deg)' : 'none', transition: 'transform .18s' }} />
+                  </button>
+                  <SmoothCollapse open={seguridadAbierta}>
+                    <div className="admin-account-password-panel">
+                      <label htmlFor="cuenta-p1" className="admin-account-password-label">Nueva contraseña</label>
+                      <input
+                        id="cuenta-p1"
+                        className="admin-account-password-input"
+                        type="password"
+                        placeholder="Mínimo 8 caracteres"
+                        value={cuentaP1}
+                        onChange={e => { setCuentaP1(e.target.value); setCuentaPassMsg(null) }}
+                      />
+                      <MedidorPassword pwd={cuentaP1} />
+                      <p className="admin-account-password-note">Mínimo 8 caracteres, con al menos una letra y un número.</p>
+                      <label htmlFor="cuenta-p2" className="admin-account-password-label">Confirmar contraseña</label>
+                      <input
+                        id="cuenta-p2"
+                        className="admin-account-password-input"
+                        type="password"
+                        placeholder="Repite tu contraseña"
+                        value={cuentaP2}
+                        onChange={e => { setCuentaP2(e.target.value); setCuentaPassMsg(null) }}
+                        onKeyDown={e => e.key === 'Enter' && guardarPasswordCuenta()}
+                      />
+                      {cuentaP2 && (
+                        <p className={`admin-account-password-match${passwordCoincide ? ' is-ok' : ' is-error'}`}>
+                          <AdminIcon name={passwordCoincide ? 'check' : 'x'} size={13} strokeWidth={2.4} />
+                          {passwordCoincide ? 'Las contraseñas coinciden' : 'Las contraseñas no coinciden'}
+                        </p>
+                      )}
+                      {cuentaPassMsg && <p className={`admin-account-message is-${cuentaPassMsg.tipo}`}>{cuentaPassMsg.texto}</p>}
+                      <button type="button" className="admin-account-password-submit" onClick={guardarPasswordCuenta} disabled={!passwordListo || cambiandoPass}>
+                        {cambiandoPass ? 'Guardando…' : 'Cambiar contraseña'}
                       </button>
                     </div>
-                  )}
-                </div>
+                  </SmoothCollapse>
 
-                <div className="admin-account-field">
-                  <span className="admin-account-label">Correo</span>
-                  <div className="admin-account-read-row admin-account-read-row--locked">
-                    <span className="admin-account-value">{adminDoc?.email ?? auth.currentUser?.email ?? ''}</span>
-                    <AdminIcon name="lock" size={14} style={{ color: 'var(--muted-soft)' }} />
-                  </div>
-                  <p style={{ fontSize: 11, color: 'var(--muted)', margin: '7px 0 0', lineHeight: 1.4 }}>Es tu usuario de acceso. Para cambiarlo, escríbenos por WhatsApp.</p>
-                </div>
+                  <button type="button" className="admin-account-setting-row" onClick={() => setAyudaAbierta(true)}>
+                    <span className="admin-account-setting-icon">
+                      <AdminIcon name="info" size={16} />
+                    </span>
+                    <span className="admin-account-setting-label">Centro de ayuda</span>
+                    <AdminIcon name="chevron-right" size={16} style={{ color: 'var(--muted)' }} />
+                  </button>
+
+                  <a href={soporteLink} target="_blank" rel="noreferrer" className="admin-account-setting-row">
+                    <span className="admin-account-setting-icon is-whatsapp">
+                      <AdminIcon name="message" size={16} />
+                    </span>
+                    <span className="admin-account-setting-label">Soporte por WhatsApp</span>
+                    <AdminIcon name="chevron-right" size={16} style={{ color: 'var(--muted)' }} />
+                  </a>
+                </section>
+
+                <button type="button" className="admin-account-logout-btn" onClick={salir}>
+                  <AdminIcon name="logout" size={17} />
+                  Cerrar sesión
+                </button>
               </div>
 
-              {cuentaMsg && <p style={{ fontSize: 12, color: cuentaMsg.tipo === 'ok' ? 'var(--green)' : 'var(--red)', marginBottom: 10 }}>{cuentaMsg.texto}</p>}
-              <SmoothCollapse open={!!editandoCuentaCampo}>
-                <div className="admin-account-actions">
-                  <button onClick={guardarMiCuenta} disabled={guardandoCuenta} style={{ ...greenCtaStyle(guardandoCuenta), flex: 1 }}>
-                    {guardandoCuenta ? 'Guardando…' : 'Guardar cambios'}
-                  </button>
-                  <button type="button" onClick={cancelarEdicionCuenta} disabled={guardandoCuenta} className="admin-account-cancel-btn">
-                    Cancelar
-                  </button>
+              {correoCuentaSheetAbierto && (
+                <div className="admin-account-sheet-overlay" role="dialog" aria-modal="true" aria-labelledby="cuenta-correo-title" onClick={() => setCorreoCuentaSheetAbierto(false)}>
+                  <div className="admin-account-sheet" onClick={e => e.stopPropagation()}>
+                    <span className="admin-account-sheet-grabber" aria-hidden="true" />
+                    <span className="admin-account-sheet-icon">
+                      <AdminIcon name="lock" size={24} />
+                    </span>
+                    <h2 id="cuenta-correo-title" className="admin-account-sheet-title">Tu correo es tu usuario</h2>
+                    <p className="admin-account-sheet-copy">
+                      Por seguridad, el correo de acceso no se puede cambiar desde la app. Si necesitas actualizarlo, escríbenos por WhatsApp y lo hacemos por ti en un momento.
+                    </p>
+                    <a href={correoLink} target="_blank" rel="noreferrer" className="admin-account-sheet-primary">
+                      <AdminIcon name="message" size={18} />
+                      Escribir por WhatsApp
+                    </a>
+                    <button type="button" className="admin-account-sheet-secondary" onClick={() => setCorreoCuentaSheetAbierto(false)}>
+                      Entendido
+                    </button>
+                  </div>
                 </div>
-              </SmoothCollapse>
-            </div>
-
-            {/* Seguridad — colapsada por default */}
-            <div style={card}>
-              <button
-                onClick={() => setSeguridadAbierta(v => !v)}
-                aria-expanded={seguridadAbierta}
-                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
-              >
-                <span style={{ ...lbl, marginBottom: 0 }}>Cambiar contraseña</span>
-                <span style={{ fontSize: 13, color: 'var(--muted)', transform: seguridadAbierta ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} aria-hidden="true">⌄</span>
-              </button>
-              <SmoothCollapse open={seguridadAbierta}>
-                <div style={{ marginTop: 14 }}>
-                  <label htmlFor="cuenta-p1" style={lbl}>Nueva contraseña</label>
-                  <input id="cuenta-p1" type="password" placeholder="Mínimo 8 caracteres" value={cuentaP1} onChange={e => { setCuentaP1(e.target.value); setCuentaPassMsg(null) }} style={{ marginBottom: 8 }} />
-                  <MedidorPassword pwd={cuentaP1} />
-                  <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 12, lineHeight: 1.4 }}>Mínimo 8 caracteres, con al menos una letra y un número.</p>
-                  <label htmlFor="cuenta-p2" style={lbl}>Confirmar contraseña</label>
-                  <input id="cuenta-p2" type="password" placeholder="Repite tu contraseña" value={cuentaP2} onChange={e => { setCuentaP2(e.target.value); setCuentaPassMsg(null) }} onKeyDown={e => e.key === 'Enter' && cambiarMiPassword()} style={{ marginBottom: 10 }} />
-                  {cuentaPassMsg && <p style={{ fontSize: 12, color: cuentaPassMsg.tipo === 'ok' ? 'var(--green)' : 'var(--red)', marginBottom: 10 }}>{cuentaPassMsg.texto}</p>}
-                  <button onClick={cambiarMiPassword} disabled={cambiandoPass} style={greenCtaStyle(cambiandoPass)}>
-                    {cambiandoPass ? 'Guardando…' : 'Cambiar contraseña'}
-                  </button>
-                </div>
-              </SmoothCollapse>
-            </div>
-
-            {/* Soporte */}
-            <div style={card}>
-              <p style={{ ...lbl, marginBottom: 2 }}>Soporte</p>
-              {soporteOpciones({ framed: false })}
-            </div>
-          </>
-        )}
+              )}
+            </>
+          )
+        })()}
 
         {/* ── Vista: Nueva quiniela ────────────────────────────────────────── */}
         {vista === 'nueva' && (
