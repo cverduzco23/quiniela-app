@@ -712,10 +712,10 @@ export default function Admin() {
     )
   }
 
-  // Tour de bienvenida: solo la primera vez que un cliente-admin entra al panel.
+  // Tour de bienvenida: solo la primera vez que un admin entra al panel.
   // El "visto" se guarda en localStorage (sin tocar Firestore ni sus reglas).
   useEffect(() => {
-    if (!authListo || !autenticado || soySuper || debeCambiarPassword || !adminDoc) return
+    if (!authListo || !autenticado || debeCambiarPassword || (!soySuper && !adminDoc)) return
     try {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       if (!localStorage.getItem('tourAdminVisto')) setTourAbierto(true)
@@ -757,8 +757,17 @@ export default function Admin() {
       telefono: cuentaTel.trim() || null,
     }
     try {
-      await updateDoc(doc(db, 'admins', miUid), datos)
-      setAdminDoc(d => (d ? { ...d, ...datos } : d))
+      const ref = doc(db, 'admins', miUid)
+      if (adminDoc || !soySuper) {
+        await updateDoc(ref, datos)
+      } else {
+        await setDoc(ref, {
+          ...datos,
+          email: auth.currentUser?.email ?? null,
+          creado: serverTimestamp(),
+        }, { merge: true })
+      }
+      setAdminDoc(d => ({ id: miUid, ...(d ?? {}), ...datos, email: d?.email ?? auth.currentUser?.email ?? null }))
       setCuentaMsg({ tipo: 'ok', texto: 'Datos guardados.' })
       setEditandoCuentaCampo(null)
     } catch {
@@ -841,7 +850,9 @@ export default function Admin() {
     setLoadingClientes(true)
     try {
       const snap = await getDocs(collection(db, 'admins'))
-      const lista = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+      const lista = snap.docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        .filter(c => !esSuperAdminUid(c.id))
       // Más recientes primero (creado puede ser Timestamp o faltar en docs viejos).
       lista.sort((a, b) => {
         const ta = a.creado?.toMillis ? a.creado.toMillis() : 0
@@ -982,6 +993,7 @@ export default function Admin() {
   // Pestaña activa del panel cliente (nuevo shell escritorio/móvil): inicio | quinielas | caja | stats | cuenta | soporte
   const [clienteTab, setClienteTab]       = useState('inicio')
   const [filtroQuinielasCliente, setFiltroQuinielasCliente] = useState('todas')
+  const [busquedaQuinielasCliente, setBusquedaQuinielasCliente] = useState('')
   const filtroQuinielasScrollRef = useRef(null)
   const filtroQuinielasNudgeRef = useRef(false)
   // Estadísticas (analítica propia, solo super admin).
@@ -1019,7 +1031,6 @@ export default function Admin() {
   const [cuota, setCuota]               = useState('')
   const [modeloPremio, setModeloPremio] = useState(MODELO_PREMIO.GANADOR_UNICO)
   const [codigoAcceso, setCodigoAcceso] = useState('')
-  const [privada, setPrivada]           = useState(true)
 
   // ─── Resultados ───────────────────────────────────────────────────────────
   const [resultados, setResultados]       = useState({})
@@ -1036,7 +1047,6 @@ export default function Admin() {
   const [loadingFixtures, setLoadingFixtures] = useState(false)
   const [errorFixtures, setErrorFixtures] = useState(null)
   const [seleccionados, setSeleccionados] = useState([])
-  const [buscarPasados, setBuscarPasados] = useState(false)
 
   // ─── Edición de quiniela existente ───────────────────────────────────────
   const [editNombre, setEditNombre]             = useState('')
@@ -1047,7 +1057,6 @@ export default function Admin() {
   const [editCuota, setEditCuota]               = useState('')
   const [editModeloPremio, setEditModeloPremio] = useState(MODELO_PREMIO.GANADOR_UNICO)
   const [editCodigoAcceso, setEditCodigoAcceso] = useState('')
-  const [editPrivada, setEditPrivada]           = useState(false)
   const [conteoPredicciones, setConteoPredicciones] = useState(null)
   const [partidosFijosInfo, setPartidosFijosInfo] = useState(false)
   const [guardandoEdicion, setGuardandoEdicion] = useState(false)
@@ -1056,9 +1065,6 @@ export default function Admin() {
 
   // ─── Cerrar / reabrir ─────────────────────────────────────────────────────
   const [toggling, setToggling] = useState(false)
-
-  // ─── Marcar como principal ───────────────────────────────────────────────
-  const [destacando, setDestacando] = useState(false)
 
   // ─── Lista de predicciones individuales ──────────────────────────────────
   const [listaPredicciones, setListaPredicciones]       = useState([])
@@ -1184,7 +1190,6 @@ export default function Admin() {
     setEditCuota(quinielaActual.cuota != null ? String(quinielaActual.cuota) : '')
     setEditModeloPremio(quinielaActual.modeloPremio ?? MODELO_PREMIO.GANADOR_UNICO)
     setEditCodigoAcceso(normalizarCodigoAccesoInput(quinielaActual.codigoAcceso ?? ''))
-    setEditPrivada(!!quinielaActual.privada)
     setFixtures([]); setSeleccionados([])
     setConteoPredicciones(null)
     getDocs(query(collection(db, 'predicciones'), where('quinielaId', '==', quinielaActual.id)))
@@ -1225,29 +1230,19 @@ export default function Admin() {
 
     const fmt = d => d.toISOString().slice(0, 10).replace(/-/g, '')
     const hoy = new Date()
-    let desde, hasta
-
-    if (buscarPasados) {
-      desde = new Date(hoy); desde.setDate(desde.getDate() - 30)
-      hasta = hoy
-    } else {
-      desde = hoy
-      hasta = new Date(hoy); hasta.setDate(hasta.getDate() + 60)
-    }
+    const desde = hoy
+    const hasta = new Date(hoy); hasta.setDate(hasta.getDate() + 60)
 
     try {
       const res = await fetch(
         `https://site.api.espn.com/apis/site/v2/sports/soccer/${ligaId}/scoreboard?dates=${fmt(desde)}-${fmt(hasta)}&limit=50`
       )
       const data = await res.json()
-      const estado = buscarPasados ? 'post' : 'pre'
       const filtrados = (data.events ?? []).filter(e =>
-        e.status?.type?.state === estado || (!buscarPasados && !e.status?.type?.state)
+        e.status?.type?.state === 'pre' || !e.status?.type?.state
       )
       if (filtrados.length === 0) {
-        setErrorFixtures(buscarPasados
-          ? 'No hay partidos terminados en los últimos 30 días para esta competición.'
-          : 'No hay partidos próximos disponibles para esta competición.')
+        setErrorFixtures('No hay partidos próximos disponibles para esta competición.')
       } else {
         setFixtures(filtrados)
       }
@@ -1389,8 +1384,8 @@ export default function Admin() {
     try {
       const cierreTs = inputValueACierre(editCierre)
       const codigoLimpio = editCodigoAcceso.trim()
-      // El código es obligatorio para clientes (quiniela privada). El super sí puede vaciarlo.
-      if (!soySuper && !codigoLimpio) {
+      // El código es obligatorio: es la llave de acceso para los jugadores.
+      if (!codigoLimpio) {
         alerta('Ponle un código de acceso: es la llave para que entren tus jugadores.')
         setGuardandoEdicion(false)
         return
@@ -1413,9 +1408,9 @@ export default function Admin() {
         nombre:   editNombre.trim(),
         partidos: editPartidos,
         cierre:   cierreTs,
-        codigoAcceso: codigoLimpio || null,
-        codigoAccesoLower: codigoLimpio ? codigoLimpio.toLowerCase() : null,
-        privada: soySuper ? !!editPrivada : true,
+        codigoAcceso: codigoLimpio,
+        codigoAccesoLower: codigoLimpio.toLowerCase(),
+        privada: true,
         ...premioFields,
       }
       await updateDoc(doc(db, 'quinielas', quinielaActual.id), patch)
@@ -1493,37 +1488,6 @@ export default function Admin() {
       alerta('Error al actualizar el estado.')
     } finally {
       setToggling(false)
-    }
-  }
-
-  // ─── Marcar / desmarcar como principal ──────────────────────────────────
-  const toggleDestacada = async () => {
-    if (!quinielaActual || destacando) return
-    const yaDestacada = !!quinielaActual.destacada
-    setDestacando(true)
-    try {
-      if (yaDestacada) {
-        await updateDoc(doc(db, 'quinielas', quinielaActual.id), { destacada: false })
-        const actualizado = { ...quinielaActual, destacada: false }
-        setQuinielaActual(actualizado)
-        setQuinielas(prev => prev.map(q => q.id === quinielaActual.id ? actualizado : q))
-      } else {
-        const otrasDestacadas = quinielas.filter(q => q.id !== quinielaActual.id && q.destacada)
-        await Promise.all([
-          ...otrasDestacadas.map(q => updateDoc(doc(db, 'quinielas', q.id), { destacada: false })),
-          updateDoc(doc(db, 'quinielas', quinielaActual.id), { destacada: true }),
-        ])
-        const actualizado = { ...quinielaActual, destacada: true }
-        setQuinielaActual(actualizado)
-        setQuinielas(prev => prev.map(q =>
-          q.id === quinielaActual.id ? actualizado :
-          q.destacada ? { ...q, destacada: false } : q
-        ))
-      }
-    } catch {
-      alerta('Error al actualizar el estado.')
-    } finally {
-      setDestacando(false)
     }
   }
 
@@ -1695,9 +1659,8 @@ export default function Admin() {
       const cierreTs = inputValueACierre(cierre)
       const creada   = new Date().toISOString()
       const codigoLimpio = codigoAcceso.trim()
-      // El código es obligatorio para clientes (su quiniela es privada: el código
-      // es la llave de acceso). El super admin sí puede dejarlo vacío (quinielas públicas).
-      if (!soySuper && !codigoLimpio) {
+      // El código es obligatorio: es la llave de acceso para los jugadores.
+      if (!codigoLimpio) {
         alerta('Ponle un código de acceso: es la llave para que entren tus jugadores.')
         setGuardando(false)
         return
@@ -1721,10 +1684,9 @@ export default function Admin() {
         nombre: nombre.trim(), cierre: cierreTs, partidos,
         resultados: {}, creada, cerrada: false,
         ownerUid: auth.currentUser?.uid ?? null,
-        codigoAcceso: codigoLimpio || null,
-        codigoAccesoLower: codigoLimpio ? codigoLimpio.toLowerCase() : null,
-        // Los admins normales solo crean quinielas privadas (no salen al home público).
-        privada: soySuper ? !!privada : true,
+        codigoAcceso: codigoLimpio,
+        codigoAccesoLower: codigoLimpio.toLowerCase(),
+        privada: true,
         ...premioFields,
       }
       const ref = await addDoc(collection(db, 'quinielas'), base)
@@ -1737,7 +1699,7 @@ export default function Admin() {
       cargarQuinielas()
       setNombre(''); setCierre(''); setPartidos([])
       setPremioFijo(''); setCuota(''); setModeloPremio(MODELO_PREMIO.GANADOR_UNICO)
-      setCodigoAcceso(''); setPrivada(true)
+      setCodigoAcceso('')
       setFixtures([]); setSeleccionados([])
     } catch { alerta('Error al guardar. Intenta de nuevo.') }
     finally { setGuardando(false) }
@@ -2156,9 +2118,9 @@ export default function Admin() {
     return (
       <div style={card}>
         <label style={lbl}>Premio</label>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: tienePremioLocal ? 14 : 0 }}>
-          <div>
-            <label style={{ ...lbl, marginBottom: 6, minHeight: 28 }}>Premio fijo<span style={{ display: 'block' }}>(MXN)</span></label>
+        <div className="admin-prize-grid" style={{ marginBottom: tienePremioLocal ? 14 : 0 }}>
+          <div className="admin-prize-field">
+            <label className="admin-prize-field-label" style={lbl}>Premio fijo<span>(MXN)</span></label>
             <input
               type="number" min="0" step="1" placeholder="Ej. 500"
               value={fijo}
@@ -2166,8 +2128,8 @@ export default function Admin() {
             />
             <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>Monto garantizado, independiente de participantes.</p>
           </div>
-          <div>
-            <label style={{ ...lbl, marginBottom: 6, minHeight: 28 }}>Cuota por participante<span style={{ display: 'block' }}>(MXN)</span></label>
+          <div className="admin-prize-field">
+            <label className="admin-prize-field-label" style={lbl}>Cuota por participante<span>(MXN)</span></label>
             <input
               type="number" min="0" step="1" placeholder="Ej. 50"
               value={cuotaVal}
@@ -2199,26 +2161,6 @@ export default function Admin() {
         <label style={{ ...lbl, marginBottom: 0 }}>
           {onAgregar === agregarSeleccionados ? 'Buscar partidos' : 'Agregar partidos'}
         </label>
-        {/* El cambio Próximos/Pasados solo lo ve el super admin; los clientes
-            siempre buscan partidos próximos (que es lo que necesitan). */}
-        {soySuper && (
-          <div style={{ display: 'flex', background: 'var(--bg-soft)', borderRadius: 'var(--radius-sm)', padding: 3, gap: 2, border: '1px solid var(--border)' }}>
-            {[{ val: false, label: 'Próximos' }, { val: true, label: 'Pasados' }].map(op => (
-              <button
-                key={String(op.val)}
-                onClick={() => { setBuscarPasados(op.val); setFixtures([]); setSeleccionados([]) }}
-                style={{
-                  padding: '5px 12px', fontSize: 12, fontWeight: 700, border: 'none',
-                  borderRadius: 6, cursor: 'pointer', transition: 'all 0.15s',
-                  background: buscarPasados === op.val ? 'var(--card-light)' : 'transparent',
-                  color: buscarPasados === op.val ? 'var(--text-strong)' : 'var(--muted)',
-                }}
-              >
-                {op.label}
-              </button>
-            ))}
-          </div>
-        )}
       </div>
 
       <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 10, lineHeight: 1.5 }}>
@@ -2432,13 +2374,20 @@ export default function Admin() {
                   setVista('caja')
                   setBuscarNombreCaja('')
                 }
-                const abrirMovimientoCaja = () => {
-                  const candidato = buscarNombreCaja.trim() || cajaMovNombre.trim() || saldos[0]?.nombre || ''
-                  if (!candidato) {
-                    alerta('Escribe o elige un participante para registrar el movimiento.')
+                const abrirNuevoUsuarioCaja = async () => {
+                  const inicial = buscarNombreCaja.trim()
+                  const nombre = inicial || await pedirTexto(
+                    'Nombre del participante:',
+                    '',
+                    { titulo: 'Nuevo usuario', confirmar: 'Agregar' }
+                  )
+                  if (nombre === null) return
+                  const limpio = normalizarNombre(nombre)
+                  if (!limpio) {
+                    alerta('Escribe el nombre del participante para agregarlo a Caja.')
                     return
                   }
-                  abrirDetalleCaja(candidato)
+                  abrirDetalleCaja(limpio)
                 }
                 const irARegistrarUsuarioCaja = () => {
                   setCajaMovNombre(buscarNombreCaja.trim())
@@ -2452,7 +2401,6 @@ export default function Admin() {
                 )
                 const cajaSection = (
                   <div className="super-module-content">
-                    <p className="super-module-guide">Depósitos, inscripciones, premios y retiros por participante.</p>
                     <div className="super-mobile-kpi-grid">
                       {kpiCajaMobile(formatearMXN(cajaNeto), 'Saldo neto', 'var(--text-strong)')}
                       {kpiCajaMobile(`+${formatearMXN(cajaAFavor)}`, 'A favor', 'var(--green-light)')}
@@ -2472,20 +2420,23 @@ export default function Admin() {
                           autoComplete="off"
                         />
                       </div>
+                    </div>
+                    <div className="super-order-row super-order-row--with-action">
+                      <label className="super-order-control">
+                        Ordenar:
+                        <select value={cajaOrden} onChange={e => setCajaOrden(e.target.value)} className="super-order-select" aria-label="Ordenar caja">
+                          <option value="monto">Monto</option>
+                          <option value="nombre">A-Z</option>
+                        </select>
+                      </label>
                       <button
-                        onClick={() => abrirDetalleCaja(buscarNombreCaja)}
-                        disabled={!buscarNombreCaja.trim()}
-                        style={{ ...greenCtaStyle(!buscarNombreCaja.trim()), padding: '0 16px', height: 42, whiteSpace: 'nowrap', boxShadow: 'none', display: 'inline-flex', alignItems: 'center', gap: 5 }}
+                        type="button"
+                        onClick={abrirNuevoUsuarioCaja}
+                        aria-label="Agregar nuevo usuario a Caja"
+                        style={{ ...greenCtaStyle(false), padding: '0 16px', height: 42, whiteSpace: 'nowrap', boxShadow: 'none', display: 'inline-flex', alignItems: 'center', gap: 5 }}
                       >
                         <AdminIcon name="plus" size={14} /> Agregar usuario
                       </button>
-                    </div>
-                    <div className="super-order-row">
-                      Ordenar:
-                      <select value={cajaOrden} onChange={e => setCajaOrden(e.target.value)} className="super-order-select" aria-label="Ordenar caja">
-                        <option value="monto">Monto</option>
-                        <option value="nombre">A-Z</option>
-                      </select>
                     </div>
                     {loadingMovimientos ? (
                       <p style={{ fontSize: 12.5, color: 'var(--muted)' }}>Cargando…</p>
@@ -2520,10 +2471,6 @@ export default function Admin() {
                         ))}
                       </div>
                     )}
-                    <button type="button" className="super-mobile-fab" onClick={abrirMovimientoCaja}>
-                      <AdminIcon name="plus" size={18} strokeWidth={2.5} />
-                      Movimiento
-                    </button>
                   </div>
                 )
 
@@ -3715,20 +3662,54 @@ export default function Admin() {
                 enJuego: ordenarRecientes(mias.enJuego),
                 finalizadas: ordenarRecientes(mias.finalizadas),
               }
+              const busquedaQuinielasTexto = busquedaQuinielasCliente.trim()
+              const busquedaQuinielas = busquedaQuinielasTexto.toLowerCase()
+              const coincideBusquedaQuiniela = (q) => {
+                if (!busquedaQuinielas) return true
+                return [
+                  q.nombre,
+                  q.codigoAcceso,
+                ].some(v => String(v ?? '').toLowerCase().includes(busquedaQuinielas))
+              }
+              const filtrarBusquedaQuinielas = (arr) => arr.filter(coincideBusquedaQuiniela)
+              const miasFiltradas = {
+                activas: filtrarBusquedaQuinielas(miasOrdenadas.activas),
+                enJuego: filtrarBusquedaQuinielas(miasOrdenadas.enJuego),
+                finalizadas: filtrarBusquedaQuinielas(miasOrdenadas.finalizadas),
+              }
+              const totalQuinielasFiltradas = miasFiltradas.activas.length + miasFiltradas.enJuego.length + miasFiltradas.finalizadas.length
               const filtrosQuinielasCliente = [
-                { key: 'todas', label: 'Todas', count: quinielasMias.length, tone: 'all' },
-                { key: 'abiertas', label: 'Abiertas', count: miasOrdenadas.activas.length, tone: 'green' },
-                { key: 'jugando', label: 'Jugándose', count: miasOrdenadas.enJuego.length, tone: 'yellow' },
-                { key: 'finalizadas', label: 'Finalizadas', count: miasOrdenadas.finalizadas.length, tone: 'muted' },
+                { key: 'todas', label: 'Todas', count: totalQuinielasFiltradas, tone: 'all' },
+                { key: 'abiertas', label: 'Abiertas', count: miasFiltradas.activas.length, tone: 'green' },
+                { key: 'jugando', label: 'Jugándose', count: miasFiltradas.enJuego.length, tone: 'yellow' },
+                { key: 'finalizadas', label: 'Finalizadas', count: miasFiltradas.finalizadas.length, tone: 'muted' },
               ]
               const quinielasClienteFiltradas = filtroQuinielasCliente === 'abiertas'
-                ? miasOrdenadas.activas
+                ? miasFiltradas.activas
                 : filtroQuinielasCliente === 'jugando'
-                  ? miasOrdenadas.enJuego
+                  ? miasFiltradas.enJuego
                   : filtroQuinielasCliente === 'finalizadas'
-                    ? miasOrdenadas.finalizadas
-                    : [...miasOrdenadas.activas, ...miasOrdenadas.enJuego, ...miasOrdenadas.finalizadas]
+                    ? miasFiltradas.finalizadas
+                    : [...miasFiltradas.activas, ...miasFiltradas.enJuego, ...miasFiltradas.finalizadas]
               const filtroQuinielasActual = filtrosQuinielasCliente.find(f => f.key === filtroQuinielasCliente)
+              const buscadorQuinielas = (
+                <div className="super-mobile-search admin-quinielas-search">
+                  <AdminIcon name="search" size={15} />
+                  <input
+                    type="search"
+                    placeholder="Buscar quiniela o código…"
+                    value={busquedaQuinielasCliente}
+                    onChange={e => setBusquedaQuinielasCliente(e.target.value)}
+                    autoComplete="off"
+                    aria-label="Buscar quinielas"
+                  />
+                </div>
+              )
+              const sinResultadosQuinielas = (
+                <p style={{ fontSize: 13, color: 'var(--muted)', fontStyle: 'italic', padding: '1rem 0' }}>
+                  Sin resultados para "{busquedaQuinielasTexto}".
+                </p>
+              )
               const listaQuinielas = quinielasMias.length === 0 ? (
                 <div style={{ ...card, textAlign: 'center', padding: '3rem 2rem' }}>
                   <div style={{ color: 'var(--muted)', marginBottom: 12, display: 'flex', justifyContent: 'center' }}><AdminIcon name="ball" size={40} /></div>
@@ -3738,6 +3719,7 @@ export default function Admin() {
                 </div>
               ) : clienteMobile ? (
                 <div>
+                  {buscadorQuinielas}
                   <div ref={filtroQuinielasScrollRef} className="super-filter-row admin-quiniela-filter-row" role="tablist" aria-label="Filtrar quinielas">
                     {filtrosQuinielasCliente.map(({ key, label, count, tone }) => (
                       <button
@@ -3753,7 +3735,9 @@ export default function Admin() {
                       </button>
                     ))}
                   </div>
-                  {quinielasClienteFiltradas.length === 0 ? (
+                  {busquedaQuinielas && totalQuinielasFiltradas === 0 ? (
+                    sinResultadosQuinielas
+                  ) : quinielasClienteFiltradas.length === 0 ? (
                     <p style={{ fontSize: 13, color: 'var(--muted)', fontStyle: 'italic' }}>
                       No hay quinielas {filtroQuinielasActual?.label?.toLowerCase() ?? 'en este filtro'}.
                     </p>
@@ -3765,16 +3749,18 @@ export default function Admin() {
                 </div>
               ) : (
                 <>
+                  {buscadorQuinielas}
                   {(() => {
-                    const sinAbiertas = mias.activas.length === 0 && mias.enJuego.length === 0
+                    if (busquedaQuinielas && totalQuinielasFiltradas === 0) return sinResultadosQuinielas
+                    const sinAbiertas = miasFiltradas.activas.length === 0 && miasFiltradas.enJuego.length === 0
                     // Si no hay quinielas abiertas ni jugándose, mostramos las finalizadas
                     // en vez de esconderlas todas tras el "Mostrar más".
                     const limFinalizadas = clienteDesktop ? 4 : (sinAbiertas ? 2 : 0)
                     return (
                       <>
-                        {renderGrupo(miasOrdenadas.activas, 'Activas', 'mias-activas', clienteDesktop ? 6 : 2, 0)}
-                        {renderGrupo(miasOrdenadas.enJuego, 'Jugándose', 'mias-enjuego', clienteDesktop ? 6 : 2, miasOrdenadas.activas.length > 0 ? 20 : 0)}
-                        {renderGrupo(miasOrdenadas.finalizadas, 'Finalizadas', 'mias-finalizadas', limFinalizadas, sinAbiertas ? 0 : 20)}
+                        {renderGrupo(miasFiltradas.activas, 'Activas', 'mias-activas', clienteDesktop ? 6 : 2, 0)}
+                        {renderGrupo(miasFiltradas.enJuego, 'Jugándose', 'mias-enjuego', clienteDesktop ? 6 : 2, miasFiltradas.activas.length > 0 ? 20 : 0)}
+                        {renderGrupo(miasFiltradas.finalizadas, 'Finalizadas', 'mias-finalizadas', limFinalizadas, sinAbiertas ? 0 : 20)}
                       </>
                     )
                   })()}
@@ -4256,21 +4242,11 @@ export default function Admin() {
 
             {/* 4. Acceso — quién puede entrar */}
             <div style={card}>
-              <label htmlFor="quiniela-codigo" style={{ ...lbl, marginBottom: 4 }}>Código de acceso{!soySuper && <span style={{ color: 'var(--red)' }}> *</span>}</label>
+              <label htmlFor="quiniela-codigo" style={{ ...lbl, marginBottom: 4 }}>Código de acceso <span style={{ color: 'var(--red)' }}>*</span></label>
               <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>
                 Generado automático. Puedes cambiarlo, pero evita un código muy fácil. Solo quien lo tenga puede participar.
               </p>
               <input id="quiniela-codigo" type="text" placeholder="Ej. ACME2026" value={codigoAcceso} autoCapitalize="characters" onChange={e => setCodigoAcceso(normalizarCodigoAccesoInput(e.target.value))} />
-
-              {soySuper && (
-                <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', marginTop: 14 }}>
-                  <input type="checkbox" checked={privada} onChange={e => setPrivada(e.target.checked)} style={{ marginTop: 3, width: 16, height: 16, accentColor: 'var(--green)' }} />
-                  <span style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.5 }}>
-                    <strong style={{ fontWeight: 700, color: 'var(--text-strong)' }}>Quiniela privada</strong><br />
-                    <span style={{ fontSize: 12, color: 'var(--muted)' }}>No aparece en la página principal, solo se accede con el enlace directo.</span>
-                  </span>
-                </label>
-              )}
             </div>
 
             {/* 5. Premio */}
@@ -4315,9 +4291,6 @@ export default function Admin() {
                   </p>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                     <span style={{ fontSize: 10.5, fontWeight: 700, padding: '3px 9px', borderRadius: 'var(--radius-full)', background: estadoBadge.bg, color: estadoBadge.color }}>{estadoBadge.label}</span>
-                    {quinielaActual.destacada && !estaCerrada && (
-                      <span style={{ fontSize: 10.5, fontWeight: 700, padding: '3px 9px', borderRadius: 'var(--radius-full)', background: 'var(--yellow-bg)', color: 'var(--yellow)' }}>Principal</span>
-                    )}
                     <span style={{ fontSize: 12, color: 'var(--muted)' }}>
                       {quinielaActual.partidos?.length ?? 0} partidos · Creada {formatFecha(quinielaActual.creada)}
                     </span>
@@ -4344,30 +4317,6 @@ export default function Admin() {
                   </button>
                 )}
               </div>
-
-              {!estaCerrada && soySuper && (() => {
-                const esDestacada = !!quinielaActual.destacada
-                return (
-                  <button
-                    onClick={toggleDestacada}
-                    disabled={destacando}
-                    style={{
-                      width: '100%', padding: '10px 12px', marginBottom: 12,
-                      borderRadius: 'var(--radius-sm)', cursor: destacando ? 'not-allowed' : 'pointer',
-                      fontSize: 13, fontWeight: 700, textAlign: 'left',
-                      display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
-                      background: esDestacada ? 'var(--yellow-bg)' : 'var(--bg-soft)',
-                      border: `1px solid ${esDestacada ? 'var(--yellow)' : 'var(--border)'}`,
-                      color: esDestacada ? 'var(--yellow)' : 'var(--text)',
-                    }}
-                  >
-                    <span>{esDestacada ? '⭐ Principal en inicio' : '☆ Marcar como principal'}</span>
-                    <span style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600 }}>
-                      {destacando ? '…' : esDestacada ? 'Quitar' : 'Activar'}
-                    </span>
-                  </button>
-                )
-              })()}
 
               {/* Tabs */}
               <div style={{ display: 'flex', gap: 4, background: 'var(--bg-soft)', borderRadius: 'var(--radius-sm)', padding: 4, marginBottom: 16, border: '1px solid var(--border)' }}>
@@ -4705,6 +4654,7 @@ export default function Admin() {
                       </div>
                       <input
                         type="text"
+                        className="admin-participant-search"
                         placeholder={`Buscar entre ${listaPredicciones.length} participantes…`}
                         value={busquedaParticipante}
                         onChange={e => setBusquedaParticipante(e.target.value)}
@@ -4945,21 +4895,11 @@ export default function Admin() {
 
                   {/* 4. Acceso — quién puede entrar */}
                   <div style={card}>
-                    <label htmlFor="edit-codigo" style={{ ...lbl, marginBottom: 4 }}>Código de acceso {soySuper ? <span style={{ color: 'var(--muted)', fontWeight: 500, textTransform: 'none', letterSpacing: 0 }}>(opcional)</span> : <span style={{ color: 'var(--red)' }}>*</span>}</label>
+                    <label htmlFor="edit-codigo" style={{ ...lbl, marginBottom: 4 }}>Código de acceso <span style={{ color: 'var(--red)' }}>*</span></label>
                     <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>
                       Solo quien lo tenga puede participar. Evita uno muy fácil.
                     </p>
                     <input id="edit-codigo" type="text" placeholder="Ej. ACME2026" value={editCodigoAcceso} autoCapitalize="characters" onChange={e => setEditCodigoAcceso(normalizarCodigoAccesoInput(e.target.value))} />
-
-                    {soySuper && (
-                      <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', marginTop: 14 }}>
-                        <input type="checkbox" checked={editPrivada} onChange={e => setEditPrivada(e.target.checked)} style={{ marginTop: 3, width: 16, height: 16, accentColor: 'var(--green)' }} />
-                        <span style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.5 }}>
-                          <strong style={{ fontWeight: 700, color: 'var(--text-strong)' }}>Quiniela privada</strong><br />
-                          <span style={{ fontSize: 12, color: 'var(--muted)' }}>No aparece en la página principal, solo se accede con el enlace directo.</span>
-                        </span>
-                      </label>
-                    )}
                   </div>
 
                   {/* 5. Premio */}
@@ -5213,11 +5153,8 @@ function QuinielaCard({ q, conteos, onGestionar, dueno, superCompact = false, so
             {badge}
           </span>
         </div>
-        {(q.destacada && !cerrada) || pagosPendientes > 0 || dueno ? (
+        {pagosPendientes > 0 || dueno ? (
           <div className="admin-q-chip-row">
-            {q.destacada && !cerrada && (
-              <span className="admin-q-chip admin-q-chip--featured">Principal</span>
-            )}
             {pagosPendientes > 0 && (
               <span className="admin-q-chip admin-q-chip--warning">
                 {pagosPendientes} pago{pagosPendientes !== 1 ? 's' : ''}
@@ -5255,9 +5192,7 @@ function QuinielaCard({ q, conteos, onGestionar, dueno, superCompact = false, so
           <div className="admin-q-progress-block">
             <div className="admin-q-progress-copy">
               <span>{jugados} de {totalPartidos} partidos jugados</span>
-              <span className={enVivoAhora > 0 ? 'is-live' : ''}>
-                {enVivoAhora > 0 ? `${enVivoAhora} en juego ahora` : 'sin partido ahora'}
-              </span>
+              {enVivoAhora > 0 && <span className="is-live">{enVivoAhora} en juego ahora</span>}
             </div>
             <div className="admin-q-progress-track">
               <span className="admin-q-progress-fill" style={{ width: `${progreso}%` }} />
