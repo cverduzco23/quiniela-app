@@ -8,7 +8,7 @@ crear su quiniela y su cuenta.
 > ⚠️ **Importante:** un mensaje lo manda la app sola (el de los accesos, paso 3). Los demás los respondes tú.
 > Datos alineados con la app: primera quiniela gratis, **$49 por quiniela**, **$299 Pase Mundial**,
 > panel en `https://quinielapp.fun/admin`, cambio de contraseña forzado en el primer ingreso,
-> y ⚡ Sincronizar resultados al terminar los partidos.
+> y resultados que se llenan solos al terminar los partidos (sincronización automática).
 
 ---
 
@@ -56,7 +56,7 @@ Ya que entres y cambies tu contraseña, te saldrá un tour rápido 👀
 
 Para crear tu quiniela: ponle nombre y hora de cierre, agrega tus partidos con el buscador (llegan solos con escudos), y comparte el enlace + código con tu gente.
 
-Al terminar los partidos, le das a ⚡ Sincronizar resultados y el ranking se arma solo. Cualquier duda, aquí estoy.
+Al terminar los partidos, los resultados se llenan solos y el ranking se arma automáticamente. Cualquier duda, aquí estoy.
 ```
 
 ---

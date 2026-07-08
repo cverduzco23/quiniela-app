@@ -40,7 +40,7 @@ const PASOS = [
   {
     emoji: '🏆',
     titulo: '3. Resultados y ganador',
-    texto: 'Cuando terminen los partidos, entra a ⚡ Sincronizar resultados. El ranking se arma solo y aparece el ganador. ¿Más dudas? El botón ❓ Ayuda tiene la guía completa.',
+    texto: 'Los resultados se llenan solos cuando terminan los partidos. El ranking se arma solo y aparece el ganador. ¿Más dudas? El botón ❓ Ayuda tiene la guía completa.',
   },
 ]
 

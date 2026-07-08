@@ -3,6 +3,8 @@
  * Modal con los conceptos clave: crear, puntos, cierre/finalización, resultados.
  * Se abre desde el header del panel y es siempre accesible.
  */
+import { waLink, mensajeReporteProblema } from '../utils/whatsapp'
+
 const overlay = {
   position: 'fixed', inset: 0, zIndex: 1000,
   background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(2px)',
@@ -57,14 +59,28 @@ export function ComoFunciona({ onClose }) {
         <div style={seccion}>
           <p style={h}>3. Cierre y resultados</p>
           <p style={p}>• La quiniela se <span style={strong}>cierra sola</span> a la hora de cierre (o cuando empiezan los partidos). Ya nadie puede entrar ni cambiar sus picks.</p>
-          <p style={p}>• Para los marcadores solo das <span style={strong}>⚡ Sincronizar resultados</span>: se traen automáticamente desde ESPN (incluidos los partidos cancelados). No tienes que escribir nada.</p>
-          <p style={p}>• 📌 <span style={strong}>Al terminar los partidos:</span> espera unos minutos (a que se marquen como finalizados) y entra a dar <span style={strong}>⚡ Sincronizar resultados</span> una vez. Así los resultados quedan guardados en firme y el ranking final queda correcto.</p>
-          <p style={p}>• El ranking se actualiza en vivo conforme entran los resultados. Cuando todos los partidos terminan, la quiniela queda <span style={strong}>finalizada</span> y se ve el ganador.</p>
+          <p style={p}>• Los marcadores <span style={strong}>se llenan solos</span>: la app los trae de ESPN y los guarda al terminar cada partido (incluidos los cancelados). No tienes que hacer nada.</p>
+          <p style={p}>• Durante los partidos, el <span style={strong}>ranking se actualiza en vivo</span> cada minuto. Cuando todos terminan, la quiniela queda <span style={strong}>finalizada</span> y se ve el ganador.</p>
         </div>
 
         <div style={seccion}>
           <p style={h}>4. Compartir</p>
           <p style={p}>Desde la pestaña <span style={strong}>Compartir</span> de cada quiniela copias el enlace y el código para mandarlos por WhatsApp a tus participantes.</p>
+        </div>
+
+        <div style={seccion}>
+          <p style={h}>¿Algo no funciona?</p>
+          <p style={{ ...p, marginBottom: 0 }}>
+            Si un marcador no llegó o viste cualquier falla,{' '}
+            <a
+              href={waLink(mensajeReporteProblema())}
+              target="_blank" rel="noreferrer"
+              style={{ color: 'var(--green)', fontWeight: 700 }}
+            >
+              repórtala por WhatsApp
+            </a>{' '}
+            y lo revisamos.
+          </p>
         </div>
 
         <button

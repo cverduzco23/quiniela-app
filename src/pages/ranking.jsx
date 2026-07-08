@@ -278,14 +278,14 @@ export default function Ranking() {
     const conEspn = (quiniela.partidos ?? []).filter(p => p.espnId && p.ligaId)
     if (conEspn.length === 0) return
 
-    // Polling 90s, pausa cuando la pestaña no está visible
+    // Polling 60s, pausa cuando la pestaña no está visible
     // (ahorro de ancho de banda + cuota ESPN cuando hay muchos clientes abiertos)
     let interval = null
     const tick = () => { cargarDatos().catch(() => {}); fetchLiveData(quiniela) }
     const start = () => {
       if (interval) return
       tick()
-      interval = setInterval(tick, 90000)
+      interval = setInterval(tick, 60000)
     }
     const stop = () => {
       if (!interval) return

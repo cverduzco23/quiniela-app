@@ -35,3 +35,20 @@ export const MENSAJES_WA = {
   soporte:
     '¡Hola! Tengo una duda sobre QuinielApp.',
 }
+
+/**
+ * Mensaje para reportar un problema, con contexto pre-llenado para poder
+ * diagnosticar sin interrogar al admin. Todo es opcional: sin argumentos
+ * produce el reporte genérico.
+ * @param {object} [ctx]
+ * @param {string} [ctx.correo]   Correo de la cuenta del admin que reporta.
+ * @param {string} [ctx.quiniela] Nombre de la quiniela afectada.
+ * @param {string} [ctx.enlace]   Enlace a la quiniela afectada.
+ */
+export function mensajeReporteProblema({ correo = '', quiniela = '', enlace = '' } = {}) {
+  let msg = 'Hola, quiero reportar un problema en QuinielApp.'
+  if (correo) msg += ` Mi cuenta: ${correo}.`
+  if (quiniela) msg += ` Quiniela: "${quiniela}"${enlace ? ` (${enlace})` : ''}.`
+  msg += ' Qué pasó: '
+  return msg
+}

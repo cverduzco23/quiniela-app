@@ -9,12 +9,11 @@ import { TourBienvenida } from '../components/TourBienvenida'
 import { MedidorPassword } from '../components/MedidorPassword'
 import { BrandMark, BrandWordmark } from '../components/Brand'
 import { evaluarPassword } from '../utils/password'
-import { waLink, MENSAJES_WA } from '../utils/whatsapp'
-import { cierreToDate, cierreToInputValue, inputValueACierre, quinielaCerrada, quinielaFinalizada, resultadosCompletos, hayPartidoEnVivo } from '../utils/cierre'
+import { waLink, MENSAJES_WA, mensajeReporteProblema } from '../utils/whatsapp'
+import { cierreToDate, cierreToInputValue, inputValueACierre, quinielaCerrada, quinielaFinalizada, hayPartidoEnVivo } from '../utils/cierre'
 import { TIPO_PREMIO, MODELO_PREMIO, calcularBote, tienePremio, formatearMXN } from '../utils/premios'
 import { normalizarNombre } from '../utils/nombres'
 import { detectarSimilares } from '../utils/duplicados'
-import { findEventByTeamsAndDate } from '../utils/espn'
 import { leerDias, leerQuiniela, leerGlobal, estaExcluido, marcarExcluido } from '../utils/analytics'
 import { EmojiPicker } from '../components/EmojiPicker'
 
@@ -200,6 +199,7 @@ function AdminIcon({ name, size = 14, style, strokeWidth = 2 }) {
   if (name === 'star') return <svg {...common}><path d="m12 3 2.9 5.9 6.5.9-4.7 4.6 1.1 6.5L12 18.4 6.2 21.4l1.1-6.5L2.6 9.8l6.5-.9L12 3Z" /></svg>
   if (name === 'smile') return <svg {...common}><circle cx="12" cy="12" r="9" /><path d="M8 14s1.4 2 4 2 4-2 4-2" /><path d="M9 9h.01" /><path d="M15 9h.01" /></svg>
   if (name === 'party') return <svg {...common}><path d="m5 19 5.8-15.3 9.5 9.5L5 19Z" /><path d="m8.5 11.5 4 4" /><path d="m13 5 6-2" /><path d="m16 8 4-4" /><path d="M18 11h3" /><path d="M9.5 3.5 11 2" /><path d="M20.5 7.5 22 6" /></svg>
+  if (name === 'alert') return <svg {...common}><path d="M12 3 2.5 19.5a1 1 0 0 0 .9 1.5h17.2a1 1 0 0 0 .9-1.5L12 3Z" /><path d="M12 9v5" /><path d="M12 17.5h.01" /></svg>
   return <svg {...common}><circle cx="12" cy="12" r="9" /></svg>
 }
 
@@ -607,7 +607,6 @@ export default function Admin() {
   const [adminDoc, setAdminDoc] = useState(null)
   const [resetMsg, setResetMsg] = useState('')
   const [ayudaAbierta, setAyudaAbierta] = useState(false)
-  const [ayudaSyncAbierta, setAyudaSyncAbierta] = useState(false)
   const [tourAbierto, setTourAbierto] = useState(false)
   // Tip contextual en "Nueva quiniela": se cierra y no vuelve a salir (localStorage).
   const [tipNuevaCerrado, setTipNuevaCerrado] = useState(() => {
@@ -676,6 +675,7 @@ export default function Admin() {
     const labelStyle = { display: 'block', fontSize: 13.5, fontWeight: 700, color: 'var(--text-strong)' }
     const subStyle = { fontSize: 12, color: 'var(--muted)' }
     const soporteLink = waLink(MENSAJES_WA?.soporte || 'Hola, necesito ayuda con mi panel de QuinielApp.')
+    const reporteLink = waLink(mensajeReporteProblema({ correo: adminDoc?.email ?? auth.currentUser?.email ?? '' }))
 
     return (
       <div style={{ display: 'grid', gap: framed ? 10 : 0, maxWidth: framed ? 560 : undefined }}>
@@ -692,6 +692,14 @@ export default function Admin() {
           <span style={{ flex: 1 }}>
             <span style={labelStyle}>Soporte por WhatsApp</span>
             <span style={subStyle}>Escríbenos y te ayudamos</span>
+          </span>
+          <AdminIcon name="chevron-right" size={16} style={{ color: 'var(--muted)' }} />
+        </a>
+        <a href={reporteLink} target="_blank" rel="noreferrer" style={{ ...actionStyle(false), textDecoration: 'none' }}>
+          <AdminIcon name="alert" size={18} style={{ color: 'var(--yellow)' }} />
+          <span style={{ flex: 1 }}>
+            <span style={labelStyle}>Reportar un problema</span>
+            <span style={subStyle}>¿Algo no funciona? Cuéntanos</span>
           </span>
           <AdminIcon name="chevron-right" size={16} style={{ color: 'var(--muted)' }} />
         </a>
@@ -1021,12 +1029,6 @@ export default function Admin() {
 
   // ─── Resultados ───────────────────────────────────────────────────────────
   const [resultados, setResultados]       = useState({})
-  const [sincronizando, setSincronizando] = useState(false)
-  const [sincrMsg, setSincrMsg]           = useState('')
-  // Cuando ESPN reasigna el ID de un partido, lo buscamos por nombres + día.
-  // Si encontramos un único candidato, lo proponemos al admin para confirmar.
-  const [sugerenciasIdMismatch, setSugerenciasIdMismatch] = useState([])
-  const [aplicandoSugerencia, setAplicandoSugerencia]     = useState(null)
 
   // ─── Buscador de partidos ESPN ────────────────────────────────────────────
   const [ligaId, setLigaId]               = useState('')
@@ -1720,159 +1722,6 @@ export default function Admin() {
     setResultados(resInit)
     setTab('resultados')
     setVista('gestionar')
-  }
-
-  // ─── Validar contra ESPN antes de mostrar la confirmación ──────────────
-  // ─── Sincronizar desde ESPN ───────────────────────────────────────────────
-  const sincronizarDesdeESPN = async () => {
-    if (!quinielaActual || sincronizando) return
-    setSincronizando(true)
-    setSincrMsg('')
-
-    const porLiga = {}
-    ;(quinielaActual.partidos ?? []).forEach((p, i) => {
-      if (!p.espnId || !p.ligaId) return
-      if (!porLiga[p.ligaId]) porLiga[p.ligaId] = []
-      porLiga[p.ligaId].push({ ...p, idx: i })
-    })
-
-    if (Object.keys(porLiga).length === 0) {
-      setSincrMsg('⚠ Estos partidos no se pueden sincronizar (se agregaron a mano). Créalos desde el buscador.')
-      setSincronizando(false)
-      return
-    }
-
-    const resGuardar = { ...resultados }
-    let actualizados = 0
-    const nuevasSugerencias = []
-
-    for (const [liga, ps] of Object.entries(porLiga)) {
-      try {
-        const fechas = ps.map(p => p.hora).filter(Boolean).sort()
-        const inicio = fechas[0] ? fechas[0].slice(0, 10).replace(/-/g, '') : ''
-        const hoy    = new Date().toISOString().slice(0, 10).replace(/-/g, '')
-        const url    = inicio
-          ? `https://site.api.espn.com/apis/site/v2/sports/soccer/${liga}/scoreboard?dates=${inicio}-${hoy}`
-          : `https://site.api.espn.com/apis/site/v2/sports/soccer/${liga}/scoreboard`
-
-        const r = await fetch(url)
-        const d = await r.json()
-        const events = d.events ?? []
-
-        ps.forEach(p => {
-          if (resGuardar[p.idx]?.cancelado) return
-          const ev = events.find(e => e.id === p.espnId)
-          if (!ev) {
-            // Fallback: el ID no coincide. Buscar por nombres + día.
-            // Si encuentra exactamente 1 candidato, pedimos confirmación al admin
-            // (no actualizamos automáticamente para evitar usar un partido equivocado).
-            const candidato = findEventByTeamsAndDate(events, p.local, p.visitante, p.hora)
-            if (candidato) {
-              nuevasSugerencias.push({ idx: p.idx, partidoOriginal: p, eventoSugerido: candidato, ligaId: liga })
-            }
-            return
-          }
-          const state = ev.status?.type?.state
-          if (state !== 'post') return
-          // ESPN reporta cancelados/pospuestos/forfeits con state="post" y completed=false,
-          // típicamente con score 0-0. NO debemos guardarlo como empate — lo marcamos cancelado.
-          const completed = ev.status?.type?.completed
-          if (completed === false) {
-            resGuardar[p.idx] = { cancelado: true }
-            actualizados++
-            return
-          }
-          const comps = ev.competitions?.[0]?.competitors ?? []
-          const home  = comps.find(c => c.homeAway === 'home')
-          const away  = comps.find(c => c.homeAway === 'away')
-          if (home?.score === undefined || away?.score === undefined) return
-          const resultado = goalsToResultado(home.score, away.score)
-          resGuardar[p.idx] = { local: home.score, visitante: away.score, resultado }
-          actualizados++
-        })
-      } catch { /* silencioso */ }
-    }
-
-    // Mostrar/actualizar las sugerencias (reemplazan a las anteriores en cada run)
-    setSugerenciasIdMismatch(nuevasSugerencias)
-
-    if (actualizados > 0) {
-      try {
-        const completos = resultadosCompletos({ partidos: quinielaActual.partidos, resultados: resGuardar })
-        const patch = completos ? { resultados: resGuardar, finalizada: true, finalizadaEn: new Date().toISOString() } : { resultados: resGuardar }
-        await updateDoc(doc(db, 'quinielas', quinielaActual.id), patch)
-        setResultados(resGuardar)
-        setQuinielaActual(prev => ({ ...prev, ...patch }))
-        setQuinielas(prev => prev.map(q => q.id === quinielaActual.id ? { ...q, ...patch } : q))
-        const sugMsg = nuevasSugerencias.length > 0
-          ? ` · ${nuevasSugerencias.length} con ID cambiado (revisa arriba)`
-          : ''
-        setSincrMsg(`✓ ${actualizados} partido${actualizados !== 1 ? 's' : ''} sincronizado${actualizados !== 1 ? 's' : ''}${sugMsg}`)
-        setTimeout(() => setSincrMsg(''), 6000)
-      } catch { setSincrMsg('⚠ Error al guardar. Intenta de nuevo.') }
-    } else if (nuevasSugerencias.length > 0) {
-      setSincrMsg(`${nuevasSugerencias.length} partido${nuevasSugerencias.length !== 1 ? 's' : ''} con ID cambiado — revisa arriba para confirmar.`)
-      setTimeout(() => setSincrMsg(''), 8000)
-    } else {
-      setSincrMsg('Sin partidos terminados para sincronizar.')
-      setTimeout(() => setSincrMsg(''), 4000)
-    }
-
-    setSincronizando(false)
-  }
-
-  // ─── Aplicar / ignorar una sugerencia de ID cambiado en ESPN ──────────────
-  const aplicarSugerencia = async (s) => {
-    if (!quinielaActual || aplicandoSugerencia) return
-    setAplicandoSugerencia(s.idx)
-    try {
-      const ev = s.eventoSugerido
-      const state     = ev.status?.type?.state
-      const completed = ev.status?.type?.completed
-      const comps = ev.competitions?.[0]?.competitors ?? []
-      const home  = comps.find(c => c.homeAway === 'home')
-      const away  = comps.find(c => c.homeAway === 'away')
-
-      // Calcular el nuevo resultado según el estado actual del evento
-      let nuevoResultado = null
-      if (state === 'post' && completed === false) {
-        nuevoResultado = { cancelado: true }
-      } else if (state === 'post' && home?.score !== undefined && away?.score !== undefined) {
-        const resultado = goalsToResultado(home.score, away.score)
-        nuevoResultado = { local: home.score, visitante: away.score, resultado }
-      }
-      // Si aún no terminó, no actualizamos resultado — solo el espnId
-
-      const nuevosPartidos = (quinielaActual.partidos ?? []).map((p, i) =>
-        i === s.idx ? { ...p, espnId: ev.id } : p
-      )
-      const nuevasResultados = { ...(quinielaActual.resultados ?? {}) }
-      if (nuevoResultado) nuevasResultados[s.idx] = nuevoResultado
-
-      const completos = nuevoResultado
-        ? resultadosCompletos({ partidos: nuevosPartidos, resultados: nuevasResultados })
-        : false
-      const patch = {
-        partidos: nuevosPartidos,
-        resultados: nuevasResultados,
-        ...(completos ? { finalizada: true, finalizadaEn: new Date().toISOString() } : {}),
-      }
-
-      await updateDoc(doc(db, 'quinielas', quinielaActual.id), patch)
-      setQuinielaActual(prev => ({ ...prev, ...patch }))
-      setQuinielas(prev => prev.map(q => q.id === quinielaActual.id ? { ...q, ...patch } : q))
-      setResultados(nuevasResultados)
-      setSugerenciasIdMismatch(prev => prev.filter(x => x.idx !== s.idx))
-    } catch (err) {
-      console.error('Error aplicando sugerencia ESPN:', err)
-      alerta('Error al aplicar la sugerencia. Intenta de nuevo.')
-    } finally {
-      setAplicandoSugerencia(null)
-    }
-  }
-
-  const ignorarSugerencia = (idx) => {
-    setSugerenciasIdMismatch(prev => prev.filter(x => x.idx !== idx))
   }
 
   // ─── Caja: guardar / eliminar ─────────────────────────────────────────────
@@ -3941,6 +3790,7 @@ export default function Admin() {
           const passwordListo = !!cuentaP2 && passwordEval.ok && cuentaP1 === cuentaP2
           const passwordCoincide = !!cuentaP2 && cuentaP1 === cuentaP2
           const soporteLink = waLink(MENSAJES_WA?.soporte || 'Hola, necesito ayuda con mi panel de QuinielApp.')
+          const reporteLink = waLink(mensajeReporteProblema({ correo: cuentaEmail }))
           const correoLink = waLink('¡Hola! Quiero cambiar el correo de acceso de mi cuenta en QuinielApp.')
           const editarCampo = (campo) => {
             setEditandoCuentaCampo(campo)
@@ -4117,6 +3967,14 @@ export default function Admin() {
                     <span className="admin-account-setting-label">Soporte por WhatsApp</span>
                     <AdminIcon name="chevron-right" size={16} style={{ color: 'var(--muted)' }} />
                   </a>
+
+                  <a href={reporteLink} target="_blank" rel="noreferrer" className="admin-account-setting-row">
+                    <span className="admin-account-setting-icon">
+                      <AdminIcon name="alert" size={16} />
+                    </span>
+                    <span className="admin-account-setting-label">Reportar un problema</span>
+                    <AdminIcon name="chevron-right" size={16} style={{ color: 'var(--muted)' }} />
+                  </a>
                 </section>
 
                 {soySuper && (
@@ -4181,7 +4039,7 @@ export default function Admin() {
               <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', background: 'var(--green-bg)', border: '1px solid var(--green)', borderRadius: 'var(--radius-md)', padding: '12px 14px', marginBottom: 14 }}>
                 <span aria-hidden="true" style={{ fontSize: 18, lineHeight: 1.3, flexShrink: 0 }}>👋</span>
                 <p style={{ flex: 1, fontSize: 12.5, color: 'var(--text)', lineHeight: 1.55, margin: 0 }}>
-                  <strong style={{ color: 'var(--text-strong)' }}>Tip:</strong> ponle un <strong style={{ color: 'var(--text-strong)' }}>nombre</strong> y agrega tus <strong style={{ color: 'var(--text-strong)' }}>partidos con el buscador</strong>. La <strong style={{ color: 'var(--text-strong)' }}>hora de cierre</strong> se ajusta sola al primer partido. Comparte el <strong style={{ color: 'var(--text-strong)' }}>enlace + código</strong>, y al terminar usa <strong style={{ color: 'var(--text-strong)' }}>⚡ Sincronizar resultados</strong>.
+                  <strong style={{ color: 'var(--text-strong)' }}>Tip:</strong> ponle un <strong style={{ color: 'var(--text-strong)' }}>nombre</strong> y agrega tus <strong style={{ color: 'var(--text-strong)' }}>partidos con el buscador</strong>. La <strong style={{ color: 'var(--text-strong)' }}>hora de cierre</strong> se ajusta sola al primer partido. Comparte el <strong style={{ color: 'var(--text-strong)' }}>enlace + código</strong> — los <strong style={{ color: 'var(--text-strong)' }}>resultados se llenan solos</strong> cuando terminan los partidos.
                 </p>
                 <button onClick={cerrarTipNueva} aria-label="Cerrar tip" style={{ background: 'none', border: 'none', color: 'var(--muted)', fontSize: 14, fontWeight: 700, cursor: 'pointer', padding: '0 2px', flexShrink: 0, lineHeight: 1.3 }}>✕</button>
               </div>
@@ -4354,144 +4212,10 @@ export default function Admin() {
               {/* Tab: Resultados */}
               {tab === 'resultados' && (
                 <>
-                  {/* Sugerencias de IDs cambiados en ESPN — pedimos confirmación */}
-                  {sugerenciasIdMismatch.length > 0 && (
-                    <div style={{
-                      background: 'var(--yellow-bg)', border: '1.5px solid var(--yellow)',
-                      borderRadius: 'var(--radius-md)', padding: '14px 16px', marginBottom: 12,
-                    }}>
-                      <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--yellow-soft)', marginBottom: 4 }}>
-                        ⚠️ {sugerenciasIdMismatch.length} partido{sugerenciasIdMismatch.length !== 1 ? 's' : ''} con ID cambiado
-                      </p>
-                      <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 12, lineHeight: 1.5 }}>
-                        Encontramos un partido que parece ser el mismo pero con ID distinto. Verifica que sea correcto antes de aplicar.
-                      </p>
-                      {sugerenciasIdMismatch.map(s => {
-                        const ev = s.eventoSugerido
-                        const state = ev.status?.type?.state
-                        const completed = ev.status?.type?.completed
-                        const esCancelado = state === 'post' && completed === false
-                        const comps = ev.competitions?.[0]?.competitors ?? []
-                        const home = comps.find(c => c.homeAway === 'home')
-                        const away = comps.find(c => c.homeAway === 'away')
-                        const scoreTxt = esCancelado
-                          ? 'Cancelado'
-                          : state === 'post'
-                            ? `${home?.score ?? '?'} – ${away?.score ?? '?'} (Final)`
-                            : state === 'in'
-                              ? `${home?.score ?? '?'} – ${away?.score ?? '?'} (En vivo)`
-                              : 'Aún no inicia'
-                        const aplicando = aplicandoSugerencia === s.idx
-                        return (
-                          <div key={s.idx} style={{
-                            background: 'var(--card)', borderRadius: 'var(--radius-sm)',
-                            padding: '10px 12px', marginBottom: 8, border: '1px solid var(--border)',
-                          }}>
-                            <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-strong)', marginBottom: 4 }}>
-                              {s.partidoOriginal.local} vs {s.partidoOriginal.visitante}
-                            </p>
-                            <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 2, lineHeight: 1.5 }}>
-                              ID original: <code style={{ fontFamily: 'monospace' }}>{s.partidoOriginal.espnId}</code> (ya no existe)
-                            </p>
-                            <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8, lineHeight: 1.5 }}>
-                              ID encontrado: <code style={{ fontFamily: 'monospace', color: 'var(--green-light)' }}>{ev.id}</code> · {scoreTxt}
-                            </p>
-                            <div style={{ display: 'flex', gap: 8 }}>
-                              <button
-                                onClick={() => aplicarSugerencia(s)}
-                                disabled={aplicando}
-                                style={{
-                                  flex: 1, padding: '8px 12px', borderRadius: 'var(--radius-sm)',
-                                  border: 'none',
-                                  background: aplicando ? 'var(--card-light)' : 'linear-gradient(135deg, var(--green), var(--green-light))',
-                                  color: aplicando ? 'var(--muted)' : '#07120A',
-                                  fontWeight: 800, fontSize: 12, cursor: aplicando ? 'not-allowed' : 'pointer',
-                                }}
-                              >
-                                {aplicando ? 'Aplicando…' : '✓ Confirmar y aplicar'}
-                              </button>
-                              <button
-                                onClick={() => ignorarSugerencia(s.idx)}
-                                disabled={aplicando}
-                                style={{
-                                  padding: '8px 14px', borderRadius: 'var(--radius-sm)',
-                                  border: '1px solid var(--border-strong)',
-                                  background: 'transparent', color: 'var(--muted)',
-                                  fontWeight: 700, fontSize: 12, cursor: aplicando ? 'not-allowed' : 'pointer',
-                                }}
-                              >
-                                Ignorar
-                              </button>
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )}
-
-                  <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: sincrMsg.startsWith('✓') ? 'var(--green)' : sincrMsg.startsWith('⚠') ? 'var(--yellow)' : 'var(--muted)' }}>
-                      {sincrMsg}
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto' }}>
-                      <button
-                        onClick={sincronizarDesdeESPN} disabled={sincronizando}
-                        aria-label="Sincronizar resultados"
-                        style={{ ...greenCtaStyle(sincronizando), display: 'flex', alignItems: 'center', gap: 5 }}
-                      >
-                        {sincronizando ? 'Sincronizando…' : (
-                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-                            <AdminIcon name="bolt" size={14} />
-                            Sincronizar resultados
-                          </span>
-                        )}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setAyudaSyncAbierta(true)}
-                        aria-label="Ver instrucciones de sincronizar resultados"
-                        style={{
-                          width: 28, height: 28, borderRadius: '50%', border: '1px solid var(--border-strong)',
-                          background: 'var(--card-light)', color: 'var(--muted)',
-                          cursor: 'pointer', flexShrink: 0, lineHeight: 1,
-                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                        }}
-                      >
-                        <AdminIcon name="info" size={15} />
-                      </button>
-                    </div>
-                  </div>
-
-                  {ayudaSyncAbierta && (
-                    <div
-                      onClick={() => setAyudaSyncAbierta(false)}
-                      style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(2px)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '5vh 1rem', overflowY: 'auto' }}
-                    >
-                      <div
-                        onClick={e => e.stopPropagation()}
-                        style={{ background: 'var(--card)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-md)', maxWidth: 480, width: '100%', padding: '1.25rem' }}
-                      >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                          <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 700, color: 'var(--text-strong)' }}>Sincronizar resultados</h3>
-                          <button
-                            onClick={() => setAyudaSyncAbierta(false)}
-                            aria-label="Cerrar"
-                            style={{ background: 'var(--neutral-bg)', border: '1px solid var(--border)', color: 'var(--text)', width: 28, height: 28, borderRadius: 'var(--radius-sm)', fontSize: 14, cursor: 'pointer', lineHeight: 1 }}
-                          >
-                            ✕
-                          </button>
-                        </div>
-                        <div style={{ fontSize: 12.5, color: 'var(--muted)', lineHeight: 1.6 }}>
-                          <p><AdminIcon name="pin" size={13} style={{ verticalAlign: '-2px', marginRight: 4 }} /><strong style={{ color: 'var(--text)' }}>Al terminar un partido</strong>, espera unos minutos (a que se marque como finalizado) y da <strong style={{ color: 'var(--green)' }}><AdminIcon name="bolt" size={12} style={{ verticalAlign: '-1px', marginRight: 2 }} />Sincronizar resultados</strong> para llenar los marcadores automáticamente y dejarlos guardados.</p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
                   <div style={card}>
                     <label style={{ ...lbl, marginBottom: 6 }}>Marcadores</label>
                     <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 14, lineHeight: 1.5 }}>
-                      Se llenan solos al dar <strong style={{ color: 'var(--green)' }}>Sincronizar resultados</strong>.
+                      Se llenan <strong style={{ color: 'var(--green)' }}>solos</strong> cuando termina cada partido. No tienes que hacer nada.
                     </p>
                     {(quinielaActual.partidos ?? []).map((p, i) => {
                       const r = resultados[i] ?? {}
@@ -4552,6 +4276,20 @@ export default function Admin() {
                         </div>
                       )
                     })}
+                    <p style={{ fontSize: 12, color: 'var(--muted)', textAlign: 'center', marginTop: 14, marginBottom: 0 }}>
+                      ¿Un marcador no llegó o está mal?{' '}
+                      <a
+                        href={waLink(mensajeReporteProblema({
+                          correo: adminDoc?.email ?? auth.currentUser?.email ?? '',
+                          quiniela: quinielaActual.nombre,
+                          enlace: linkRanking,
+                        }))}
+                        target="_blank" rel="noreferrer"
+                        style={{ color: 'var(--green)', fontWeight: 700 }}
+                      >
+                        Repórtalo por WhatsApp
+                      </a>
+                    </p>
                   </div>
 
                   {tienePremio(quinielaActual) && esFinalizadaQ(quinielaActual) && (

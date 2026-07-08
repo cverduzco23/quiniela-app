@@ -228,6 +228,7 @@ toca seguridad ni infraestructura; todo es client-side y sin lecturas nuevas a F
 | 10 | **Auto-sync ESPN** (función programada) | Elimina el botón ⚡ manual. Ojo: duplica lógica de scoring server-side → hacerlo con tests contra el contrato real de ESPN (hay spike local propuesto en memoria `project_plan_tecnico`). **Aprovechar para guardar el estado en vivo de cada partido en Firestore** y que el indicador "Partido en vivo" del inicio (hoy heurística por horario, ver §4.bis) sea exacto y sin llamadas a ESPN por visitante |
 | 11 | **Cerrar lectura pública de picks pre-cierre** | El riesgo de trampa escala con botes/desconocidos. Requiere backend (posible con #6). Es el pendiente de seguridad más profundo |
 | 12 | **App Check en enforce** + **refactor de admin.jsx** (3,506 líneas) + cuentas vía Admin SDK (H4) | Endurecimiento y mantenibilidad cuando ya no haya presión de torneo |
+| 13 | **Correo propio para restablecer contraseña** | Firebase Console dejó las plantillas de Auth como no editables. Cuando se quiera mejorar el correo y usar `noreply@quinielapp.fun`, crear un endpoint en Vercel (`/api/password-reset`) que use Firebase Admin SDK para generar el link de reset y Resend/SendGrid para mandar un HTML propio con botón/logo, apuntando a una pantalla custom de recuperación |
 
 ### Descartado / decidido NO hacer
 - Mover estilos inline a CSS/frameworks (preferencia deliberada del usuario).
