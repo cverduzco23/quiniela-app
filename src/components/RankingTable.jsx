@@ -151,6 +151,16 @@ function SvgIcon({ name, size = 14, style }) {
       </svg>
     )
   }
+  if (name === 'users') {
+    return (
+      <svg {...common}>
+        <path d="M16 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2" />
+        <circle cx="9.5" cy="7" r="3" />
+        <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+        <path d="M16 3.13a3 3 0 0 1 0 5.74" />
+      </svg>
+    )
+  }
   if (name === 'sparkles') {
     return (
       <svg {...common}>
@@ -287,8 +297,11 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
   const partidos   = useMemo(() => quiniela.partidos ?? [], [quiniela.partidos])
   const resultados = quiniela.resultados ?? {}
   const cerrada    = quinielaCerrada(quiniela)
-  const finalizada = quinielaFinalizada(quiniela)
   const enVivo     = Object.values(liveScores).some(l => l.state === 'in')
+  const finalizada = quinielaFinalizada(quiniela) || (partidos.length > 0 && !enVivo && partidos.every((_, i) => {
+    const r = resultados[i] ?? resultados[String(i)]
+    return r?.cancelado || getResultado(r) !== null
+  }))
   const terminados = partidos.filter((_, i) => {
     const r = resultados[i] ?? resultados[String(i)]
     if (r?.cancelado) return false
@@ -370,6 +383,13 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
   const conPremio = tienePremio(quiniela)
   const { ganadores, premioPorNombre, bote } = calcularGanadores(jugadores, quiniela, jugadores.length)
   const puedeCompartir = vistaParticipantesAbierta || jugadores.length > 0
+  const mostrarGanadorFinal = finalizada && jugadores.length > 0 && (!conPremio || (hayResultados && jugadores[0]?.puntos > 0))
+  const compartirLabel = vistaParticipantesAbierta
+    ? 'Invitar amigos'
+    : finalizada
+      ? 'Compartir resultados'
+      : 'Compartir mi posición'
+  const compartirIcon = vistaParticipantesAbierta ? 'users' : 'share'
   const resumenStats = vistaParticipantesAbierta
     ? [
         { val: jugadores.length, label: 'Participantes' },
@@ -378,7 +398,6 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
     : [
         { val: jugadores.length,                   label: 'Participantes' },
         { val: `${terminados}/${partidos.length}`, label: 'Partidos' },
-        { val: jugadores[0]?.puntos ?? 0,          label: 'Pts líder' },
       ]
 
   const handleCompartirRanking = async () => {
@@ -458,25 +477,14 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
 
       <div className="ranking-desktop-grid">
       <div className="ranking-desktop-left">
-      {/* Reglas */}
-      <div style={{ display: 'flex', gap: 6, marginBottom: 'var(--ranking-section-gap, 16px)', flexWrap: 'nowrap' }}>
-        {[
-          { pts: '1 pt', desc: 'resultado', icon: 'check', color: 'var(--green)' },
-          { pts: '+2 pts', desc: 'exacto', icon: 'target', color: 'var(--yellow)' },
-        ].map(r => (
-          <div key={r.desc} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, background: 'var(--card)', borderRadius: 'var(--radius-sm)', padding: 'var(--ranking-rule-padding, 6px 10px)', border: '1px solid var(--border)', flex: '1 1 auto', minWidth: 0, textAlign: 'center' }}>
-            <span style={{ display: 'inline-flex', color: r.color, flexShrink: 0 }}>
-              <SvgIcon name={r.icon} size={13} />
-            </span>
-            <span style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--ranking-rule-points-size, 13px)', fontWeight: 700, color: 'var(--text-strong)', flexShrink: 0 }}>{r.pts}</span>
-            <span style={{ fontSize: 'var(--ranking-rule-desc-size, 11.5px)', color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.desc}</span>
-          </div>
-        ))}
-      </div>
-
       {/* Banner de premio */}
-      {conPremio && <PremioBanner quiniela={quiniela} bote={bote} ganadores={ganadores} finalizada={finalizada} hayResultados={hayResultados} abierta={vistaParticipantesAbierta} />}
-      {!conPremio && <SinPremioBanner />}
+      {mostrarGanadorFinal ? (
+        <GanadorCard jugadores={jugadores} premioPorNombre={premioPorNombre} conPremio={conPremio} />
+      ) : conPremio ? (
+        <PremioBanner quiniela={quiniela} bote={bote} ganadores={ganadores} finalizada={finalizada} hayResultados={hayResultados} abierta={vistaParticipantesAbierta} />
+      ) : finalizada ? null : (
+        <SinPremioBanner />
+      )}
 
       {/* Stats */}
       <div className="ranking-stats-grid" style={{ display: 'grid', gridTemplateColumns: `repeat(${resumenStats.length},1fr)` }}>
@@ -1146,10 +1154,10 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
           className="ranking-share-action"
           onClick={handleCompartirRanking}
           disabled={compartiendo || !puedeCompartir}
-          aria-label="Compartir ranking"
+          aria-label={compartirLabel}
         >
-          <SvgIcon name="share" size={14} />
-          <span>{compartiendo ? 'Generando...' : 'Compartir'}</span>
+          <SvgIcon name={compartirIcon} size={14} />
+          <span>{compartiendo ? 'Generando...' : compartirLabel}</span>
         </button>
         {(compartiendo || feedbackShare) && (
           <p className="ranking-share-status" role="status">
@@ -1301,7 +1309,7 @@ function EscenariosUltimoPartido({ sim, conPremio, liveScores = {}, quiniela, bo
   )
 
   return (
-    <div className="oracle-card">
+    <div className={`oracle-card${abierto ? ' is-open' : ' is-collapsed'}`}>
       <div className="oracle-header-row">
         <button
           onClick={toggleAbierto}
@@ -1387,22 +1395,70 @@ function EscenariosUltimoPartido({ sim, conPremio, liveScores = {}, quiniela, bo
   )
 }
 
+function GanadorCard({ jugadores, premioPorNombre = {}, conPremio }) {
+  const puntosCampeon = jugadores[0]?.puntos ?? 0
+  const ganadores = jugadores.filter(j => j.puntos === puntosCampeon)
+  const principal = ganadores[0] ?? jugadores[0]
+  if (!principal) return null
+
+  const premio = Number(premioPorNombre[principal.nombre]) || 0
+  const empate = ganadores.length > 1
+  const nombres = ganadores.map(j => nombreCorto(j.nombre))
+  const aciertosTxt = `${principal.aciertos} acierto${principal.aciertos === 1 ? '' : 's'}`
+  const exactosTxt = `${principal.exactos} exacto${principal.exactos === 1 ? '' : 's'}`
+  const premioTxt = conPremio && premio > 0 ? `gana ${formatearMXN(premio)}${empate ? ' c/u' : ''}` : '1° lugar'
+  const detalle = empate
+    ? `Empate${conPremio && premio > 0 ? ` · ${premioTxt}` : ''}`
+    : `${aciertosTxt} · ${exactosTxt} · ${premioTxt}`
+
+  return (
+    <div className="ranking-champion-card">
+      <span className="ranking-champion-shine" aria-hidden="true" />
+      <span className="ranking-victory-star is-one" aria-hidden="true" />
+      <span className="ranking-victory-star is-two" aria-hidden="true" />
+      <span className="ranking-victory-star is-three" aria-hidden="true" />
+      <span className="ranking-victory-star is-four" aria-hidden="true" />
+      <span className="ranking-victory-star is-five" aria-hidden="true" />
+      <span className="ranking-victory-star is-six" aria-hidden="true" />
+      <span className="ranking-victory-star is-seven" aria-hidden="true" />
+      <span className="ranking-victory-star is-eight" aria-hidden="true" />
+      <span className="ranking-victory-star is-nine" aria-hidden="true" />
+      <span className="ranking-victory-star is-ten" aria-hidden="true" />
+      <div className="ranking-champion-main">
+        <p className="ranking-champion-kicker">
+          <SvgIcon name="trophy" size={14} />
+          {empate ? 'GANADORES' : 'GANADOR'}
+        </p>
+        <div className={`ranking-champion-names${empate ? ' is-stacked' : ''}`}>
+          {nombres.map((nombre, idx) => (
+            <p key={`${nombre}-${idx}`} className="ranking-champion-name">{nombre}</p>
+          ))}
+        </div>
+        <p className="ranking-champion-detail">
+          {detalle}
+        </p>
+      </div>
+      <div className="ranking-champion-score" aria-label={`${puntosCampeon} puntos`}>
+        <span className="ranking-champion-points">{puntosCampeon}</span>
+        <span className="ranking-champion-points-label">PTS</span>
+      </div>
+    </div>
+  )
+}
+
 function SinPremioBanner() {
   return (
-    <div style={{
-      background: 'var(--card)', border: '1px dashed var(--border-strong)',
-      borderRadius: 'var(--radius-md)', padding: '12px 14px', marginBottom: 16,
-      display: 'flex', alignItems: 'center', gap: 12,
-    }}>
-      <span style={{ display: 'inline-flex', color: 'var(--yellow)', flexShrink: 0 }} aria-hidden="true">
-        <SvgIcon name="target" size={22} />
+    <div className="ranking-fun-card">
+      <span className="ranking-fun-shine" aria-hidden="true" />
+      <span className="ranking-fun-spark is-one" aria-hidden="true" />
+      <span className="ranking-fun-spark is-two" aria-hidden="true" />
+      <span className="ranking-fun-icon" aria-hidden="true">
+        <SvgIcon name="sparkles" size={22} />
       </span>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <p style={{ fontSize: 12, fontWeight: 800, color: 'var(--text)', letterSpacing: 0.3, marginBottom: 2 }}>
-          SOLO POR DIVERSIÓN
-        </p>
-        <p style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.5 }}>
-          Quiniela sin premio en dinero. Compite por la cima del ranking.
+      <div className="ranking-fun-copy">
+        <p className="ranking-fun-title">SOLO POR DIVERSIÓN</p>
+        <p className="ranking-fun-text">
+          Sin premio en dinero: juega por orgullo, rachas y el derecho a presumir el primer lugar.
         </p>
       </div>
     </div>
@@ -1497,13 +1553,16 @@ function PremioBanner({ quiniela, bote, ganadores, finalizada, hayResultados, ab
 
   const titulo = finalizada ? 'Ganadores' : 'Si terminara ahora'
   return (
-    <div className="ranking-prize-banner" style={{
-      background: finalizada
-        ? 'linear-gradient(135deg, rgba(250,204,21,0.14), rgba(250,204,21,0.04))'
-        : 'linear-gradient(135deg, rgba(34,197,94,0.12), rgba(34,197,94,0.04))',
-      border: `1px solid ${finalizada ? 'var(--yellow)' : 'var(--green)'}`,
+    <div className={`ranking-prize-banner${finalizada ? ' is-final' : ' is-live'}`} style={{
+      position: 'relative', overflow: 'hidden',
       borderRadius: 'var(--radius-md)', marginBottom: 16,
     }}>
+      {!finalizada && (
+        <>
+          <span className="ranking-prize-live-shine" aria-hidden="true" />
+          <span className="ranking-prize-live-orb" aria-hidden="true" />
+        </>
+      )}
       <div className="ranking-prize-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 'var(--ranking-prize-title-size, 12px)', fontWeight: 800, color: finalizada ? 'var(--yellow)' : 'var(--green)', letterSpacing: 0.4 }}>
           {finalizada ? (
@@ -1551,7 +1610,7 @@ function PremioBanner({ quiniela, bote, ganadores, finalizada, hayResultados, ab
         ))}
       </div>
       {!finalizada && (
-        <p style={{ fontSize: 'var(--ranking-prize-note-size, 11px)', color: 'var(--muted)', marginTop: 8, lineHeight: 1.5 }}>
+        <p className="ranking-prize-note" style={{ fontSize: 'var(--ranking-prize-note-size, 11px)', color: 'var(--muted)', marginTop: 8, lineHeight: 1.5 }}>
           Premios provisionales. Pueden cambiar mientras la quiniela siga en juego.
         </p>
       )}

@@ -275,6 +275,64 @@ a:focus-visible {
   68%  { opacity: 0; }
   100% { transform: translateX(360%) skewX(-18deg); opacity: 0; }
 }
+@keyframes champion-card-shine {
+  0%   { transform: translateX(-160%) skewX(-18deg); opacity: 0; }
+  16%  { opacity: 0; }
+  31%  { opacity: 0.9; }
+  58%  { transform: translateX(520%) skewX(-18deg); opacity: 0.82; }
+  74%  { opacity: 0; }
+  100% { transform: translateX(520%) skewX(-18deg); opacity: 0; }
+}
+@keyframes victory-star-twinkle {
+  0%, 100% { transform: scale(0.12); opacity: 0; }
+  24%      { transform: scale(0.12); opacity: 0; }
+  48%      { transform: scale(1.12); opacity: 0.86; }
+  68%      { transform: scale(0.52); opacity: 0.42; }
+}
+@keyframes winner-glow-pulse {
+  0%, 100% { opacity: 0.30; transform: scale(0.985); }
+  50%      { opacity: 0.52; transform: scale(1.012); }
+}
+@keyframes winner-card-aura {
+  0%, 100% {
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.08),
+      0 0 0 1px rgba(250,204,21,0.12),
+      0 16px 34px rgba(0,0,0,0.30),
+      0 0 14px rgba(250,204,21,0.08);
+  }
+  50% {
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.08),
+      0 0 0 1px rgba(250,204,21,0.20),
+      0 18px 38px rgba(0,0,0,0.31),
+      0 0 26px rgba(250,204,21,0.18);
+  }
+}
+@keyframes fun-card-shine {
+  0%   { transform: translateX(-150%) skewX(-16deg); opacity: 0; }
+  20%  { opacity: 0; }
+  36%  { opacity: 0.75; }
+  56%  { transform: translateX(430%) skewX(-16deg); opacity: 0.68; }
+  72%  { opacity: 0; }
+  100% { transform: translateX(430%) skewX(-16deg); opacity: 0; }
+}
+@keyframes fun-icon-float {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50%      { transform: translateY(-3px) rotate(7deg); }
+}
+@keyframes fun-spark-drift {
+  0%, 100% { transform: translate(0, 0) scale(0.92); opacity: 0.45; }
+  50%      { transform: translate(8px, -7px) scale(1.08); opacity: 0.85; }
+}
+@keyframes oracle-aura-pulse {
+  0%, 100% { opacity: 0.14; transform: scale(0.992); }
+  50%      { opacity: 0.30; transform: scale(1.004); }
+}
+@keyframes prize-live-orb {
+  0%, 100% { transform: translate(0, 0) scale(0.96); opacity: 0.45; }
+  50%      { transform: translate(-8px, 6px) scale(1.05); opacity: 0.72; }
+}
 @keyframes home-juggle-ball {
   0%, 100% { transform: translate(0, 0); }
   50%      { transform: translate(-1px, -5px); }
@@ -1248,21 +1306,23 @@ a:focus-visible {
 }
 .ranking-share-action {
   width: 100%;
-  min-height: 46px;
+  min-height: 52px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
-  border: 1px solid var(--border);
+  gap: 9px;
+  border: 1px solid rgba(61, 91, 137, 0.55);
   border-radius: var(--radius-md);
-  background: var(--card);
-  color: var(--text);
+  background: #102039;
+  color: var(--text-strong);
   cursor: pointer;
-  transition: border-color 0.18s ease, background 0.18s ease, transform 0.18s ease;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+  transition: border-color 0.18s ease, background 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
 }
 .ranking-share-action:hover:not(:disabled) {
-  border-color: var(--border-strong);
-  background: var(--card-light);
+  border-color: rgba(92, 127, 181, 0.7);
+  background: #142743;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 10px 24px rgba(0,0,0,0.22);
   transform: translateY(-1px);
 }
 .ranking-share-action:active:not(:disabled) {
@@ -1278,7 +1338,7 @@ a:focus-visible {
 .ranking-share-action span {
   font-family: var(--font-sans);
   font-size: var(--ranking-name-size, 13.5px);
-  font-weight: 500;
+  font-weight: 800;
   line-height: 1;
 }
 .ranking-share-status {
@@ -1289,6 +1349,8 @@ a:focus-visible {
   text-align: center;
 }
 .oracle-card {
+  position: relative;
+  isolation: isolate;
   margin-bottom: var(--ranking-section-gap, 16px);
   padding: 12px 14px;
   border-radius: var(--radius-md);
@@ -1296,6 +1358,29 @@ a:focus-visible {
   background:
     linear-gradient(135deg, rgba(168,85,247,0.14), rgba(168,85,247,0.05)),
     var(--card);
+  box-shadow: var(--shadow-sm);
+  transition: border-color 0.22s ease, box-shadow 0.22s ease, background 0.22s ease;
+}
+.oracle-card.is-collapsed {
+  border-color: rgba(168,85,247,0.42);
+  box-shadow: 0 0 0 1px rgba(168,85,247,0.07), 0 10px 26px rgba(20,8,40,0.18);
+}
+.oracle-card.is-collapsed::before {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  z-index: -1;
+  pointer-events: none;
+  border-radius: 15px;
+  background:
+    radial-gradient(circle at 18% 0%, rgba(168,85,247,0.28), transparent 42%),
+    radial-gradient(circle at 90% 100%, rgba(34,197,94,0.10), transparent 45%),
+    linear-gradient(135deg, rgba(168,85,247,0.14), rgba(34,197,94,0.04));
+  filter: blur(7px);
+  animation: oracle-aura-pulse 3.6s ease-in-out infinite;
+}
+.oracle-card.is-open {
+  border-color: rgba(168,85,247,0.34);
   box-shadow: var(--shadow-sm);
 }
 .oracle-header-row {
@@ -3445,8 +3530,355 @@ button.admin-account-data-row {
   font-weight: 800;
   text-transform: uppercase;
 }
+.ranking-fun-card {
+  position: relative;
+  overflow: hidden;
+  min-height: 96px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: var(--ranking-section-gap, 16px);
+  padding: 16px 18px;
+  border-radius: 16px;
+  border: 1px solid rgba(134, 239, 172, 0.32);
+  background:
+    radial-gradient(circle at 90% 10%, rgba(250,204,21,0.18), transparent 34%),
+    radial-gradient(circle at 12% 100%, rgba(34,197,94,0.18), transparent 38%),
+    linear-gradient(135deg, rgba(21,31,50,0.98), rgba(15,28,47,0.98));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 14px 34px rgba(0,0,0,0.22);
+}
+.ranking-fun-card::before {
+  content: "";
+  position: absolute;
+  inset: 1px;
+  border-radius: 15px;
+  pointer-events: none;
+  border: 1px solid rgba(255,255,255,0.04);
+}
+.ranking-fun-shine {
+  position: absolute;
+  top: -70%;
+  left: -22%;
+  width: 24%;
+  height: 240%;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.08) 32%, rgba(255,255,255,0.30) 50%, rgba(255,255,255,0.08) 68%, transparent 100%);
+  filter: blur(0.7px);
+  animation: fun-card-shine 6.4s ease-in-out infinite;
+}
+.ranking-fun-spark {
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--yellow);
+  box-shadow: 0 0 14px rgba(250,204,21,0.58);
+  animation: fun-spark-drift 3.2s ease-in-out infinite;
+}
+.ranking-fun-spark.is-one {
+  top: 18px;
+  right: 34px;
+}
+.ranking-fun-spark.is-two {
+  right: 88px;
+  bottom: 18px;
+  width: 6px;
+  height: 6px;
+  background: var(--green-light);
+  box-shadow: 0 0 14px rgba(134,239,172,0.52);
+  animation-delay: 0.9s;
+}
+.ranking-fun-icon {
+  position: relative;
+  z-index: 1;
+  width: 42px;
+  height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: 14px;
+  color: var(--yellow);
+  background: rgba(250,204,21,0.12);
+  border: 1px solid rgba(250,204,21,0.38);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 0 24px rgba(250,204,21,0.12);
+  animation: fun-icon-float 3.8s ease-in-out infinite;
+}
+.ranking-fun-copy {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+}
+.ranking-fun-title {
+  margin-bottom: 4px;
+  color: var(--text-strong);
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1;
+}
+.ranking-fun-text {
+  max-width: 30rem;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+.ranking-champion-card {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  min-height: 104px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: var(--ranking-section-gap, 16px);
+  padding: 16px 18px;
+  border-radius: 17px;
+  border: 1.5px solid rgba(250, 204, 21, 0.82);
+  background:
+    radial-gradient(circle at 88% 18%, rgba(250,204,21,0.20), transparent 28%),
+    radial-gradient(circle at 8% 8%, rgba(134,239,172,0.16), transparent 30%),
+    linear-gradient(100deg, rgba(250,204,21,0.10) 0%, rgba(250,204,21,0.03) 18%, transparent 34%),
+    linear-gradient(95deg, #172846 0%, #17243B 48%, #202C40 100%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 0 0 1px rgba(250,204,21,0.12), 0 16px 34px rgba(0,0,0,0.30), 0 0 14px rgba(250,204,21,0.08);
+  animation: winner-card-aura 4.2s ease-in-out infinite;
+}
+.ranking-champion-card::before {
+  content: "";
+  position: absolute;
+  inset: -5px;
+  z-index: 0;
+  width: auto;
+  height: auto;
+  pointer-events: none;
+  border-radius: 21px;
+  background:
+    radial-gradient(circle at 24% 10%, rgba(250,204,21,0.24), transparent 42%),
+    radial-gradient(circle at 88% 76%, rgba(250,204,21,0.14), transparent 46%),
+    linear-gradient(135deg, rgba(250,204,21,0.14), rgba(134,239,172,0.04));
+  filter: blur(10px);
+  animation: winner-glow-pulse 3.9s ease-in-out infinite;
+}
+.ranking-champion-card::after {
+  content: "";
+  position: absolute;
+  inset: 1px;
+  pointer-events: none;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.06);
+}
+.ranking-champion-shine {
+  position: absolute;
+  top: -60%;
+  left: -26%;
+  width: 28%;
+  height: 220%;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.06) 25%, rgba(255,255,255,0.25) 48%, rgba(255,255,255,0.08) 70%, transparent 100%);
+  filter: blur(0.6px);
+  animation: champion-card-shine 5.2s ease-in-out infinite;
+}
+.ranking-victory-star {
+  position: absolute;
+  z-index: 1;
+  width: var(--star-size, 9px);
+  height: var(--star-size, 9px);
+  pointer-events: none;
+  background: rgba(250,204,21,0.96);
+  clip-path: polygon(50% 0%, 56% 42%, 100% 50%, 56% 58%, 50% 100%, 44% 58%, 0% 50%, 44% 42%);
+  filter: drop-shadow(0 0 6px rgba(250,204,21,0.34));
+  transform: scale(0.12);
+  transform-origin: center;
+  opacity: 0;
+  animation: victory-star-twinkle var(--star-speed, 3.8s) ease-in-out infinite;
+}
+.ranking-victory-star.is-one {
+  --star-size: 11px;
+  top: 12px;
+  left: 18px;
+  animation-delay: 0s;
+}
+.ranking-victory-star.is-two {
+  --star-size: 8px;
+  top: 18px;
+  right: 54px;
+  animation-delay: 0.45s;
+}
+.ranking-victory-star.is-three {
+  --star-size: 15px;
+  right: 15px;
+  top: 44%;
+  animation-delay: 0.9s;
+}
+.ranking-victory-star.is-four {
+  --star-size: 8px;
+  left: 12px;
+  bottom: 18px;
+  animation-delay: 1.35s;
+}
+.ranking-victory-star.is-five {
+  --star-size: 10px;
+  top: 13px;
+  left: 57%;
+  animation-delay: 1.8s;
+}
+.ranking-victory-star.is-six {
+  --star-size: 7px;
+  right: 28px;
+  bottom: 14px;
+  animation-delay: 2.25s;
+}
+.ranking-victory-star.is-seven {
+  --star-size: 7px;
+  left: 45%;
+  bottom: 10px;
+  animation-delay: 2.7s;
+}
+.ranking-victory-star.is-eight {
+  --star-size: 12px;
+  left: 31%;
+  top: 42%;
+  animation-delay: 3.05s;
+}
+.ranking-victory-star.is-nine {
+  --star-size: 8px;
+  left: 70%;
+  top: 61%;
+  animation-delay: 3.4s;
+}
+.ranking-victory-star.is-ten {
+  --star-size: 6px;
+  left: 22%;
+  top: 68%;
+  animation-delay: 3.75s;
+}
+.ranking-champion-main,
+.ranking-champion-score {
+  position: relative;
+  z-index: 2;
+}
+.ranking-champion-main {
+  min-width: 0;
+}
+.ranking-champion-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 4px;
+  color: var(--yellow);
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
+}
+.ranking-champion-names {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+.ranking-champion-names.is-stacked {
+  gap: 2px;
+}
+.ranking-champion-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-strong);
+  font-family: var(--font-display);
+  font-size: 29px;
+  font-weight: 800;
+  line-height: 0.98;
+}
+.ranking-champion-names.is-stacked .ranking-champion-name {
+  font-size: 26px;
+  line-height: 1.02;
+}
+.ranking-champion-detail {
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+.ranking-champion-score {
+  display: grid;
+  justify-items: end;
+  align-content: center;
+  min-width: 50px;
+}
+.ranking-champion-points {
+  color: var(--yellow);
+  font-family: var(--font-display);
+  font-size: 46px;
+  font-weight: 800;
+  line-height: 0.86;
+}
+.ranking-champion-points-label {
+  margin-top: 8px;
+  color: var(--green-light);
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1;
+}
 .ranking-prize-banner {
   padding: 14px 16px;
+  border: 1px solid var(--green);
+  background: linear-gradient(135deg, rgba(34,197,94,0.12), rgba(34,197,94,0.04));
+  box-shadow: var(--shadow-sm);
+}
+.ranking-prize-banner.is-live {
+  border-color: rgba(134,239,172,0.36);
+  background:
+    radial-gradient(circle at 86% 4%, rgba(250,204,21,0.20), transparent 34%),
+    radial-gradient(circle at 8% 100%, rgba(34,197,94,0.20), transparent 38%),
+    linear-gradient(135deg, rgba(21,31,50,0.98), rgba(11,24,42,0.98));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), 0 16px 34px rgba(0,0,0,0.24), 0 0 24px rgba(34,197,94,0.08);
+}
+.ranking-prize-banner.is-final {
+  border-color: var(--yellow);
+  background: linear-gradient(135deg, rgba(250,204,21,0.14), rgba(250,204,21,0.04));
+}
+.ranking-prize-banner.is-live::before {
+  content: "";
+  position: absolute;
+  inset: 1px;
+  pointer-events: none;
+  border-radius: 11px;
+  border: 1px solid rgba(255,255,255,0.045);
+}
+.ranking-prize-live-shine {
+  position: absolute;
+  top: -80%;
+  left: -18%;
+  width: 25%;
+  height: 260%;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.08) 35%, rgba(255,255,255,0.30) 50%, rgba(255,255,255,0.08) 66%, transparent 100%);
+  filter: blur(0.7px);
+  animation: fun-card-shine 7.2s ease-in-out infinite;
+}
+.ranking-prize-live-orb {
+  position: absolute;
+  right: 18px;
+  bottom: 10px;
+  width: 54px;
+  height: 54px;
+  pointer-events: none;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(134,239,172,0.22), transparent 68%);
+  animation: prize-live-orb 4.2s ease-in-out infinite;
+}
+.ranking-prize-banner.is-live .ranking-prize-header,
+.ranking-prize-banner.is-live .ranking-prize-row,
+.ranking-prize-banner.is-live .ranking-prize-note {
+  position: relative;
+  z-index: 1;
+}
+.ranking-prize-banner.is-live .ranking-prize-row {
+  background: rgba(15,23,42,0.58) !important;
+  border-color: rgba(134,239,172,0.16) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.035);
 }
 .ranking-prize-header {
   gap: 10px;
@@ -3563,7 +3995,7 @@ button.admin-account-data-row {
     padding: 12px 6px;
   }
   .ranking-share-action {
-    min-height: 40px;
+    min-height: 50px;
     gap: 7px;
   }
   .ranking-prize-banner {
@@ -3580,6 +4012,48 @@ button.admin-account-data-row {
   }
   .ranking-prize-row {
     padding: 7px 9px;
+  }
+  .ranking-fun-card {
+    min-height: 92px;
+    gap: 11px;
+    padding: 14px;
+    border-radius: 15px;
+  }
+  .ranking-fun-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 13px;
+  }
+  .ranking-fun-title {
+    font-size: 11.5px;
+  }
+  .ranking-fun-text {
+    font-size: 11.5px;
+  }
+  .ranking-champion-card {
+    min-height: 100px;
+    gap: 10px;
+    padding: 14px 15px;
+    border-radius: 16px;
+  }
+  .ranking-champion-kicker {
+    font-size: 10px;
+    margin-bottom: 5px;
+  }
+  .ranking-champion-name {
+    font-size: 27px;
+  }
+  .ranking-champion-names.is-stacked .ranking-champion-name {
+    font-size: 23px;
+  }
+  .ranking-champion-detail {
+    font-size: 12px;
+  }
+  .ranking-champion-points {
+    font-size: 43px;
+  }
+  .ranking-champion-score {
+    min-width: 46px;
   }
 }
 

@@ -5,8 +5,7 @@ import { db, track } from '../firebase'
 import { registrarVisita, registrarVisitaQuiniela, registrarEnVivo } from '../utils/analytics'
 import { getResultado } from '../utils/scoring'
 import { findEventByTeamsAndDate } from '../utils/espn'
-import { tienePremio } from '../utils/premios'
-import { quinielaCerrada, cierreToDate, tiempoRestante } from '../utils/cierre'
+import { quinielaCerrada, quinielaFinalizada, cierreToDate, tiempoRestante } from '../utils/cierre'
 import { RankingTable } from '../components/RankingTable'
 import { CuentaRegresiva } from '../components/CuentaRegresiva'
 import { Footer } from '../components/Footer'
@@ -416,10 +415,10 @@ export default function Ranking() {
   const hayPartidosActualizables = partidos.some(p => p.espnId && p.ligaId)
   // Finalizada: nada en vivo y todos los partidos ya con resultado o cancelados.
   // En ese estado no hay nada que "actualizar".
-  const finalizada = partidos.length > 0 && !enVivo && partidos.every((_, i) => {
+  const finalizada = quinielaFinalizada(quiniela) || (partidos.length > 0 && !enVivo && partidos.every((_, i) => {
     const r = resultados[i] ?? resultados[String(i)]
     return r?.cancelado || getResultado(r) !== null
-  })
+  }))
   const mostrarControlesActualizacion = hayPartidosActualizables && quinielaCerrada(quiniela) && !finalizada
 
   return (
@@ -478,21 +477,6 @@ export default function Ranking() {
             {mostrarControlesActualizacion && ultimaAct && (
               <span style={{ fontSize: 11, color: 'var(--muted)' }}>
                 Actualizado {ultimaAct.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
-              </span>
-            )}
-            {!tienePremio(quiniela) && (
-              <span style={{
-                display: 'inline-flex', alignItems: 'center', gap: 4,
-                fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 'var(--radius-full)',
-                background: 'var(--neutral-bg)', color: 'var(--muted)',
-                border: '1px dashed var(--border-strong)',
-              }}>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="M12 2v20" />
-                  <path d="m17 5-5 3-5-3" />
-                  <path d="m19 12-7 4-7-4" />
-                </svg>
-                Solo por diversión
               </span>
             )}
             {mostrarControlesActualizacion && <button
