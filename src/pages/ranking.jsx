@@ -17,6 +17,7 @@ export default function Ranking() {
   const { id: idDeRuta } = useParams()
   // Acepta /ranking/<id> (ruta nueva) y /ranking?q=<id> (links viejos ya compartidos).
   const quinielaId = idDeRuta || searchParams.get('q')
+  const vieneDeAdmin = searchParams.get('from') === 'admin'
 
   const [quiniela, setQuiniela]         = useState(null)
   const [predicciones, setPredicciones] = useState([])
@@ -354,6 +355,13 @@ export default function Ranking() {
     try { await Promise.all([cargarDatos().catch(() => {}), fetchLiveData(quiniela)]) }
     finally { setActualizando(false) }
   }
+  const backHref = vieneDeAdmin ? '/admin' : '/'
+  const backLabel = vieneDeAdmin ? 'Volver al panel admin' : 'Ir a inicio'
+  const handleBack = (e) => {
+    if (!vieneDeAdmin || window.history.length <= 1) return
+    e.preventDefault()
+    window.history.back()
+  }
 
   // ── Render estados ────────────────────────────────────────────────
   if (cargando) return (
@@ -388,14 +396,14 @@ export default function Ranking() {
               ↻ Reintentar
             </button>
           )}
-          <a href="/" style={{
+          <a href={backHref} onClick={handleBack} style={{
             display: 'inline-block', padding: '11px 24px', borderRadius: 'var(--radius-md)',
             background: (error === 'timeout' || error === 'error') ? 'transparent' : 'linear-gradient(135deg, var(--green), var(--green-light))',
             color: (error === 'timeout' || error === 'error') ? 'var(--muted)' : '#07120A',
             fontWeight: 800, fontSize: 14, textDecoration: 'none',
             boxShadow: (error === 'timeout' || error === 'error') ? 'none' : 'var(--shadow-green)', letterSpacing: 0.2,
           }}>
-            ← Ver quinielas activas
+            ← {vieneDeAdmin ? 'Volver al panel' : 'Ver quinielas activas'}
           </a>
         </div>
       </div>
@@ -420,7 +428,7 @@ export default function Ranking() {
       <div className="hero-pad ranking-hero-pad" style={{ background: 'var(--hero-gradient)', color: 'var(--text)', borderBottom: '1px solid var(--border)' }}>
         <div className="ranking-hero-inner" style={{ maxWidth: 'var(--ranking-max-width, 480px)', margin: '0 auto' }}>
           <div className="ranking-brand-row" style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 'var(--ranking-brand-margin-bottom, 8px)' }}>
-            <a href="/" className="app-back-button" aria-label="Ir a inicio" title="Inicio">
+            <a href={backHref} onClick={handleBack} className="app-back-button" aria-label={backLabel} title={backLabel}>
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d="M19 12H5" />
                 <path d="m12 19-7-7 7-7" />

@@ -502,14 +502,21 @@ function ordenarPorHora(partidos) {
     .map(x => x.p)
 }
 
-function fechaCreacionMs(q) {
-  const creada = q?.creada
-  if (!creada) return 0
-  if (typeof creada.toDate === 'function') return creada.toDate().getTime()
-  if (typeof creada.toMillis === 'function') return creada.toMillis()
-  if (typeof creada.seconds === 'number') return creada.seconds * 1000
-  const t = new Date(creada).getTime()
+function fechaMs(valor) {
+  if (!valor) return 0
+  if (typeof valor.toDate === 'function') return valor.toDate().getTime()
+  if (typeof valor.toMillis === 'function') return valor.toMillis()
+  if (typeof valor.seconds === 'number') return valor.seconds * 1000
+  const t = new Date(valor).getTime()
   return Number.isNaN(t) ? 0 : t
+}
+
+function fechaCreacionMs(q) {
+  return fechaMs(q?.creada)
+}
+
+function fechaFinalizadaMs(q) {
+  return fechaMs(q?.finalizadaEn) || fechaCreacionMs(q)
 }
 
 function resultadoPartidoListo(r) {
@@ -535,26 +542,6 @@ function partidosEnVivoCard(q, ahora = Date.now()) {
     if (Number.isNaN(inicio)) return total
     return total + (ahora >= inicio && ahora <= inicio + VENTANA ? 1 : 0)
   }, 0)
-}
-
-function textoCierreCard(q) {
-  const d = cierreToDate(q?.cierre)
-  if (!d) return 'Sin cierre configurado'
-  const ms = d.getTime() - Date.now()
-  if (ms <= 0) return 'Cierre vencido'
-  const MIN = 60 * 1000
-  const HORA = 60 * MIN
-  const DIA = 24 * HORA
-  if (ms >= DIA) {
-    const dias = Math.ceil(ms / DIA)
-    return `Cierra en ${dias} día${dias !== 1 ? 's' : ''}`
-  }
-  if (ms >= HORA) {
-    const horas = Math.ceil(ms / HORA)
-    return `Cierra en ${horas} h`
-  }
-  const mins = Math.max(1, Math.ceil(ms / MIN))
-  return `Cierra en ${mins} min`
 }
 
 // Cierre sugerido (valor listo para <input datetime-local>) = primer partido − margen.
@@ -1018,8 +1005,8 @@ export default function Admin() {
   // Cargar la lista de clientes para el super admin: en el tab Clientes y también
   // en la lista (para etiquetar de quién es cada quiniela de "otros admins").
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (autenticado && authListo && soySuper && vista === 'lista') cargarClientes()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autenticado, authListo, soySuper, vista])
 
   // ─── Formulario nueva quiniela ────────────────────────────────────────────
@@ -1154,6 +1141,16 @@ export default function Admin() {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!statsQId) { setStatsQData(null); setStatsQNombres({}); return }
+    if (loadingLista) return
+    const puedeVerStatsQ = quinielas.some(q =>
+      q.id === statsQId && (((!q.ownerUid && soySuper) || q.ownerUid === miUid))
+    )
+    if (!puedeVerStatsQ) {
+      setStatsQId('')
+      setStatsQData(null)
+      setStatsQNombres({})
+      return
+    }
     let vivo = true
     Promise.all([
       leerQuiniela(statsQId),
@@ -1166,7 +1163,7 @@ export default function Admin() {
       setStatsQNombres(m)
     }).catch(() => { if (vivo) { setStatsQData({}); setStatsQNombres({}) } })
     return () => { vivo = false }
-  }, [statsQId])
+  }, [statsQId, loadingLista, quinielas, soySuper, miUid])
 
   useEffect(() => {
     if (tab !== 'participantes' || !quinielaActual) return
@@ -1208,8 +1205,12 @@ export default function Admin() {
     finally { setLoadingMovimientos(false) }
   }
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { if (autenticado && authListo && (vista === 'caja' || (vista === 'lista' && soySuper))) cargarMovimientos() }, [autenticado, authListo, vista, soySuper])
+  useEffect(() => {
+    if (autenticado && authListo && (vista === 'caja' || (vista === 'lista' && soySuper))) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      cargarMovimientos()
+    }
+  }, [autenticado, authListo, vista, soySuper])
 
   // ─── CRUD partidos ────────────────────────────────────────────────────────
   const quitarPartido = (i) =>
@@ -3098,6 +3099,7 @@ export default function Admin() {
 
                 // ── Estadísticas ───────────────────────────────────────────────
                 const statsSection = (() => {
+                  const statsQuinielas = quinielasMias
                   const dias = statsDias ?? []
                   const suma = (k) => dias.reduce((a, d) => a + (Number(d[k]) || 0), 0)
                   const totVisitas = suma('visitas')
@@ -3146,7 +3148,7 @@ export default function Admin() {
                   const topAperturas = Object.entries(aperturas)
                     .map(([id, n]) => ({ nombre: statsQNombres[id] || 'Participante', n: Number(n) || 0 }))
                     .sort((a, b) => b.n - a.n).slice(0, 5)
-                  const qObj = quinielas.find(q => q.id === statsQId)
+                  const qObj = statsQuinielas.find(q => q.id === statsQId)
                   const etiquetaPartido = (espnId) => {
                     const p = (qObj?.partidos || []).find(x => String(x.espnId) === String(espnId))
                     return p ? `${p.local} vs ${p.visitante}` : 'Partido'
@@ -3321,10 +3323,11 @@ export default function Admin() {
                         <select
                           value={statsQId}
                           onChange={e => setStatsQId(e.target.value)}
+                          disabled={statsQuinielas.length === 0}
                           style={{ width: '100%', padding: '9px 10px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-strong)', background: 'var(--neutral-bg)', color: 'var(--text)', fontSize: 13, marginBottom: 12 }}
                         >
-                          <option value="">Elige una quiniela…</option>
-                          {quinielas.map(q => <option key={q.id} value={q.id}>{q.nombre}</option>)}
+                          <option value="">{statsQuinielas.length === 0 ? 'No tienes quinielas todavía' : 'Elige una quiniela…'}</option>
+                          {statsQuinielas.map(q => <option key={q.id} value={q.id}>{q.nombre}</option>)}
                         </select>
 
                         {statsQId && (
@@ -3657,10 +3660,11 @@ export default function Admin() {
                 )
               }
               const ordenarRecientes = (arr) => [...arr].sort((a, b) => fechaCreacionMs(b) - fechaCreacionMs(a))
+              const ordenarFinalizadasRecientes = (arr) => [...arr].sort((a, b) => fechaFinalizadaMs(b) - fechaFinalizadaMs(a))
               const miasOrdenadas = {
                 activas: ordenarRecientes(mias.activas),
                 enJuego: ordenarRecientes(mias.enJuego),
-                finalizadas: ordenarRecientes(mias.finalizadas),
+                finalizadas: ordenarFinalizadasRecientes(mias.finalizadas),
               }
               const busquedaQuinielasTexto = busquedaQuinielasCliente.trim()
               const busquedaQuinielas = busquedaQuinielasTexto.toLowerCase()
@@ -3794,7 +3798,11 @@ export default function Admin() {
                 )
               }
               // clienteTab === 'inicio' (default)
-              const abiertas = [...mias.activas, ...mias.enJuego].slice(0, 3)
+              const abiertas = [...miasOrdenadas.activas, ...miasOrdenadas.enJuego].slice(0, 3)
+              const quinielasInicio = abiertas.length > 0
+                ? abiertas
+                : (clienteMobile ? miasOrdenadas.finalizadas.slice(0, 1) : [])
+              const tituloQuinielasInicio = abiertas.length > 0 ? 'Tus quinielas' : 'Última finalizada'
               return (
                 <>
                   {headerCli(`Hola, ${nombreCli}`, 'Tu panel de quinielas', ctaNueva)}
@@ -3810,18 +3818,18 @@ export default function Admin() {
                       </div>
                     ))}
                   </div>
-                  {abiertas.length > 0 ? (
+                  {quinielasInicio.length > 0 ? (
                     <>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                        <p style={tituloGrupo}>Tus quinielas</p>
+                        <p style={tituloGrupo}>{tituloQuinielasInicio}</p>
                         <button onClick={() => navCliente('quinielas')} style={{ background: 'transparent', border: 'none', color: 'var(--green)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Ver todas ›</button>
                       </div>
                       {clienteDesktop ? (
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12, alignItems: 'start' }}>
-                          {abiertas.map(q => <QuinielaCard key={q.id} q={q} conteos={conteos} onGestionar={gestionarQuiniela} superCompact softManage />)}
+                          {quinielasInicio.map(q => <QuinielaCard key={q.id} q={q} conteos={conteos} onGestionar={gestionarQuiniela} superCompact softManage />)}
                         </div>
                       ) : (
-                        abiertas.map(q => <QuinielaCard key={q.id} q={q} conteos={conteos} onGestionar={gestionarQuiniela} superCompact softManage />)
+                        quinielasInicio.map(q => <QuinielaCard key={q.id} q={q} conteos={conteos} onGestionar={gestionarQuiniela} superCompact softManage />)
                       )}
                     </>
                   ) : quinielasMias.length === 0 ? listaQuinielas : null}
@@ -5129,12 +5137,7 @@ function QuinielaCard({ q, conteos, onGestionar, dueno, superCompact = false, so
     'en-vivo': 'En vivo',
     finalizada: 'Finalizada',
   }[estado]
-  const footer = finalizada
-    ? 'Resultados completos'
-    : enJuego
-      ? (enVivoAhora > 0 ? `${enVivoAhora} en juego ahora` : 'Sin partido ahora')
-      : textoCierreCard(q)
-  const boton = finalizada ? 'Ver resultados' : 'Gestionar'
+  const boton = 'Gestionar'
   const cardClasses = [
     'admin-q-card',
     `admin-q-card--${estado}`,
@@ -5201,11 +5204,11 @@ function QuinielaCard({ q, conteos, onGestionar, dueno, superCompact = false, so
         )}
       </div>
       <div className="admin-q-card-footer">
-        <span className="admin-q-footer-note">
-          {finalizada && <AdminIcon name="trophy" size={13} strokeWidth={2.2} />}
-          {footer}
-        </span>
-        <button type="button" onClick={() => onGestionar(q)} className={`admin-q-action${finalizada ? ' admin-q-action--secondary' : ''}`}>
+        <a href={`/ranking/${q.id}?from=admin`} className="admin-q-ranking-action" aria-label={`Ver ranking de ${q.nombre}`}>
+          <AdminIcon name="trophy" size={14} strokeWidth={2.2} />
+          Ranking
+        </a>
+        <button type="button" onClick={() => onGestionar(q)} className={`admin-q-action${finalizada ? ' admin-q-action--secondary' : ''}`} aria-label={`Gestionar ${q.nombre}`}>
           {boton}
         </button>
       </div>
