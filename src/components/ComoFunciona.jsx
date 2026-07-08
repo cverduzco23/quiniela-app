@@ -23,8 +23,15 @@ const seccion = {
 const h = { fontSize: 14, fontWeight: 800, color: 'var(--text-strong)', marginBottom: 8 }
 const p = { fontSize: 13, color: 'var(--muted)', lineHeight: 1.6, marginBottom: 6 }
 const strong = { color: 'var(--text)', fontWeight: 700 }
+const list = { margin: 0, paddingLeft: 18, display: 'grid', gap: 6 }
+const li = { fontSize: 13, color: 'var(--muted)', lineHeight: 1.6 }
+const link = { color: 'var(--green)', fontWeight: 700 }
+const marca = { color: 'var(--text-strong)', fontWeight: 900 }
 
 export function ComoFunciona({ onClose }) {
+  const sugerirLigaLink = waLink('¡Hola! ¿Podrían agregar la liga/torneo de ... a QuinielApp?')
+  const reporteLink = waLink(mensajeReporteProblema())
+
   return (
     <div style={overlay} onClick={onClose}>
       <div style={modal} onClick={e => e.stopPropagation()}>
@@ -43,24 +50,40 @@ export function ComoFunciona({ onClose }) {
 
         <div style={seccion}>
           <p style={h}>1. Crear tu quiniela</p>
-          <p style={p}>• Ponle un <span style={strong}>nombre</span> y una <span style={strong}>fecha de cierre</span> (después de esa hora ya nadie puede registrar predicciones).</p>
-          <p style={p}>• Usa el <span style={strong}>buscador de partidos</span> para traerlos con un clic — sus resultados se sincronizan solos.</p>
-          <p style={p}>• Se genera un <span style={strong}>código de acceso</span> (lo puedes cambiar). Compártelo junto con el enlace; solo quien lo tenga puede participar.</p>
+          <ul style={list}>
+            <li style={li}>Ponle un <span style={strong}>nombre claro</span> a tu quiniela.</li>
+            <li style={li}>
+              Usa el <span style={strong}>buscador de partidos</span>: selecciona la liga o torneo, toca <span style={strong}>Buscar</span> y marca los partidos que quieras agregar. Si no la encuentras,{' '}
+              <a href={sugerirLigaLink} target="_blank" rel="noreferrer" style={link}>sugiere que la agreguemos</a>.
+            </li>
+            <li style={li}>Los partidos se agregan con su fecha y hora. Puedes eliminar o agregar más antes de que alguien registre predicciones.</li>
+            <li style={li}>La fecha de cierre se sugiere automáticamente <span style={strong}>5 minutos antes del primer partido</span>. Puedes editarla.</li>
+            <li style={li}>Se genera un <span style={strong}>código de acceso</span>. Puedes cambiarlo y compartirlo con tus participantes; ellos pueden entrar desde quinielapp.fun usando ese código. Si quieres, también puedes compartir el enlace directo.</li>
+            <li style={li}>Define el premio: premio fijo, cuota por participante, ambos combinados, o déjalos en cero para jugar solo por diversión.</li>
+            <li style={li}>La gestión de pagos entre participantes y organizador se hace fuera de <span style={marca}>Quiniel<span style={{ color: 'var(--green)' }}>App</span></span>.</li>
+          </ul>
         </div>
 
         <div style={seccion}>
           <p style={h}>2. Cómo se miden los puntos</p>
-          <p style={p}>• <span style={strong}>1 punto</span> por atinarle al resultado (local gana / empate / visitante gana).</p>
-          <p style={p}>• <span style={strong}>+2 puntos extra</span> si además aciertas el marcador exacto. Es decir, hasta <span style={strong}>3 puntos por partido</span>.</p>
-          <p style={p}>• Los partidos <span style={strong}>cancelados</span> no cuentan para nadie.</p>
-          <p style={p}>• <span style={strong}>Gana quien acumule más puntos.</span> Si dos o más empatan en puntos, comparten la misma posición y, si hay premio, lo reparten en partes iguales. La hora a la que enviaron su predicción no influye en nada.</p>
+          <ul style={list}>
+            <li style={li}><span style={strong}>1 punto</span> por acertar el resultado: local, empate o visitante.</li>
+            <li style={li}><span style={strong}>+2 puntos extra</span> si además aciertas el marcador exacto. Máximo <span style={strong}>3 puntos por partido</span>.</li>
+            <li style={li}>Los partidos <span style={strong}>cancelados</span> no cuentan para nadie.</li>
+            <li style={li}>Gana quien acumule más puntos. Si hay empate, comparten posición y, si aplica, premio.</li>
+          </ul>
         </div>
 
         <div style={seccion}>
           <p style={h}>3. Cierre y resultados</p>
-          <p style={p}>• La quiniela se <span style={strong}>cierra sola</span> a la hora de cierre (o cuando empiezan los partidos). Ya nadie puede entrar ni cambiar sus picks.</p>
-          <p style={p}>• Los marcadores <span style={strong}>se llenan solos</span>: la app los trae de ESPN y los guarda al terminar cada partido (incluidos los cancelados). No tienes que hacer nada.</p>
-          <p style={p}>• Durante los partidos, el <span style={strong}>ranking se actualiza en vivo</span> cada minuto. Cuando todos terminan, la quiniela queda <span style={strong}>finalizada</span> y se ve el ganador.</p>
+          <ul style={list}>
+            <li style={li}>La quiniela se <span style={strong}>cierra</span> (deja de recibir registros de jugadores) automáticamente a la hora de cierre. Ya nadie puede entrar a jugar ni cambiar sus picks.</li>
+            <li style={li}>
+              Los marcadores se llenan y guardan <span style={strong}>automáticamente</span>. Espera unos minutos después de cada partido; si no se actualizan,{' '}
+              <a href={reporteLink} target="_blank" rel="noreferrer" style={link}>reporta el problema por WhatsApp</a>.
+            </li>
+            <li style={li}>Durante los partidos, el <span style={strong}>ranking se actualiza en vivo</span> cada minuto. Cuando todos terminan, la quiniela queda <span style={strong}>finalizada</span> y se ve el ganador.</li>
+          </ul>
         </div>
 
         <div style={seccion}>
@@ -69,15 +92,20 @@ export function ComoFunciona({ onClose }) {
         </div>
 
         <div style={seccion}>
+          <p style={h}>5. Cambiar predicciones</p>
+          <p style={p}>Si alguien quiere cambiar sus predicciones, ve a <span style={strong}>Participantes</span>, elimina su registro e indícale que vuelva a entrar y enviarlas de nuevo. En realidad no se editan: se elimina el registro y se sube de nuevo.</p>
+        </div>
+
+        <div style={seccion}>
           <p style={h}>¿Algo no funciona?</p>
           <p style={{ ...p, marginBottom: 0 }}>
             Si un marcador no llegó o viste cualquier falla,{' '}
             <a
-              href={waLink(mensajeReporteProblema())}
+              href={reporteLink}
               target="_blank" rel="noreferrer"
-              style={{ color: 'var(--green)', fontWeight: 700 }}
+              style={link}
             >
-              repórtala por WhatsApp
+              reporta un problema por WhatsApp
             </a>{' '}
             y lo revisamos.
           </p>
