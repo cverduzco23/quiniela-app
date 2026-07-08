@@ -690,10 +690,8 @@ const DEFINICIONES_STATS = {
   dispositivos: { t: 'Dispositivos únicos', d: 'Aparatos distintos (celulares o computadoras) que han entrado alguna vez, en total. Se identifican con una marca anónima en el navegador, sin IP ni datos personales. Es aproximado: puede duplicarse si alguien borra el caché, usa modo incógnito, o entra desde otro navegador o aparato.' },
   jugaron:      { t: 'Jugaron', d: 'Cuántas predicciones se enviaron de verdad (llenaron sus marcadores y le dieron enviar). No cuenta solo entrar ni escribir el código de acceso. Si una persona manda dos predicciones, cuentan dos. Últimos 7 días.' },
   conversion:   { t: 'Conversión', d: 'De cada 100 visitas, cuántas terminaron enviando predicción (Jugaron ÷ Visitas). Te dice qué tanto de la gente que entra realmente juega. Es un estimado.' },
-  tipo:         { t: 'Tipo de dispositivo', d: 'De las visitas, qué porcentaje fue desde celular y qué porcentaje desde computadora (y dentro de celular, iPhone vs Android). Se detecta por el tipo de navegador. Últimos 7 días.' },
-  anchos:       { t: 'Ancho de pantalla', d: 'En celular, el ancho exacto en píxeles del aparato (distingue modelos, ej. un iPhone Pro Max de un Galaxy). En computadora se agrupa en rangos porque la ventana se redimensiona libremente. Últimos 7 días.' },
-  hora:         { t: 'Hora con más actividad', d: 'La hora del día (horario de México) en la que se registran más visitas, sumando los últimos 7 días. Útil para saber a qué hora conviene mandar el WhatsApp.' },
-  porDia:       { t: 'Visitas por día', d: 'Cuántas visitas hubo en cada uno de los últimos 7 días.' },
+  tipo:         { t: 'De dónde entran', d: 'De las visitas, qué porcentaje fue desde celular y qué porcentaje desde computadora (y dentro de celular, iPhone vs Android). Se detecta por el tipo de navegador. Últimos 7 días.' },
+  hora:         { t: 'Actividad por hora', d: 'La hora del día (horario de México) en la que se registran más visitas, sumando los últimos 7 días. Útil para saber a qué hora conviene mandar el WhatsApp.' },
   aperturas:    { t: 'Participantes más abiertos', d: 'En una quiniela ya cerrada, cuánta gente abrió las predicciones de cada participante (al tocar su fila en el ranking para ver sus pronósticos). Se cuenta una vez por sesión y participante.' },
   enVivo:       { t: 'Partidos con más conectados en vivo', d: 'Cuántos espectadores estaban viendo el ranking mientras ese partido se jugaba en vivo. Se cuenta una vez por sesión y partido.' },
 }
@@ -1108,6 +1106,8 @@ export default function Admin() {
   const [statsQId, setStatsQId]           = useState('')     // quiniela elegida para el detalle
   const [statsQData, setStatsQData]       = useState(null)   // doc analytics/q_<id>
   const [statsQNombres, setStatsQNombres] = useState({})     // prediccionId → nombre
+  const [statsQLiveIds, setStatsQLiveIds] = useState(() => new Set()) // espnId de partidos EN VIVO ahora mismo (quiniela elegida)
+  const [statsTab, setStatsTab]           = useState('general') // 'general' | 'porQuiniela'
   const [noContarme, setNoContarme]       = useState(false)  // este dispositivo está excluido del conteo
   const [infoStat, setInfoStat]           = useState(null)   // qué definición de métrica está abierta
   const [quinielas, setQuinielas]         = useState([])
@@ -1225,7 +1225,7 @@ export default function Admin() {
     let vivo = true
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setStatsCargando(true)
-    Promise.all([leerDias(7), leerGlobal()])
+    Promise.all([leerDias(14), leerGlobal()])
       .then(([d, g]) => { if (vivo) { setStatsDias(d); setStatsGlobal(g) } })
       .catch(() => { if (vivo) { setStatsDias([]); setStatsGlobal({}) } })
       .finally(() => { if (vivo) setStatsCargando(false) })
@@ -1281,6 +1281,30 @@ export default function Admin() {
     }).catch(() => { if (vivo) { setStatsQData({}); setStatsQNombres({}) } })
     return () => { vivo = false }
   }, [statsQId, loadingLista, quinielas, soySuper, miUid])
+
+  // Estadísticas: detecta si alguno de los partidos de la quiniela elegida está
+  // EN VIVO ahora mismo, para el badge en "Partidos con más conectados en vivo".
+  useEffect(() => {
+    if (!statsQId) { setStatsQLiveIds(new Set()); return }
+    const qObj = quinielas.find(q => q.id === statsQId)
+    const conEspn = (qObj?.partidos || []).filter(p => p.espnId && p.ligaId)
+    if (conEspn.length === 0) { setStatsQLiveIds(new Set()); return }
+    let vivo = true
+    const porLiga = {}
+    conEspn.forEach(p => { (porLiga[p.ligaId] ||= []).push(p) })
+    const fmtF = d => d.toISOString().slice(0, 10).replace(/-/g, '')
+    const hoyD = new Date()
+    const rango = `${fmtF(new Date(hoyD.getTime() - 86400000))}-${fmtF(new Date(hoyD.getTime() + 86400000))}`
+    Promise.all(Object.entries(porLiga).map(async ([liga, ps]) => {
+      try {
+        const r = await fetch(`https://site.api.espn.com/apis/site/v2/sports/soccer/${liga}/scoreboard?dates=${rango}`)
+        const d = await r.json()
+        const events = d.events ?? []
+        return ps.filter(p => events.find(e => e.id === p.espnId)?.status?.type?.state === 'in').map(p => String(p.espnId))
+      } catch { return [] }
+    })).then(res => { if (vivo) setStatsQLiveIds(new Set(res.flat())) })
+    return () => { vivo = false }
+  }, [statsQId, quinielas])
 
   useEffect(() => {
     if (tab !== 'participantes' || !quinielaActual) return
@@ -3114,68 +3138,56 @@ export default function Admin() {
                 // ── Estadísticas ───────────────────────────────────────────────
                 const statsSection = (() => {
                   const statsQuinielas = quinielasMias
-                  const dias = statsDias ?? []
-                  const suma = (k) => dias.reduce((a, d) => a + (Number(d[k]) || 0), 0)
-                  const totVisitas = suma('visitas')
-                  const totEnvios  = suma('envios')
-                  const totMovil   = suma('movil')
-                  const totEscr    = suma('escritorio')
-                  const totIos     = suma('ios')
-                  const totAndroid = suma('android')
+                  // statsDias trae 14 días: los últimos 7 (semana actual) + los 7 previos, para
+                  // poder mostrar la tendencia "vs. la semana pasada" en la tarjeta de visitas.
+                  const diasTodos = statsDias ?? []
+                  const dias     = diasTodos.slice(-7)
+                  const diasPrev = diasTodos.slice(0, Math.max(0, diasTodos.length - 7)).slice(-7)
+                  const sumar = (arr, k) => arr.reduce((a, d) => a + (Number(d[k]) || 0), 0)
+                  const totVisitas     = sumar(dias, 'visitas')
+                  const totVisitasPrev = sumar(diasPrev, 'visitas')
+                  const hayComparativo = diasPrev.length > 0
+                  const trendPct = (hayComparativo && totVisitasPrev > 0)
+                    ? Math.round(((totVisitas - totVisitasPrev) / totVisitasPrev) * 100)
+                    : null
+                  const totEnvios  = sumar(dias, 'envios')
+                  const totMovil   = sumar(dias, 'movil')
+                  const totEscr    = sumar(dias, 'escritorio')
+                  const totIos     = sumar(dias, 'ios')
+                  const totAndroid = sumar(dias, 'android')
                   const totDisp    = totMovil + totEscr
                   const conversion = totVisitas > 0 ? Math.round((totEnvios / totVisitas) * 100) : 0
                   const pct = (n, tot) => tot > 0 ? Math.round((n / tot) * 100) : 0
 
-                  // Hora pico (acumulando las horas de todos los días leídos).
+                  // Actividad por hora (acumulando las horas de los últimos 7 días).
                   const horasAcum = {}
                   dias.forEach(d => Object.entries(d.horas || {}).forEach(([h, n]) => {
-                    horasAcum[h] = (horasAcum[h] || 0) + (Number(n) || 0)
+                    horasAcum[Number(h)] = (horasAcum[Number(h)] || 0) + (Number(n) || 0)
                   }))
                   const horaPicoEntry = Object.entries(horasAcum).sort((a, b) => b[1] - a[1])[0]
-                  const horaPico = horaPicoEntry ? `${String(horaPicoEntry[0]).padStart(2, '0')}:00` : '—'
-
-                  // Anchos de pantalla: exacto en celular, por rango en escritorio
-                  // (ver utils/analytics.js). Mostramos los más frecuentes de cada uno.
-                  const anchoMovilAcum = {}
-                  dias.forEach(d => Object.entries(d.anchoMovil || {}).forEach(([w, n]) => {
-                    anchoMovilAcum[w] = (anchoMovilAcum[w] || 0) + (Number(n) || 0)
-                  }))
-                  const totAnchoMovil = Object.values(anchoMovilAcum).reduce((a, n) => a + n, 0)
-                  const topAnchosMovil = Object.entries(anchoMovilAcum)
-                    .sort((a, b) => b[1] - a[1]).slice(0, 6)
-
-                  const anchoEscrAcum = {}
-                  dias.forEach(d => Object.entries(d.anchoEscritorio || {}).forEach(([r, n]) => {
-                    anchoEscrAcum[r] = (anchoEscrAcum[r] || 0) + (Number(n) || 0)
-                  }))
-                  const totAnchoEscr = Object.values(anchoEscrAcum).reduce((a, n) => a + n, 0)
-                  const ORDEN_RANGOS_ESCR = ['<1024', '1024-1279', '1280-1439', '1440-1679', '1680-1919', '1920+']
-                  const topAnchosEscr = ORDEN_RANGOS_ESCR
-                    .map(r => [r, anchoEscrAcum[r] || 0])
-                    .filter(([, n]) => n > 0)
+                  const horaPicoNum = horaPicoEntry ? Number(horaPicoEntry[0]) : null
+                  const horaPico = horaPicoNum !== null ? `${String(horaPicoNum).padStart(2, '0')}:00` : null
+                  const maxHora = Math.max(1, ...Array.from({ length: 24 }, (_, h) => horasAcum[h] || 0))
 
                   const maxDia = Math.max(1, ...dias.map(d => Number(d.visitas) || 0))
-                  const fmtDia = (date) => date.toLocaleDateString('es-MX', { weekday: 'short', day: 'numeric' })
+                  const fmtDia = (date) => date.toLocaleDateString('es-MX', { weekday: 'short' })
 
                   // Detalle de la quiniela elegida.
                   const aperturas = statsQData?.aperturas || {}
                   const topAperturas = Object.entries(aperturas)
                     .map(([id, n]) => ({ nombre: statsQNombres[id] || 'Participante', n: Number(n) || 0 }))
-                    .sort((a, b) => b.n - a.n).slice(0, 5)
+                    .sort((a, b) => b.n - a.n).slice(0, 4)
                   const qObj = statsQuinielas.find(q => q.id === statsQId)
-                  const etiquetaPartido = (espnId) => {
+                  const datosPartido = (espnId) => {
                     const p = (qObj?.partidos || []).find(x => String(x.espnId) === String(espnId))
-                    return p ? `${p.local} vs ${p.visitante}` : 'Partido'
+                    return p ? { local: p.local, visitante: p.visitante } : { local: 'Partido', visitante: '' }
                   }
                   const topEnVivo = Object.entries(statsQData?.enVivo || {})
-                    .map(([espnId, n]) => ({ label: etiquetaPartido(espnId), n: Number(n) || 0 }))
+                    .map(([espnId, n]) => ({ espnId, ...datosPartido(espnId), n: Number(n) || 0 }))
                     .sort((a, b) => b.n - a.n).slice(0, 5)
 
                   const totDispositivos = Number(statsGlobal?.dispositivos) || 0
                   const hayDatos = totVisitas > 0 || totEnvios > 0 || totDispositivos > 0
-                  const statNum = { fontSize: 23, fontWeight: 800, color: 'var(--text-strong)', lineHeight: 1.1 }
-                  const statLbl = { fontSize: 11, color: 'var(--muted)', fontWeight: 700, marginTop: 2 }
-                  const filaRank = { display: 'flex', justifyContent: 'space-between', fontSize: 12.5, color: 'var(--text)', padding: '3px 0' }
                   // Info de cada métrica: tocar la tarjeta o el icono ⓘ abre su definición.
                   const toggleInfo = (k) => setInfoStat(p => p === k ? null : k)
                   const infoBtn = (k) => (
@@ -3190,208 +3202,310 @@ export default function Admin() {
                   )
                   const defBox = (k) => DEFINICIONES_STATS[k] ? (
                     <SmoothCollapse open={infoStat === k}>
-                      <div style={{ background: 'var(--green-bg)', border: '1px solid var(--green)', borderRadius: 'var(--radius-sm)', padding: '9px 11px', marginBottom: 12 }}>
+                      <div style={{ background: 'var(--green-bg)', border: '1px solid var(--green)', borderRadius: 'var(--radius-sm)', padding: '9px 11px', marginTop: 8, marginBottom: 12 }}>
                         <p style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-strong)', marginBottom: 3 }}>{DEFINICIONES_STATS[k].t}</p>
                         <p style={{ fontSize: 11.5, color: 'var(--text)', lineHeight: 1.5 }}>{DEFINICIONES_STATS[k].d}</p>
                       </div>
                     </SmoothCollapse>
                   ) : null
-                  const metricCard = (k, valor, etiqueta, icon) => (
-                    <button
-                      type="button"
-                      onClick={() => toggleInfo(k)}
-                      style={{
-                        padding: 12, borderRadius: 'var(--radius-md)', cursor: 'pointer', textAlign: 'left', font: 'inherit',
-                        background: 'var(--card)',
-                        border: `1px solid ${infoStat === k ? 'rgba(34,197,94,0.4)' : 'var(--border)'}`,
-                        display: 'flex', flexDirection: 'column', gap: 8,
-                      }}
-                    >
-                      <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, borderRadius: 9, background: 'var(--green-bg)', color: 'var(--green)' }}>
-                        <AdminIcon name={icon} size={16} />
-                      </span>
-                      <div>
-                        <div style={statNum}>{valor}</div>
-                        <div style={{ ...statLbl, display: 'flex', alignItems: 'center', gap: 4 }}>
-                          {etiqueta}
-                          <AdminIcon name="info" size={11} style={{ opacity: 0.5 }} />
-                        </div>
-                      </div>
-                    </button>
-                  )
                   // Etiqueta de sección con su icono de info al lado.
                   const tituloInfo = (k, texto) => (
                     <div style={{ ...lbl, display: 'flex', alignItems: 'center', gap: 4 }}>{texto}{infoBtn(k)}</div>
                   )
 
+                  const pillUltimos = (
+                    <span style={{ display: 'inline-flex', alignItems: 'center', fontSize: 11, fontWeight: 700, color: 'var(--muted)', background: 'var(--neutral-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-full)', padding: '5px 12px', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                      Últimos 7 días
+                    </span>
+                  )
+
+                  const segmentControl = (
+                    <div className="stats-segment" role="tablist" aria-label="Vista de estadísticas">
+                      <button type="button" role="tab" aria-selected={statsTab === 'general'} className={`stats-segment-btn${statsTab === 'general' ? ' is-active' : ''}`} onClick={() => setStatsTab('general')}>General</button>
+                      <button type="button" role="tab" aria-selected={statsTab === 'porQuiniela'} className={`stats-segment-btn${statsTab === 'porQuiniela' ? ' is-active' : ''}`} onClick={() => setStatsTab('porQuiniela')}>Por quiniela</button>
+                    </div>
+                  )
+
+                  // ── Gráfica de línea (7 puntos) para la tarjeta de visitas ──────────
+                  const chartW = 300, chartH = 74
+                  const chartPts = dias.map((d, i) => {
+                    const v = Number(d.visitas) || 0
+                    const x = dias.length > 1 ? (i / (dias.length - 1)) * chartW : chartW / 2
+                    const y = chartH - (v / maxDia) * (chartH - 10) - 5
+                    return [x, y]
+                  })
+                  const smoothPath = (pts) => {
+                    if (pts.length === 0) return ''
+                    if (pts.length === 1) return `M ${pts[0][0]},${pts[0][1]}`
+                    let d = `M ${pts[0][0]},${pts[0][1]}`
+                    for (let i = 0; i < pts.length - 1; i++) {
+                      const [x0, y0] = pts[i], [x1, y1] = pts[i + 1]
+                      d += ` Q ${x0},${y0} ${(x0 + x1) / 2},${(y0 + y1) / 2}`
+                    }
+                    const last = pts[pts.length - 1]
+                    d += ` L ${last[0]},${last[1]}`
+                    return d
+                  }
+                  const linePath = smoothPath(chartPts)
+                  const areaPath = chartPts.length > 0
+                    ? `${linePath} L ${chartPts[chartPts.length - 1][0]},${chartH} L ${chartPts[0][0]},${chartH} Z`
+                    : ''
+
+                  const heroCard = (
+                    <button type="button" onClick={() => toggleInfo('visitas')} className="stats-hero-card">
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                        <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--green-light)', letterSpacing: 0.6, textTransform: 'uppercase' }}>Visitas · 7 días</span>
+                        {trendPct !== null && (
+                          <span className={`stats-trend-badge ${trendPct >= 0 ? 'is-up' : 'is-down'}`}>
+                            <AdminIcon name="trending-up" size={11} style={{ transform: trendPct < 0 ? 'scaleY(-1)' : 'none' }} />
+                            {Math.abs(trendPct)}%
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ fontFamily: 'var(--font-display)', fontSize: 38, fontWeight: 700, color: 'var(--text-strong)', lineHeight: 1 }}>{totVisitas.toLocaleString('es-MX')}</div>
+                      <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6, marginBottom: 12 }}>
+                        {hayComparativo ? `vs. ${totVisitasPrev.toLocaleString('es-MX')} la semana pasada` : 'Aún no hay comparativo de la semana pasada'}
+                      </p>
+                      {dias.length > 1 && (
+                        <svg viewBox={`0 0 ${chartW} ${chartH}`} width="100%" height={chartH} preserveAspectRatio="none" style={{ display: 'block' }} aria-hidden="true">
+                          <defs>
+                            <linearGradient id="statsHeroFill" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor="rgba(34,197,94,0.45)" />
+                              <stop offset="100%" stopColor="rgba(34,197,94,0)" />
+                            </linearGradient>
+                          </defs>
+                          <path d={areaPath} fill="url(#statsHeroFill)" stroke="none" />
+                          <path d={linePath} fill="none" stroke="var(--green-light)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      )}
+                      <div style={{ display: 'flex', marginTop: 6 }}>
+                        {dias.map(d => (
+                          <span key={d.id} style={{ flex: 1, textAlign: 'center', fontSize: 10, color: 'var(--muted)', fontWeight: 600, textTransform: 'capitalize' }}>{fmtDia(d.fecha)}</span>
+                        ))}
+                      </div>
+                    </button>
+                  )
+
+                  const miniCard = (k, valor, etiqueta, icon) => (
+                    <button type="button" onClick={() => toggleInfo(k)} className="stats-mini-card">
+                      <span className="stats-mini-icon"><AdminIcon name={icon} size={15} /></span>
+                      <div style={{ fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 700, color: 'var(--text-strong)', lineHeight: 1.15, marginTop: 8 }}>{valor}</div>
+                      <div style={{ fontSize: 10.5, color: 'var(--muted)', fontWeight: 700, marginTop: 2 }}>{etiqueta}</div>
+                    </button>
+                  )
+
+                  const generalTab = (
+                    <>
+                      {heroCard}
+                      {defBox('visitas')}
+
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginTop: 12 }}>
+                        {miniCard('jugaron', totEnvios, 'Jugaron', 'ball')}
+                        {miniCard('conversion', `${conversion}%`, 'Conversión', 'trending-up')}
+                        {miniCard('dispositivos', totDispositivos, 'Dispositivos', 'device-mobile')}
+                      </div>
+                      {defBox('jugaron')}
+                      {defBox('conversion')}
+                      {defBox('dispositivos')}
+
+                      <div style={{ marginTop: 6 }}>
+                        {tituloInfo('tipo', 'De dónde entran')}
+                        {defBox('tipo')}
+                        <div className="stats-device-track">
+                          <div className="stats-device-fill" style={{ width: `${pct(totMovil, totDisp)}%` }} />
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, fontSize: 12.5, color: 'var(--text)', fontWeight: 600 }}>
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><span className="stats-dot is-green" />Celular <strong>{pct(totMovil, totDisp)}%</strong></span>
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><span className="stats-dot is-muted" />Compu <strong>{pct(totEscr, totDisp)}%</strong></span>
+                        </div>
+                        {(totIos > 0 || totAndroid > 0) && (
+                          <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 6 }}>
+                            {totIos > 0 && <>iPhone {pct(totIos, totDisp)}%</>}
+                            {totIos > 0 && totAndroid > 0 && ' · '}
+                            {totAndroid > 0 && <>Android {pct(totAndroid, totDisp)}%</>}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="stats-hour-card">
+                        <p style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 700, color: 'var(--text)', marginBottom: 10 }}>
+                          <AdminIcon name="clock" size={14} style={{ color: 'var(--yellow)' }} /> Actividad por hora {infoBtn('hora')}
+                        </p>
+                        {defBox('hora')}
+                        <div style={{ display: 'flex', gap: 3 }}>
+                          {Array.from({ length: 24 }, (_, h) => {
+                            const n = horasAcum[h] || 0
+                            const esPico = h === horaPicoNum && n > 0
+                            const intensidad = n > 0 ? 0.18 + 0.82 * (n / maxHora) : 0
+                            return (
+                              <div
+                                key={h}
+                                style={{
+                                  flex: 1, aspectRatio: '1', borderRadius: 4,
+                                  background: n > 0 ? `rgba(34,197,94,${intensidad})` : 'var(--border)',
+                                  border: esPico ? '1.5px solid var(--green-light)' : '1.5px solid transparent',
+                                  boxShadow: esPico ? '0 0 8px rgba(134,239,172,0.55)' : 'none',
+                                }}
+                              />
+                            )
+                          })}
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4, fontSize: 9.5, color: 'var(--muted)' }}>
+                          <span>0h</span><span>6h</span><span>12h</span><span>18h</span><span>23h</span>
+                        </div>
+                        {horaPico && (
+                          <p style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 10 }}>
+                            Pico a las <strong style={{ color: 'var(--yellow)' }}>{horaPico}</strong> — ideal para avisar por WhatsApp.
+                          </p>
+                        )}
+                      </div>
+                    </>
+                  )
+
+                  const porQuinielaTab = (
+                    <>
+                      <p style={lbl}>Detalle por quiniela</p>
+                      <div className="stats-select-wrap">
+                        <select
+                          value={statsQId}
+                          onChange={e => setStatsQId(e.target.value)}
+                          disabled={statsQuinielas.length === 0}
+                          className="stats-select"
+                        >
+                          <option value="">{statsQuinielas.length === 0 ? 'No tienes quinielas todavía' : 'Elige una quiniela…'}</option>
+                          {statsQuinielas.map(q => <option key={q.id} value={q.id}>{q.nombre}</option>)}
+                        </select>
+                        <AdminIcon name="chevron-down" size={15} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)', pointerEvents: 'none' }} />
+                      </div>
+
+                      {!statsQId ? (
+                        <p style={{ fontSize: 12.5, color: 'var(--muted)', fontStyle: 'italic', padding: '4px 0' }}>Elige una quiniela para ver su detalle.</p>
+                      ) : (
+                        <>
+                          <div className="stats-block-card">
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                              <p style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 700, color: 'var(--text)', margin: 0 }}>
+                                <AdminIcon name="eye" size={14} style={{ color: 'var(--green)' }} /> Participantes más abiertos {infoBtn('aperturas')}
+                              </p>
+                              {topAperturas.length > 0 && <span className="stats-top-pill">Top {topAperturas.length}</span>}
+                            </div>
+                            {defBox('aperturas')}
+                            {topAperturas.length === 0 ? (
+                              <p style={{ fontSize: 12, color: 'var(--muted)', fontStyle: 'italic' }}>Nadie ha abierto predicciones todavía.</p>
+                            ) : (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                {topAperturas.map((a, i) => (
+                                  <div key={i} className={`stats-participant-row${i === 0 ? ' is-top' : ''}`}>
+                                    <span className="stats-participant-avatar">
+                                      {iniciales(a.nombre)}
+                                      {i === 0 && <span className="stats-participant-crown" aria-hidden="true">👑</span>}
+                                    </span>
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 5 }}>
+                                        <span style={{ fontSize: 13, fontWeight: i === 0 ? 800 : 600, color: 'var(--text-strong)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.nombre}</span>
+                                        <span style={{ fontSize: 13, fontWeight: 800, color: i === 0 ? 'var(--green-light)' : 'var(--muted)', flexShrink: 0 }}>{a.n}</span>
+                                      </div>
+                                      <div className="stats-progress-track">
+                                        <div className="stats-progress-fill" style={{ width: `${Math.max(6, Math.round((a.n / (topAperturas[0].n || 1)) * 100))}%` }} />
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="stats-block-card">
+                            <p style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 700, color: 'var(--text)', marginBottom: 12 }}>
+                              <span className="stats-live-dot" aria-hidden="true" /> Partidos con más conectados en vivo {infoBtn('enVivo')}
+                            </p>
+                            {defBox('enVivo')}
+                            {topEnVivo.length === 0 ? (
+                              <p style={{ fontSize: 12, color: 'var(--muted)', fontStyle: 'italic' }}>Sin datos de partidos en vivo todavía.</p>
+                            ) : (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                {topEnVivo.map((p, i) => {
+                                  const enVivoAhora = statsQLiveIds.has(String(p.espnId))
+                                  if (enVivoAhora) {
+                                    return (
+                                      <div key={i} className="stats-live-card">
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                          <span className="stats-live-badge"><span className="stats-live-badge-dot" />EN VIVO</span>
+                                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>
+                                            <AdminIcon name="eye" size={13} /> {p.n} viendo
+                                          </span>
+                                        </div>
+                                        <p style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-strong)', marginTop: 8 }}>
+                                          {p.local} <span style={{ color: 'var(--muted)', fontWeight: 600 }}>vs</span> {p.visitante}
+                                        </p>
+                                      </div>
+                                    )
+                                  }
+                                  return (
+                                    <div key={i} className="stats-match-row">
+                                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 5 }}>
+                                        <span style={{ fontSize: 12.5, fontWeight: i === 0 ? 700 : 500, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{i + 1}. {p.local} vs {p.visitante}</span>
+                                        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', flexShrink: 0 }}>{p.n} viendo</span>
+                                      </div>
+                                      <div className="stats-progress-track">
+                                        <div className="stats-progress-fill is-muted" style={{ width: `${Math.max(6, Math.round((p.n / (topEnVivo[0].n || 1)) * 100))}%` }} />
+                                      </div>
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        </>
+                      )}
+                    </>
+                  )
+
                   return (
                     <div className={superDesktop ? undefined : 'super-module-content'} style={superDesktop ? secCard : undefined}>
                       {superDesktop && (
-                        <div style={{ ...secLabel, marginBottom: 4 }}>
-                          <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 26, borderRadius: 8, background: 'var(--green-bg)', color: 'var(--green)' }}>
-                            <AdminIcon name="chart" size={15} />
+                        <div style={{ ...secLabel, marginBottom: 4, justifyContent: 'space-between' }}>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 26, borderRadius: 8, background: 'var(--green-bg)', color: 'var(--green)' }}>
+                              <AdminIcon name="chart" size={15} />
+                            </span>
+                            Estadísticas
                           </span>
-                          Estadísticas
+                          {pillUltimos}
                         </div>
                       )}
                       <p style={{ fontSize: 11.5, color: 'var(--muted)', marginBottom: 14 }}>
-                        Últimos 7 días. Se actualiza solo conforme la gente entra a tus quinielas.
+                        Se actualiza solo conforme la gente entra a tus quinielas.
                       </p>
+
+                      {segmentControl}
 
                       {statsCargando && !statsDias ? (
                         <p style={{ fontSize: 13, color: 'var(--muted)', padding: '12px 0' }}>Cargando…</p>
-                      ) : !hayDatos ? (
+                      ) : statsTab === 'general' && !hayDatos ? (
                         <div style={{ padding: 16, borderRadius: 'var(--radius-sm)', background: 'var(--bg-soft)', border: '1px dashed var(--border)', textAlign: 'center' }}>
                           <div style={{ color: 'var(--muted)', marginBottom: 6 }}><AdminIcon name="chart" size={24} /></div>
                           <p style={{ fontSize: 13, color: 'var(--text)', fontWeight: 700, marginBottom: 4 }}>Aún no hay datos</p>
                           <p style={{ fontSize: 12, color: 'var(--muted)' }}>Aparecerán aquí conforme la gente abra tus quinielas.</p>
                         </div>
-                      ) : (
-                        <>
-                          <div style={{ display: 'grid', gridTemplateColumns: superDesktop ? 'repeat(4, 1fr)' : 'repeat(2, 1fr)', gap: superDesktop ? 14 : 8, marginBottom: 6 }}>
-                            {metricCard('visitas', totVisitas, 'Visitas', 'users')}
-                            {metricCard('dispositivos', totDispositivos, 'Dispositivos únicos', 'device-mobile')}
-                            {metricCard('jugaron', totEnvios, 'Jugaron', 'ball')}
-                            {metricCard('conversion', `${conversion}%`, 'Conversión', 'trending-up')}
-                          </div>
-                          <p style={{ fontSize: 10.5, color: 'var(--muted)', marginBottom: 12, lineHeight: 1.4 }}>
-                            Toca cada dato para ver qué significa. Dispositivos únicos es el total histórico; lo demás, últimos 7 días.
+                      ) : statsTab === 'general' ? generalTab : porQuinielaTab}
+
+                      {statsTab === 'general' && (
+                        <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12.5, fontWeight: 600, color: 'var(--text)' }}>
+                            <input
+                              type="checkbox"
+                              checked={noContarme}
+                              onChange={e => toggleNoContarme(e.target.checked)}
+                              style={{ width: 16, height: 16, accentColor: 'var(--green)', cursor: 'pointer' }}
+                            />
+                            No contar mis visitas en este dispositivo
+                          </label>
+                          <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4, paddingLeft: 24, lineHeight: 1.4 }}>
+                            Así tus propias pruebas no inflan los números. Se activa solo la primera vez que entras al panel.
                           </p>
-                          {defBox('visitas')}
-                          {defBox('dispositivos')}
-                          {defBox('jugaron')}
-                          {defBox('conversion')}
-
-                          <div style={{ marginBottom: 12 }}>
-                            {tituloInfo('tipo', 'Tipo de dispositivo')}
-                            {defBox('tipo')}
-                            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', fontSize: 12.5, color: 'var(--text)' }}>
-                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><AdminIcon name="device-mobile" size={14} /> Celular {pct(totMovil, totDisp)}%</span>
-                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><AdminIcon name="monitor" size={14} /> Computadora {pct(totEscr, totDisp)}%</span>
-                              {totIos > 0 && <span style={{ color: 'var(--muted)' }}>iPhone {pct(totIos, totDisp)}%</span>}
-                              {totAndroid > 0 && <span style={{ color: 'var(--muted)' }}>Android {pct(totAndroid, totDisp)}%</span>}
-                            </div>
-                          </div>
-
-                          {(topAnchosMovil.length > 0 || topAnchosEscr.length > 0) && (
-                            <div style={{ marginBottom: 14 }}>
-                              {tituloInfo('anchos', 'Ancho de pantalla')}
-                              {defBox('anchos')}
-                              {topAnchosMovil.length > 0 && (
-                                <div style={{ marginBottom: topAnchosEscr.length > 0 ? 10 : 0 }}>
-                                  <p style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 700, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 5 }}>
-                                    <AdminIcon name="device-mobile" size={12} /> Celular
-                                  </p>
-                                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', fontSize: 12.5, color: 'var(--text)' }}>
-                                    {topAnchosMovil.map(([w, n]) => (
-                                      <span key={w}>{w}px <span style={{ color: 'var(--muted)' }}>({pct(n, totAnchoMovil)}%)</span></span>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-                              {topAnchosEscr.length > 0 && (
-                                <div>
-                                  <p style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 700, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 5 }}>
-                                    <AdminIcon name="monitor" size={12} /> Computadora
-                                  </p>
-                                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', fontSize: 12.5, color: 'var(--text)' }}>
-                                    {topAnchosEscr.map(([r, n]) => (
-                                      <span key={r}>{r}px <span style={{ color: 'var(--muted)' }}>({pct(n, totAnchoEscr)}%)</span></span>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          )}
-
-                          <div style={{ marginBottom: 14 }}>
-                            {tituloInfo('hora', 'Hora con más actividad')}
-                            {defBox('hora')}
-                            <p style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-strong)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                              <AdminIcon name="clock" size={15} style={{ color: 'var(--yellow)' }} />
-                              {horaPico} <span style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--muted)' }}>— buen momento para mandar el WhatsApp</span>
-                            </p>
-                          </div>
-
-                          <div>
-                            {tituloInfo('porDia', 'Visitas por día')}
-                            {defBox('porDia')}
-                            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 84 }}>
-                              {dias.map(d => {
-                                const v = Number(d.visitas) || 0
-                                return (
-                                  <div key={d.id} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-                                    <span style={{ fontSize: 10, color: v > 0 ? 'var(--green)' : 'var(--muted)', fontWeight: 700 }}>{v || ''}</span>
-                                    <div style={{ width: '100%', height: Math.round((v / maxDia) * 56), minHeight: v > 0 ? 4 : 0, background: v > 0 ? 'linear-gradient(180deg, var(--green-light), var(--green))' : 'var(--border)', borderRadius: '4px 4px 2px 2px' }} />
-                                    <span style={{ fontSize: 9.5, color: 'var(--muted)' }}>{fmtDia(d.fecha)}</span>
-                                  </div>
-                                )
-                              })}
-                            </div>
-                          </div>
-                        </>
+                        </div>
                       )}
-
-                      <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid var(--border)' }}>
-                        <p style={lbl}>Detalle por quiniela</p>
-                        <select
-                          value={statsQId}
-                          onChange={e => setStatsQId(e.target.value)}
-                          disabled={statsQuinielas.length === 0}
-                          style={{ width: '100%', padding: '9px 10px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-strong)', background: 'var(--neutral-bg)', color: 'var(--text)', fontSize: 13, marginBottom: 12 }}
-                        >
-                          <option value="">{statsQuinielas.length === 0 ? 'No tienes quinielas todavía' : 'Elige una quiniela…'}</option>
-                          {statsQuinielas.map(q => <option key={q.id} value={q.id}>{q.nombre}</option>)}
-                        </select>
-
-                        {statsQId && (
-                          <>
-                            <div style={{ marginBottom: 14 }}>
-                              <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
-                                <AdminIcon name="eye" size={14} /> Participantes más abiertos {infoBtn('aperturas')}
-                              </p>
-                              {defBox('aperturas')}
-                              {topAperturas.length === 0 ? (
-                                <p style={{ fontSize: 12, color: 'var(--muted)', fontStyle: 'italic' }}>Nadie ha abierto predicciones todavía.</p>
-                              ) : topAperturas.map((a, i) => (
-                                <div key={i} style={filaRank}>
-                                  <span>{i + 1}. {a.nombre}</span>
-                                  <span style={{ fontWeight: 700, color: 'var(--muted)' }}>{a.n}</span>
-                                </div>
-                              ))}
-                            </div>
-                            <div>
-                              <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
-                                <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: 'var(--red)', flexShrink: 0 }} aria-hidden="true" /> Partidos con más conectados en vivo {infoBtn('enVivo')}
-                              </p>
-                              {defBox('enVivo')}
-                              {topEnVivo.length === 0 ? (
-                                <p style={{ fontSize: 12, color: 'var(--muted)', fontStyle: 'italic' }}>Sin datos de partidos en vivo todavía.</p>
-                              ) : topEnVivo.map((p, i) => (
-                                <div key={i} style={filaRank}>
-                                  <span>{i + 1}. {p.label}</span>
-                                  <span style={{ fontWeight: 700, color: 'var(--muted)' }}>{p.n}</span>
-                                </div>
-                              ))}
-                            </div>
-                          </>
-                        )}
-                      </div>
-
-                      <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
-                        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12.5, fontWeight: 600, color: 'var(--text)' }}>
-                          <input
-                            type="checkbox"
-                            checked={noContarme}
-                            onChange={e => toggleNoContarme(e.target.checked)}
-                            style={{ width: 16, height: 16, accentColor: 'var(--green)', cursor: 'pointer' }}
-                          />
-                          No contar mis visitas en este dispositivo
-                        </label>
-                        <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4, paddingLeft: 24, lineHeight: 1.4 }}>
-                          Así tus propias pruebas no inflan los números. Se activa solo la primera vez que entras al panel.
-                        </p>
-                      </div>
                     </div>
                   )
                 })()
@@ -3420,15 +3534,20 @@ export default function Admin() {
 
                 // Título de página en móvil (mismo estilo que headerCli del admin),
                 // para que Caja/Estadísticas del super se vean igual que en un admin.
-                const tituloTabSuper = (titulo, sub, onBack) => superDesktop ? null : (
+                const tituloTabSuper = (titulo, sub, onBack, accion) => superDesktop ? null : (
                   <div style={{ marginBottom: 18 }}>
                     {onBack && (
                       <button onClick={onBack} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: 'transparent', border: 'none', color: 'var(--muted)', fontSize: 13, fontWeight: 700, cursor: 'pointer', padding: 0, marginBottom: 10 }}>
                         <AdminIcon name="arrow-left" size={15} /> Mi cuenta
                       </button>
                     )}
-                    <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 700, color: 'var(--text-strong)', margin: 0, lineHeight: 1.1 }}>{titulo}</h2>
-                    {sub && <p style={{ fontSize: 12.5, color: 'var(--muted)', margin: '4px 0 0' }}>{sub}</p>}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
+                      <div>
+                        <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 700, color: 'var(--text-strong)', margin: 0, lineHeight: 1.1 }}>{titulo}</h2>
+                        {sub && <p style={{ fontSize: 12.5, color: 'var(--muted)', margin: '4px 0 0' }}>{sub}</p>}
+                      </div>
+                      {accion}
+                    </div>
                   </div>
                 )
                 // Vuelve a la ficha de Mi cuenta desde las sub-vistas (Otros/Clientes).
@@ -3437,7 +3556,8 @@ export default function Admin() {
                   <>
                     {!superModulo && superDesktop && (() => {
                       // ── Inicio / tablero maestro (escritorio) ──────────────────
-                      const d7 = statsDias ?? []
+                      // statsDias trae 14 días (para la tendencia de Estadísticas); aquí solo usamos los últimos 7.
+                      const d7 = (statsDias ?? []).slice(-7)
                       const sum = (k) => d7.reduce((a, d) => a + (Number(d[k]) || 0), 0)
                       const visitas7 = sum('visitas')
                       const mov = sum('movil'), esc = sum('escritorio')
@@ -3556,7 +3676,11 @@ export default function Admin() {
                     {superModulo === 'clientes' && (superDesktop ? clientesDesktop : (<>{tituloTabSuper('Clientes', 'Altas, notas y estado de cuentas', volverACuentaSuper)}{clientesSection}</>))}
                     {superModulo === 'mis' && (superDesktop ? misDesktop : misQuinielasSection)}
                     {superModulo === 'otros' && (superDesktop ? otrosDesktop : (<>{tituloTabSuper('Otros admins', 'Quinielas agrupadas por cliente', volverACuentaSuper)}{otrosSection}</>))}
-                    {superModulo === 'estadisticas' && (superDesktop ? statsSection : (<>{tituloTabSuper('Estadísticas', 'Actividad de tus quinielas')}{statsSection}</>))}
+                    {superModulo === 'estadisticas' && (superDesktop ? statsSection : (<>{tituloTabSuper('Estadísticas', 'Actividad de tus quinielas', undefined, (
+                      <span style={{ display: 'inline-flex', alignItems: 'center', fontSize: 11, fontWeight: 700, color: 'var(--muted)', background: 'var(--neutral-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-full)', padding: '5px 12px', whiteSpace: 'nowrap', flexShrink: 0, marginTop: 2 }}>
+                        Últimos 7 días
+                      </span>
+                    ))}{statsSection}</>))}
                     {superModulo === 'cuenta' && superDesktop && (
                       <div style={{ maxWidth: 820, margin: '0 auto' }}>
                         <div style={{ marginBottom: 20 }}>

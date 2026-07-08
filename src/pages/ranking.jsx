@@ -11,6 +11,64 @@ import { CuentaRegresiva } from '../components/CuentaRegresiva'
 import { Footer } from '../components/Footer'
 import { BrandMark } from '../components/Brand'
 
+// Stepper de progreso de la quiniela: Abierta → En juego → Final. Es una línea
+// de tiempo que avanza sola (no son botones); el paso activo se pinta de color
+// y los completados muestran una palomita.
+function ProgresoPasos({ etapa }) {
+  const idx = etapa === 'final' ? 2 : etapa === 'enjuego' ? 1 : 0
+  const pasos = ['Abierta', 'En juego', 'Final']
+
+  const circulo = (i) => {
+    const completado = i < idx
+    const activo = i === idx
+    // Final alcanzado: círculo dorado con palomita; pasos completados: verde con palomita
+    if (completado || (activo && i === 2)) {
+      const esFinal = i === 2
+      return (
+        <span aria-hidden="true" style={{
+          width: 20, height: 20, borderRadius: '50%', flexShrink: 0,
+          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+          background: esFinal ? 'var(--yellow)' : 'var(--green)',
+          boxShadow: activo ? `0 0 10px ${esFinal ? 'rgba(250,204,21,0.45)' : 'rgba(34,197,94,0.45)'}` : 'none',
+        }}>
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={esFinal ? '#3F2D00' : '#07120A'} strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="m20 6-11 11-5-5" />
+          </svg>
+        </span>
+      )
+    }
+    if (activo) {
+      return <span aria-hidden="true" style={{ width: 20, height: 20, borderRadius: '50%', background: 'var(--green)', flexShrink: 0, boxShadow: '0 0 10px rgba(34,197,94,0.5)' }} />
+    }
+    return <span aria-hidden="true" style={{ width: 20, height: 20, borderRadius: '50%', border: '2px solid var(--border-strong)', background: 'transparent', flexShrink: 0 }} />
+  }
+
+  const linea = (i) => {
+    let bg = 'var(--border-strong)'
+    if (idx > i) bg = i === 1 ? 'linear-gradient(90deg, var(--green), var(--yellow))' : 'var(--green)'
+    return <span aria-hidden="true" style={{ flex: 1, height: 2, borderRadius: 1, background: bg, margin: '0 8px' }} />
+  }
+
+  return (
+    <div role="group" aria-label={`Estado de la quiniela: ${pasos[idx]}`} style={{ marginTop: 16, maxWidth: 460 }}>
+      <div style={{ display: 'flex', alignItems: 'center' }}>
+        {circulo(0)}{linea(0)}{circulo(1)}{linea(1)}{circulo(2)}
+      </div>
+      <div style={{ display: 'flex', marginTop: 7 }}>
+        {pasos.map((p, i) => (
+          <span key={p} style={{
+            flex: '1 1 0', minWidth: 0,
+            fontSize: 10, fontWeight: i === idx ? 800 : 700,
+            textTransform: 'uppercase', letterSpacing: 0.8,
+            color: i === idx ? (i === 2 ? 'var(--yellow)' : 'var(--green)') : 'var(--muted)',
+            textAlign: i === 0 ? 'left' : i === 2 ? 'right' : 'center',
+          }}>{p}</span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function Ranking() {
   const [searchParams] = useSearchParams()
   const { id: idDeRuta } = useParams()
@@ -422,11 +480,12 @@ export default function Ranking() {
   const mostrarControlesActualizacion = hayPartidosActualizables && quinielaCerrada(quiniela) && !finalizada
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--bg)', position: 'relative', zIndex: 0 }}>
+      <div className="ranking-bg-fade" aria-hidden="true" />
       {/* Hero */}
-      <div className="hero-pad ranking-hero-pad" style={{ background: 'var(--hero-gradient)', color: 'var(--text)', borderBottom: '1px solid var(--border)' }}>
+      <div className="hero-pad ranking-hero-pad" style={{ color: 'var(--text)' }}>
         <div className="ranking-hero-inner" style={{ maxWidth: 'var(--ranking-max-width, 480px)', margin: '0 auto' }}>
-          <div className="ranking-brand-row" style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 'var(--ranking-brand-margin-bottom, 8px)' }}>
+          <div className="ranking-brand-row" style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 'var(--ranking-brand-margin-bottom, 16px)' }}>
             <a href={backHref} onClick={handleBack} className="app-back-button" aria-label={backLabel} title={backLabel}>
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d="M19 12H5" />
@@ -474,47 +533,51 @@ export default function Ranking() {
                 EN VIVO
               </span>
             )}
-            {mostrarControlesActualizacion && ultimaAct && (
-              <span style={{ fontSize: 11, color: 'var(--muted)' }}>
-                Actualizado {ultimaAct.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
-              </span>
-            )}
-            {mostrarControlesActualizacion && <button
-              onClick={handleRefresh}
-              disabled={actualizando}
-              aria-label="Actualizar resultados"
-              style={{
-                background: actualizando ? 'var(--green-bg)' : 'var(--neutral-bg)',
-                border: `1px solid ${actualizando ? 'var(--green)' : 'var(--border-strong)'}`,
-                color: actualizando ? 'var(--green)' : 'var(--text)',
-                padding: '4px 12px', borderRadius: 'var(--radius-full)', fontSize: 11,
-                fontWeight: 700, cursor: actualizando ? 'not-allowed' : 'pointer',
-                display: 'inline-flex', alignItems: 'center', gap: 6,
-                transition: 'color 0.2s ease, border-color 0.2s ease, background 0.2s ease',
-              }}
-            >
-              <svg
-                width="13"
-                height="13"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.4"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-                style={{ animation: actualizando ? 'refresh-spin 0.95s linear infinite' : 'none' }}
-              >
-                <path d="M21 12a9 9 0 1 1-2.6-6.4" />
-                <path d="M21 4v6h-6" />
-              </svg>
-              Actualizar
-            </button>}
           </div>
+          {mostrarControlesActualizacion && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: 8, marginTop: 10 }}>
+              {ultimaAct && (
+                <span style={{ fontSize: 11, color: 'var(--muted)' }}>
+                  Actualizado {ultimaAct.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
+                </span>
+              )}
+              <button
+                onClick={handleRefresh}
+                disabled={actualizando}
+                aria-label="Actualizar resultados"
+                style={{
+                  background: actualizando ? 'var(--green-bg)' : 'var(--neutral-bg)',
+                  border: `1px solid ${actualizando ? 'var(--green)' : 'var(--border-strong)'}`,
+                  color: actualizando ? 'var(--green)' : 'var(--text)',
+                  width: 21, height: 21, borderRadius: '50%', flexShrink: 0,
+                  cursor: actualizando ? 'not-allowed' : 'pointer',
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                  transition: 'color 0.2s ease, border-color 0.2s ease, background 0.2s ease',
+                }}
+              >
+                <svg
+                  width="11"
+                  height="11"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.4"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                  style={{ animation: actualizando ? 'refresh-spin 0.95s linear infinite' : 'none' }}
+                >
+                  <path d="M21 12a9 9 0 1 1-2.6-6.4" />
+                  <path d="M21 4v6h-6" />
+                </svg>
+              </button>
+            </div>
+          )}
+          <ProgresoPasos etapa={finalizada ? 'final' : quinielaCerrada(quiniela) ? 'enjuego' : 'abierta'} />
         </div>
       </div>
 
-      <div className="ranking-content" style={{ maxWidth: 'var(--ranking-max-width, 480px)', margin: '0 auto', padding: 'var(--ranking-content-padding, 1.25rem 1rem 3rem)' }}>
+      <div className="ranking-content" style={{ maxWidth: 'var(--ranking-max-width, 480px)', margin: '0 auto', padding: 'var(--ranking-content-padding, 1.25rem 1rem 3rem)', paddingTop: 'calc(var(--ranking-section-gap, 16px) + 8px)' }}>
         {/* CTA para registrar predicción — solo si la quiniela sigue abierta y este dispositivo aún no envió */}
         {!quinielaCerrada(quiniela) && !yaEnvió && (() => {
           const tr = tiempoRestante(quiniela.cierre)

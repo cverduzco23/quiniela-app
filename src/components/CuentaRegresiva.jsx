@@ -41,7 +41,7 @@ function partes(ms) {
 function PanelTimeBlock({ val, label, color }) {
   return (
     <span style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', lineHeight: 1 }}>
-      <span style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--timer-panel-number-size, 34px)', fontWeight: 800, color, letterSpacing: 0, lineHeight: 0.95 }}>
+      <span style={{ display: 'inline-block', width: '2ch', textAlign: 'center', fontFamily: 'var(--font-display)', fontSize: 'var(--timer-panel-number-size, 34px)', fontWeight: 800, color, letterSpacing: 0, lineHeight: 0.95 }}>
         {val}
       </span>
       <span style={{ marginTop: 'var(--timer-panel-label-gap, 7px)', color: 'var(--muted)', fontSize: 'var(--timer-panel-unit-size, 9px)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.6 }}>

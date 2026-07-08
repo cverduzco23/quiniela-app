@@ -498,7 +498,7 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
 
       {/* Partidos */}
       {partidos.length > 0 && (
-        <div style={{ background: 'var(--card)', borderRadius: 'var(--radius-md)', overflow: 'hidden', border: '1px solid var(--border)', marginBottom: 'var(--ranking-section-gap, 16px)' }}>
+        <div style={{ background: 'var(--card)', borderRadius: 'var(--radius-md)', overflow: 'hidden', border: '1px solid var(--border)', marginBottom: 'var(--ranking-section-gap, 16px)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04), 0 8px 20px rgba(0,0,0,0.24)' }}>
           <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', background: 'var(--card-light)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.8 }}>
               Partidos
@@ -837,7 +837,7 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
         />
       )}
       {/* Tabla ranking */}
-      <div style={{ background: 'var(--card)', borderRadius: 'var(--radius-md)', overflow: 'hidden', border: '1px solid var(--border)' }}>
+      <div style={{ background: 'var(--card)', borderRadius: 'var(--radius-md)', overflow: 'hidden', border: '1px solid var(--border)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04), 0 8px 20px rgba(0,0,0,0.24)' }}>
         {enVivo && (
           <div style={{ background: 'var(--red-bg)', borderBottom: '1px solid var(--red)', padding: '8px 16px', display: 'flex', alignItems: 'center', gap: 6 }}>
             <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--red)', display: 'inline-block', flexShrink: 0, animation: 'pulse-dot 1.2s ease-in-out infinite' }} />
@@ -919,7 +919,7 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
           return (
           <div key={j.nombre} style={{ borderBottom: i < shown.length - 1 ? '1px solid var(--border)' : 'none' }}>
             <div style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 16px',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '14px 16px',
               background: esMiFila ? 'linear-gradient(90deg, rgba(34,197,94,0.105), rgba(34,197,94,0.035) 54%, transparent 86%)' : 'transparent',
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: '1 1 auto' }}>
@@ -971,7 +971,7 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                 style={{
                   position: 'relative', overflow: 'hidden',
                   display: 'grid', gridTemplateColumns: 'var(--ranking-grid-cols, 30px 1fr 38px 38px 46px)',
-                  padding: 'var(--ranking-row-pad-y, 13px) var(--ranking-row-pad-x, 16px)', alignItems: 'center',
+                  padding: 'var(--ranking-row-pad-y, 15px) var(--ranking-row-pad-x, 16px)', alignItems: 'center',
                   background: esMiFila
                     ? 'linear-gradient(90deg, rgba(34,197,94,0.105), rgba(34,197,94,0.035) 54%, transparent 86%)'
                     : esLider
