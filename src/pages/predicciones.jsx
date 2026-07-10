@@ -3,14 +3,15 @@ import { useSearchParams, useParams } from 'react-router-dom'
 import { doc, getDoc, addDoc, collection, getDocs, query, where } from 'firebase/firestore'
 import { db, track } from '../firebase'
 import { registrarVisita, registrarVisitaQuiniela, registrarEnvio } from '../utils/analytics'
-import { cierreToDate, quinielaCerrada, quinielaFinalizada, hayPartidoEnVivo, tiempoRestante } from '../utils/cierre'
+import { cierreToDate, quinielaCerrada, quinielaFinalizada, tiempoRestante } from '../utils/cierre'
 import { tienePremio, tieneCuota, descripcionRegla, calcularBote, desglosePremio, TIPO_PREMIO, formatearMXN } from '../utils/premios'
 import { contieneEmoji, normalizarNombre, quitarEmojis, tieneNombreYApellido } from '../utils/nombres'
 import { recordarMiQuiniela } from '../utils/misQuinielas'
 import { CuentaRegresiva } from '../components/CuentaRegresiva'
 import { Footer } from '../components/Footer'
 import { useDialog } from '../components/Dialogs'
-import { BrandWordmark } from '../components/Brand'
+import { BrandMark, BrandWordmark } from '../components/Brand'
+import { ProgresoPasos } from '../components/ProgresoPasos'
 
 function formatFecha(value) {
   const d = cierreToDate(value)
@@ -519,7 +520,7 @@ export default function Predicciones() {
   )
 
   if (enviado) return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--bg)', display: 'flex', flexDirection: 'column' }}>
       <div className="hero-pad pred-hero-pad" style={{ background: 'var(--hero-gradient)', color: 'var(--text)', borderBottom: '1px solid var(--border)' }}>
         <div className="pred-brand-row" style={{ maxWidth: 560, margin: '0 auto', display: 'flex', alignItems: 'center', gap: 12 }}>
           <BackHomeButton />
@@ -528,7 +529,7 @@ export default function Predicciones() {
           </a>
         </div>
       </div>
-      <div className="pred-content" style={{ maxWidth: 560, margin: '0 auto', padding: 'var(--pred-content-padding, 1.5rem 1rem 3rem)' }}>
+      <div className="pred-content" style={{ width: '100%', maxWidth: 560, margin: '0 auto', padding: 'var(--pred-content-padding, 1.5rem 1rem 3rem)', flex: '1 0 auto', display: 'flex', flexDirection: 'column' }}>
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
           <div style={{
             width: 72, height: 72, borderRadius: '50%',
@@ -622,7 +623,7 @@ export default function Predicciones() {
   const pct = partidos.length > 0 ? (progreso / partidos.length) * 100 : 0
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg)', position: 'relative', overflow: celebrando ? 'hidden' : 'visible' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--bg)', position: 'relative', overflow: celebrando ? 'hidden' : 'visible', display: 'flex', flexDirection: 'column' }}>
       {celebrando && (
         <div aria-hidden="true" style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 9999, overflow: 'hidden' }}>
           <div style={{
@@ -656,11 +657,20 @@ export default function Predicciones() {
       {/* Hero */}
       <div className="hero-pad pred-hero-pad" style={{ background: 'var(--hero-gradient)', color: 'var(--text)', borderBottom: '1px solid var(--border)' }}>
         <div style={{ maxWidth: 560, margin: '0 auto' }}>
-          <div className="pred-brand-row" style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+          <div className="pred-brand-row" style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: cerrada ? 'var(--ranking-brand-margin-bottom, 16px)' : 8 }}>
             <BackHomeButton />
-            <a className="pred-brand-link" href="/" style={{ textDecoration: 'none' }}>
-              <BrandWordmark markSize={24} fontSize={20} />
-            </a>
+            {cerrada ? (
+              <a href="/" className="ranking-brand-link" aria-label="QuinielApp">
+                <BrandMark size={22} />
+                <span className="ranking-brand-name">
+                  Quiniel<span style={{ color: 'var(--green)' }}>App</span>
+                </span>
+              </a>
+            ) : (
+              <a className="pred-brand-link" href="/" style={{ textDecoration: 'none' }}>
+                <BrandWordmark markSize={24} fontSize={20} />
+              </a>
+            )}
           </div>
           <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--pred-title-size, 24px)', fontWeight: 700, lineHeight: 1.2, marginBottom: 'var(--pred-title-gap, 10px)', letterSpacing: '-0.01em' }}>{quiniela.nombre}</h1>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
@@ -676,28 +686,10 @@ export default function Predicciones() {
               </span>
             )}
             {quiniela.cierre && (() => {
-              // Cerrada → badge fijo, con su propio estado (jugándose/en vivo
-              // vs. finalizada) para no sonar a "ya acabó" cuando sigue en
-              // juego. Dentro de 24h → timer en vivo (mismo que ranking/home).
+              // Si ya cerro, el estado se muestra solo en la barra de progreso.
+              // Mientras sigue abierta, usamos el timer en vivo.
               // A más de 24h → fecha de cierre.
-              if (cerrada) {
-                const enVivo = !finalizada && hayPartidoEnVivo(quiniela)
-                const label = finalizada ? 'Finalizada' : (enVivo ? 'En vivo' : 'Jugándose')
-                return (
-                  <span style={{
-                    display: 'inline-block', fontSize: 12, fontWeight: 700,
-                    padding: '4px 12px', borderRadius: 'var(--radius-full)',
-                    background: finalizada ? 'var(--neutral-bg)' : 'var(--red-bg-strong)',
-                    color: finalizada ? 'var(--muted)' : '#FCA5A5',
-                    border: finalizada ? '1px solid var(--border)' : '1px solid var(--red)',
-                  }}>
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-                      <PredIcon name={finalizada ? 'check' : 'ranking'} size={12} />
-                      {label}
-                    </span>
-                  </span>
-                )
-              }
+              if (cerrada) return null
               // tiempoRestante devuelve null si falta más de 24h (caso ya cerrado
               // lo cubre el bloque de arriba); si hay valor, estamos dentro de 24h.
               const tr = tiempoRestante(quiniela.cierre)
@@ -717,17 +709,21 @@ export default function Predicciones() {
               )
             })()}
           </div>
+          {cerrada && <ProgresoPasos etapa={finalizada ? 'final' : 'enjuego'} />}
         </div>
       </div>
 
-      <div className="pred-content" style={{ maxWidth: 560, margin: '0 auto', padding: 'var(--pred-content-padding, 1.25rem 1rem 3rem)' }}>
+      <div className="pred-content" style={{ width: '100%', maxWidth: 560, margin: '0 auto', padding: 'var(--pred-content-padding, 1.25rem 1rem 3rem)', flex: '1 0 auto', display: 'flex', flexDirection: 'column' }}>
 
         {/* ── Quiniela cerrada ────────────────────────────────────────── */}
         {cerrada ? (
-          <div style={{ textAlign: 'center', padding: 'var(--pred-closed-padding, 3rem 1.5rem)' }}>
-            <div style={{ display: 'inline-flex', color: 'var(--green)', marginBottom: 16 }}>
-              <PredIcon name="ball" size={48} />
-            </div>
+          <div style={{ textAlign: 'center', padding: 'var(--pred-closed-padding, 3rem 1.5rem)', maxWidth: 440, margin: '0 auto', width: '100%' }}>
+            <span className="pred-live-ball-wrap" aria-hidden="true">
+              <span className="pred-live-ball-shadow" />
+              <span className="pred-live-ball-icon">
+                <PredIcon name="ball" size={56} />
+              </span>
+            </span>
             <p style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-strong)', marginBottom: 8 }}>
               {finalizada ? '¡La quiniela ya terminó!' : '¡Los partidos están en juego!'}
             </p>

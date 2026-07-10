@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { collection, addDoc, doc, updateDoc, getDoc, getDocs, deleteDoc, query, orderBy, where, setDoc, serverTimestamp, writeBatch, increment } from 'firebase/firestore'
-import { signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, updatePassword, createUserWithEmailAndPassword, sendEmailVerification, reload, updateProfile, EmailAuthProvider, reauthenticateWithCredential, deleteUser } from 'firebase/auth'
+import { signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, updatePassword, createUserWithEmailAndPassword, sendEmailVerification, reload, updateProfile, deleteUser } from 'firebase/auth'
 import { db, auth, crearUsuarioAislado, generarPasswordTemporal } from '../firebase'
 import { CambioPassword } from '../components/CambioPassword'
 import { useDialog } from '../components/Dialogs'
@@ -762,10 +762,9 @@ export default function Admin() {
   // despliega cuando el usuario realmente la necesita.
   const [seguridadAbierta, setSeguridadAbierta] = useState(false)
   const [correoCuentaSheetAbierto, setCorreoCuentaSheetAbierto] = useState(false)
-  // Auto-eliminación de cuenta (solo clientes): colapsada y con confirmación
-  // por contraseña.
+  // Auto-eliminación de cuenta (solo clientes): link discreto y confirmación
+  // en bottom sheet.
   const [eliminarCuentaAbierta, setEliminarCuentaAbierta] = useState(false)
-  const [eliminarCuentaPass, setEliminarCuentaPass] = useState('')
   const [eliminandoCuenta, setEliminandoCuenta] = useState(false)
   const [eliminarCuentaMsg, setEliminarCuentaMsg] = useState(null) // { tipo, texto }
 
@@ -868,7 +867,6 @@ export default function Admin() {
     setCorreoCuentaSheetAbierto(false)
     setCuentaP1(''); setCuentaP2('')
     setEliminarCuentaAbierta(false)
-    setEliminarCuentaPass('')
     setEliminarCuentaMsg(null)
     setVista('cuenta')
   }
@@ -1299,41 +1297,28 @@ export default function Admin() {
     if (await confirmar('¿Seguro que quieres cerrar sesión?')) signOut(auth)
   }
 
+  const abrirEliminarCuenta = () => {
+    setEliminarCuentaAbierta(true)
+    setEliminarCuentaMsg(null)
+  }
+
+  const cerrarEliminarCuenta = () => {
+    if (eliminandoCuenta) return
+    setEliminarCuentaAbierta(false)
+    setEliminarCuentaMsg(null)
+  }
+
   // Auto-eliminación de cuenta (solo clientes). Diseño deliberado:
-  // 1) Reautenticación con contraseña (Firebase la exige para borrar cuentas).
-  // 2) Se marca el perfil con eliminada:true — el doc admins/{uid} NO se borra:
+  // 1) Se marca el perfil con eliminada:true — el doc admins/{uid} NO se borra:
   //    si el dueño pudiera borrarlo, podría recrearlo al instante y resetear su
   //    contador de quinielas (cuota infinita). Huérfano y marcado, el super
   //    admin lo limpia cuando quiera desde su lista.
-  // 3) Se borra la cuenta de Auth; sus quinielas se conservan para los jugadores.
+  // 2) Se borra la cuenta de Auth; sus quinielas se conservan para los jugadores.
   const eliminarMiCuenta = async () => {
     const user = auth.currentUser
-    if (!user || soySuper) return
-    if (!eliminarCuentaPass) {
-      setEliminarCuentaMsg({ tipo: 'error', texto: 'Escribe tu contraseña para confirmar.' })
-      return
-    }
-    const aviso =
-      `¿Eliminar tu cuenta de QuinielApp?\n\n` +
-      `• Ya no podrás entrar al panel ni crear quinielas.\n` +
-      `• Tus quinielas NO se borran: tus jugadores seguirán viendo resultados y ranking.\n` +
-      `• Si algún día quieres volver, tendrás que crear una cuenta nueva.\n\n` +
-      `Esta acción no se puede deshacer.`
-    if (!(await confirmar(aviso, { titulo: 'Eliminar mi cuenta', confirmar: 'Eliminar mi cuenta', peligro: true }))) return
+    if (!user || soySuper || eliminandoCuenta) return
     setEliminandoCuenta(true)
     setEliminarCuentaMsg(null)
-    try {
-      await reauthenticateWithCredential(user, EmailAuthProvider.credential(user.email, eliminarCuentaPass))
-    } catch (e) {
-      setEliminarCuentaMsg({
-        tipo: 'error',
-        texto: e?.code === 'auth/too-many-requests'
-          ? 'Demasiados intentos. Espera unos minutos y vuelve a intentar.'
-          : 'Contraseña incorrecta.',
-      })
-      setEliminandoCuenta(false)
-      return
-    }
     try {
       await updateDoc(doc(db, 'admins', user.uid), { eliminada: true })
       try {
@@ -1342,6 +1327,10 @@ export default function Admin() {
       } catch (e) {
         // La cuenta sigue viva: revertimos el marcador para no confundir.
         try { await updateDoc(doc(db, 'admins', user.uid), { eliminada: false }) } catch { /* noop */ }
+        if (e?.code === 'auth/requires-recent-login') {
+          setEliminarCuentaMsg({ tipo: 'error', texto: 'Por seguridad, cierra sesión, vuelve a entrar y vuelve a intentarlo.' })
+          return
+        }
         throw e
       }
     } catch {
@@ -1483,7 +1472,6 @@ export default function Admin() {
     setCorreoCuentaSheetAbierto(false)
     setEditandoCuentaCampo(null)
     setEliminarCuentaAbierta(false)
-    setEliminarCuentaPass('')
     setEliminarCuentaMsg(null)
     setEliminandoCuenta(false)
     setVista('lista')
@@ -4655,7 +4643,7 @@ export default function Admin() {
 
           return (
             <>
-              <div className={`admin-account-page${correoCuentaSheetAbierto ? ' is-sheet-open' : ''}`}>
+              <div className={`admin-account-page${correoCuentaSheetAbierto || eliminarCuentaAbierta ? ' is-sheet-open' : ''}`}>
                 <section className="admin-account-profile">
                   <span className="admin-account-avatar">
                     {iniciales(cuentaNombre || adminDoc?.nombre || adminDoc?.email || auth.currentUser?.email)}
@@ -4822,52 +4810,6 @@ export default function Admin() {
 
 	                </section>
 
-                {!soySuper && adminDoc && (
-                  <section className="admin-account-group" aria-label="Eliminar cuenta" style={{ marginTop: 14 }}>
-                    <button
-                      type="button"
-                      className="admin-account-setting-row"
-                      onClick={() => { setEliminarCuentaAbierta(v => !v); setEliminarCuentaMsg(null) }}
-                      aria-expanded={eliminarCuentaAbierta}
-                    >
-                      <span className="admin-account-setting-icon" style={{ color: 'var(--red)' }}>
-                        <AdminIcon name="trash" size={16} />
-                      </span>
-                      <span className="admin-account-setting-label" style={{ color: 'var(--red)' }}>Eliminar mi cuenta</span>
-                      <AdminIcon name="chevron-down" size={16} style={{ color: 'var(--muted-soft)', transform: eliminarCuentaAbierta ? 'rotate(180deg)' : 'none', transition: 'transform .18s' }} />
-                    </button>
-                    <SmoothCollapse open={eliminarCuentaAbierta}>
-                      <div className="admin-account-password-panel">
-                        <p style={{ fontSize: 12.5, color: 'var(--muted)', lineHeight: 1.55, margin: '0 0 12px' }}>
-                          Tu cuenta se elimina para siempre y ya no podrás entrar al panel.
-                          Tus quinielas <strong style={{ color: 'var(--text)' }}>no se borran</strong>: tus
-                          jugadores seguirán viendo resultados y ranking.
-                        </p>
-                        <label htmlFor="cuenta-eliminar-pass" className="admin-account-password-label">Confirma con tu contraseña</label>
-                        <input
-                          id="cuenta-eliminar-pass"
-                          className="admin-account-password-input"
-                          type="password"
-                          placeholder="Tu contraseña actual"
-                          autoComplete="off"
-                          value={eliminarCuentaPass}
-                          onChange={e => { setEliminarCuentaPass(e.target.value); setEliminarCuentaMsg(null) }}
-                        />
-                        {eliminarCuentaMsg && <p className={`admin-account-message is-${eliminarCuentaMsg.tipo}`}>{eliminarCuentaMsg.texto}</p>}
-                        <button
-                          type="button"
-                          className="admin-account-password-submit"
-                          onClick={eliminarMiCuenta}
-                          disabled={!eliminarCuentaPass || eliminandoCuenta}
-                          style={{ background: 'var(--red)', color: '#fff' }}
-                        >
-                          {eliminandoCuenta ? 'Eliminando…' : 'Eliminar mi cuenta para siempre'}
-                        </button>
-                      </div>
-                    </SmoothCollapse>
-                  </section>
-                )}
-
                 {soySuper && (
                   <>
                     <p className="admin-account-group-label">Súper admin</p>
@@ -4894,6 +4836,14 @@ export default function Admin() {
                   <AdminIcon name="logout" size={17} />
                   Cerrar sesión
                 </button>
+
+                {!soySuper && adminDoc && (
+                  <section className="admin-account-danger-zone" aria-label="Eliminar cuenta">
+                    <button type="button" className="admin-account-delete-link" onClick={abrirEliminarCuenta}>
+                      Eliminar mi cuenta
+                    </button>
+                  </section>
+                )}
               </div>
 
               {correoCuentaSheetAbierto && (
@@ -4905,14 +4855,39 @@ export default function Admin() {
                     </span>
                     <h2 id="cuenta-correo-title" className="admin-account-sheet-title">Tu correo es tu usuario</h2>
                     <p className="admin-account-sheet-copy">
-                      Por seguridad, el correo de acceso no se puede cambiar desde la app. Si necesitas actualizarlo, escríbenos por WhatsApp y lo hacemos por ti en un momento.
+                      Por seguridad, el correo de acceso no se puede cambiar desde la app. Si necesitas actualizarlo, solicita un cambio.
                     </p>
                     <a href={correoLink} target="_blank" rel="noreferrer" className="admin-account-sheet-primary">
                       <AdminIcon name="message" size={18} />
-                      Escribir por WhatsApp
+                      Solicitar cambio de correo
                     </a>
                     <button type="button" className="admin-account-sheet-secondary" onClick={() => setCorreoCuentaSheetAbierto(false)}>
                       Entendido
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {eliminarCuentaAbierta && (
+                <div className="admin-account-sheet-overlay" role="dialog" aria-modal="true" aria-labelledby="cuenta-eliminar-title" onClick={cerrarEliminarCuenta}>
+                  <div className="admin-account-sheet is-danger" onClick={e => e.stopPropagation()}>
+                    <span className="admin-account-sheet-grabber" aria-hidden="true" />
+                    <div className="admin-account-danger-heading">
+                      <span className="admin-account-sheet-icon is-danger">
+                        <AdminIcon name="alert" size={24} />
+                      </span>
+                      <h2 id="cuenta-eliminar-title" className="admin-account-sheet-title">¿Eliminar tu cuenta?</h2>
+                    </div>
+                    <p className="admin-account-sheet-copy is-danger">
+                      Esta acción es permanente. Se borrarán tu cuenta y tus datos de organizador. Las quinielas ya jugadas no se pueden recuperar.
+                    </p>
+                    {eliminarCuentaMsg && <p className={`admin-account-message is-${eliminarCuentaMsg.tipo}`}>{eliminarCuentaMsg.texto}</p>}
+                    <button type="button" className="admin-account-sheet-primary is-danger" onClick={eliminarMiCuenta} disabled={eliminandoCuenta}>
+                      <AdminIcon name="trash" size={18} />
+                      {eliminandoCuenta ? 'Eliminando…' : 'Sí, eliminar definitivamente'}
+                    </button>
+                    <button type="button" className="admin-account-sheet-secondary is-bordered" onClick={cerrarEliminarCuenta} disabled={eliminandoCuenta}>
+                      Cancelar
                     </button>
                   </div>
                 </div>

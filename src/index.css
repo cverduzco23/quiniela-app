@@ -349,6 +349,16 @@ a:focus-visible {
   0%, 100% { transform: scaleX(0.72); opacity: 0.45; }
   50%      { transform: scaleX(1); opacity: 1; }
 }
+@keyframes admin-sheet-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(28px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
 .home-section-icon {
   display: inline-flex;
   color: var(--green);
@@ -383,6 +393,91 @@ a:focus-visible {
 
 .public-home-shell {
   width: 100%;
+}
+.app-footer {
+  width: 100%;
+  margin: auto auto 0;
+  padding: 22px 0 6px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.app-footer-inner {
+  display: grid;
+  justify-items: center;
+  gap: 16px;
+}
+.app-footer-links {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+.app-footer-link,
+.app-footer-brand {
+  display: inline-flex;
+  align-items: center;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 850;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.app-footer-link {
+  gap: 7px;
+}
+.app-footer-brand {
+  gap: 9px;
+}
+.app-footer-link-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+.app-footer-link-icon.is-donate {
+  color: #FB7185;
+}
+.app-footer-link-icon.is-whatsapp {
+  color: #25D366;
+}
+
+@media (min-width: 370px) {
+  .app-footer-inner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+  }
+  .app-footer-links {
+    gap: 18px;
+    flex-wrap: nowrap;
+  }
+}
+.public-free-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 18px;
+  padding: 6px 14px;
+  border-radius: var(--radius-full);
+  border: 1px solid rgba(34, 197, 94, 0.48);
+  background: rgba(34, 197, 94, 0.15);
+  color: var(--green-light);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+.public-brand-inline {
+  display: inline-flex;
+  align-items: baseline;
+  font-family: var(--font-display);
+  font-weight: 900;
+  color: var(--text-strong);
+  white-space: nowrap;
+}
+.public-brand-inline span {
+  color: var(--green);
 }
 .public-faq-chevron {
   transition: transform 0.18s ease, color 0.18s ease, background 0.18s ease;
@@ -448,19 +543,19 @@ a:focus-visible {
   flex: 0 0 auto;
 }
 .public-create-button {
-  min-width: 252px;
-  min-height: 50px;
+  min-width: 226px;
+  min-height: 46px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 10px;
   flex: 0 0 auto;
-  padding: 0 28px;
+  padding: 0 22px;
   border: none;
-  border-radius: 11px;
+  border-radius: 10px;
   background: linear-gradient(135deg, var(--green), var(--green-light));
   color: #07120A;
-  font-size: 15.5px;
+  font-size: 14.5px;
   font-weight: 850;
   text-decoration: none;
   white-space: nowrap;
@@ -477,6 +572,78 @@ a:focus-visible {
   white-space: nowrap;
 }
 .public-create-whatsapp:hover {
+  color: var(--text-strong);
+}
+.public-support-stack {
+  display: grid;
+  gap: 20px;
+}
+.public-donation-card {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 18px 22px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 14px;
+  background: rgba(21, 31, 50, 0.74);
+  box-shadow: none;
+}
+.public-donation-copy {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 13px;
+}
+.public-donation-icon {
+  width: 42px;
+  height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 42px;
+  border-radius: 12px;
+  color: #FB7185;
+  background: rgba(251, 113, 133, 0.08);
+  border: 1px solid rgba(251, 113, 133, 0.24);
+}
+.public-donation-text {
+  min-width: 0;
+}
+.public-donation-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.12;
+  color: var(--text-strong);
+}
+.public-donation-subtitle {
+  margin: 5px 0 0;
+  max-width: 520px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+.public-donation-button {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 18px;
+  border-radius: 9px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+  text-decoration: none;
+  box-shadow: none;
+  flex: 0 0 auto;
+}
+.public-donation-button:hover {
+  border-color: rgba(251, 113, 133, 0.42);
   color: var(--text-strong);
 }
 
@@ -872,6 +1039,35 @@ a:focus-visible {
     width: 100%;
     min-width: 0;
   }
+  .public-support-stack {
+    gap: 18px;
+  }
+  .public-donation-card {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 14px;
+    padding: 16px;
+    border-radius: 14px;
+  }
+  .public-donation-copy {
+    gap: 12px;
+    align-items: flex-start;
+  }
+  .public-donation-icon {
+    width: 38px;
+    height: 38px;
+    flex-basis: 38px;
+    border-radius: 11px;
+  }
+  .public-donation-title {
+    font-size: 17px;
+  }
+  .public-donation-subtitle {
+    font-size: 12.5px;
+  }
+  .public-donation-button {
+    width: auto;
+  }
   .public-home-title-break {
     display: none;
   }
@@ -1153,6 +1349,97 @@ a:focus-visible {
   align-items: center;
   transform: translateY(2px);
 }
+.pred-live-ball-wrap {
+  position: relative;
+  display: inline-flex;
+  width: 84px;
+  height: 76px;
+  align-items: flex-start;
+  justify-content: center;
+  margin: 0 auto 16px;
+  color: var(--green);
+}
+.pred-live-ball-icon {
+  display: inline-flex;
+  transform-origin: 50% 100%;
+  animation: pred-ball-bounce 1.25s linear infinite;
+  filter: drop-shadow(0 11px 18px rgba(34, 197, 94, 0.16));
+}
+.pred-live-ball-shadow {
+  position: absolute;
+  left: 50%;
+  bottom: 4px;
+  width: 34px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(34, 197, 94, 0.28);
+  filter: blur(4px);
+  transform: translateX(-50%);
+  animation: pred-ball-shadow 1.25s linear infinite;
+}
+@keyframes pred-ball-bounce {
+  0%,
+  100% {
+    transform: translateY(2px) scaleX(1.07) scaleY(0.94);
+  }
+  8% {
+    transform: translateY(-2px) scaleX(1.02) scaleY(0.99);
+  }
+  22% {
+    transform: translateY(-18px) scaleX(0.99) scaleY(1.02);
+  }
+  38% {
+    transform: translateY(-32px) scaleX(0.97) scaleY(1.04);
+  }
+  50% {
+    transform: translateY(-30px) scaleX(0.98) scaleY(1.03);
+  }
+  66% {
+    transform: translateY(-17px) scaleX(1) scaleY(1.01);
+  }
+  82% {
+    transform: translateY(-4px) scaleX(1.02) scaleY(0.98);
+  }
+  90% {
+    transform: translateY(2px) scaleX(1.09) scaleY(0.92);
+  }
+  96% {
+    transform: translateY(0) scaleX(1.03) scaleY(0.98);
+  }
+}
+@keyframes pred-ball-shadow {
+  0%,
+  100% {
+    opacity: 0.4;
+    transform: translateX(-50%) scaleX(1.08);
+  }
+  22% {
+    opacity: 0.23;
+    transform: translateX(-50%) scaleX(0.82);
+  }
+  38% {
+    opacity: 0.13;
+    transform: translateX(-50%) scaleX(0.62);
+  }
+  50% {
+    opacity: 0.18;
+    transform: translateX(-50%) scaleX(0.7);
+  }
+  82% {
+    opacity: 0.34;
+    transform: translateX(-50%) scaleX(0.98);
+  }
+  90% {
+    opacity: 0.45;
+    transform: translateX(-50%) scaleX(1.18);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pred-live-ball-icon,
+  .pred-live-ball-shadow {
+    animation: none;
+  }
+}
 .ranking-hero-pad {
   padding-bottom: 0;
 }
@@ -1169,13 +1456,13 @@ a:focus-visible {
   top: 0;
   left: 0;
   right: 0;
-  height: clamp(560px, 70vh, 760px);
+  height: clamp(440px, 56vh, 620px);
   background:
-    radial-gradient(circle at top left, rgba(34, 197, 94, 0.24), transparent 56%),
-    radial-gradient(circle at top right, rgba(250, 204, 21, 0.17), transparent 50%),
+    radial-gradient(circle at 0% 0%, rgba(34, 197, 94, 0.17), transparent 42%),
+    radial-gradient(circle at 100% 0%, rgba(250, 204, 21, 0.11), transparent 38%),
     linear-gradient(135deg, #08111F 0%, #0B1220 45%, #111827 100%);
-  -webkit-mask-image: linear-gradient(to bottom, black 0, black 460px, transparent 100%);
-  mask-image: linear-gradient(to bottom, black 0, black 460px, transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, black 0, black 340px, transparent 100%);
+  mask-image: linear-gradient(to bottom, black 0, black 340px, transparent 100%);
   pointer-events: none;
   z-index: -1;
 }
@@ -3429,6 +3716,32 @@ button.admin-account-data-row {
   font-weight: 700;
   cursor: pointer;
 }
+.admin-account-danger-zone {
+  margin-top: 18px;
+  text-align: center;
+}
+.admin-account-delete-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 8px;
+  border: none;
+  background: transparent;
+  color: #FCA5A5;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.admin-account-delete-link:hover {
+  color: #F87171;
+}
+.admin-account-danger-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+}
 .admin-account-sheet-overlay {
   position: fixed;
   inset: 0;
@@ -3447,6 +3760,11 @@ button.admin-account-data-row {
   border-radius: 22px 22px 0 0;
   padding: 24px 22px calc(24px + env(safe-area-inset-bottom));
   box-shadow: 0 -20px 50px rgba(0, 0, 0, 0.5);
+  animation: admin-sheet-slide-up 0.24s cubic-bezier(0.2, 0.82, 0.2, 1);
+  will-change: transform, opacity;
+}
+.admin-account-sheet.is-danger {
+  border-top-color: rgba(239, 68, 68, 0.42);
 }
 .admin-account-sheet-grabber {
   display: block;
@@ -3467,6 +3785,14 @@ button.admin-account-data-row {
   color: var(--green);
   margin-bottom: 14px;
 }
+.admin-account-sheet-icon.is-danger {
+  width: 48px;
+  height: 48px;
+  margin-bottom: 0;
+  border-radius: 14px;
+  background: rgba(239, 68, 68, 0.2);
+  color: #FCA5A5;
+}
 .admin-account-sheet-title {
   font-family: var(--font-display);
   font-size: 21px;
@@ -3482,6 +3808,11 @@ button.admin-account-data-row {
   line-height: 1.6;
   margin: 0 0 20px;
 }
+.admin-account-sheet-copy.is-danger {
+  font-size: 14px;
+  line-height: 1.6;
+  margin-bottom: 24px;
+}
 .admin-account-sheet-primary {
   display: flex;
   align-items: center;
@@ -3493,10 +3824,25 @@ button.admin-account-data-row {
   border: none;
   background: linear-gradient(135deg, var(--green), var(--green-light));
   color: #07120A;
+  font-family: inherit;
   font-size: 14px;
   font-weight: 800;
   text-decoration: none;
+  cursor: pointer;
   box-shadow: 0 14px 30px rgba(34, 197, 94, 0.28);
+}
+.admin-account-sheet-primary.is-danger {
+  min-height: 58px;
+  border-radius: 12px;
+  background: #EF4444;
+  color: #fff;
+  box-shadow: none;
+}
+.admin-account-sheet-primary:disabled {
+  background: rgba(148, 163, 184, 0.16);
+  color: var(--muted);
+  cursor: not-allowed;
+  box-shadow: none;
 }
 .admin-account-sheet-secondary {
   width: 100%;
@@ -3509,6 +3855,23 @@ button.admin-account-data-row {
   font-size: 13.5px;
   font-weight: 700;
   cursor: pointer;
+}
+.admin-account-sheet-secondary.is-bordered {
+  min-height: 58px;
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 800;
+}
+.admin-account-sheet-secondary:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+@media (prefers-reduced-motion: reduce) {
+  .admin-account-sheet {
+    animation: none;
+  }
 }
 .super-tool-grid {
   display: grid;
@@ -3821,8 +4184,8 @@ button.admin-account-data-row {
   border-radius: 16px;
   border: 1px solid rgba(134, 239, 172, 0.32);
   background:
-    radial-gradient(circle at 90% 10%, rgba(250,204,21,0.18), transparent 34%),
-    radial-gradient(circle at 12% 100%, rgba(34,197,94,0.18), transparent 38%),
+    radial-gradient(circle at 90% 10%, rgba(250,204,21,0.12), transparent 26%),
+    radial-gradient(circle at 12% 100%, rgba(34,197,94,0.12), transparent 30%),
     linear-gradient(135deg, rgba(21,31,50,0.98), rgba(15,28,47,0.98));
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 14px 34px rgba(0,0,0,0.22);
 }
@@ -4109,8 +4472,8 @@ button.admin-account-data-row {
 .ranking-prize-banner.is-live {
   border-color: rgba(134,239,172,0.36);
   background:
-    radial-gradient(circle at 86% 4%, rgba(250,204,21,0.20), transparent 34%),
-    radial-gradient(circle at 8% 100%, rgba(34,197,94,0.20), transparent 38%),
+    radial-gradient(circle at 86% 4%, rgba(250,204,21,0.13), transparent 26%),
+    radial-gradient(circle at 8% 100%, rgba(34,197,94,0.13), transparent 30%),
     linear-gradient(135deg, rgba(21,31,50,0.98), rgba(11,24,42,0.98));
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), 0 16px 34px rgba(0,0,0,0.24), 0 0 24px rgba(34,197,94,0.08);
 }
@@ -4141,11 +4504,11 @@ button.admin-account-data-row {
   position: absolute;
   right: 18px;
   bottom: 10px;
-  width: 54px;
-  height: 54px;
+  width: 38px;
+  height: 38px;
   pointer-events: none;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(134,239,172,0.22), transparent 68%);
+  background: radial-gradient(circle, rgba(134,239,172,0.16), transparent 68%);
   animation: prize-live-orb 4.2s ease-in-out infinite;
 }
 .ranking-prize-banner.is-live .ranking-prize-header,

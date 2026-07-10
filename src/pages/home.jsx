@@ -71,6 +71,8 @@ const sectionTitleStyle = {
   margin: '0 0 16px',
 }
 
+const DONATION_URL = 'https://link.mercadopago.com.mx/donativoapp'
+
 // Bucket de orden para "Tus quinielas": abiertas primero, luego las que están
 // jugándose, y el historial finalizado solo cuando se expande la sección.
 const BUCKET_ABIERTA = 0
@@ -125,8 +127,10 @@ function HomeIcon({ name, size = 14, style }) {
   if (name === 'arrow') return <svg {...common}><path d="M5 12h14" /><path d="m12 5 7 7-7 7" /></svg>
   if (name === 'ball') return <svg {...common}><circle cx="12" cy="12" r="9" /><path d="m12 7 4 3-1.5 5h-5L8 10l4-3Z" /><path d="M12 7V3" /><path d="m16 10 4-1.5" /><path d="m14.5 15 2.5 3.5" /><path d="m9.5 15-2.5 3.5" /><path d="M8 10 4 8.5" /></svg>
   if (name === 'chart') return <svg {...common}><path d="M4 19V5" /><path d="M4 19h16" /><rect x="7" y="11" width="3" height="5" rx="1" /><rect x="12" y="8" width="3" height="8" rx="1" /><rect x="17" y="5" width="3" height="11" rx="1" /></svg>
+  if (name === 'check') return <svg {...common}><path d="m20 6-11 11-5-5" /></svg>
   if (name === 'chevron') return <svg {...common}><path d="m6 9 6 6 6-6" /></svg>
   if (name === 'clock') return <svg {...common}><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
+  if (name === 'heart') return <svg {...common}><path d="M19.5 12.6 12 20l-7.5-7.4A5 5 0 0 1 12 6a5 5 0 0 1 7.5 6.6Z" /></svg>
   if (name === 'key') return <svg {...common}><circle cx="8" cy="15" r="4" /><path d="m11 12 8-8" /><path d="m16 7 2 2" /><path d="m14 9 2 2" /></svg>
   if (name === 'login') return <svg {...common}><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" /><path d="m10 17 5-5-5-5" /><path d="M15 12H3" /></svg>
   if (name === 'party') return <svg {...common}><path d="m5 19 4-12 8 8-12 4Z" /><path d="m9 7 8 8" /><path d="M14 5h.01" /><path d="M18 3v3" /><path d="M20 4.5h-4" /><path d="M19 10h.01" /></svg>
@@ -142,6 +146,15 @@ function SinPremioBadge() {
     <span style={badgeSinPremio}>
       <HomeIcon name="party" size={12} />
       Solo por diversión
+    </span>
+  )
+}
+
+function FreeBadge() {
+  return (
+    <span className="public-free-badge">
+      <HomeIcon name="check" size={12} />
+      100% GRATIS
     </span>
   )
 }
@@ -453,17 +466,20 @@ function HowItWorks() {
 
 function FaqSection() {
   const faq = [
-    ['¿Necesito crear una cuenta para jugar?', 'No. Entras con el código de la quiniela y tu nombre. La cuenta con Log In es solo para quien organiza quinielas.'],
-    ['¿Cuánto cuesta jugar?', 'Depende de la quiniela que organice tu grupo. QuinielApp solo facilita el registro, predicciones y ranking.'],
+    ['¿Necesito crear una cuenta para jugar?', 'No. Entras con el código de la quiniela y tu nombre. La cuenta es solo para quien organiza quinielas.'],
+    ['¿Cuánto cuesta jugar?', (
+      <>
+        Depende de la quiniela que organice tu grupo.{' '}
+        <span className="public-brand-inline">Quiniel<span>App</span></span>
+        {' '}solo facilita el registro, predicciones y ranking.
+      </>
+    )],
     ['¿Cómo creo mi propia quiniela?', (
       <>
         <a href="/admin?registro=1" onClick={() => track('faq_crear_cuenta')} style={{ color: 'var(--green-light)', fontWeight: 800, textDecoration: 'none' }}>
           Crea tu cuenta gratis
         </a>
-        {' '}en un minuto y arma tu quiniela. Si prefieres que te ayudemos,{' '}
-        <a href={waLink(MENSAJES_WA.crearQuiniela)} target="_blank" rel="noreferrer" onClick={() => track('faq_whatsapp_crear')} style={{ color: 'var(--green-light)', fontWeight: 800, textDecoration: 'none' }}>
-          escríbenos por WhatsApp
-        </a>.
+        {' '}en un minuto y arma tu quiniela.
       </>
     )],
   ]
@@ -524,14 +540,37 @@ function PromoCreateCard() {
       </div>
       <div className="public-create-actions">
         <a href="/admin?registro=1" onClick={() => track('cta_crear_cuenta')} className="public-create-button">
-          <HomeIcon name="ball" size={19} />
+          <HomeIcon name="key" size={18} />
           Crear mi cuenta gratis
         </a>
-        <a href={waLink(MENSAJES_WA.crearQuiniela)} target="_blank" rel="noreferrer" onClick={() => track('cta_crear_quiniela')} className="public-create-whatsapp">
-          <HomeIcon name="whatsapp" size={15} />
-          ¿Dudas? Escríbenos por WhatsApp
-        </a>
       </div>
+    </div>
+  )
+}
+
+function ProjectSupportCard() {
+  return (
+    <div className="public-donation-card">
+      <div className="public-donation-copy">
+        <span className="public-donation-icon">
+          <HomeIcon name="heart" size={21} />
+        </span>
+        <div className="public-donation-text">
+          <p className="public-donation-title">Apoya el proyecto</p>
+          <p className="public-donation-subtitle">
+            Es gratis y sin anuncios. Un donativo nos ayuda a mantenerlo vivo.
+          </p>
+        </div>
+      </div>
+      <a
+        href={DONATION_URL}
+        target="_blank"
+        rel="noreferrer"
+        onClick={() => track('home_donar')}
+        className="public-donation-button"
+      >
+        Donar
+      </a>
     </div>
   )
 }
@@ -681,7 +720,7 @@ export default function Home() {
   const mainClassName = `public-home-main${seccionesVisibles[0]?.clave === 'mostrarComoFunciona' ? ' public-home-main--starts-with-how' : ''}`
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--bg)', display: 'flex', flexDirection: 'column' }}>
       <div style={{ background: 'var(--hero-gradient)' }}>
         <HomeHeader scrolled={scrolled} />
 
@@ -696,6 +735,7 @@ export default function Home() {
             alignItems: 'center',
           }}>
             <div style={{ minWidth: 0 }}>
+              <FreeBadge />
               <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(36px, 6vw, 56px)', fontWeight: 700, color: 'var(--text-strong)', margin: '0 0 14px', lineHeight: 1.02, letterSpacing: 0 }}>
                 Arma tu quiniela.<br className="public-home-title-break" /> Juega con tus amigos.
               </h1>
@@ -723,7 +763,7 @@ export default function Home() {
         </section>
       </div>
 
-      <main className={mainClassName} style={{ display: 'flex', flexDirection: 'column', gap: 32, padding: '32px 0' }}>
+      <main className={mainClassName} style={{ display: 'flex', flexDirection: 'column', gap: 32, padding: '32px 0', flex: '1 0 auto' }}>
         {verSeccion('mostrarComoFunciona') && (
           <div style={{ order: ordenDe('mostrarComoFunciona') }}>
             <HowItWorks />
@@ -756,6 +796,9 @@ export default function Home() {
         {verSeccion('mostrarFaq') && (
           <div style={{ order: ordenDe('mostrarFaq') }}>
             <FaqSection />
+            <section className="public-section-donation" style={{ maxWidth: 1100, width: '100%', margin: '18px auto 0', padding: '0 24px' }}>
+              <ProjectSupportCard />
+            </section>
           </div>
         )}
 
@@ -766,7 +809,7 @@ export default function Home() {
         )}
       </main>
 
-      <div style={{ maxWidth: 1100, margin: '0 auto', padding: '0 24px 28px' }}>
+      <div style={{ width: '100%', maxWidth: 1100, margin: 'auto auto 0', padding: '0 24px 28px' }}>
         <Footer />
       </div>
     </div>

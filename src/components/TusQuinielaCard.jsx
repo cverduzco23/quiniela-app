@@ -36,7 +36,7 @@ function Badge({ estado, enviada }) {
   if (estado === 'abierta') {
     if (enviada) {
       return (
-        <span className="tq-badge" style={{ background: 'rgba(59,130,246,0.16)', color: '#93C5FD' }}>
+        <span className="tq-badge" style={{ background: 'rgba(34,197,94,0.14)', color: '#86EFAC' }}>
           Enviada
         </span>
       )
