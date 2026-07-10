@@ -19,7 +19,7 @@ function pickDisplay(pick) {
   if (!pick) return '—'
   if (typeof pick === 'object') {
     const l = pick.local ?? '?', v = pick.visitante ?? '?'
-    return `${l}–${v}`
+    return `${l}-${v}`
   }
   return { home: 'Local', draw: 'Empate', away: 'Visitante' }[pick] ?? pick
 }
@@ -111,6 +111,21 @@ function SvgIcon({ name, size = 14, style }) {
         <path d="M12 19v3" />
         <path d="M2 12h3" />
         <path d="M19 12h3" />
+      </svg>
+    )
+  }
+  if (name === 'calendar') {
+    return (
+      <svg {...common}>
+        <rect x="3" y="4" width="18" height="17" rx="2.5" />
+        <path d="M8 2v4" />
+        <path d="M16 2v4" />
+        <path d="M3 9h18" />
+        <path d="M8 13h.01" />
+        <path d="M12 13h.01" />
+        <path d="M16 13h.01" />
+        <path d="M8 17h.01" />
+        <path d="M12 17h.01" />
       </svg>
     )
   }
@@ -382,6 +397,13 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
 
   const conPremio = tienePremio(quiniela)
   const { ganadores, premioPorNombre, bote } = calcularGanadores(jugadores, quiniela, jugadores.length)
+  const premioZonaMonto = Number(ganadores[0]?.premio) || 0
+  const premioZonaMismoMonto = ganadores.length > 0 && ganadores.every(g => Math.abs((Number(g.premio) || 0) - premioZonaMonto) < 0.01)
+  const premioZonaLabel = ganadores.length > 0
+    ? premioZonaMismoMonto
+      ? `${formatearMXN(premioZonaMonto)}${ganadores.length > 1 ? ' c/u' : ''}`
+      : 'Premios activos'
+    : ''
   const puedeCompartir = vistaParticipantesAbierta || jugadores.length > 0
   const mostrarGanadorFinal = finalizada && jugadores.length > 0 && (!conPremio || (hayResultados && jugadores[0]?.puntos > 0))
   const compartirLabel = vistaParticipantesAbierta
@@ -489,31 +511,24 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
       {/* Stats */}
       <div className="ranking-stats-grid" style={{ display: 'grid', gridTemplateColumns: `repeat(${resumenStats.length},1fr)` }}>
         {resumenStats.map(s => (
-          <div key={s.label} className="ranking-stat-card" style={{ background: 'var(--card)', borderRadius: 'var(--radius-md)', textAlign: 'center', border: '1px solid var(--border)' }}>
-            <span style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--ranking-stat-value-size, 26px)', fontWeight: 700, display: 'block', color: 'var(--yellow)' }}>{s.val}</span>
-            <span style={{ fontSize: 'var(--ranking-stat-label-size, 11px)', color: 'var(--muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 'var(--ranking-stat-label-spacing, 0.5px)' }}>{s.label}</span>
+          <div key={s.label} className="ranking-stat-card ranking-glass-card">
+            <span style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--ranking-stat-value-size, 26px)', fontWeight: 700, display: 'block', color: 'var(--text-strong)', lineHeight: 0.98 }}>{s.val}</span>
+            <span style={{ fontSize: 'var(--ranking-stat-label-size, 11px)', color: 'var(--muted)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: 'var(--ranking-stat-label-spacing, 0.5px)', marginTop: 8 }}>{s.label}</span>
           </div>
         ))}
       </div>
 
       {/* Partidos */}
       {partidos.length > 0 && (
-        <div style={{ background: 'var(--card)', borderRadius: 'var(--radius-md)', overflow: 'hidden', border: '1px solid var(--border)', marginBottom: 'var(--ranking-section-gap, 16px)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04), 0 8px 20px rgba(0,0,0,0.24)' }}>
-          <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', background: 'var(--card-light)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.8 }}>
+        <div className="ranking-panel ranking-matches-panel">
+          <div className="ranking-panel-header ranking-matches-header">
+              <span className="ranking-matches-title">
+                <span className="ranking-matches-title-icon" aria-hidden="true">
+                <SvgIcon name="calendar" size={13} />
+              </span>
               Partidos
             </span>
-            {enVivo && (
-              <span style={{
-                display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700,
-                padding: '3px 10px', borderRadius: 'var(--radius-full)',
-                background: 'var(--red-bg-strong)', border: '1px solid var(--red)',
-                color: '#FCA5A5', animation: 'pulse-badge 1.4s ease-in-out infinite',
-              }}>
-                <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#FCA5A5', display: 'inline-block' }} />
-                EN VIVO
-              </span>
-            )}
+            <span className="ranking-matches-count">{partidos.length}</span>
           </div>
           {partidos.map((p, i) => {
             const live      = p.espnId ? liveScores?.[p.espnId] : null
@@ -559,6 +574,8 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
             const hayStats = !!st && st.state !== 'pre'
             const hayResumen = tieneStats && (esFinish || !!stored) && !cancelado
             const tieneAlgo = hayStats || hayResumen
+            const jugado = !cancelado && (esFinish || getResultado(stored) !== null)
+            const matchScoreText = pendiente ? 'VS' : `${scoreLocal} – ${scoreVisitante}`
             const posH = hayStats ? parseFloat(st.home.posesion) || 50 : 50
             const badgeNode = cancelado ? (
               <span className="ranking-match-badge" style={{ background: 'var(--neutral-bg)', color: 'var(--muted)', borderColor: 'var(--border-strong)' }}>Cancelado</span>
@@ -580,7 +597,7 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
               <div
                 key={i}
                 onClick={tieneAlgo ? () => togglePartido(i) : undefined}
-                className={`ranking-match-row${esVivo ? ' is-live' : ''}${tieneAlgo ? ' is-clickable' : ''}`}
+                className={`ranking-match-row${esVivo ? ' is-live' : ''}${jugado ? ' is-played' : ''}${partidoAbierto ? ' is-open' : ''}${cancelado ? ' is-cancelled' : ''}${tieneAlgo ? ' is-clickable' : ''}`}
                 style={{ borderBottom: i < partidos.length - 1 ? '1px solid var(--border)' : 'none' }}
               >
                 {/* Escritorio (≥1024px): equipos completos + fecha bajo el local */}
@@ -594,10 +611,10 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                       {p.hora && <span className="ranking-match-wide-fecha">{formatFecha(p.hora)}</span>}
                     </div>
                     <span
-                      className="ranking-match-wide-score"
-                      style={{ color: cancelado ? 'var(--muted)' : esVivo ? '#FCA5A5' : 'var(--text-strong)', background: esVivo ? 'var(--red-bg)' : 'var(--card-light)', textDecoration: cancelado ? 'line-through' : 'none' }}
+                      className={`ranking-match-wide-score${esVivo ? ' is-live-score' : ''}${pendiente ? ' is-pending' : ''}`}
+                      style={{ color: cancelado ? 'var(--muted)' : esVivo ? '#FCA5A5' : 'var(--text-strong)', textDecoration: cancelado ? 'line-through' : 'none' }}
                     >
-                      {pendiente ? 'vs' : `${scoreLocal}–${scoreVisitante}`}
+                      {matchScoreText}
                     </span>
                     <div className="ranking-match-wide-side is-away">
                       <div className="ranking-match-wide-side-row">
@@ -630,10 +647,10 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                         <span className="ranking-match-name">{p.local}</span>
                       </div>
                       <span
-                        className={`ranking-match-score is-desktop${pendiente ? ' is-pending' : ''}`}
-                        style={{ color: cancelado ? 'var(--muted)' : esVivo ? '#FCA5A5' : 'var(--text-strong)', background: esVivo ? 'var(--red-bg)' : 'var(--card-light)', textDecoration: cancelado ? 'line-through' : 'none' }}
+                        className={`ranking-match-score is-desktop${esVivo ? ' is-live-score' : ''}${pendiente ? ' is-pending' : ''}`}
+                        style={{ color: cancelado ? 'var(--muted)' : esVivo ? '#FCA5A5' : 'var(--text-strong)', textDecoration: cancelado ? 'line-through' : 'none' }}
                       >
-                        {pendiente ? 'vs' : `${scoreLocal}–${scoreVisitante}`}
+                        {matchScoreText}
                       </span>
                       <div className="ranking-match-side is-away">
                         <span className="ranking-match-name">{p.visitante}</span>
@@ -645,8 +662,8 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                         {p.escudoLocal && <img className="ranking-match-crest" src={p.escudoLocal} alt="" onError={e => { e.target.style.display = 'none' }} />}
                         <span className="ranking-match-name">{p.local}</span>
                         <span
-                          className={`ranking-match-score${pendiente ? ' is-pending is-mobile-pending' : ''}`}
-                          style={{ color: cancelado ? 'var(--muted)' : esVivo ? '#FCA5A5' : 'var(--text-strong)', background: esVivo ? 'var(--red-bg)' : 'var(--card-light)', textDecoration: cancelado ? 'line-through' : 'none' }}
+                          className={`ranking-match-score${esVivo ? ' is-live-score' : ''}${pendiente ? ' is-pending is-mobile-pending' : ''}`}
+                          style={{ color: cancelado ? 'var(--muted)' : esVivo ? '#FCA5A5' : 'var(--text-strong)', textDecoration: cancelado ? 'line-through' : 'none' }}
                         >
                           {pendienteEnQuinielaAbierta ? 'vs' : pendiente ? 'Pendiente' : scoreLocalDisplay}
                         </span>
@@ -655,8 +672,8 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                         {p.escudoVisitante && <img className="ranking-match-crest" src={p.escudoVisitante} alt="" onError={e => { e.target.style.display = 'none' }} />}
                         <span className="ranking-match-name">{p.visitante}</span>
                         <span
-                          className={`ranking-match-score${scoreVisitanteDisplay === '' ? ' is-empty' : ''}`}
-                          style={{ color: cancelado ? 'var(--muted)' : esVivo ? '#FCA5A5' : 'var(--text-strong)', background: esVivo ? 'var(--red-bg)' : 'var(--card-light)', textDecoration: cancelado ? 'line-through' : 'none' }}
+                          className={`ranking-match-score${esVivo ? ' is-live-score' : ''}${scoreVisitanteDisplay === '' ? ' is-empty' : ''}`}
+                          style={{ color: cancelado ? 'var(--muted)' : esVivo ? '#FCA5A5' : 'var(--text-strong)', textDecoration: cancelado ? 'line-through' : 'none' }}
                         >
                           {scoreVisitanteDisplay}
                         </span>
@@ -708,7 +725,7 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                     }}
                   >
                   <div style={{ overflow: 'hidden' }}>
-                  <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg-soft)', borderTop: '1px solid var(--border)', padding: '12px 16px' }}>
+                  <div className="ranking-match-detail-panel" onClick={e => e.stopPropagation()}>
                     <div className="ranking-match-detail-teams" aria-hidden="true">
                       <div className="ranking-match-detail-team is-home">
                         {p.escudoLocal && <img src={p.escudoLocal} alt="" onError={e => { e.target.style.display = 'none' }} />}
@@ -721,16 +738,15 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                       </div>
                     </div>
                     {hayStats && (
-                      <>
-                        <div style={{ marginBottom: 10 }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
-                            <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--green)' }}>{st.home.posesion}%</span>
-                            <span style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Posesión</span>
-                            <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--yellow)' }}>{st.away.posesion}%</span>
+                      <div className="ranking-match-stats">
+                        <div className="ranking-match-possession">
+                          <div className="ranking-match-stat-line is-possession">
+                            <span className="ranking-match-stat-value is-home">{st.home.posesion}%</span>
+                            <span className="ranking-match-stat-label">Posesión</span>
+                            <span className="ranking-match-stat-value is-away">{st.away.posesion}%</span>
                           </div>
-                          <div style={{ display: 'flex', height: 6, borderRadius: 3, overflow: 'hidden' }}>
-                            <div style={{ width: `${posH}%`, background: 'var(--green)', transition: 'width 0.4s' }} />
-                            <div style={{ flex: 1, background: 'var(--yellow-soft)' }} />
+                          <div className="ranking-match-possession-bar">
+                            <span style={{ width: `${posH}%` }} />
                           </div>
                         </div>
                         {[
@@ -739,26 +755,26 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                           { label: 'Corners',        h: st.home.corners,      a: st.away.corners      },
                           { label: 'Faltas',         h: st.home.faltas,       a: st.away.faltas       },
                         ].map(({ label, h, a }) => (
-                          <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0', borderTop: '1px solid var(--border)' }}>
-                            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--green)', width: 36, textAlign: 'right' }}>{h}</span>
-                            <span style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.5, flex: 1, textAlign: 'center' }}>{label}</span>
-                            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--yellow)', width: 36 }}>{a}</span>
+                          <div key={label} className="ranking-match-stat-line">
+                            <span className="ranking-match-stat-value is-home">{h}</span>
+                            <span className="ranking-match-stat-label">{label}</span>
+                            <span className="ranking-match-stat-value is-away">{a}</span>
                           </div>
                         ))}
-                      </>
+                      </div>
                     )}
                     {eventosNormales.length > 0 && (
-                      <div style={{ marginTop: hayStats ? 12 : 0, paddingTop: hayStats ? 10 : 0, borderTop: hayStats ? '1px solid var(--border)' : 'none' }}>
-                        <p style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6, textAlign: 'center' }}>Últimos eventos</p>
+                      <div className="ranking-match-events">
+                        <p className="ranking-match-events-title">Últimos eventos</p>
                         {[...eventosNormales].reverse().map((ev, j) => {
                           const izq = ev.lado === 'home'
                           return (
-                            <div key={j} style={{ display: 'flex', alignItems: 'center', flexDirection: izq ? 'row' : 'row-reverse', gap: 6, padding: '3px 0' }}>
-                              <span style={{ display: 'inline-flex', color: ev.tipo === 'red-card' ? 'var(--red)' : ev.tipo === 'yellow-card' ? 'var(--yellow)' : 'var(--green)', flexShrink: 0 }}>
+                            <div key={j} className={`ranking-match-event-row${izq ? ' is-home' : ' is-away'}`}>
+                              <span className={`ranking-match-event-icon is-${ev.tipo || 'default'}`}>
                                 <SvgIcon name={ev.tipo || 'dot'} size={13} />
                               </span>
-                              <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', minWidth: 30, textAlign: izq ? 'left' : 'right' }}>{ev.minuto}</span>
-                              <span style={{ fontSize: 12, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              <span className="ranking-match-event-minute">{ev.minuto}</span>
+                              <span className="ranking-match-event-player">
                                 {ev.jugador}{ev.ownGoal ? ' (a.g.)' : ''}
                               </span>
                             </div>
@@ -806,7 +822,7 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                       <a
                         href={`https://www.espn.com/soccer/match/_/gameId/${p.espnId}`}
                         target="_blank" rel="noreferrer"
-                        style={{ display: 'block', fontSize: 11, color: 'var(--muted)', textDecoration: 'none', textAlign: 'center', marginTop: 10 }}
+                        className="ranking-match-summary-link"
                       >
                         Ver resumen del partido →
                       </a>
@@ -837,9 +853,9 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
         />
       )}
       {/* Tabla ranking */}
-      <div style={{ background: 'var(--card)', borderRadius: 'var(--radius-md)', overflow: 'hidden', border: '1px solid var(--border)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04), 0 8px 20px rgba(0,0,0,0.24)' }}>
+      <div className="ranking-panel ranking-table-panel">
         {enVivo && (
-          <div style={{ background: 'var(--red-bg)', borderBottom: '1px solid var(--red)', padding: '8px 16px', display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div className="ranking-live-strip">
             <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--red)', display: 'inline-block', flexShrink: 0, animation: 'pulse-dot 1.2s ease-in-out infinite' }} />
             <span style={{ fontSize: 12, color: '#FCA5A5', fontWeight: 600 }}>Ranking provisional</span>
           </div>
@@ -847,7 +863,7 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
 
         {/* Buscador — solo cuando hay suficientes participantes */}
         {mostrarBuscador && (
-          <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)', background: 'var(--card)' }}>
+          <div className="ranking-search-bar">
             <input
               type="text"
               placeholder={`Buscar entre ${jugadores.length} participantes...`}
@@ -860,7 +876,7 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
         )}
 
         {vistaParticipantesAbierta ? (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 16px', background: 'var(--card-light)', borderBottom: '1px solid var(--border)' }}>
+          <div className="ranking-panel-header">
             <span style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.8, whiteSpace: 'nowrap' }}>
               Participantes
             </span>
@@ -883,7 +899,7 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
             </button>
           </div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'var(--ranking-grid-cols, 30px 1fr 38px 38px 46px)', padding: 'var(--ranking-header-pad-y, 10px) var(--ranking-row-pad-x, 16px)', alignItems: 'center', background: 'var(--card-light)', borderBottom: '1px solid var(--border)' }}>
+          <div className="ranking-table-head" style={{ display: 'grid', gridTemplateColumns: 'var(--ranking-grid-cols, 30px 1fr 38px 38px 46px)' }}>
             {[
               { key: '#', label: '#' },
               { key: 'Jugador', label: 'Jugador' },
@@ -899,7 +915,7 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
         )}
 
         {vistaParticipantesAbierta && mostrarInfoPicks && (
-          <div style={{ padding: '10px 16px', background: 'var(--bg-soft)', borderBottom: '1px solid var(--border)' }}>
+          <div className="ranking-table-note">
             <p style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.5 }}>
               Las predicciones se revelan cuando cierre la quiniela. Mientras tanto, solo puedes ver quién ya está dentro.
             </p>
@@ -918,10 +934,7 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
           const esMiFila = !!miNombreRanking && j.nombre === miNombreRanking
           return (
           <div key={j.nombre} style={{ borderBottom: i < shown.length - 1 ? '1px solid var(--border)' : 'none' }}>
-            <div style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '14px 16px',
-              background: esMiFila ? 'linear-gradient(90deg, rgba(34,197,94,0.105), rgba(34,197,94,0.035) 54%, transparent 86%)' : 'transparent',
-            }}>
+            <div className={`ranking-participant-row${esMiFila ? ' is-you' : ''}`}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: '1 1 auto' }}>
                 <span aria-hidden="true" style={{
                   width: 29, height: 29, borderRadius: '50%', flexShrink: 0,
@@ -957,10 +970,27 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
           const esLider = pos === 1 && hayResultados
           const esMiFila = !!miNombreRanking && j.nombre === miNombreRanking
           const medalColor = pos <= 3 ? medalColors[pos - 1] : null
+          const tienePremioFila = premioPorNombre[j.nombre] !== undefined
+          const esInicioZonaPremio = tienePremioFila && !shown.slice(0, i).some(p => premioPorNombre[p.nombre] !== undefined)
+          const nombreDetalle = String(j.nombre || '').trim().split(/\s+/)[0] || nombreCorto(j.nombre)
 
           return (
-            <div key={j.nombre} style={{ borderBottom: i < shown.length - 1 ? '1px solid var(--border)' : 'none' }}>
+            <div
+              key={j.nombre}
+              className={`ranking-player-shell${esLider ? ' is-leader' : ''}${tienePremioFila ? ' has-prize' : ''}`}
+              style={{ borderBottom: i < shown.length - 1 ? '1px solid var(--border)' : 'none' }}
+            >
+              {esInicioZonaPremio && (
+                <div className="ranking-prize-zone-row">
+                  <span className="ranking-prize-zone-title">
+                    <SvgIcon name="trophy" size={12} />
+                    En zona de premio
+                  </span>
+                  {premioZonaLabel && <span className="ranking-prize-zone-amount">{premioZonaLabel}</span>}
+                </div>
+              )}
               <div
+                className={`ranking-player-row${esLider ? ' is-leader' : ''}${esMiFila ? ' is-you' : ''}${tienePremioFila ? ' has-prize' : ''}`}
                 onClick={() => {
                   if (!cerrada) return
                   // Analítica: registrar que abrieron las predicciones de este
@@ -972,21 +1002,9 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                   position: 'relative', overflow: 'hidden',
                   display: 'grid', gridTemplateColumns: 'var(--ranking-grid-cols, 30px 1fr 38px 38px 46px)',
                   padding: 'var(--ranking-row-pad-y, 15px) var(--ranking-row-pad-x, 16px)', alignItems: 'center',
-                  background: esMiFila
-                    ? 'linear-gradient(90deg, rgba(34,197,94,0.105), rgba(34,197,94,0.035) 54%, transparent 86%)'
-                    : esLider
-                    ? 'linear-gradient(90deg, rgba(250,204,21,0.18), rgba(250,204,21,0.06) 46%, transparent 78%)'
-                    : 'transparent',
                   cursor: cerrada ? 'pointer' : 'default',
                 }}
               >
-                {esLider && (
-                  <span aria-hidden="true" style={{
-                    position: 'absolute', inset: 0, pointerEvents: 'none',
-                    background: 'linear-gradient(110deg, transparent 18%, rgba(255,255,255,0.04) 36%, rgba(255,237,137,0.24) 50%, rgba(255,255,255,0.05) 64%, transparent 82%)',
-                    animation: 'leader-row-shine 7.5s ease-in-out infinite',
-                  }} />
-                )}
                 <span style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'flex-start', width: '100%' }}>
                   <span style={{
                     fontSize: 14, fontWeight: esLider ? 800 : 700,
@@ -1040,16 +1058,12 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                 <span style={{ position: 'relative', fontFamily: 'var(--font-display)', fontSize: 'var(--ranking-exact-size, 13px)', textAlign: 'center', color: j.exactos > 0 ? 'var(--yellow)' : 'var(--muted)', fontWeight: j.exactos > 0 ? 700 : 600 }}>{j.exactos}</span>
                 <div style={{ position: 'relative', textAlign: 'center' }}>
                   <span style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--ranking-points-size, 18px)', fontWeight: 700, color: esLider ? 'var(--yellow)' : 'var(--green)' }}>{j.puntos}</span>
-                  {premioPorNombre[j.nombre] !== undefined && (
-                    <span style={{ display: 'block', fontSize: 10, fontWeight: 800, color: 'var(--green)', marginTop: 2, whiteSpace: 'nowrap' }}>
-                      {formatearMXN(premioPorNombre[j.nombre])}
-                    </span>
-                  )}
                 </div>
               </div>
 
               {cerrada && montado.has(j.nombre) && (
                 <div
+                  className="ranking-player-detail-wrap"
                   aria-hidden={!abierto}
                   style={{
                     display: 'grid',
@@ -1059,15 +1073,12 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                   }}
                 >
                 <div style={{ overflow: 'hidden' }}>
-                <div style={{ background: 'var(--bg-soft)', borderTop: '1px solid var(--border)', padding: '0 var(--ranking-detail-pad-x, 16px) 12px' }}>
-                  <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.8, padding: '10px 0 8px' }}>
-                    Predicciones de {j.nombre}
-                  </p>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'var(--ranking-picks-cols, 1fr 40px 46px 32px)', alignItems: 'center', gap: 'var(--ranking-picks-gap, 6px)', padding: '0 var(--ranking-pick-pad-x, 12px) 4px' }}>
-                    <span />
-                    <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.5, textAlign: 'right' }}>Pick</span>
-                    <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.5, textAlign: 'right' }}>Real</span>
-                    <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.5, textAlign: 'right' }}>Pts</span>
+                <div className="ranking-player-detail-panel">
+                  <div className="ranking-picks-grid ranking-picks-head">
+                    <span className="ranking-picks-title">Predicciones de {nombreDetalle}</span>
+                    <span className="ranking-picks-col">Pick</span>
+                    <span className="ranking-picks-col">Real</span>
+                    <span className="ranking-picks-col">Pts</span>
                   </div>
                   {partidos.map((partido, pi) => {
                     const pick      = j.picks?.[pi] ?? j.picks?.[String(pi)]
@@ -1082,37 +1093,37 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                     const pts       = cancelado ? null : !resR ? null : exacto ? 3 : correcto ? 1 : 0
                     // Punto rojo parpadeante junto al marcador mientras ESE partido está en vivo.
                     const enVivoPartido = !cancelado && partido.espnId && liveScores?.[partido.espnId]?.state === 'in'
+                    const estadoPick = cancelado
+                      ? 'is-null'
+                      : !resR
+                        ? 'is-pending'
+                        : exacto
+                          ? 'is-exact'
+                          : correcto
+                            ? 'is-correct'
+                            : 'is-wrong'
                     return (
-                      <div key={pi} style={{
-                        display: 'grid', gridTemplateColumns: 'var(--ranking-picks-cols, 1fr 40px 46px 32px)', alignItems: 'center', gap: 'var(--ranking-picks-gap, 6px)',
-                        padding: '8px var(--ranking-pick-pad-x, 12px)', marginBottom: 4, borderRadius: 'var(--radius-sm)',
-                        background: cancelado ? 'var(--card)' : !resR ? 'var(--card)' : (exacto || correcto) ? 'var(--green-bg)' : 'var(--red-bg)',
-                        border: '1px solid',
-                        borderColor: cancelado ? 'var(--border)' : !resR ? 'var(--border)' : exacto ? 'var(--green)' : correcto ? 'var(--green-dark)' : 'var(--red)',
-                        opacity: cancelado ? 0.7 : 1,
-                      }}>
-                        <div style={{ minWidth: 0 }}>
-                          <p style={{ fontSize: 'var(--ranking-pick-team-size, 12px)', fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {partido.local} vs {partido.visitante}
-                          </p>
-                        </div>
-                        <span style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--ranking-pick-score-size, 13px)', fontWeight: 700, padding: '2px 5px', borderRadius: 'var(--radius-sm)', background: 'var(--neutral-bg)', color: 'var(--text)', whiteSpace: 'nowrap', justifySelf: 'end' }}>
+                      <div key={pi} className={`ranking-picks-grid ranking-pick-row ${estadoPick}`}>
+                        <span className="ranking-pick-match">
+                          {partido.local} vs {partido.visitante}
+                        </span>
+                        <span className="ranking-pick-score">
                           {pickDisplay(pick)}
                         </span>
-                        <span style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--ranking-pick-score-size, 13px)', color: enVivoPartido ? '#FCA5A5' : 'var(--muted)', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 3, justifySelf: 'end' }}>
+                        <span className={`ranking-pick-real${enVivoPartido ? ' is-live' : ''}${correcto || exacto ? ' is-correct' : ''}${pts === 0 ? ' is-wrong' : ''}${cancelado ? ' is-null' : ''}`}>
                           {/* Punto siempre presente (oculto si no hay partido en vivo) para que el ancho de la columna no cambie entre filas */}
-                          <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--red)', display: 'inline-block', flexShrink: 0, opacity: enVivoPartido ? 1 : 0, animation: enVivoPartido ? 'pulse-dot 1.2s ease-in-out infinite' : 'none' }} />
-                          {cancelado ? 'Cancelado' : res ? `${res.local}–${res.visitante}` : '—'}
+                          <span className="ranking-pick-live-dot" style={{ opacity: enVivoPartido ? 1 : 0, animation: enVivoPartido ? 'pulse-dot 1.2s ease-in-out infinite' : 'none' }} />
+                          {cancelado ? 'Nulo' : res ? `${res.local}-${res.visitante}` : '-'}
                         </span>
-                        <span style={{ fontSize: 'var(--ranking-pick-pts-size, 12px)', fontWeight: 800, whiteSpace: 'nowrap', textAlign: 'right', color: pts === 3 ? 'var(--yellow)' : pts === 1 ? 'var(--green)' : pts === 0 ? 'var(--red)' : 'var(--muted)' }}>
-                          {cancelado ? '–' : pts === null ? '—' : pts === 0 ? '✗' : `+${pts}`}
+                        <span className={`ranking-pick-points${pts === 3 ? ' is-exact' : ''}${pts === 1 ? ' is-correct' : ''}${pts === 0 ? ' is-wrong' : ''}`}>
+                          {cancelado ? '-' : pts === null ? '-' : pts === 0 ? '0' : `+${pts}`}
                         </span>
                       </div>
                     )
                   })}
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8, marginTop: 6, paddingTop: 6, borderTop: '1px solid var(--border)' }}>
-                    <span style={{ fontSize: 12, color: 'var(--muted)' }}>Total</span>
-                    <span style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 700, color: 'var(--green)' }}>{j.puntos} pts</span>
+                  <div className="ranking-picks-total">
+                    <span>Total</span>
+                    <strong>{j.puntos} {j.puntos === 1 ? 'pt' : 'pts'}</strong>
                   </div>
                 </div>
                 </div>

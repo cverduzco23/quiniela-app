@@ -29,6 +29,7 @@ export default function Ranking() {
   const [livePenales, setLivePenales]   = useState({})
   const [ultimaAct, setUltimaAct]       = useState(null)
   const [actualizando, setActualizando] = useState(false)
+  const [mostrarReglas, setMostrarReglas] = useState(false)
 
   // ── Carga de datos (lectura puntual, no escucha permanente) ──────
   // Usamos getDoc/getDocs (una sola lectura) en vez de onSnapshot. Una escucha
@@ -485,18 +486,12 @@ export default function Ranking() {
                 </span>
               )}
               <button
+                type="button"
                 onClick={handleRefresh}
                 disabled={actualizando}
                 aria-label="Actualizar resultados"
-                style={{
-                  background: actualizando ? 'var(--green-bg)' : 'var(--neutral-bg)',
-                  border: `1px solid ${actualizando ? 'var(--green)' : 'var(--border-strong)'}`,
-                  color: actualizando ? 'var(--green)' : 'var(--text)',
-                  width: 21, height: 21, borderRadius: '50%', flexShrink: 0,
-                  cursor: actualizando ? 'not-allowed' : 'pointer',
-                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                  transition: 'color 0.2s ease, border-color 0.2s ease, background 0.2s ease',
-                }}
+                className={`ranking-round-action${actualizando ? ' is-active' : ''}`}
+                style={{ cursor: actualizando ? 'not-allowed' : 'pointer' }}
               >
                 <svg
                   width="11"
@@ -513,6 +508,15 @@ export default function Ranking() {
                   <path d="M21 12a9 9 0 1 1-2.6-6.4" />
                   <path d="M21 4v6h-6" />
                 </svg>
+              </button>
+              <button
+                type="button"
+                onClick={() => setMostrarReglas(true)}
+                className="ranking-round-action"
+                aria-label="Ver reglas"
+                title="Ver reglas"
+              >
+                ?
               </button>
             </div>
           )}
@@ -562,6 +566,82 @@ export default function Ranking() {
         <RankingTable quiniela={quiniela} predicciones={predicciones} liveScores={liveScores} liveStats={liveStats} liveEventos={liveEventos} livePenales={livePenales} />
         <Footer maxWidth="var(--ranking-max-width, 480px)" />
       </div>
+      {mostrarReglas && <RankingRulesModal onClose={() => setMostrarReglas(false)} />}
+    </div>
+  )
+}
+
+function RankingRulesModal({ onClose }) {
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [onClose])
+
+  return (
+    <div className="ranking-rules-overlay" role="presentation" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose() }}>
+      <section className="ranking-rules-modal" role="dialog" aria-modal="true" aria-labelledby="ranking-rules-title">
+        <div className="ranking-rules-title-row">
+          <span className="ranking-rules-icon" aria-hidden="true">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M8 3h9a2 2 0 0 1 2 2v16H7a3 3 0 0 1-3-3V7a4 4 0 0 1 4-4Z" />
+              <path d="M7 17h12" />
+              <path d="M8 7h6" />
+              <path d="M8 11h5" />
+            </svg>
+          </span>
+          <h2 id="ranking-rules-title">Cómo se juega</h2>
+          <button type="button" className="ranking-rules-close" onClick={onClose} aria-label="Cerrar reglas">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M18 6 6 18" />
+              <path d="m6 6 12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="ranking-rules-section">
+          <p className="ranking-rules-kicker">Puntos por partido</p>
+          <div className="ranking-rules-list">
+            <div className="ranking-rule-row is-exact">
+              <span className="ranking-rule-points">+3</span>
+              <p><strong>Resultado exacto:</strong> atinaste el marcador completo.</p>
+            </div>
+            <div className="ranking-rule-row is-winner">
+              <span className="ranking-rule-points">+1</span>
+              <p><strong>Ganador correcto:</strong> atinaste quién gana (o el empate).</p>
+            </div>
+            <div className="ranking-rule-row">
+              <span className="ranking-rule-points is-zero">0</span>
+              <p><strong>Fallo:</strong> no coincidió el ganador.</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="ranking-rules-section">
+          <p className="ranking-rules-kicker">Premios</p>
+          <div className="ranking-rules-prize">
+            <span aria-hidden="true">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M8 21h8" />
+                <path d="M12 17v4" />
+                <path d="M7 4h10v5a5 5 0 0 1-10 0V4Z" />
+                <path d="M7 6H4v1a3 3 0 0 0 3 3" />
+                <path d="M17 6h3v1a3 3 0 0 1-3 3" />
+              </svg>
+            </span>
+            <p>
+              <strong>El bote</strong> se reparte en partes iguales entre quienes terminen en <strong>1er lugar</strong>.
+              Si hay empate, el premio se divide entre todos los líderes.
+            </p>
+          </div>
+        </div>
+
+        <button type="button" className="ranking-rules-confirm" onClick={onClose}>
+          Entendido
+        </button>
+      </section>
     </div>
   )
 }
