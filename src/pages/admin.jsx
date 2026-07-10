@@ -941,6 +941,8 @@ export default function Admin() {
     setLoginError('')
     try {
       await signInWithEmailAndPassword(auth, email.trim(), password)
+      setPassword('')
+      setResetMsg('')
     } catch {
       setLoginError('Correo o contraseña incorrectos.')
       setPassword('')
@@ -1456,6 +1458,40 @@ export default function Admin() {
   const [cajaMovNombre, setCajaMovNombre]           = useState('')
   // Orden de la lista de saldos en Caja: 'nombre' (A-Z) o 'monto' (mayor a menor).
   const [cajaOrden, setCajaOrden]                   = useState('monto')
+
+  const uidSesionAnterior = useRef(undefined)
+  useEffect(() => {
+    if (!authListo) return
+    const uidActual = miUid ?? null
+    if (uidSesionAnterior.current === uidActual) return
+    uidSesionAnterior.current = uidActual
+
+    setPassword('')
+    setLoginError('')
+    setResetMsg('')
+    setRegP1('')
+    setRegP2('')
+    setVerifMsg(null)
+    setErrorPerfil('')
+    setCuentaMsg(null)
+    setCuentaPassMsg(null)
+    setCuentaP1('')
+    setCuentaP2('')
+    setGuardandoCuenta(false)
+    setCambiandoPass(false)
+    setSeguridadAbierta(false)
+    setCorreoCuentaSheetAbierto(false)
+    setEditandoCuentaCampo(null)
+    setEliminarCuentaAbierta(false)
+    setEliminarCuentaPass('')
+    setEliminarCuentaMsg(null)
+    setEliminandoCuenta(false)
+    setVista('lista')
+    setSuperModulo(null)
+    setClienteTab('inicio')
+    setQuinielaActual(null)
+    setCajaNombre(null)
+  }, [authListo, miUid])
 
   // Declarado antes de los useEffects que lo usan para evitar la zona muerta temporal
   const cargarQuinielas = async () => {
@@ -4813,6 +4849,7 @@ export default function Admin() {
                           className="admin-account-password-input"
                           type="password"
                           placeholder="Tu contraseña actual"
+                          autoComplete="off"
                           value={eliminarCuentaPass}
                           onChange={e => { setEliminarCuentaPass(e.target.value); setEliminarCuentaMsg(null) }}
                         />

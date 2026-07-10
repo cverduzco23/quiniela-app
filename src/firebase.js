@@ -14,26 +14,14 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-// experimentalForceLongPolling: forzamos long-polling directamente en vez de
-// auto-detectarlo. La auto-detección "sondea" la red en la primera conexión y
-// eso añade varios segundos de "Cargando…" en frío (luego, ya caliente, va rápido).
-// Forzar long-polling conecta de inmediato (sin sondeo) y es el transporte más
-// confiable en móvil, donde el WebSocket de Firestore se cuelga en algunas redes.
-export const db = initializeFirestore(app, {
-  experimentalForceLongPolling: true,
-});
-export const auth = getAuth(app);
 
 // ── App Check (anti-abuso, gratis con reCAPTCHA v3) ───────────────
 // Candado que asegura que solo NUESTRA app (no bots ni scripts) pueda hablar
-// con Firebase. Mientras RECAPTCHA_SITE_KEY esté vacío, queda DESACTIVADO y la
-// app funciona igual que siempre — activarlo es opcional y sin costo.
-//
-// Para encenderlo (ver instrucciones):
-//   1. Crea una llave reCAPTCHA v3 y pégala abajo.
-//   2. Regístralo en Firebase → App Check en modo "monitoreo" (sin forzar).
-//   3. Cuando confirmes que el tráfico real pasa bien, ponlo en "forzar".
-const RECAPTCHA_SITE_KEY = ""; // ← pega aquí tu llave de reCAPTCHA v3
+// con Firebase. La clave de sitio de reCAPTCHA es pública; la secreta vive en
+// Firebase Console → App Check.
+const RECAPTCHA_SITE_KEY =
+  import.meta.env.VITE_RECAPTCHA_SITE_KEY || "6LdNSEwtAAAAAO_1w5wRZyWOzTTYfWj_PokCXEZh";
+
 if (typeof window !== "undefined" && RECAPTCHA_SITE_KEY) {
   try {
     // Token de depuración para desarrollo local (no afecta producción).
@@ -44,6 +32,16 @@ if (typeof window !== "undefined" && RECAPTCHA_SITE_KEY) {
     });
   } catch { /* App Check es opcional: si algo falla, la app sigue */ }
 }
+
+// experimentalForceLongPolling: forzamos long-polling directamente en vez de
+// auto-detectarlo. La auto-detección "sondea" la red en la primera conexión y
+// eso añade varios segundos de "Cargando…" en frío (luego, ya caliente, va rápido).
+// Forzar long-polling conecta de inmediato (sin sondeo) y es el transporte más
+// confiable en móvil, donde el WebSocket de Firestore se cuelga en algunas redes.
+export const db = initializeFirestore(app, {
+  experimentalForceLongPolling: true,
+});
+export const auth = getAuth(app);
 
 // ── Analytics ─────────────────────────────────────────────────
 // Se inicializa de forma asíncrona solo si el entorno lo soporta
