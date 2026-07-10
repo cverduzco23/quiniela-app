@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
-import { collection, addDoc, doc, updateDoc, getDoc, getDocs, deleteDoc, query, orderBy, where, setDoc, serverTimestamp } from 'firebase/firestore'
-import { signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, updatePassword } from 'firebase/auth'
+import { collection, addDoc, doc, updateDoc, getDoc, getDocs, deleteDoc, query, orderBy, where, setDoc, serverTimestamp, writeBatch, increment } from 'firebase/firestore'
+import { signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, updatePassword, createUserWithEmailAndPassword, sendEmailVerification, reload, updateProfile, EmailAuthProvider, reauthenticateWithCredential, deleteUser } from 'firebase/auth'
 import { db, auth, crearUsuarioAislado, generarPasswordTemporal } from '../firebase'
 import { CambioPassword } from '../components/CambioPassword'
 import { useDialog } from '../components/Dialogs'
@@ -25,6 +25,10 @@ const SUPER_ADMIN_UIDS = ['w6uc7cHowgM4Pmsya4bUHt1G3Pu2']
 function esSuperAdminUid(uid) {
   return !!uid && SUPER_ADMIN_UIDS.includes(uid)
 }
+
+// Cuota de quinielas por cuenta (de por vida; solo el super admin resetea el
+// contador). Mantener sincronizado con `maxQuinielas()` en firestore.rules.
+const MAX_QUINIELAS = 50
 
 // Slugs verificados contra el scoreboard de ESPN. Los torneos solo devuelven
 // partidos cuando están en temporada; fuera de temporada el buscador sale vacío
@@ -709,6 +713,24 @@ export default function Admin() {
   const [loginError, setLoginError]   = useState('')
   const [loginLoading, setLoginLoading] = useState(false)
 
+  // ─── Auto-registro de organizadores ─────────────────────────────────────
+  // 'entrar' | 'crear'. El home enlaza con /admin?registro=1 para abrir
+  // directo la pestaña de crear cuenta.
+  const [modoAuth, setModoAuth] = useState(() => {
+    try { return new URLSearchParams(window.location.search).get('registro') ? 'crear' : 'entrar' } catch { return 'entrar' }
+  })
+  const [correoVerificado, setCorreoVerificado] = useState(false)
+  const [regNombre, setRegNombre]   = useState('')
+  const [regEmail, setRegEmail]     = useState('')
+  const [regP1, setRegP1]           = useState('')
+  const [regP2, setRegP2]           = useState('')
+  const [regError, setRegError]     = useState('')
+  const [regLoading, setRegLoading] = useState(false)
+  const [reenvioEn, setReenvioEn]   = useState(0)   // cooldown (s) para reenviar verificación
+  const [verifMsg, setVerifMsg]     = useState(null) // { tipo: 'ok'|'error', texto }
+  const [creandoPerfil, setCreandoPerfil] = useState(false)
+  const [errorPerfil, setErrorPerfil]     = useState('') // fallo al crear admins/{uid}
+
   const [miUid, setMiUid] = useState(null)
   // Doc admins/{uid}: perfil + derechos del cliente. null para el super admin
   // (que no necesita doc) o si aún no se ha cargado.
@@ -740,11 +762,18 @@ export default function Admin() {
   // despliega cuando el usuario realmente la necesita.
   const [seguridadAbierta, setSeguridadAbierta] = useState(false)
   const [correoCuentaSheetAbierto, setCorreoCuentaSheetAbierto] = useState(false)
+  // Auto-eliminación de cuenta (solo clientes): colapsada y con confirmación
+  // por contraseña.
+  const [eliminarCuentaAbierta, setEliminarCuentaAbierta] = useState(false)
+  const [eliminarCuentaPass, setEliminarCuentaPass] = useState('')
+  const [eliminandoCuenta, setEliminandoCuenta] = useState(false)
+  const [eliminarCuentaMsg, setEliminarCuentaMsg] = useState(null) // { tipo, texto }
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async user => {
       setAutenticado(!!user)
       setMiUid(user?.uid ?? null)
+      setCorreoVerificado(!!user?.emailVerified)
       if (user) {
         try {
           const snap = await getDoc(doc(db, 'admins', user.uid))
@@ -838,6 +867,9 @@ export default function Admin() {
     setEditandoCuentaCampo(null)
     setCorreoCuentaSheetAbierto(false)
     setCuentaP1(''); setCuentaP2('')
+    setEliminarCuentaAbierta(false)
+    setEliminarCuentaPass('')
+    setEliminarCuentaMsg(null)
     setVista('cuenta')
   }
 
@@ -935,6 +967,130 @@ export default function Admin() {
     }
   }
 
+  // ─── Auto-registro de organizadores ───────────────────────────────────────
+  // Crea la cuenta de Firebase Auth y manda el correo de verificación. El doc
+  // admins/{uid} se crea DESPUÉS, cuando el correo ya está verificado (las
+  // reglas lo exigen); ver crearMiPerfilOrganizador.
+  const registrarse = async () => {
+    setRegError('')
+    const nombre = regNombre.trim()
+    const correo = regEmail.trim().toLowerCase()
+    if (nombre.length < 2) return setRegError('Escribe tu nombre (mínimo 2 letras).')
+    if (nombre.length > 60) return setRegError('El nombre es muy largo (máximo 60 caracteres).')
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo)) return setRegError('Ese correo no se ve válido. Revísalo.')
+    const v = evaluarPassword(regP1)
+    if (!v.ok) return setRegError(v.error)
+    if (regP1 !== regP2) return setRegError('Las contraseñas no coinciden.')
+    setRegLoading(true)
+    try {
+      const cred = await createUserWithEmailAndPassword(auth, correo, regP1)
+      // El nombre viaja en el perfil de Auth (displayName): Firestore aún no
+      // nos deja escribir nada hasta que el correo esté verificado.
+      try { await updateProfile(cred.user, { displayName: nombre }) } catch { /* no crítico */ }
+      try { await sendEmailVerification(cred.user) } catch { /* la pantalla tiene "Reenviar" */ }
+      // El listener de auth detecta la sesión y enruta a "Verifica tu correo".
+    } catch (e) {
+      if (e?.code === 'auth/email-already-in-use') {
+        setRegError('Ya existe una cuenta con ese correo. Usa la pestaña Entrar o toca "¿Olvidaste tu contraseña?".')
+      } else if (e?.code === 'auth/invalid-email') {
+        setRegError('Ese correo no se ve válido. Revísalo.')
+      } else if (e?.code === 'auth/weak-password') {
+        setRegError('Esa contraseña es muy débil. Usa al menos 8 caracteres con letras y números.')
+      } else if (e?.code === 'auth/too-many-requests') {
+        setRegError('Demasiados intentos. Espera unos minutos y vuelve a intentar.')
+      } else if (e?.code === 'auth/operation-not-allowed') {
+        setRegError('El registro no está disponible por el momento. Escríbenos por WhatsApp y te ayudamos.')
+      } else {
+        setRegError('No se pudo crear la cuenta. Intenta de nuevo.')
+      }
+    } finally {
+      setRegLoading(false)
+    }
+  }
+
+  // Cooldown del botón "Reenviar correo" (evita spamear a Firebase).
+  useEffect(() => {
+    if (reenvioEn <= 0) return
+    const t = setInterval(() => setReenvioEn(s => (s > 1 ? s - 1 : 0)), 1000)
+    return () => clearInterval(t)
+  }, [reenvioEn])
+
+  const reenviarVerificacion = async () => {
+    if (reenvioEn > 0 || !auth.currentUser) return
+    setVerifMsg(null)
+    try {
+      await sendEmailVerification(auth.currentUser)
+      setVerifMsg({ tipo: 'ok', texto: 'Correo reenviado. Revisa tu bandeja y la carpeta de spam.' })
+      setReenvioEn(60)
+    } catch (e) {
+      if (e?.code === 'auth/too-many-requests') {
+        setVerifMsg({ tipo: 'error', texto: 'Demasiados intentos. Espera unos minutos antes de reenviar.' })
+        setReenvioEn(60)
+      } else {
+        setVerifMsg({ tipo: 'error', texto: 'No se pudo reenviar el correo. Intenta de nuevo.' })
+      }
+    }
+  }
+
+  const revisarVerificacion = async () => {
+    if (!auth.currentUser) return
+    setVerifMsg(null)
+    try {
+      await reload(auth.currentUser)
+      if (auth.currentUser.emailVerified) {
+        setCorreoVerificado(true)
+      } else {
+        setVerifMsg({ tipo: 'error', texto: 'Aún no vemos tu correo verificado. Abre el enlace del correo y vuelve a tocar aquí.' })
+      }
+    } catch {
+      setVerifMsg({ tipo: 'error', texto: 'No se pudo comprobar. Revisa tu conexión e intenta de nuevo.' })
+    }
+  }
+
+  // Con el correo ya verificado, crea admins/{uid} (activo de inmediato).
+  // OJO: el ID token cachea email_verified=false; sin getIdToken(true) las
+  // reglas rechazarían el setDoc aunque el correo ya esté verificado.
+  const crearMiPerfilOrganizador = async () => {
+    const user = auth.currentUser
+    if (!user) return
+    setCreandoPerfil(true)
+    setErrorPerfil('')
+    try {
+      await user.getIdToken(true)
+      // El tope de nombre (≤60) espeja las reglas de Firestore. El teléfono no
+      // se pide en el registro (se puede capturar después en Mi cuenta).
+      const datos = {
+        email: user.email,
+        nombre: ((user.displayName || '').trim() || 'Organizador').slice(0, 60).trim(),
+        telefono: null,
+        activo: true,
+        creado: serverTimestamp(),
+        quinielasCreadas: 0,
+        origen: 'auto',
+      }
+      await setDoc(doc(db, 'admins', user.uid), datos)
+      setAdminDoc({ id: user.uid, ...datos, creado: null })
+    } catch (e) {
+      // permission-denied cubre también las cuentas vetadas (bloqueados/).
+      setErrorPerfil(e?.code === 'permission-denied'
+        ? 'No pudimos activar tu cuenta. Si crees que es un error, escríbenos por WhatsApp.'
+        : 'No pudimos activar tu cuenta. Revisa tu conexión e intenta de nuevo.')
+    } finally {
+      setCreandoPerfil(false)
+    }
+  }
+
+  // Dispara la creación del perfil en cuanto el estado lo permite. Al ser un
+  // efecto derivado (y no parte del handler de registro), cubre también al que
+  // cerró la pestaña sin verificar y vuelve a entrar días después.
+  useEffect(() => {
+    if (authListo && autenticado && !soySuper && !adminDoc && correoVerificado && !creandoPerfil && !errorPerfil) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      crearMiPerfilOrganizador()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authListo, autenticado, soySuper, adminDoc, correoVerificado])
+
   // ─── Clientes (solo super admin) ──────────────────────────────────────────
   const [clientes, setClientes]               = useState([])
   const [loadingClientes, setLoadingClientes] = useState(false)
@@ -946,6 +1102,8 @@ export default function Admin() {
   const [errorCliente, setErrorCliente]       = useState('')
   // Datos de la cuenta recién creada para entregar por WhatsApp.
   const [clienteCreado, setClienteCreado]     = useState(null) // { email, password, telefono }
+  // Usuarios vetados (colección bloqueados/): se muestran aparte con Desbloquear.
+  const [bloqueadosLista, setBloqueadosLista] = useState([])
   // Fila de cliente expandida en la tabla de escritorio (muestra sus acciones).
   const [clienteExpandido, setClienteExpandido] = useState(null)
 
@@ -963,8 +1121,17 @@ export default function Admin() {
         return tb - ta
       })
       setClientes(lista)
+      // Lectura aparte y no-fatal: si falla (p.ej. reglas sin desplegar aún),
+      // no debe tirar la lista de clientes que ya cargó bien.
+      try {
+        const snapBloq = await getDocs(collection(db, 'bloqueados'))
+        setBloqueadosLista(snapBloq.docs.map(d => ({ id: d.id, ...d.data() })))
+      } catch {
+        setBloqueadosLista([])
+      }
     } catch {
       setClientes([])
+      setBloqueadosLista([])
     } finally {
       setLoadingClientes(false)
     }
@@ -1056,16 +1223,19 @@ export default function Admin() {
     } catch { alerta('No se pudo guardar la nota.') }
   }
 
-  // Borra al cliente del panel (doc admins/{uid}). Sus quinielas se conservan.
+  // Borra al cliente del panel (doc admins/{uid}) SIN vetarlo: si esa persona
+  // vuelve a entrar con su cuenta (correo verificado), la app le recrea el
+  // perfil automáticamente — y su contador de quinielas arranca de nuevo en 0.
+  // Sirve para limpiar cuentas muertas; para frenar a alguien: Pausar o Bloquear.
   // OJO: la cuenta de Firebase Auth NO se puede borrar desde aquí (requiere servidor);
   // hay que eliminarla a mano en la consola de Firebase. Se lo recordamos al super admin.
   const eliminarCliente = async (c) => {
     const aviso =
       `¿Eliminar a ${c.nombre || c.email} del panel?\n\n` +
       `• Desaparecerá de tu lista de clientes.\n` +
+      `• Si vuelve a entrar con su cuenta, su perfil se recrea solo (y su contador de quinielas vuelve a 0). Para vetarlo de verdad, usa Bloquear.\n` +
       `• Las quinielas que haya creado NO se borran (siguen visibles para sus participantes).\n` +
-      `• La cuenta de acceso (Firebase Auth) NO se borra automáticamente: debes eliminarla tú en la consola de Firebase → Authentication.\n\n` +
-      `Esta acción no se puede deshacer.`
+      `• La cuenta de acceso (Firebase Auth) NO se borra automáticamente: puedes eliminarla tú en la consola de Firebase → Authentication.`
     if (!(await confirmar(aviso, { titulo: 'Eliminar cliente', confirmar: 'Eliminar', peligro: true }))) return
     setEliminandoCliente(c.id)
     try {
@@ -1083,8 +1253,100 @@ export default function Admin() {
     }
   }
 
+  // Bloquea al cliente: lo elimina del panel Y lo veta (bloqueados/{uid}).
+  // Un usuario vetado no puede recrear su perfil aunque entre con su cuenta.
+  const bloquearCliente = async (c) => {
+    const aviso =
+      `¿Bloquear a ${c.nombre || c.email}?\n\n` +
+      `• Desaparecerá de tu lista de clientes y quedará VETADO: aunque entre con su cuenta, no podrá volver a activar su perfil ni registrarse de nuevo con ella.\n` +
+      `• Las quinielas que haya creado NO se borran (siguen visibles para sus participantes).\n` +
+      `• Puedes revertirlo con Desbloquear en la sección de bloqueados.`
+    if (!(await confirmar(aviso, { titulo: 'Bloquear cliente', confirmar: 'Bloquear', peligro: true }))) return
+    setEliminandoCliente(c.id)
+    try {
+      // Primero el veto, luego el borrado: si algo falla a medias, el usuario
+      // queda vetado con perfil (inofensivo) y no al revés (se recrearía solo).
+      await setDoc(doc(db, 'bloqueados', c.id), {
+        email: c.email ?? null,
+        nombre: c.nombre ?? null,
+        creado: serverTimestamp(),
+      })
+      await deleteDoc(doc(db, 'admins', c.id))
+      await cargarClientes()
+    } catch {
+      alerta('No se pudo bloquear al cliente. Intenta de nuevo.')
+    } finally {
+      setEliminandoCliente(null)
+    }
+  }
+
+  const desbloquearCliente = async (b) => {
+    if (!(await confirmar(
+      `¿Desbloquear a ${b.nombre || b.email || b.id}?\n\nSi entra de nuevo con su cuenta, su perfil se reactiva solo y podrá volver a crear quinielas.`,
+      { titulo: 'Desbloquear', confirmar: 'Desbloquear' }
+    ))) return
+    try {
+      await deleteDoc(doc(db, 'bloqueados', b.id))
+      await cargarClientes()
+    } catch {
+      alerta('No se pudo desbloquear. Intenta de nuevo.')
+    }
+  }
+
   const salir = async () => {
     if (await confirmar('¿Seguro que quieres cerrar sesión?')) signOut(auth)
+  }
+
+  // Auto-eliminación de cuenta (solo clientes). Diseño deliberado:
+  // 1) Reautenticación con contraseña (Firebase la exige para borrar cuentas).
+  // 2) Se marca el perfil con eliminada:true — el doc admins/{uid} NO se borra:
+  //    si el dueño pudiera borrarlo, podría recrearlo al instante y resetear su
+  //    contador de quinielas (cuota infinita). Huérfano y marcado, el super
+  //    admin lo limpia cuando quiera desde su lista.
+  // 3) Se borra la cuenta de Auth; sus quinielas se conservan para los jugadores.
+  const eliminarMiCuenta = async () => {
+    const user = auth.currentUser
+    if (!user || soySuper) return
+    if (!eliminarCuentaPass) {
+      setEliminarCuentaMsg({ tipo: 'error', texto: 'Escribe tu contraseña para confirmar.' })
+      return
+    }
+    const aviso =
+      `¿Eliminar tu cuenta de QuinielApp?\n\n` +
+      `• Ya no podrás entrar al panel ni crear quinielas.\n` +
+      `• Tus quinielas NO se borran: tus jugadores seguirán viendo resultados y ranking.\n` +
+      `• Si algún día quieres volver, tendrás que crear una cuenta nueva.\n\n` +
+      `Esta acción no se puede deshacer.`
+    if (!(await confirmar(aviso, { titulo: 'Eliminar mi cuenta', confirmar: 'Eliminar mi cuenta', peligro: true }))) return
+    setEliminandoCuenta(true)
+    setEliminarCuentaMsg(null)
+    try {
+      await reauthenticateWithCredential(user, EmailAuthProvider.credential(user.email, eliminarCuentaPass))
+    } catch (e) {
+      setEliminarCuentaMsg({
+        tipo: 'error',
+        texto: e?.code === 'auth/too-many-requests'
+          ? 'Demasiados intentos. Espera unos minutos y vuelve a intentar.'
+          : 'Contraseña incorrecta.',
+      })
+      setEliminandoCuenta(false)
+      return
+    }
+    try {
+      await updateDoc(doc(db, 'admins', user.uid), { eliminada: true })
+      try {
+        await deleteUser(user)
+        // deleteUser cierra la sesión: onAuthStateChanged nos regresa al login.
+      } catch (e) {
+        // La cuenta sigue viva: revertimos el marcador para no confundir.
+        try { await updateDoc(doc(db, 'admins', user.uid), { eliminada: false }) } catch { /* noop */ }
+        throw e
+      }
+    } catch {
+      setEliminarCuentaMsg({ tipo: 'error', texto: 'No se pudo eliminar la cuenta. Intenta de nuevo o escríbenos por WhatsApp.' })
+    } finally {
+      setEliminandoCuenta(false)
+    }
   }
 
   // ─── Estado principal ─────────────────────────────────────────────────────
@@ -1784,9 +2046,37 @@ export default function Admin() {
     setVista('nueva')
   }
 
+  // Crea la quiniela de un cliente respetando la cuota: las reglas exigen que
+  // la quiniela N se llame "{uid}-{N}" y venga en el MISMO batch que el
+  // incremento +1 del contador quinielasCreadas (así nadie puede saltarse el
+  // límite ni con batches manipulados). El super admin no pasa por aquí.
+  const crearQuinielaConCuota = async (base, reintento = false) => {
+    const adminsRef = doc(db, 'admins', miUid)
+    // Lectura fresca: el ID depende del contador real (pudo crear en otro dispositivo).
+    const snap = await getDoc(adminsRef)
+    const usadas = snap.data()?.quinielasCreadas ?? 0
+    if (usadas >= MAX_QUINIELAS) throw Object.assign(new Error('cuota agotada'), { code: 'app/cuota-agotada' })
+    const qRef = doc(db, 'quinielas', `${miUid}-${usadas + 1}`)
+    const batch = writeBatch(db)
+    batch.set(qRef, base)
+    batch.update(adminsRef, { quinielasCreadas: increment(1) })
+    try {
+      await batch.commit()
+    } catch (e) {
+      // Contador desfasado (otro dispositivo creó en paralelo): un solo reintento con datos frescos.
+      if (!reintento && e?.code === 'permission-denied') return crearQuinielaConCuota(base, true)
+      throw e
+    }
+    setAdminDoc(d => (d ? { ...d, quinielasCreadas: usadas + 1 } : d))
+    return qRef
+  }
+
   const guardarNuevaQuiniela = async () => {
     // Gate de acceso (defensivo; el gate duro real vive en firestore.rules).
     if (!puedeCrear) return alerta('Tu cuenta no está activa para crear quinielas. Escríbenos si crees que es un error.')
+    if (!soySuper && (adminDoc?.quinielasCreadas ?? 0) >= MAX_QUINIELAS) {
+      return alerta(`Llegaste al límite de ${MAX_QUINIELAS} quinielas por cuenta. Escríbenos por WhatsApp si necesitas más.`)
+    }
     if (!nombre.trim()) return alerta('Ponle un nombre a la quiniela')
     if (!cierre) return alerta('La fecha y hora de cierre es obligatoria')
     if (partidos.length === 0) return alerta('Agrega al menos un partido')
@@ -1836,7 +2126,9 @@ export default function Admin() {
         privada: true,
         ...premioFields,
       }
-      const ref = await addDoc(collection(db, 'quinielas'), base)
+      const ref = soySuper
+        ? await addDoc(collection(db, 'quinielas'), base)
+        : await crearQuinielaConCuota(base)
       const nueva = { id: ref.id, ...base }
       setQuinielaActual(nueva)
       setResultados({})
@@ -1848,7 +2140,13 @@ export default function Admin() {
       setPremioFijo(''); setCuota(''); setModeloPremio(MODELO_PREMIO.GANADOR_UNICO)
       setCodigoAcceso('')
       setFixtures([]); setSeleccionados([])
-    } catch { alerta('Error al guardar. Intenta de nuevo.') }
+    } catch (e) {
+      if (e?.code === 'app/cuota-agotada') {
+        alerta(`Llegaste al límite de ${MAX_QUINIELAS} quinielas por cuenta. Escríbenos por WhatsApp si necesitas más.`)
+      } else {
+        alerta('Error al guardar. Intenta de nuevo.')
+      }
+    }
     finally { setGuardando(false) }
   }
 
@@ -2089,6 +2387,31 @@ export default function Admin() {
           padding: '26px 24px',
           boxShadow: '0 30px 70px rgba(0,0,0,0.45)',
         }}>
+          {/* Tabs Entrar / Crear cuenta */}
+          <div style={{ display: 'flex', gap: 4, background: '#0F1A2C', borderRadius: 10, padding: 4, marginBottom: 20 }}>
+            {[['entrar', 'Entrar'], ['crear', 'Crear cuenta']].map(([modo, etiqueta]) => (
+              <button
+                key={modo}
+                onClick={() => { setModoAuth(modo); setLoginError(''); setRegError('') }}
+                style={{
+                  flex: 1,
+                  padding: '9px 0',
+                  borderRadius: 7,
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontSize: 13,
+                  fontWeight: 750,
+                  background: modoAuth === modo ? 'var(--card)' : 'transparent',
+                  color: modoAuth === modo ? 'var(--text-strong)' : 'var(--muted)',
+                  boxShadow: modoAuth === modo ? '0 2px 8px rgba(0,0,0,0.35)' : 'none',
+                }}
+              >
+                {etiqueta}
+              </button>
+            ))}
+          </div>
+
+          {modoAuth === 'entrar' ? (<>
           <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 700, color: 'var(--text-strong)', marginBottom: 4, letterSpacing: 0 }}>Entrar al panel</h2>
           <p style={{ fontSize: 12.5, color: 'var(--muted)', marginBottom: 22 }}>Para organizadores de quinielas.</p>
           <label htmlFor="admin-email" style={lbl}>Correo</label>
@@ -2137,10 +2460,172 @@ export default function Admin() {
               {resetMsg}
             </p>
           )}
+          </>) : (<>
+          <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 700, color: 'var(--text-strong)', marginBottom: 4, letterSpacing: 0 }}>Crea tu cuenta</h2>
+          <p style={{ fontSize: 12.5, color: 'var(--muted)', marginBottom: 22 }}>
+            Gratis. Solo para organizar quinielas: tus jugadores no necesitan cuenta.
+          </p>
+          <label htmlFor="reg-nombre" style={lbl}>Tu nombre</label>
+          <input
+            id="reg-nombre"
+            type="text"
+            placeholder="¿Cómo te llamas?"
+            value={regNombre}
+            onChange={e => { setRegNombre(e.target.value); setRegError('') }}
+            style={{ marginBottom: 15, background: '#0F1A2C', borderColor: 'rgba(255,255,255,0.1)', borderRadius: 9, minHeight: 46 }}
+          />
+          <label htmlFor="reg-email" style={lbl}>Correo</label>
+          <input
+            id="reg-email"
+            type="email"
+            placeholder="tu@correo.com"
+            value={regEmail}
+            onChange={e => { setRegEmail(e.target.value); setRegError('') }}
+            style={{ marginBottom: 15, background: '#0F1A2C', borderColor: 'rgba(255,255,255,0.1)', borderRadius: 9, minHeight: 46 }}
+          />
+          <label htmlFor="reg-p1" style={lbl}>Contraseña</label>
+          <input
+            id="reg-p1"
+            type="password"
+            placeholder="Mínimo 8 caracteres, letras y números"
+            value={regP1}
+            onChange={e => { setRegP1(e.target.value); setRegError('') }}
+            style={{ marginBottom: 8, background: '#0F1A2C', borderColor: 'rgba(255,255,255,0.1)', borderRadius: 9, minHeight: 46 }}
+          />
+          <div style={{ marginBottom: 15 }}>
+            <MedidorPassword pwd={regP1} />
+          </div>
+          <label htmlFor="reg-p2" style={lbl}>Confirma tu contraseña</label>
+          <input
+            id="reg-p2"
+            type="password"
+            placeholder="Escríbela otra vez"
+            value={regP2}
+            onChange={e => { setRegP2(e.target.value); setRegError('') }}
+            onKeyDown={e => e.key === 'Enter' && registrarse()}
+            style={{ marginBottom: 18, background: '#0F1A2C', borderColor: 'rgba(255,255,255,0.1)', borderRadius: 9, minHeight: 46 }}
+          />
+          {regError && <p style={{ fontSize: 12, color: '#FCA5A5', marginBottom: 12 }}>{regError}</p>}
+          <button onClick={registrarse} disabled={regLoading} style={{ ...greenCtaStyle(regLoading), width: '100%', padding: '13px', borderRadius: 10 }}>
+            {regLoading ? 'Creando cuenta…' : 'Crear mi cuenta'}
+          </button>
+          <p style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 12, lineHeight: 1.5, textAlign: 'center' }}>
+            Te mandaremos un correo para verificar tu cuenta.
+          </p>
+          </>)}
         </div>
       </div>
     </div>
   )
+
+  // ─── Auto-registro: verificar correo / activando cuenta ────────────────────
+  // Un usuario con sesión pero SIN doc admins/{uid} (y que no es super admin)
+  // está a medio registro: primero verificar el correo, luego el efecto crea
+  // su perfil de organizador. Los clientes dados de alta a mano nunca pasan
+  // por aquí (su doc ya existe).
+  if (!soySuper && !adminDoc) {
+    const cardAuth = {
+      background: 'var(--card)',
+      border: '1px solid rgba(255,255,255,0.09)',
+      borderRadius: 16,
+      padding: '26px 24px',
+      boxShadow: '0 30px 70px rgba(0,0,0,0.45)',
+    }
+    const shellAuth = {
+      minHeight: '100vh',
+      background: 'radial-gradient(circle at 20% 0%, rgba(34,197,94,0.16), transparent 40%), radial-gradient(circle at 85% 10%, rgba(250,204,21,0.10), transparent 36%), linear-gradient(135deg, #08111F, #0B1220 55%, #111827)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '40px 18px',
+    }
+    const salirBtn = (
+      <button
+        onClick={salir}
+        style={{ display: 'block', margin: '16px auto 0', padding: 0, background: 'transparent', border: 'none', color: 'var(--muted)', fontSize: 12.5, fontWeight: 750, cursor: 'pointer' }}
+      >
+        Salir
+      </button>
+    )
+    return (
+      <div style={shellAuth}>
+        <div style={{ width: '100%', maxWidth: 392 }}>
+          <div style={{ textAlign: 'center', marginBottom: 24 }}>
+            <BrandWordmark markSize={30} fontSize={20} />
+          </div>
+          {!correoVerificado ? (
+            <div style={cardAuth}>
+              <div style={{ fontSize: 34, textAlign: 'center', marginBottom: 10 }}>📬</div>
+              <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, color: 'var(--text-strong)', marginBottom: 8, textAlign: 'center' }}>Verifica tu correo</h2>
+              <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 18, lineHeight: 1.55, textAlign: 'center' }}>
+                Te enviamos un enlace a<br />
+                <strong style={{ color: 'var(--text-strong)' }}>{auth.currentUser?.email}</strong>.<br />
+                Ábrelo para activar tu cuenta y regresa aquí.
+              </p>
+              {verifMsg && (
+                <p style={{ fontSize: 12, color: verifMsg.tipo === 'ok' ? 'var(--green-light)' : '#FCA5A5', marginBottom: 12, lineHeight: 1.5, textAlign: 'center' }}>
+                  {verifMsg.texto}
+                </p>
+              )}
+              <button onClick={revisarVerificacion} style={{ ...greenCtaStyle(false), width: '100%', padding: '13px', borderRadius: 10, marginBottom: 10 }}>
+                Ya verifiqué mi correo
+              </button>
+              <button
+                onClick={reenviarVerificacion}
+                disabled={reenvioEn > 0}
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  borderRadius: 10,
+                  border: '1px solid rgba(255,255,255,0.14)',
+                  background: 'transparent',
+                  color: reenvioEn > 0 ? 'var(--muted)' : 'var(--text-strong)',
+                  fontSize: 13,
+                  fontWeight: 750,
+                  cursor: reenvioEn > 0 ? 'default' : 'pointer',
+                }}
+              >
+                {reenvioEn > 0 ? `Reenviar correo (${reenvioEn}s)` : 'Reenviar correo'}
+              </button>
+              <p style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 14, lineHeight: 1.5, textAlign: 'center' }}>
+                ¿No llega? Revisa la carpeta de spam o correo no deseado.
+              </p>
+              {salirBtn}
+            </div>
+          ) : (
+            <div style={cardAuth}>
+              {errorPerfil ? (<>
+                <div style={{ fontSize: 34, textAlign: 'center', marginBottom: 10 }}>😕</div>
+                <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, color: 'var(--text-strong)', marginBottom: 8, textAlign: 'center' }}>Algo no salió bien</h2>
+                <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 18, lineHeight: 1.55, textAlign: 'center' }}>{errorPerfil}</p>
+                <button
+                  onClick={() => { setErrorPerfil(''); crearMiPerfilOrganizador() }}
+                  style={{ ...greenCtaStyle(false), width: '100%', padding: '13px', borderRadius: 10, marginBottom: 10 }}
+                >
+                  Reintentar
+                </button>
+                <a
+                  href={waLink(MENSAJES_WA?.soporte || 'Hola, no puedo activar mi cuenta de QuinielApp.')}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{ display: 'block', textAlign: 'center', color: 'var(--green-light)', fontSize: 12.5, fontWeight: 750, textDecoration: 'none' }}
+                >
+                  Escríbenos por WhatsApp
+                </a>
+                {salirBtn}
+              </>) : (<>
+                <div style={{ fontSize: 34, textAlign: 'center', marginBottom: 10 }}>⚽</div>
+                <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, color: 'var(--text-strong)', marginBottom: 8, textAlign: 'center' }}>Activando tu cuenta…</h2>
+                <p style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.55, textAlign: 'center' }}>
+                  Un momento, estamos preparando tu panel de organizador.
+                </p>
+              </>)}
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
 
   // ─── Cambio de contraseña obligatorio (primer ingreso del cliente) ─────────
   if (debeCambiarPassword) return (
@@ -2641,12 +3126,13 @@ export default function Admin() {
                           </p>
                           <p className="super-client-contact">{c.email}{c.telefono ? ` · ${c.telefono}` : ''}</p>
                         </div>
-                        <span className={`super-status-badge${c.activo ? '' : ' is-muted'}`}>{c.activo ? 'Activo' : 'Inactivo'}</span>
+                        <span className={`super-status-badge${c.activo && !c.eliminada ? '' : ' is-muted'}`}>{c.eliminada ? 'Cuenta eliminada' : c.activo ? 'Activo' : 'Inactivo'}</span>
                       </div>
-                      {(c.debeCambiarPassword || c.notas) && (
+                      {(c.debeCambiarPassword || c.notas || c.eliminada) && (
                         <p className="super-client-plan">
-                          {c.debeCambiarPassword ? <span style={{ color: 'var(--yellow)' }}>Contraseña sin cambiar</span> : null}
-                          {c.notas ? <span style={{ color: 'var(--muted)' }}>{c.debeCambiarPassword ? <br /> : null}{c.notas}</span> : null}
+                          {c.eliminada ? <span style={{ color: 'var(--muted)' }}>El usuario eliminó su cuenta; puedes borrar esta ficha con Eliminar.</span> : null}
+                          {c.debeCambiarPassword ? <span style={{ color: 'var(--yellow)' }}>{c.eliminada ? <br /> : null}Contraseña sin cambiar</span> : null}
+                          {c.notas ? <span style={{ color: 'var(--muted)' }}>{(c.debeCambiarPassword || c.eliminada) ? <br /> : null}{c.notas}</span> : null}
                         </p>
                       )}
                       <div className="super-action-row">
@@ -2655,10 +3141,31 @@ export default function Admin() {
                         <button type="button" onClick={() => eliminarCliente(c)} disabled={eliminandoCliente === c.id} className="super-action-btn is-danger">
                           <AdminIcon name="trash" size={12} />{eliminandoCliente === c.id ? 'Eliminando…' : 'Eliminar'}
                         </button>
+                        <button type="button" onClick={() => bloquearCliente(c)} disabled={eliminandoCliente === c.id} className="super-action-btn is-danger">
+                          <AdminIcon name="lock" size={12} />Bloquear
+                        </button>
                       </div>
                     </div>
                   )
                 }
+                const bloqueadosSection = bloqueadosLista.length === 0 ? null : (
+                  <div className="super-mobile-card" style={{ marginTop: 4 }}>
+                    <p style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13.5, fontWeight: 800, color: 'var(--text-strong)', margin: '0 0 10px' }}>
+                      <AdminIcon name="lock" size={14} /> Bloqueados ({bloqueadosLista.length})
+                    </p>
+                    {bloqueadosLista.map(b => (
+                      <div key={b.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '8px 0', borderTop: '1px solid var(--border)' }}>
+                        <div style={{ minWidth: 0 }}>
+                          <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-strong)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.nombre || '(sin nombre)'}</p>
+                          <p style={{ fontSize: 11.5, color: 'var(--muted)', margin: '2px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.email || b.id}</p>
+                        </div>
+                        <button type="button" onClick={() => desbloquearCliente(b)} className="super-action-btn" style={{ flexShrink: 0 }}>
+                          <AdminIcon name="unlock" size={12} />Desbloquear
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )
                 const clientesSection = (
                   <div className="super-module-content">
                     <div className="super-mobile-search" style={{ marginBottom: 4 }}>
@@ -2738,6 +3245,7 @@ export default function Admin() {
                         {clientesMostrados.map(clienteCard)}
                       </div>
                     )}
+                    {bloqueadosSection}
                     <button type="button" className="super-mobile-fab" onClick={() => setVerTodo(v => ({ ...v, 'clientes-crear': true }))}>
                       <AdminIcon name="plus" size={18} strokeWidth={2.5} />
                       Cliente
@@ -2829,8 +3337,8 @@ export default function Admin() {
                                   <p style={{ fontSize: 11.5, color: 'var(--muted)', margin: '2px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.email}</p>
                                 </div>
                                 <span>
-                                  <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 'var(--radius-full)', background: c.activo ? 'var(--green-bg)' : 'var(--neutral-bg)', color: c.activo ? 'var(--green)' : 'var(--muted)' }}>
-                                    {c.activo ? 'Activo' : 'Inactivo'}
+                                  <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 'var(--radius-full)', background: c.activo && !c.eliminada ? 'var(--green-bg)' : 'var(--neutral-bg)', color: c.activo && !c.eliminada ? 'var(--green)' : 'var(--muted)', whiteSpace: 'nowrap' }}>
+                                    {c.eliminada ? 'Cuenta eliminada' : c.activo ? 'Activo' : 'Inactivo'}
                                   </span>
                                 </span>
                                 <span style={{ color: 'var(--muted)', display: 'inline-flex', transform: abierto ? 'rotate(90deg)' : 'none', transition: 'transform .15s' }}>
@@ -2839,6 +3347,7 @@ export default function Admin() {
                               </div>
                               <SmoothCollapse open={abierto}>
                                 <div style={{ padding: '0 18px 14px', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                                  {c.eliminada && <span style={{ width: '100%', fontSize: 11.5, color: 'var(--muted)', marginBottom: 2 }}>El usuario eliminó su cuenta; puedes borrar esta ficha con Eliminar.</span>}
                                   {c.debeCambiarPassword && <span style={{ width: '100%', fontSize: 11.5, color: 'var(--yellow)', marginBottom: 2 }}>Contraseña sin cambiar</span>}
                                   {c.notas && <span style={{ width: '100%', fontSize: 12, color: 'var(--muted)', marginBottom: 4 }}>{c.notas}</span>}
                                   <button onClick={() => toggleActivoCliente(c)} style={accionBtn}>{inlineIconLabel(c.activo ? 'pause' : 'play', c.activo ? 'Desactivar' : 'Activar')}</button>
@@ -2846,11 +3355,30 @@ export default function Admin() {
                                   <button onClick={() => eliminarCliente(c)} disabled={eliminandoCliente === c.id} style={{ ...accionBtn, color: 'var(--red)', borderColor: 'var(--red)' }}>
                                     {eliminandoCliente === c.id ? 'Eliminando…' : inlineIconLabel('trash', 'Eliminar')}
                                   </button>
+                                  <button onClick={() => bloquearCliente(c)} disabled={eliminandoCliente === c.id} style={{ ...accionBtn, color: 'var(--red)', borderColor: 'var(--red)' }}>
+                                    {inlineIconLabel('lock', 'Bloquear')}
+                                  </button>
                                 </div>
                               </SmoothCollapse>
                             </div>
                           )
                         })}
+                        {bloqueadosLista.length > 0 && (
+                          <div style={{ padding: '14px 18px', borderTop: '1px solid var(--border)' }}>
+                            <p style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--muted)', margin: '0 0 6px' }}>
+                              <AdminIcon name="lock" size={13} /> Bloqueados ({bloqueadosLista.length})
+                            </p>
+                            {bloqueadosLista.map(b => (
+                              <div key={b.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '8px 0' }}>
+                                <div style={{ minWidth: 0 }}>
+                                  <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-strong)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.nombre || '(sin nombre)'}</p>
+                                  <p style={{ fontSize: 11.5, color: 'var(--muted)', margin: '2px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.email || b.id}</p>
+                                </div>
+                                <button onClick={() => desbloquearCliente(b)} style={{ ...accionBtn, flexShrink: 0 }}>{inlineIconLabel('unlock', 'Desbloquear')}</button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                       {/* Derecha: alta de cliente */}
                       <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 13, padding: '16px 18px' }}>
@@ -4257,6 +4785,51 @@ export default function Admin() {
                   </a>
 
 	                </section>
+
+                {!soySuper && adminDoc && (
+                  <section className="admin-account-group" aria-label="Eliminar cuenta" style={{ marginTop: 14 }}>
+                    <button
+                      type="button"
+                      className="admin-account-setting-row"
+                      onClick={() => { setEliminarCuentaAbierta(v => !v); setEliminarCuentaMsg(null) }}
+                      aria-expanded={eliminarCuentaAbierta}
+                    >
+                      <span className="admin-account-setting-icon" style={{ color: 'var(--red)' }}>
+                        <AdminIcon name="trash" size={16} />
+                      </span>
+                      <span className="admin-account-setting-label" style={{ color: 'var(--red)' }}>Eliminar mi cuenta</span>
+                      <AdminIcon name="chevron-down" size={16} style={{ color: 'var(--muted-soft)', transform: eliminarCuentaAbierta ? 'rotate(180deg)' : 'none', transition: 'transform .18s' }} />
+                    </button>
+                    <SmoothCollapse open={eliminarCuentaAbierta}>
+                      <div className="admin-account-password-panel">
+                        <p style={{ fontSize: 12.5, color: 'var(--muted)', lineHeight: 1.55, margin: '0 0 12px' }}>
+                          Tu cuenta se elimina para siempre y ya no podrás entrar al panel.
+                          Tus quinielas <strong style={{ color: 'var(--text)' }}>no se borran</strong>: tus
+                          jugadores seguirán viendo resultados y ranking.
+                        </p>
+                        <label htmlFor="cuenta-eliminar-pass" className="admin-account-password-label">Confirma con tu contraseña</label>
+                        <input
+                          id="cuenta-eliminar-pass"
+                          className="admin-account-password-input"
+                          type="password"
+                          placeholder="Tu contraseña actual"
+                          value={eliminarCuentaPass}
+                          onChange={e => { setEliminarCuentaPass(e.target.value); setEliminarCuentaMsg(null) }}
+                        />
+                        {eliminarCuentaMsg && <p className={`admin-account-message is-${eliminarCuentaMsg.tipo}`}>{eliminarCuentaMsg.texto}</p>}
+                        <button
+                          type="button"
+                          className="admin-account-password-submit"
+                          onClick={eliminarMiCuenta}
+                          disabled={!eliminarCuentaPass || eliminandoCuenta}
+                          style={{ background: 'var(--red)', color: '#fff' }}
+                        >
+                          {eliminandoCuenta ? 'Eliminando…' : 'Eliminar mi cuenta para siempre'}
+                        </button>
+                      </div>
+                    </SmoothCollapse>
+                  </section>
+                )}
 
                 {soySuper && (
                   <>

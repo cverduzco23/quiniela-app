@@ -35,6 +35,19 @@ service cloud.firestore {
         get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.activo == true;
     }
 
+    // Cuota dura de quinielas por organizador (de por vida; solo el super admin
+    // puede resetear el contador). Mantener en sync con MAX_QUINIELAS en admin.jsx.
+    function maxQuinielas() {
+      return 50;
+    }
+
+    // Cuenta vetada por el super admin: impide re-crear admins/{uid} tras un
+    // "Eliminar cliente" (sin esto, un eliminado con correo verificado podría
+    // auto-registrarse de nuevo con el mismo uid).
+    function estaBloqueado() {
+      return exists(/databases/$(database)/documents/bloqueados/$(request.auth.uid));
+    }
+
     // ──────────────────────────────────────────────────────────────
     // admins/  (perfil + derechos de cada cuenta de cliente)
     // ──────────────────────────────────────────────────────────────
@@ -43,18 +56,65 @@ service cloud.firestore {
       // Cada cliente lee solo su propio doc; el super admin los lee todos.
       allow read: if isSignedIn() && (request.auth.uid == uid || isSuperAdmin());
 
-      // Crear y borrar cuentas de cliente: solo super admin.
-      allow create, delete: if isSuperAdmin();
+      // Crear: el super admin (alta manual, sin restricciones) O auto-registro.
+      // Auto-registro: el propio usuario, con correo VERIFICADO, no vetado, y un
+      // doc con exactamente estos campos y valores seguros. `activo: true` es
+      // deliberado: el registro es autoservicio; el abuso queda acotado por la
+      // verificación de correo, la cuota de quinielas y App Check.
+      allow create: if isSuperAdmin() || (
+        isSignedIn() &&
+        request.auth.uid == uid &&
+        request.auth.token.email_verified == true &&
+        !estaBloqueado() &&
+        request.resource.data.keys().hasOnly(
+          ['email', 'nombre', 'telefono', 'activo', 'creado', 'quinielasCreadas', 'origen']
+        ) &&
+        request.resource.data.email == request.auth.token.email &&
+        request.resource.data.nombre is string &&
+        request.resource.data.nombre.trim() == request.resource.data.nombre &&
+        request.resource.data.nombre.size() >= 2 &&
+        request.resource.data.nombre.size() <= 60 &&
+        (
+          request.resource.data.telefono == null ||
+          (request.resource.data.telefono is string && request.resource.data.telefono.size() <= 20)
+        ) &&
+        request.resource.data.activo == true &&
+        request.resource.data.creado == request.time &&
+        request.resource.data.quinielasCreadas == 0 &&
+        request.resource.data.origen == 'auto'
+      );
 
-      // Actualizar: el super admin puede todo. El dueño puede tocar SOLO campos
-      // operativos (debeCambiarPassword, nombre, empresa, telefono). El gate de
-      // acceso `activo` y el `email` quedan congelados a su valor actual para que
-      // nadie se auto-otorgue acceso.
+      // Borrar cuentas de cliente: solo super admin.
+      allow delete: if isSuperAdmin();
+
+      // Actualizar: el super admin puede todo (incluye resetear el contador).
+      // El dueño solo toca campos operativos (allowlist por diff) — `activo`,
+      // `email` y `origen` quedan intocables para que nadie se auto-otorgue
+      // acceso. `eliminada` es el marcador que deja la auto-eliminación de
+      // cuenta justo antes de borrar el usuario de Auth. El contador de cuota
+      // solo puede quedarse igual o subir exactamente +1 (el decremento/reset
+      // queda prohibido: la cuota es de por vida salvo que el super admin la
+      // resetee).
       allow update: if isSuperAdmin() || (
         isSignedIn() && request.auth.uid == uid &&
-        request.resource.data.activo == resource.data.activo &&
-        request.resource.data.email  == resource.data.email
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(
+          ['nombre', 'telefono', 'debeCambiarPassword', 'quinielasCreadas', 'eliminada']
+        ) &&
+        request.resource.data.get('eliminada', false) is bool &&
+        (
+          request.resource.data.get('quinielasCreadas', 0) == resource.data.get('quinielasCreadas', 0) ||
+          request.resource.data.get('quinielasCreadas', 0) == resource.data.get('quinielasCreadas', 0) + 1
+        )
       );
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // bloqueados/  (veto de cuentas: impide el re-registro del perfil)
+    // ──────────────────────────────────────────────────────────────
+    // Escrito por el super admin al eliminar un cliente. El create de
+    // admins/{uid} lo consulta vía estaBloqueado().
+    match /bloqueados/{uid} {
+      allow read, write: if isSuperAdmin();
     }
 
     // ──────────────────────────────────────────────────────────────
@@ -66,12 +126,29 @@ service cloud.firestore {
       // funcionen sin login para participantes.
       allow read: if true;
 
-      // Crear: el super admin siempre puede. Un admin cliente puede crear solo si
-      // está ACTIVO (gate duro) y la quiniela queda a su nombre (ownerUid propio).
+      // Crear: el super admin siempre puede (ID automático, sin cuota).
+      // Un admin cliente puede crear solo si está ACTIVO (gate duro), la
+      // quiniela queda a su nombre (ownerUid propio) y respeta la CUOTA:
+      // su quiniela N debe llamarse "{uid}-{N}" y venir en el MISMO batch que
+      // el incremento +1 de su contador quinielasCreadas. Como dos docs no
+      // pueden compartir ID, es imposible colar más de una quiniela por
+      // incremento (ni con batches manipulados desde la consola).
       allow create: if isSignedIn() &&
         (
           isSuperAdmin() ||
-          (request.resource.data.ownerUid == request.auth.uid && adminActivo())
+          (
+            request.resource.data.ownerUid == request.auth.uid &&
+            adminActivo() &&
+            get(/databases/$(database)/documents/admins/$(request.auth.uid))
+              .data.get('quinielasCreadas', 0) < maxQuinielas() &&
+            getAfter(/databases/$(database)/documents/admins/$(request.auth.uid))
+              .data.get('quinielasCreadas', 0) ==
+              get(/databases/$(database)/documents/admins/$(request.auth.uid))
+                .data.get('quinielasCreadas', 0) + 1 &&
+            quinielaId == request.auth.uid + '-' +
+              string(getAfter(/databases/$(database)/documents/admins/$(request.auth.uid))
+                .data.get('quinielasCreadas', 0))
+          )
         );
 
       // Editar/borrar: super admin o el dueño.

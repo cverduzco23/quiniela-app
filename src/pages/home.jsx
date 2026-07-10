@@ -457,15 +457,13 @@ function FaqSection() {
     ['¿Cuánto cuesta jugar?', 'Depende de la quiniela que organice tu grupo. QuinielApp solo facilita el registro, predicciones y ranking.'],
     ['¿Cómo creo mi propia quiniela?', (
       <>
-        Entra con{' '}
-        <a href="/admin" onClick={() => track('faq_login')} style={{ color: 'var(--green-light)', fontWeight: 800, textDecoration: 'none' }}>
-          Log In
+        <a href="/admin?registro=1" onClick={() => track('faq_crear_cuenta')} style={{ color: 'var(--green-light)', fontWeight: 800, textDecoration: 'none' }}>
+          Crea tu cuenta gratis
         </a>
-        {' '}si ya tienes panel, o{' '}
+        {' '}en un minuto y arma tu quiniela. Si prefieres que te ayudemos,{' '}
         <a href={waLink(MENSAJES_WA.crearQuiniela)} target="_blank" rel="noreferrer" onClick={() => track('faq_whatsapp_crear')} style={{ color: 'var(--green-light)', fontWeight: 800, textDecoration: 'none' }}>
-          contáctanos por WhatsApp
-        </a>
-        {' '}para activar tu cuenta.
+          escríbenos por WhatsApp
+        </a>.
       </>
     )],
   ]
@@ -524,10 +522,16 @@ function PromoCreateCard() {
           </p>
         </div>
       </div>
-      <a href={waLink(MENSAJES_WA.crearQuiniela)} target="_blank" rel="noreferrer" onClick={() => track('cta_crear_quiniela')} className="public-create-button">
-        <HomeIcon name="whatsapp" size={19} />
-        Crear por WhatsApp
-      </a>
+      <div className="public-create-actions">
+        <a href="/admin?registro=1" onClick={() => track('cta_crear_cuenta')} className="public-create-button">
+          <HomeIcon name="ball" size={19} />
+          Crear mi cuenta gratis
+        </a>
+        <a href={waLink(MENSAJES_WA.crearQuiniela)} target="_blank" rel="noreferrer" onClick={() => track('cta_crear_quiniela')} className="public-create-whatsapp">
+          <HomeIcon name="whatsapp" size={15} />
+          ¿Dudas? Escríbenos por WhatsApp
+        </a>
+      </div>
     </div>
   )
 }
