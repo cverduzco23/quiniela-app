@@ -38,6 +38,11 @@ const resultColor = {
   draw: { bg: 'var(--neutral-bg)', color: 'var(--muted)' },
   away: { bg: 'var(--yellow-bg)',  color: 'var(--yellow)' },
 }
+const resultBorder = {
+  home: 'rgba(34,197,94,0.4)',
+  draw: 'rgba(148,163,184,0.24)',
+  away: 'rgba(250,204,21,0.4)',
+}
 const resultLabel = { home: 'Local', draw: 'Empate', away: 'Visitante' }
 const PAGE_SIZE = 50
 // Mostrar el buscador solo cuando hay suficientes participantes para que valga la pena.
@@ -546,8 +551,6 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
             }
             const pendiente = !cancelado && !resDisplay && !esVivo && !esFinish
             const pendienteEnQuinielaAbierta = !cerrada && pendiente
-            const scoreLocalDisplay = pendiente ? 'vs' : scoreLocal
-            const scoreVisitanteDisplay = pendiente ? '' : scoreVisitante
             const tieneStats = !!p.espnId
             const partidoAbierto = expandidoPartido.has(i)
             const st = liveStats[p.espnId]
@@ -580,17 +583,17 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
             const badgeNode = cancelado ? (
               <span className="ranking-match-badge" style={{ background: 'var(--neutral-bg)', color: 'var(--muted)', borderColor: 'var(--border-strong)' }}>Cancelado</span>
             ) : esVivo ? (
-              <span className="ranking-match-badge" style={{ background: 'var(--red-bg-strong)', color: '#FCA5A5', borderColor: 'transparent' }}>
+              <span className="ranking-match-badge is-live-badge" style={{ background: 'var(--red-bg-strong)', color: '#FCA5A5', borderColor: 'rgba(239,68,68,0.4)' }}>
                 <span className="ranking-match-live-dot" />{live.penalesEnVivo ? 'Penales' : live.halftime ? 'Descanso' : live.clock || 'EN VIVO'}
               </span>
             ) : resDisplay ? (
-              <span className="ranking-match-badge" style={{ background: resultColor[resDisplay].bg, color: resultColor[resDisplay].color, borderColor: 'transparent' }}>
+              <span className="ranking-match-badge" style={{ background: resultColor[resDisplay].bg, color: resultColor[resDisplay].color, borderColor: resultBorder[resDisplay] }}>
                 {resultLabel[resDisplay]}
               </span>
             ) : pendienteEnQuinielaAbierta ? (
               null
             ) : (
-              <span className="ranking-match-badge is-pending-badge" style={{ background: 'var(--neutral-bg)', color: 'var(--muted)', borderColor: 'transparent' }}>Pendiente</span>
+              <span className="ranking-match-badge is-pending-badge" style={{ background: 'var(--neutral-bg)', color: 'var(--muted)', borderColor: 'rgba(148,163,184,0.24)' }}>Pendiente</span>
             )
             const muestraEstadoPartido = !!badgeNode || tieneAlgo
             return (
@@ -640,7 +643,7 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                 </div>
 
                 <div className="ranking-match-compact">
-                  <div className={`ranking-match-body${muestraEstadoPartido ? ' has-meta' : ''}`}>
+                  <div className="ranking-match-body">
                     <div className="ranking-match-desktop-teams">
                       <div className="ranking-match-side is-home">
                         {p.escudoLocal && <img className="ranking-match-crest" src={p.escudoLocal} alt="" onError={e => { e.target.style.display = 'none' }} />}
@@ -657,49 +660,11 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                         {p.escudoVisitante && <img className="ranking-match-crest" src={p.escudoVisitante} alt="" onError={e => { e.target.style.display = 'none' }} />}
                       </div>
                     </div>
-                    <div className="ranking-match-mobile-teams">
-                      <div className="ranking-match-team">
-                        {p.escudoLocal && <img className="ranking-match-crest" src={p.escudoLocal} alt="" onError={e => { e.target.style.display = 'none' }} />}
-                        <span className="ranking-match-name">{p.local}</span>
-                        <span
-                          className={`ranking-match-score${esVivo ? ' is-live-score' : ''}${pendiente ? ' is-pending is-mobile-pending' : ''}`}
-                          style={{ color: cancelado ? 'var(--muted)' : esVivo ? '#FCA5A5' : 'var(--text-strong)', textDecoration: cancelado ? 'line-through' : 'none' }}
-                        >
-                          {pendienteEnQuinielaAbierta ? 'vs' : pendiente ? 'Pendiente' : scoreLocalDisplay}
-                        </span>
-                      </div>
-                      <div className="ranking-match-team">
-                        {p.escudoVisitante && <img className="ranking-match-crest" src={p.escudoVisitante} alt="" onError={e => { e.target.style.display = 'none' }} />}
-                        <span className="ranking-match-name">{p.visitante}</span>
-                        <span
-                          className={`ranking-match-score${esVivo ? ' is-live-score' : ''}${scoreVisitanteDisplay === '' ? ' is-empty' : ''}`}
-                          style={{ color: cancelado ? 'var(--muted)' : esVivo ? '#FCA5A5' : 'var(--text-strong)', textDecoration: cancelado ? 'line-through' : 'none' }}
-                        >
-                          {scoreVisitanteDisplay}
-                        </span>
-                      </div>
-                    </div>
-                    {muestraEstadoPartido && (
-                      <div className="ranking-match-meta">
-                        {p.hora && <p className="ranking-match-date">{formatFecha(p.hora)}</p>}
-                        <div className="ranking-match-actions">
-                          {badgeNode}
-                          {tieneAlgo && (
-                            <span className="ranking-match-toggle ranking-match-toggle-mobile">
-                              <span className="ranking-match-toggle-icon" aria-hidden="true">
-                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: partidoAbierto ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s ease' }}>
-                                  <polyline points="6 9 12 15 18 9" />
-                                </svg>
-                              </span>
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    )}
                   </div>
-                  {(p.hora || tieneAlgo) && (
-                    <div className="ranking-match-date-desktop">
-                      {p.hora && <span>{formatFecha(p.hora)}</span>}
+                  {muestraEstadoPartido && (
+                    <div className={`ranking-match-status-row${esVivo ? ' is-live' : ''}${tieneAlgo ? ' has-toggle' : ''}`}>
+                      {badgeNode}
+                      {!esVivo && p.hora && <span className="ranking-match-status-date">{formatFecha(p.hora)}</span>}
                       {tieneAlgo && (
                         <span className="ranking-match-toggle ranking-match-toggle-desktop">
                           <span className="ranking-match-toggle-icon" aria-hidden="true">
@@ -964,7 +929,15 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
             </div>
           </div>
           )
-        }) : shown.map((j, i) => {
+        }) : (() => {
+          const zonaPremioIdxs = shown.reduce((acc, p, idx) => {
+            if (premioPorNombre[p.nombre] !== undefined) acc.push(idx)
+            return acc
+          }, [])
+          const zonaPremioInicioIdx = zonaPremioIdxs.length ? zonaPremioIdxs[0] : -1
+          const zonaPremioFinIdx = zonaPremioIdxs.length ? zonaPremioIdxs[zonaPremioIdxs.length - 1] : -1
+
+          const renderRow = (j, i) => {
           const abierto = expandido.has(j.nombre)
           const pos = j._pos
           const esLider = pos === 1 && hayResultados
@@ -1131,7 +1104,18 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
               )}
             </div>
           )
-        })}
+          }
+
+          if (zonaPremioInicioIdx === -1) return shown.map(renderRow)
+
+          return [
+            ...shown.slice(0, zonaPremioInicioIdx).map(renderRow),
+            <div key="zona-premio-shine-wrap" className="ranking-prize-zone-shine-wrap">
+              {shown.slice(zonaPremioInicioIdx, zonaPremioFinIdx + 1).map((j, i) => renderRow(j, zonaPremioInicioIdx + i))}
+            </div>,
+            ...shown.slice(zonaPremioFinIdx + 1).map((j, i) => renderRow(j, zonaPremioFinIdx + 1 + i)),
+          ]
+        })()}
 
         {!cerrada && !vistaParticipantesAbierta && jugadores.length > 0 && (
           <div style={{ padding: '10px 16px', background: 'var(--yellow-bg)', borderTop: '1px solid var(--yellow-soft)', textAlign: 'center' }}>
@@ -1167,7 +1151,9 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
           disabled={compartiendo || !puedeCompartir}
           aria-label={compartirLabel}
         >
-          <SvgIcon name={compartirIcon} size={14} />
+          <span className="ranking-share-action-icon" aria-hidden="true">
+            <SvgIcon name={compartirIcon} size={13} />
+          </span>
           <span>{compartiendo ? 'Generando...' : compartirLabel}</span>
         </button>
         {(compartiendo || feedbackShare) && (
@@ -1562,6 +1548,10 @@ function PremioBanner({ quiniela, bote, ganadores, finalizada, hayResultados, ab
     )
   }
 
+  if (!finalizada && Object.keys(grupos).length === 1 && grupos['1']?.length > 0) {
+    return <LiderAhoraCard bote={bote} ganadores={grupos['1']} />
+  }
+
   const titulo = finalizada ? 'Ganadores' : 'Si terminara ahora'
   return (
     <div className={`ranking-prize-banner${finalizada ? ' is-final' : ' is-live'}`} style={{
@@ -1625,6 +1615,85 @@ function PremioBanner({ quiniela, bote, ganadores, finalizada, hayResultados, ab
           Premios provisionales. Pueden cambiar mientras la quiniela siga en juego.
         </p>
       )}
+    </div>
+  )
+}
+
+const AVATAR_COLORS = ['#22C55E', '#818CF8', '#FB923C', '#38BDF8']
+
+function LiderAhoraCard({ bote, ganadores }) {
+  const count = ganadores.length
+
+  return (
+    <div className="ranking-live-card">
+      <span className="ranking-live-card-shine" aria-hidden="true" />
+      <div className="ranking-live-card-header">
+        <span className="ranking-live-card-kicker">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="9" />
+            <path d="M12 7.5V12l3 2" />
+          </svg>
+          Si terminara ahora
+        </span>
+        {count === 2 && (
+          <span className="ranking-live-card-tie-badge">Empatados en 1.º</span>
+        )}
+        {count >= 3 && (
+          <div className="ranking-live-card-avatars">
+            {ganadores.slice(0, 4).map((g, idx) => (
+              <span
+                key={g.nombre}
+                className="ranking-live-card-avatar"
+                style={{ background: AVATAR_COLORS[idx % AVATAR_COLORS.length], zIndex: 10 - idx }}
+              >
+                {inicialesPersona(g.nombre)}
+              </span>
+            ))}
+            {count > 4 && (
+              <span className="ranking-live-card-avatar is-more" style={{ zIndex: 5 }}>
+                +{count - 4}
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+
+      {count === 1 ? (
+        <div className="ranking-live-card-solo">
+          <span className="ranking-live-card-pos">1</span>
+          <div className="ranking-live-card-solo-text">
+            <p className="ranking-live-card-solo-label">En 1.er lugar</p>
+            <p className="ranking-live-card-solo-name">{nombreCorto(ganadores[0].nombre)}</p>
+          </div>
+          <span className="ranking-live-card-amount">{formatearMXN(ganadores[0].premio)}</span>
+        </div>
+      ) : count === 2 ? (
+        <div className="ranking-live-card-rows">
+          {ganadores.map(g => (
+            <div key={g.nombre} className="ranking-live-card-row">
+              <span className="ranking-live-card-pos">1</span>
+              <span className="ranking-live-card-row-name">{nombreCorto(g.nombre)}</span>
+              <span className="ranking-live-card-amount">{formatearMXN(g.premio)}</span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="ranking-live-card-many">
+          <p className="ranking-live-card-many-amount">
+            {formatearMXN(ganadores[0].premio)} <span>para cada líder</span>
+          </p>
+          <p className="ranking-live-card-many-sub">
+            <strong>{count} líderes</strong> empatados en 1.er lugar
+          </p>
+        </div>
+      )}
+
+      <div className="ranking-live-card-footer">
+        <span className="ranking-live-card-bote">Bote <strong>{formatearMXN(bote)}</strong></span>
+        <span className="ranking-live-card-footer-note">
+          {count === 1 ? 'Se lo lleva quien termine 1.º' : `Se reparte entre ${count}`}
+        </span>
+      </div>
     </div>
   )
 }
