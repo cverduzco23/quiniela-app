@@ -1,5 +1,5 @@
 /**
- * Validación de contraseña compartida — la usan el cambio inicial obligatorio
+ * Validación de contraseña compartida: la usan el cambio inicial obligatorio
  * (CambioPassword) y la sección "Mi cuenta".
  *
  * Política "equilibrada" (decidida con el usuario): se OBLIGA longitud mínima +

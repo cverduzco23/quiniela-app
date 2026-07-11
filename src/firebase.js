@@ -15,7 +15,7 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 
-// ── App Check (anti-abuso, gratis con reCAPTCHA v3) ───────────────
+// App Check (anti-abuso, gratis con reCAPTCHA v3)
 // Candado que asegura que solo NUESTRA app (no bots ni scripts) pueda hablar
 // con Firebase. La clave de sitio de reCAPTCHA es pública; la secreta vive en
 // Firebase Console → App Check.
@@ -43,7 +43,7 @@ export const db = initializeFirestore(app, {
 });
 export const auth = getAuth(app);
 
-// ── Analytics ─────────────────────────────────────────────────
+// Analytics
 // Se inicializa de forma asíncrona solo si el entorno lo soporta
 // (evita errores en SSR, navegadores sin cookies, etc.)
 let _analytics = null;
@@ -55,7 +55,7 @@ if (typeof window !== "undefined") {
 
 /**
  * Registra un evento en Google Analytics si está disponible.
- * Silencioso ante cualquier error — Analytics nunca debe romper el flujo de la app.
+ * Silencioso ante cualquier error: Analytics nunca debe romper el flujo de la app.
  */
 export function track(eventName, params = {}) {
   try {

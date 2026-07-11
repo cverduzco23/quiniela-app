@@ -1,4 +1,4 @@
-# Términos y Condiciones de Uso — QuinielApp (quinielapp.fun)
+# Términos y Condiciones de Uso: QuinielApp (quinielapp.fun)
 
 **Última actualización: 11 de julio de 2026**
 

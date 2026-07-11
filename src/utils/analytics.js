@@ -1,10 +1,10 @@
-// ── Analítica propia: contadores agregados en Firestore ──────────────────────
+// Analítica propia: contadores agregados en Firestore
 //
 // Diseño pensado para que sea BARATO y SEGURO:
 //   • Un documento por DÍA  → analytics/dia_YYYYMMDD  (visitas, dispositivos, horas, envíos)
 //   • Un documento por QUINIELA → analytics/q_<id>     (visitas, aperturas, en vivo)
 //
-// Solo guardamos CONTADORES que suman +1 — nunca eventos crudos — así el número
+// Solo guardamos CONTADORES que suman +1; nunca eventos crudos. Así el número
 // de documentos crece poquísimo y cabe de sobra en la cuota gratis de Firebase.
 // Cada visitante cuenta UNA sola vez por sesión (banderas en sessionStorage),
 // aunque refresque la página mil veces.
@@ -50,7 +50,7 @@ function clasificarDispositivo() {
 }
 
 // Ancho de pantalla: en celular lo guardamos EXACTO (los anchos reales de
-// modelos distintos —un iPhone Pro Max vs un Galaxy— sí importan para ver
+// modelos distintos, como un iPhone Pro Max vs un Galaxy, sí importan para ver
 // cómo se ve la web). En escritorio la ventana se redimensiona libremente,
 // así que un valor exacto solo ensuciaría el conteo con cientos de valores
 // casi únicos; ahí agrupamos en rangos.
@@ -73,7 +73,7 @@ async function escribir(idDoc, datos) {
   } catch { /* silencioso: la analítica nunca rompe la app */ }
 }
 
-// ── Exclusión del propio dispositivo ─────────────────────────────────────────
+// Exclusión del propio dispositivo
 // Si este navegador se marcó como "no contar" (típicamente el del admin), NINGUNA
 // métrica se registra desde aquí. Así las visitas no se inflan con tus pruebas.
 const FLAG_EXCLUIR     = 'qpa_no_contar'
@@ -90,7 +90,7 @@ export function marcarExcluido(excluir) {
   } catch { /* noop */ }
 }
 
-// ── Registro de eventos (desde las páginas públicas) ─────────────────────────
+// Registro de eventos (desde las páginas públicas)
 
 // Una visita a la app: cuenta visitas del día, dispositivo y hora. Una vez por sesión.
 // Además cuenta el dispositivo como "único" la primera vez en la vida del navegador.
@@ -148,7 +148,7 @@ export function registrarEnvio() {
   escribir(idDiaHoy(), { envios: increment(1) })
 }
 
-// ── Lectura (solo super admin; ver firestore.rules) ──────────────────────────
+// Lectura (solo super admin; ver firestore.rules)
 
 // Lee los últimos n días. Devuelve [{ id, fecha:Date, ...datos }] del más viejo al más nuevo.
 export async function leerDias(n = 7) {

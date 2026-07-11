@@ -35,7 +35,7 @@ const MAX_QUINIELAS = 50
 // (es esperado, no es un error). Orden: lo más seguido por la afición mexicana
 // primero (Liga MX, El Tri y torneos donde juegan clubes/selección de México).
 const LIGAS = [
-  // ── México y selección nacional (El Tri) ──
+  // México y selección nacional (El Tri)
   { id: 'mex.1',                 nombre: '🇲🇽 Liga MX' },
   { id: 'mex.2',                 nombre: '🇲🇽 Liga de Expansión MX' },
   { id: 'mex.campeon',           nombre: '🇲🇽 Campeón de Campeones' },
@@ -44,20 +44,20 @@ const LIGAS = [
   { id: 'concacaf.gold',         nombre: '🏆 Copa Oro' },
   { id: 'concacaf.nations.league', nombre: '🌎 CONCACAF Nations League' },
   { id: 'conmebol.america',      nombre: '🌎 Copa América' },
-  // ── Torneos de clubes (Liga MX cruzando fronteras) ──
+  // Torneos de clubes (Liga MX cruzando fronteras)
   { id: 'concacaf.leagues.cup',  nombre: '🤝 Leagues Cup (Liga MX vs MLS)' },
   { id: 'concacaf.champions',    nombre: '🌎 CONCACAF Champions Cup' },
   { id: 'fifa.cwc',              nombre: '🏟️ Mundial de Clubes' },
   { id: 'conmebol.libertadores', nombre: '🏆 Copa Libertadores' },
   { id: 'conmebol.sudamericana', nombre: '🥈 Copa Sudamericana' },
-  // ── Europa: clubes ──
+  // Europa: clubes
   { id: 'uefa.champions',        nombre: '⭐ Champions League' },
   { id: 'uefa.europa',           nombre: '🟠 Europa League' },
   { id: 'uefa.europa.conf',      nombre: '🟢 Conference League' },
-  // ── Europa: selecciones ──
+  // Europa: selecciones
   { id: 'uefa.euro',             nombre: '🇪🇺 Eurocopa' },
   { id: 'uefa.nations',          nombre: '🇪🇺 UEFA Nations League' },
-  // ── Ligas nacionales ──
+  // Ligas nacionales
   { id: 'eng.1',                 nombre: '🏴󠁧󠁢󠁥󠁮󠁧󠁿 Premier League' },
   { id: 'esp.1',                 nombre: '🇪🇸 La Liga' },
   { id: 'ita.1',                 nombre: '🇮🇹 Serie A' },
@@ -68,10 +68,10 @@ const LIGAS = [
   { id: 'usa.1',                 nombre: '🇺🇸 MLS' },
   { id: 'bra.1',                 nombre: '🇧🇷 Brasileirão' },
   { id: 'arg.1',                 nombre: '🇦🇷 Liga Argentina' },
-  // ── Copas nacionales ──
+  // Copas nacionales
   { id: 'eng.fa',                nombre: '🏴󠁧󠁢󠁥󠁮󠁧󠁿 FA Cup' },
   { id: 'esp.copa_del_rey',      nombre: '🇪🇸 Copa del Rey' },
-  // ── Otros ──
+  // Otros
   { id: 'fifa.friendly',         nombre: '🌐 Amistosos Internacionales' },
 ]
 
@@ -308,7 +308,7 @@ function AdminIcon({ name, size = 14, style, strokeWidth = 2 }) {
   return <svg {...common}><circle cx="12" cy="12" r="9" /></svg>
 }
 
-// ─── Responsive: escritorio (≥960px) vs móvil (<960px) ──────────────────────────
+// Responsive: escritorio (≥960px) vs móvil (<960px)
 // Hook simple sobre matchMedia. El rediseño usa un layout ancho con barra lateral
 // en escritorio y el patrón móvil (tablero de módulos / pestañas) por debajo.
 const BREAKPOINT_ESCRITORIO = 960
@@ -336,7 +336,7 @@ function iniciales(str) {
   return base.slice(0, 2).toUpperCase()
 }
 
-// ─── Barra lateral del Super Admin (solo escritorio ≥960px) ─────────────────────
+// Barra lateral del Super Admin (solo escritorio ≥960px)
 // Navega cambiando `superModulo`. Reusa AdminIcon y BrandMark. Refleja el prototipo
 // de escritorio (design_handoff_super_admin_panel): logo · sello SUPER ADMIN ·
 // nav agrupada (Gestión / Plataforma) · footer de usuario.
@@ -406,7 +406,7 @@ function SidebarSuper({ activo, onNav, counts, email }) {
   )
 }
 
-// ─── Barra lateral del panel Cliente (escritorio ≥960px) ───────────────────────
+// Barra lateral del panel Cliente (escritorio ≥960px)
 function SidebarCliente({ activo, onNav, adminDoc, onSalir }) {
   const item = (tab, icon, label) => {
     const on = activo === tab
@@ -460,7 +460,7 @@ function SidebarCliente({ activo, onNav, adminDoc, onSalir }) {
   )
 }
 
-// ─── Barra de pestañas inferior del panel Cliente (móvil <960px) ────────────────
+// Barra de pestañas inferior del panel Cliente (móvil <960px)
 function TabBarCliente({ activo, onNav }) {
   const item = (tab, icon, label) => {
     const on = activo === tab
@@ -505,7 +505,7 @@ function MobileAdminHeader() {
 
 function formatFecha(value) {
   const d = cierreToDate(value)
-  if (!d) return '—'
+  if (!d) return '-'
   return d.toLocaleString('es-MX', {
     day: 'numeric', month: 'short', year: 'numeric',
     hour: '2-digit', minute: '2-digit',
@@ -569,7 +569,7 @@ function faseLegible(altGameNote) {
 // Margen de seguridad: el cierre se sugiere unos minutos ANTES del primer partido.
 const MARGEN_CIERRE_MIN = 5
 
-// Valida que el cierre no quede DESPUÉS del arranque del primer partido — si así fuera,
+// Valida que el cierre no quede DESPUÉS del arranque del primer partido: si así fuera,
 // se podrían registrar predicciones con partidos ya empezados/terminados (trampa).
 // Solo considera partidos que tengan hora (los manuales pueden no traerla).
 // Devuelve { conflicto, primera, sugerencia } donde `sugerencia` es el valor listo
@@ -659,7 +659,7 @@ function partidosEnVivoCard(q, ahora = Date.now()) {
   }, 0)
 }
 
-// Cierre sugerido (valor listo para <input datetime-local>) = primer partido − margen.
+// Cierre sugerido (valor listo para <input datetime-local>) = primer partido - margen.
 // Devuelve '' si ningún partido tiene hora todavía (ej. manuales sin capturar).
 function cierreSugerido(partidos) {
   const primera = primeraHoraPartido(partidos)
@@ -669,7 +669,7 @@ function cierreSugerido(partidos) {
   return cierreToInputValue(new Date(d.getTime() - MARGEN_CIERRE_MIN * 60 * 1000))
 }
 
-// ─── Estilos compartidos ──────────────────────────────────────────────────────
+// Estilos compartidos
 const card = { background: 'linear-gradient(135deg, rgba(30,41,59,0.92), rgba(15,24,40,0.95))', borderRadius: 14, padding: '1.1rem 1.25rem', marginBottom: 10, border: '1px solid rgba(255,255,255,0.10)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 12px 26px rgba(0,0,0,0.32)' }
 const lbl = { fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 8 }
 const greenCta = 'linear-gradient(135deg, var(--green), var(--green-light))'
@@ -706,7 +706,7 @@ export default function Admin() {
   const { alerta, confirmar, pedirTexto } = useDialog()
   // Escritorio (≥960px) → barra lateral; móvil → tablero de módulos.
   const esEscritorio = useEsEscritorio()
-  // ─── Autenticación ────────────────────────────────────────────────────────
+  // Autenticación
   const [autenticado, setAutenticado] = useState(false)
   const [authListo, setAuthListo]     = useState(false)
   const [email, setEmail]             = useState('')
@@ -714,7 +714,7 @@ export default function Admin() {
   const [loginError, setLoginError]   = useState('')
   const [loginLoading, setLoginLoading] = useState(false)
 
-  // ─── Auto-registro de organizadores ─────────────────────────────────────
+  // Auto-registro de organizadores
   // 'entrar' | 'crear'. El home enlaza con /admin?registro=1 para abrir
   // directo la pestaña de crear cuenta.
   const [modoAuth, setModoAuth] = useState(() => {
@@ -748,7 +748,7 @@ export default function Admin() {
     setTipNuevaCerrado(true)
   }
 
-  // ─── "Mi cuenta" (perfil del cliente) ───────────────────────────────────
+  // "Mi cuenta" (perfil del cliente)
   const [cuentaNombre, setCuentaNombre]   = useState('')
   const [cuentaTel, setCuentaTel]         = useState('')
   const [guardandoCuenta, setGuardandoCuenta] = useState(false)
@@ -971,7 +971,7 @@ export default function Admin() {
     }
   }
 
-  // ─── Auto-registro de organizadores ───────────────────────────────────────
+  // Auto-registro de organizadores
   // Crea la cuenta de Firebase Auth y manda el correo de verificación. El doc
   // admins/{uid} se crea DESPUÉS, cuando el correo ya está verificado (las
   // reglas lo exigen); ver crearMiPerfilOrganizador.
@@ -1095,7 +1095,7 @@ export default function Admin() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authListo, autenticado, soySuper, adminDoc, correoVerificado])
 
-  // ─── Clientes (solo super admin) ──────────────────────────────────────────
+  // Clientes (solo super admin)
   const [clientes, setClientes]               = useState([])
   const [loadingClientes, setLoadingClientes] = useState(false)
   const [ncEmail, setNcEmail]                 = useState('')
@@ -1177,7 +1177,7 @@ export default function Admin() {
       // 1) Cuenta de acceso (sin tocar la sesión del super admin).
       const uid = await crearUsuarioAislado(email, password)
       // 2) Perfil del cliente. Sin planes ni cuota: cualquier cliente activo
-      //    crea quinielas ilimitadas gratis. `activo` sigue siendo el gate de acceso.
+      // crea quinielas ilimitadas gratis. `activo` sigue siendo el gate de acceso.
       await setDoc(doc(db, 'admins', uid), {
         email,
         nombre,
@@ -1229,7 +1229,7 @@ export default function Admin() {
 
   // Borra al cliente del panel (doc admins/{uid}) SIN vetarlo: si esa persona
   // vuelve a entrar con su cuenta (correo verificado), la app le recrea el
-  // perfil automáticamente — y su contador de quinielas arranca de nuevo en 0.
+  // perfil automáticamente, y su contador de quinielas arranca de nuevo en 0.
   // Sirve para limpiar cuentas muertas; para frenar a alguien: Pausar o Bloquear.
   // OJO: la cuenta de Firebase Auth NO se puede borrar desde aquí (requiere servidor);
   // hay que eliminarla a mano en la consola de Firebase. Se lo recordamos al super admin.
@@ -1313,10 +1313,10 @@ export default function Admin() {
   }
 
   // Auto-eliminación de cuenta (solo clientes). Diseño deliberado:
-  // 1) Se marca el perfil con eliminada:true — el doc admins/{uid} NO se borra:
-  //    si el dueño pudiera borrarlo, podría recrearlo al instante y resetear su
-  //    contador de quinielas (cuota infinita). Huérfano y marcado, el super
-  //    admin lo limpia cuando quiera desde su lista.
+  // 1) Se marca el perfil con eliminada:true: el doc admins/{uid} NO se borra:
+  // si el dueño pudiera borrarlo, podría recrearlo al instante y resetear su
+  // contador de quinielas (cuota infinita). Huérfano y marcado, el super
+  // admin lo limpia cuando quiera desde su lista.
   // 2) Se borra la cuenta de Auth; sus quinielas se conservan para los jugadores.
   const eliminarMiCuenta = async () => {
     const user = auth.currentUser
@@ -1344,7 +1344,7 @@ export default function Admin() {
     }
   }
 
-  // ─── Estado principal ─────────────────────────────────────────────────────
+  // Estado principal
   const [vista, setVista]                 = useState('lista')
   const [superModulo, setSuperModulo]     = useState(null)
   const [busquedaClientesSuper, setBusquedaClientesSuper] = useState('')
@@ -1384,7 +1384,7 @@ export default function Admin() {
     if (autenticado && authListo && soySuper && vista === 'lista') cargarClientes()
   }, [autenticado, authListo, soySuper, vista])
 
-  // ─── Formulario nueva quiniela ────────────────────────────────────────────
+  // Formulario nueva quiniela
   const [nombre, setNombre]     = useState('')
   const [cierre, setCierre]     = useState('')
   const [partidos, setPartidos] = useState([])
@@ -1394,7 +1394,7 @@ export default function Admin() {
   const [modeloPremio, setModeloPremio] = useState(MODELO_PREMIO.GANADOR_UNICO)
   const [codigoAcceso, setCodigoAcceso] = useState('')
 
-  // ─── Resultados ───────────────────────────────────────────────────────────
+  // Resultados
   const [resultados, setResultados]       = useState({})
   const [sincronizandoResultados, setSincronizandoResultados] = useState(false)
   const [syncResultadosCooldown, setSyncResultadosCooldown]   = useState(false)
@@ -1402,14 +1402,14 @@ export default function Admin() {
   const syncResultadosCooldownTimer = useRef(null)
   const syncResultadosMsgTimer = useRef(null)
 
-  // ─── Buscador de partidos ESPN ────────────────────────────────────────────
+  // Buscador de partidos ESPN
   const [ligaId, setLigaId]               = useState('')
   const [fixtures, setFixtures]           = useState([])
   const [loadingFixtures, setLoadingFixtures] = useState(false)
   const [errorFixtures, setErrorFixtures] = useState(null)
   const [seleccionados, setSeleccionados] = useState([])
 
-  // ─── Edición de quiniela existente ───────────────────────────────────────
+  // Edición de quiniela existente
   const [editNombre, setEditNombre]             = useState('')
   const [editPartidos, setEditPartidos]         = useState([])
   const [editPartidosOriginales, setEditPartidosOriginales] = useState(0)
@@ -1424,10 +1424,10 @@ export default function Admin() {
   const [deleteConfirm, setDeleteConfirm]       = useState('')
   const [eliminando, setEliminando]             = useState(false)
 
-  // ─── Cerrar / reabrir ─────────────────────────────────────────────────────
+  // Cerrar / reabrir
   const [toggling, setToggling] = useState(false)
 
-  // ─── Lista de predicciones individuales ──────────────────────────────────
+  // Lista de predicciones individuales
   const [listaPredicciones, setListaPredicciones]       = useState([])
   const [loadingPredicciones, setLoadingPredicciones]   = useState(false)
   const [eliminandoPred, setEliminandoPred]             = useState(null)
@@ -1435,10 +1435,10 @@ export default function Admin() {
   const [togglingOculto, setTogglingOculto]             = useState(null)
   const [busquedaParticipante, setBusquedaParticipante] = useState('')
 
-  // ─── Compartir ───────────────────────────────────────────────────────────
+  // Compartir
   const [copiado, setCopiado] = useState(null)
 
-  // ─── Caja ─────────────────────────────────────────────────────────────────
+  // Caja
   const [cajaNombre, setCajaNombre]                 = useState(null)
   const [movimientos, setMovimientos]               = useState([])
   const [loadingMovimientos, setLoadingMovimientos] = useState(false)
@@ -1447,7 +1447,7 @@ export default function Admin() {
   const [nuevaNota, setNuevaNota]                   = useState('')
   const [guardandoMov, setGuardandoMov]             = useState(false)
 
-  // ─── Donativos (registrados por el webhook de Stripe) ──────────────────────
+  // Donativos (registrados por el webhook de Stripe)
   const [donativos, setDonativos]                   = useState([])
   const [loadingDonativos, setLoadingDonativos]     = useState(false)
   const [buscarNombreCaja, setBuscarNombreCaja]     = useState('')
@@ -1635,7 +1635,7 @@ export default function Admin() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, quinielaActual?.id])
 
-  // ─── Caja: carga ─────────────────────────────────────────────────────────
+  // Caja: carga
   const cargarMovimientos = async () => {
     setLoadingMovimientos(true)
     try {
@@ -1652,7 +1652,7 @@ export default function Admin() {
     }
   }, [autenticado, authListo, vista, soySuper])
 
-  // ─── Donativos: carga ────────────────────────────────────────────────────
+  // Donativos: carga
   const cargarDonativos = async () => {
     setLoadingDonativos(true)
     try {
@@ -1669,7 +1669,7 @@ export default function Admin() {
     }
   }, [autenticado, authListo, vista, soySuper])
 
-  // ─── CRUD partidos ────────────────────────────────────────────────────────
+  // CRUD partidos
   const quitarPartido = (i) =>
     setPartidos(prev => prev.filter((_, idx) => idx !== i))
   // Escudo del equipo, o un círculo con la inicial si es manual (sin logo de ESPN).
@@ -1679,7 +1679,7 @@ export default function Admin() {
       : <span style={{ width: 20, height: 20, borderRadius: '50%', background: 'var(--border)', color: 'var(--muted)', fontSize: 10, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{(nombre ?? '?').trim().charAt(0).toUpperCase() || '?'}</span>
   )
 
-  // ─── Buscador ESPN ────────────────────────────────────────────────────────
+  // Buscador ESPN
   const buscarFixtures = async () => {
     setLoadingFixtures(true)
     setErrorFixtures(null)
@@ -1819,7 +1819,7 @@ export default function Admin() {
     setFixtures([])
   }
 
-  // ─── Edición de quiniela existente ───────────────────────────────────────
+  // Edición de quiniela existente
   const guardarEdicion = async () => {
     if (!quinielaActual || guardandoEdicion) return
     if (editPartidos.length === 0) return alerta('La quiniela debe tener al menos un partido.')
@@ -1883,7 +1883,7 @@ export default function Admin() {
     }
   }
 
-  // ─── Cerrar / reabrir quiniela ───────────────────────────────────────────
+  // Cerrar / reabrir quiniela
   // ¿El primer partido ya arrancó? Es el punto de no retorno: después de eso
   // ya no tiene sentido reabrir (empiezan los resultados).
   const primerPartidoArranco = (q) => {
@@ -1898,7 +1898,7 @@ export default function Admin() {
     const estaCerrada = esCerradaQ(quinielaActual)
 
     if (estaCerrada) {
-      // ── Reabrir ── Solo mientras no arranque el primer partido: así nunca
+      // Reabrir: solo mientras no arranque el primer partido, así nunca
       // entran registros tardíos (los partidos aún no empiezan).
       if (primerPartidoArranco(quinielaActual)) {
         return alerta('Ya no se puede reabrir: el primer partido ya empezó. Si necesitas otra ronda, crea una quiniela nueva.')
@@ -1930,7 +1930,7 @@ export default function Admin() {
       return
     }
 
-    // ── Cerrar ahora ── Solo restringe (bloquea registros), nunca es injusto.
+    // Cerrar ahora: solo restringe (bloquea registros), nunca es injusto.
     if (!(await confirmar(
       'Vas a CERRAR esta quiniela ahora mismo.\n\n• Nadie podrá registrar predicciones nuevas.\n• El ranking queda fijo con los participantes actuales.\n• Podrás reabrirla mientras no arranque el primer partido.\n\n¿Cerrar ahora?',
       { titulo: 'Cerrar quiniela', confirmar: 'Cerrar quiniela', cancelar: 'Cancelar' }
@@ -1949,7 +1949,7 @@ export default function Admin() {
     }
   }
 
-  // ─── Devolver / reactivar bote ──────────────────────────────────────────
+  // Devolver / reactivar bote
   const [toggleBote, setToggleBote] = useState(false)
   const toggleBoteDevuelto = async () => {
     if (!quinielaActual || toggleBote) return
@@ -1971,7 +1971,7 @@ export default function Admin() {
     }
   }
 
-  // ─── Marcar/desmarcar pago de una predicción ────────────────────────────
+  // Marcar/desmarcar pago de una predicción
   const togglePago = async (predId) => {
     if (!quinielaActual || togglingPago) return
     setTogglingPago(predId)
@@ -1992,7 +1992,7 @@ export default function Admin() {
     }
   }
 
-  // ─── Ocultar/mostrar una predicción del ranking público ───────────────────
+  // Ocultar/mostrar una predicción del ranking público
   // No la borra: solo deja de aparecer en /ranking (y de contar para el bote)
   // mientras esté oculta. Se puede alternar en cualquier momento.
   const toggleOculto = async (predId) => {
@@ -2015,7 +2015,7 @@ export default function Admin() {
     }
   }
 
-  // ─── Eliminar predicción individual ──────────────────────────────────────
+  // Eliminar predicción individual
   const eliminarPrediccion = async (pred) => {
     if (!(await confirmar(`¿Eliminar la predicción de "${pred.nombre}"? El jugador podrá volver a registrarse.`, { titulo: 'Eliminar predicción', confirmar: 'Eliminar', peligro: true }))) return
     setEliminandoPred(pred.id)
@@ -2030,7 +2030,7 @@ export default function Admin() {
     }
   }
 
-  // ─── Eliminar quiniela ────────────────────────────────────────────────────
+  // Eliminar quiniela
   const eliminarQuiniela = async () => {
     if (!quinielaActual || eliminando) return
     if (!(await confirmar(`¿Seguro que deseas eliminar "${quinielaActual.nombre}"? Esta acción no se puede deshacer.`, { titulo: 'Eliminar quiniela', confirmar: 'Eliminar', peligro: true }))) return
@@ -2052,9 +2052,9 @@ export default function Admin() {
     }
   }
 
-  // ─── Validación de unicidad del código de acceso ────────────────────────
+  // Validación de unicidad del código de acceso
   // Evita que dos admins (o el mismo) usen el mismo código en quinielas
-  // distintas — porque el buscador en home buscaría por codigoAccesoLower
+  // distintas, porque el buscador en home buscaría por codigoAccesoLower
   // y no sabría cuál retornar.
   const codigoYaUsado = async (codigoLower, excluirId = null) => {
     if (!codigoLower) return false
@@ -2065,7 +2065,7 @@ export default function Admin() {
       ))
       return snap.docs.some(d => d.id !== excluirId)
     } catch (err) {
-      // Si falla la consulta (red, permisos), NO bloqueamos al admin —
+      // Si falla la consulta (red, permisos), NO bloqueamos al admin:
       // mejor permitir guardar y dejar que el conflicto se detecte después
       // que perder su trabajo por un error de red.
       console.error('Error validando código de acceso:', err)
@@ -2073,7 +2073,7 @@ export default function Admin() {
     }
   }
 
-  // ─── Guardar nueva quiniela ───────────────────────────────────────────────
+  // Guardar nueva quiniela
   const camposPremio = (fijoStr, cuotaStr, modelo) => {
     const fijo = Number(fijoStr) || 0
     const cuotaNum = Number(cuotaStr) || 0
@@ -2199,7 +2199,7 @@ export default function Admin() {
     finally { setGuardando(false) }
   }
 
-  // ─── Seleccionar quiniela existente ──────────────────────────────────────
+  // Seleccionar quiniela existente
   const gestionarQuiniela = (q) => {
     // No reseteamos superModulo: así el botón Atrás regresa a la lista del
     // módulo de origen ('mis' / 'otros') en vez de la cuadrícula de secciones.
@@ -2260,7 +2260,7 @@ export default function Admin() {
     }
   }
 
-  // ─── Caja: guardar / eliminar ─────────────────────────────────────────────
+  // Caja: guardar / eliminar
   const guardarMovimiento = async (nombreOverride) => {
     // nombreOverride puede venir de un handler onClick (evento) → solo lo usamos si es string.
     const nombre = (typeof nombreOverride === 'string' && nombreOverride.trim()) ? nombreOverride.trim() : cajaNombre
@@ -2310,7 +2310,7 @@ export default function Admin() {
     }
   }
 
-  // ─── Compartir ────────────────────────────────────────────────────────────
+  // Compartir
   const linkJugadores = quinielaActual ? `${window.location.origin}/quiniela/${quinielaActual.id}` : ''
   const linkRanking   = quinielaActual ? `${window.location.origin}/ranking/${quinielaActual.id}` : ''
 
@@ -2320,11 +2320,11 @@ export default function Admin() {
     setTimeout(() => setCopiado(null), 2000)
   }
 
-  // ─── Lista helpers ────────────────────────────────────────────────────────
+  // Lista helpers
   // Las quinielas se filtran por dueño:
-  //   - Super admin: ve todas, agrupadas en "Tuyas" + "De otros admins"
-  //   - Admin normal: solo ve las que él creó (ownerUid == su uid)
-  //   - Quinielas legacy (sin ownerUid) se consideran del super admin
+  // - Super admin: ve todas, agrupadas en "Tuyas" + "De otros admins"
+  // - Admin normal: solo ve las que él creó (ownerUid == su uid)
+  // - Quinielas legacy (sin ownerUid) se consideran del super admin
   const esMia = (q) => (!q.ownerUid && soySuper) || q.ownerUid === miUid
   const subdividirPorEstado = (arr) => ({
     activas:     arr.filter(q => !esCerradaQ(q)),
@@ -2345,8 +2345,8 @@ export default function Admin() {
     return `Admin (${q.ownerUid.slice(0, 6)}…)`
   }
 
-  // ─── Detección de posibles nombres duplicados (tab Participantes) ────────
-  // Heurística estricta — solo marca casos con alta probabilidad real.
+  // Detección de posibles nombres duplicados (tab Participantes)
+  // Heurística estricta: solo marca casos con alta probabilidad real.
   const mapaSimilaresPorNombre = useMemo(
     () => detectarSimilares(listaPredicciones.map(p => p.nombre)),
     [listaPredicciones]
@@ -2385,7 +2385,7 @@ export default function Admin() {
     }
   }, [autenticado, authListo, soySuper, esEscritorio, vista, clienteTab, quinielasMias.length])
 
-  // ─── Caja helpers ────────────────────────────────────────────────────────
+  // Caja helpers
   const movimientosPorNombre = {}
   movimientos.forEach(m => {
     if (!movimientosPorNombre[m.nombre]) movimientosPorNombre[m.nombre] = []
@@ -2405,7 +2405,7 @@ export default function Admin() {
     0
   )
 
-  // ─── Login ────────────────────────────────────────────────────────────────
+  // Login
   if (!authListo) return (
     <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', color: 'var(--muted)', fontSize: 14 }}>
       Cargando…
@@ -2567,7 +2567,7 @@ export default function Admin() {
     </div>
   )
 
-  // ─── Auto-registro: verificar correo / activando cuenta ────────────────────
+  // Auto-registro: verificar correo / activando cuenta
   // Un usuario con sesión pero SIN doc admins/{uid} (y que no es super admin)
   // está a medio registro: primero verificar el correo, luego el efecto crea
   // su perfil de organizador. Los clientes dados de alta a mano nunca pasan
@@ -2676,7 +2676,7 @@ export default function Admin() {
     )
   }
 
-  // ─── Cambio de contraseña obligatorio (primer ingreso del cliente) ─────────
+  // Cambio de contraseña obligatorio (primer ingreso del cliente)
   if (debeCambiarPassword) return (
     <CambioPassword
       uid={miUid}
@@ -2684,7 +2684,7 @@ export default function Admin() {
     />
   )
 
-  // ─── Formulario de premio (reutilizable) ──────────────────────────────────
+  // Formulario de premio (reutilizable)
   // Único modelo de premio: "Ganador único" (gana quien más puntos; empate = se reparte).
   const renderFormularioPremio = (fijo, setFijo, cuotaVal, setCuotaVal) => {
     const tienePremioLocal = (Number(fijo) || 0) > 0 || (Number(cuotaVal) || 0) > 0
@@ -2727,7 +2727,7 @@ export default function Admin() {
     )
   }
 
-  // ─── Buscador de fixtures (reutilizable) ──────────────────────────────────
+  // Buscador de fixtures (reutilizable)
   const renderBuscadorFixtures = (onAgregar) => (
     <div style={card}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
@@ -2831,7 +2831,7 @@ export default function Admin() {
     </div>
   )
 
-  // ─── Render principal ─────────────────────────────────────────────────────
+  // Render principal
   // En escritorio (≥960px) el super admin usa barra lateral fija + contenido ancho;
   // en móvil se conserva el patrón actual (hero + tablero de módulos a pantalla completa).
   const superDesktop = soySuper && esEscritorio
@@ -2844,7 +2844,7 @@ export default function Admin() {
     setCajaNombre(null)
     setSuperModulo(modulo)
   }
-  // ─── Cliente: nuevo shell (barra lateral escritorio / pestañas móvil) ─────────
+  // Cliente: nuevo shell (barra lateral escritorio / pestañas móvil)
   // El super admin en MÓVIL también usa este shell (barra inferior idéntica al
   // admin): así maneja su panel tal cual lo haría un organizador. Solo el super
   // de ESCRITORIO conserva su barra lateral propia (SidebarSuper).
@@ -2892,7 +2892,7 @@ export default function Admin() {
 
       <div style={{ maxWidth: superDesktop ? 1200 : clienteDesktop ? 1040 : 580, margin: '0 auto', padding: (superDesktop || clienteDesktop) ? '26px 30px 48px' : (clienteMobile && vista === 'cuenta') ? '30px 20px 90px' : superMobileHome || superMobileModule ? '18px 16px 108px' : '1.25rem 1rem 3rem' }}>
 
-        {/* ── Vista: Lista ────────────────────────────────────────────────── */}
+        {/* Vista: Lista */}
         {vista === 'lista' && (
           <>
             {!soySuper && !clienteShell && <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginBottom: 14 }}>
@@ -2923,7 +2923,7 @@ export default function Admin() {
                     {label}
                   </span>
                 )
-                // ── Caja ───────────────────────────────────────────────────────
+                // Caja
                 const cajaNeto = saldos.reduce((a, s) => a + s.saldo, 0)
                 const cajaAFavor = saldos.filter(s => s.saldo > 0).reduce((a, s) => a + s.saldo, 0)
                 const cajaPorCobrar = saldos.filter(s => s.saldo < 0).reduce((a, s) => a + s.saldo, 0)
@@ -3048,7 +3048,7 @@ export default function Admin() {
                   </div>
                 )
 
-                // ── Caja global (escritorio): KPIs + saldos + registrar ────────
+                // Caja global (escritorio): KPIs + saldos + registrar
                 const cajaDesktop = (
                   <div>
                     <div style={{ marginBottom: 20 }}>
@@ -3083,7 +3083,7 @@ export default function Admin() {
                           </button>
                           <select value={cajaOrden} onChange={e => setCajaOrden(e.target.value)} style={{ fontSize: 12, padding: '8px 10px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-strong)', background: 'var(--card-light)', color: 'var(--text)' }}>
                             <option value="monto">Monto</option>
-                            <option value="nombre">A–Z</option>
+                            <option value="nombre">A-Z</option>
                           </select>
                         </div>
                         {loadingMovimientos ? (
@@ -3155,7 +3155,7 @@ export default function Admin() {
                   </div>
                 )
 
-                // ── Clientes ───────────────────────────────────────────────────
+                // Clientes
                 const crearAb = verTodo['clientes-crear']
                 const normalizaCliente = (txt) => String(txt ?? '')
                   .normalize('NFD')
@@ -3251,7 +3251,7 @@ export default function Admin() {
                         {clienteCreado && (
                           <div style={{ marginTop: 14, padding: '1rem', borderRadius: 'var(--radius-sm)', background: 'var(--green-bg)', border: '1px solid var(--green)' }}>
                             <p style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, color: 'var(--text-strong)', marginBottom: 8 }}>
-                              <AdminIcon name="check" size={13} /> Cuenta creada — comparte estos accesos:
+                              <AdminIcon name="check" size={13} /> Cuenta creada: comparte estos accesos:
                             </p>
                             <p style={{ fontSize: 13, color: 'var(--text)', fontFamily: 'monospace', lineHeight: 1.7, wordBreak: 'break-all' }}>
                               <AdminIcon name="mail" size={13} style={{ verticalAlign: '-2px', marginRight: 4 }} />{clienteCreado.email}<br />
@@ -3303,11 +3303,11 @@ export default function Admin() {
                   </div>
                 )
 
-                // ── Clientes (escritorio): dos columnas — tabla + alta ─────────
+                // Clientes (escritorio): dos columnas: tabla + alta
                 const cuentaCreadaCard = clienteCreado && (
                   <div style={{ marginTop: 14, padding: '1rem', borderRadius: 'var(--radius-sm)', background: 'var(--green-bg)', border: '1px solid var(--green)' }}>
                     <p style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, color: 'var(--text-strong)', marginBottom: 8 }}>
-                      <AdminIcon name="check" size={13} /> Cuenta creada — comparte estos accesos:
+                      <AdminIcon name="check" size={13} /> Cuenta creada: comparte estos accesos:
                     </p>
                     <p style={{ fontSize: 13, color: 'var(--text)', fontFamily: 'monospace', lineHeight: 1.7, wordBreak: 'break-all' }}>
                       <AdminIcon name="mail" size={13} style={{ verticalAlign: '-2px', marginRight: 4 }} />{clienteCreado.email}<br />
@@ -3451,7 +3451,7 @@ export default function Admin() {
                   </div>
                 )
 
-                // ── Mis quinielas ──────────────────────────────────────────────
+                // Mis quinielas
                 const misFlat = [...mias.activas, ...mias.enJuego, ...mias.finalizadas]
                 const filtrosMis = [
                   ['todas', 'Todas'],
@@ -3527,7 +3527,7 @@ export default function Admin() {
                   </div>
                 )
 
-                // ── Mis quinielas (escritorio): grupos por estado, grid 2× ─────
+                // Mis quinielas (escritorio): grupos por estado, grid 2×
                 const grupoQ = (titulo, arr, color, dim = false) => arr.length > 0 ? (
                   <div style={{ marginBottom: 22, opacity: dim ? 0.74 : 1 }}>
                     <p style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, fontWeight: 800, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--muted-soft)', margin: '0 0 11px' }}>
@@ -3591,7 +3591,7 @@ export default function Admin() {
                   </div>
                 )
 
-                // ── Quinielas de otros admins ──────────────────────────────────
+                // Quinielas de otros admins
                 const quinielasPorAdmin = {}
                 quinielasOtras.forEach(q => {
                   const uid = q.ownerUid || 'sin-owner'
@@ -3658,7 +3658,7 @@ export default function Admin() {
                   </div>
                 )
 
-                // ── Otros admins (escritorio): KPIs + tarjetas de admin ────────
+                // Otros admins (escritorio): KPIs + tarjetas de admin
                 const kpiOtros = (valor, label) => (
                   <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 13, padding: '15px 16px' }}>
                     <p style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 700, color: 'var(--text-strong)', margin: 0, lineHeight: 1 }}>{valor}</p>
@@ -3713,7 +3713,7 @@ export default function Admin() {
                   </div>
                 )
 
-                // ── Estadísticas ───────────────────────────────────────────────
+                // Estadísticas
                 const statsSection = (() => {
                   const statsQuinielas = quinielasMias
                   // statsDias trae 14 días: los últimos 7 (semana actual) + los 7 previos, para
@@ -3804,7 +3804,7 @@ export default function Admin() {
                     </div>
                   )
 
-                  // ── Gráfica de línea (7 puntos) para la tarjeta de visitas ──────────
+                  // Gráfica de línea (7 puntos) para la tarjeta de visitas
                   const chartW = 300, chartH = 74
                   const chartPts = dias.map((d, i) => {
                     const v = Number(d.visitas) || 0
@@ -3933,7 +3933,7 @@ export default function Admin() {
                         </div>
                         {horaPico && (
                           <p style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 10 }}>
-                            Pico a las <strong style={{ color: 'var(--text-strong)' }}>{horaPico}</strong> — ideal para avisar por WhatsApp.
+                            Pico a las <strong style={{ color: 'var(--text-strong)' }}>{horaPico}</strong>: ideal para avisar por WhatsApp.
                           </p>
                         )}
                       </div>
@@ -4133,7 +4133,7 @@ export default function Admin() {
                 return (
                   <>
                     {!superModulo && superDesktop && (() => {
-                      // ── Inicio / tablero maestro (escritorio) ──────────────────
+                      // Inicio / tablero maestro (escritorio)
                       // statsDias trae 14 días (para la tendencia de Estadísticas); aquí solo usamos los últimos 7.
                       const d7 = (statsDias ?? []).slice(-7)
                       const sum = (k) => d7.reduce((a, d) => a + (Number(d[k]) || 0), 0)
@@ -4143,7 +4143,7 @@ export default function Admin() {
                       const horasAcum = {}
                       d7.forEach(d => Object.entries(d.horas || {}).forEach(([h, n]) => { horasAcum[h] = (horasAcum[h] || 0) + (Number(n) || 0) }))
                       const hpEntry = Object.entries(horasAcum).sort((a, b) => b[1] - a[1])[0]
-                      const horaPico = hpEntry ? `${String(hpEntry[0]).padStart(2, '0')}:00` : '—'
+                      const horaPico = hpEntry ? `${String(hpEntry[0]).padStart(2, '0')}:00` : '-'
                       const maxV = Math.max(1, ...d7.map(d => Number(d.visitas) || 0))
                       const idxPico = d7.reduce((best, d, i) => (Number(d.visitas) || 0) > (Number(d7[best]?.visitas) || 0) ? i : best, 0)
                       const cajaNeto = saldos.reduce((a, s) => a + s.saldo, 0)
@@ -4314,7 +4314,7 @@ export default function Admin() {
                 )
               })()
             ) : (() => {
-              // ── Panel cliente (nuevo shell): router por pestaña ───────────────
+              // Panel cliente (nuevo shell): router por pestaña
               const nombreCli = adminDoc?.nombre?.split(' ')[0] || 'admin'
               const tituloGrupo = { fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }
               const totalJugadores = quinielasMias.reduce((a, q) => a + (conteos[q.id] || 0), 0)
@@ -4498,7 +4498,7 @@ export default function Admin() {
                 </div>
               )
 
-              // ── Router ──
+              // Router
               if (clienteTab === 'quinielas') {
                 return (<>{headerCli('Quinielas', `${quinielasMias.length} en total · ${mias.activas.length} activa${mias.activas.length !== 1 ? 's' : ''}`, ctaNueva)}{listaQuinielas}</>)
               }
@@ -4559,7 +4559,7 @@ export default function Admin() {
         )}
 
 
-        {/* ── Vista: Caja — detalle de participante ────────────────────── */}
+        {/* Vista: Caja: detalle de participante */}
         {vista === 'caja' && cajaNombre !== null && (
           <div className="super-module-content">
             {clienteShell && (
@@ -4651,7 +4651,7 @@ export default function Admin() {
           </div>
         )}
 
-        {/* ── Vista: Mi cuenta ─────────────────────────────────────────────── */}
+        {/* Vista: Mi cuenta */}
         {vista === 'cuenta' && (() => {
           const cuentaEmail = adminDoc?.email ?? auth.currentUser?.email ?? ''
           const nombreCuenta = cuentaNombre.trim() || adminDoc?.nombre || 'Mi cuenta'
@@ -4953,7 +4953,7 @@ export default function Admin() {
           )
         })()}
 
-        {/* ── Vista: Nueva quiniela ────────────────────────────────────────── */}
+        {/* Vista: Nueva quiniela */}
         {vista === 'nueva' && (
           <>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 14 }}>
@@ -4979,17 +4979,17 @@ export default function Admin() {
               <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', background: 'var(--green-bg)', border: '1px solid var(--green)', borderRadius: 'var(--radius-md)', padding: '12px 14px', marginBottom: 14 }}>
                 <span aria-hidden="true" style={{ fontSize: 18, lineHeight: 1.3, flexShrink: 0 }}>👋</span>
                 <p style={{ flex: 1, fontSize: 12.5, color: 'var(--text)', lineHeight: 1.55, margin: 0 }}>
-                  <strong style={{ color: 'var(--text-strong)' }}>Tip:</strong> ponle un <strong style={{ color: 'var(--text-strong)' }}>nombre</strong> y agrega tus <strong style={{ color: 'var(--text-strong)' }}>partidos con el buscador</strong>. La <strong style={{ color: 'var(--text-strong)' }}>hora de cierre</strong> se ajusta sola al primer partido. Comparte el <strong style={{ color: 'var(--text-strong)' }}>código</strong> — los <strong style={{ color: 'var(--text-strong)' }}>resultados se llenan automáticamente</strong> cuando terminan los partidos.
+                  <strong style={{ color: 'var(--text-strong)' }}>Tip:</strong> ponle un <strong style={{ color: 'var(--text-strong)' }}>nombre</strong> y agrega tus <strong style={{ color: 'var(--text-strong)' }}>partidos con el buscador</strong>. La <strong style={{ color: 'var(--text-strong)' }}>hora de cierre</strong> se ajusta sola al primer partido. Comparte el <strong style={{ color: 'var(--text-strong)' }}>código</strong>: los <strong style={{ color: 'var(--text-strong)' }}>resultados se llenan automáticamente</strong> cuando terminan los partidos.
                 </p>
                 <button onClick={cerrarTipNueva} aria-label="Cerrar tip" style={{ background: 'none', border: 'none', color: 'var(--muted)', fontSize: 14, fontWeight: 700, cursor: 'pointer', padding: '0 2px', flexShrink: 0, lineHeight: 1.3 }}>✕</button>
               </div>
             )}
 
-            {/* 1. ¿Qué es? — identidad de la quiniela */}
+            {/* 1. ¿Qué es?: identidad de la quiniela */}
             <div style={card}>
               <label htmlFor="quiniela-nombre" style={lbl}>Nombre de la quiniela</label>
               <div style={{ display: 'flex', gap: 8, alignItems: 'stretch', marginBottom: 14 }}>
-                <input id="quiniela-nombre" type="text" placeholder="Ej. Jornada 17 — Liga MX" value={nombre} onChange={e => setNombre(e.target.value)} style={{ flex: 1, marginBottom: 0 }} />
+                <input id="quiniela-nombre" type="text" placeholder="Ej. Jornada 17: Liga MX" value={nombre} onChange={e => setNombre(e.target.value)} style={{ flex: 1, marginBottom: 0 }} />
                 <EmojiPicker inputId="quiniela-nombre" value={nombre} onChange={setNombre} />
               </div>
             </div>
@@ -5007,7 +5007,7 @@ export default function Admin() {
                 <p style={{ fontSize: 13, color: 'var(--muted)', textAlign: 'center', padding: '1rem 0' }}>Aún no hay partidos. Búscalos arriba y agrégalos.</p>
               )}
               {partidos.map((p, i) => (
-                // ── Tarjeta solo lectura (los partidos vienen de ESPN, no se editan) ──
+                // Tarjeta solo lectura (los partidos vienen de ESPN, no se editan)
                 <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: i < partidos.length - 1 ? '1px solid var(--border)' : 'none' }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -5024,7 +5024,7 @@ export default function Admin() {
               ))}
             </div>
 
-            {/* 3. Cierre — depende de los partidos, por eso va después de ellos */}
+            {/* 3. Cierre: depende de los partidos, por eso va después de ellos */}
             <div style={card}>
               <label htmlFor="quiniela-cierre" style={{ ...lbl, marginBottom: 4 }}>
                 Fecha y hora de cierre <span style={{ color: 'var(--red)' }}>*</span>
@@ -5045,7 +5045,7 @@ export default function Admin() {
               )}
             </div>
 
-            {/* 4. Acceso — quién puede entrar */}
+            {/* 4. Acceso: quién puede entrar */}
             <div style={card}>
               <label htmlFor="quiniela-codigo" style={{ ...lbl, marginBottom: 4 }}>Código de acceso <span style={{ color: 'var(--red)' }}>*</span></label>
               <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>
@@ -5068,7 +5068,7 @@ export default function Admin() {
           </>
         )}
 
-        {/* ── Vista: Gestionar quiniela ────────────────────────────────────── */}
+        {/* Vista: Gestionar quiniela */}
         {vista === 'gestionar' && quinielaActual && (() => {
           const estaCerrada = esCerradaQ(quinielaActual)
           const estaFinalizada = esFinalizadaQ(quinielaActual)
@@ -5184,7 +5184,7 @@ export default function Admin() {
                             borderBottom: ultimo ? 'none' : '1px solid var(--border)',
                           }}
                         >
-                          {/* Fila horizontal estilo ranking: local — marcador — visitante */}
+                          {/* Fila horizontal estilo ranking: local: marcador: visitante */}
                           <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) auto minmax(0,1fr)', gap: 10, alignItems: 'center' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0, justifyContent: 'flex-end' }}>
                               <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'right' }}>
@@ -5200,7 +5200,7 @@ export default function Admin() {
                               color: cancelado ? 'var(--muted)' : pendiente ? 'var(--muted-soft)' : 'var(--text-strong)',
                               textDecoration: cancelado ? 'line-through' : 'none',
                             }}>
-                              {cancelado ? '—' : pendiente ? 'vs' : `${r.local}–${r.visitante}`}
+                              {cancelado ? 'Cancelado' : pendiente ? 'vs' : `${r.local}-${r.visitante}`}
                             </span>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
                               {escudoMini(p.escudoVisitante, p.visitante)}
@@ -5396,7 +5396,7 @@ export default function Admin() {
                         return listaFiltrada.map((pred, i) => {
                         const fecha = pred.fecha
                           ? new Date(pred.fecha).toLocaleString('es-MX', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
-                          : '—'
+                          : '-'
                         const yaPagado = pagados.includes(pred.id)
                         const togglingEste = togglingPago === pred.id
                         return (
@@ -5563,7 +5563,7 @@ export default function Admin() {
                       </SmoothCollapse>
                     )}
                     {editPartidos.map((p, i) => (
-                      // ── Tarjeta solo lectura (los partidos vienen de ESPN, no se editan) ──
+                      // Tarjeta solo lectura (los partidos vienen de ESPN, no se editan)
                       <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: i < editPartidos.length - 1 ? '1px solid var(--border)' : 'none' }}>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -5592,7 +5592,7 @@ export default function Admin() {
                     )}
                   </div>
 
-                  {/* 3. Cierre — depende de los partidos */}
+                  {/* 3. Cierre: depende de los partidos */}
                   <div style={card}>
                     <label htmlFor="edit-cierre" style={{ ...lbl, marginBottom: 4 }}>
                       Fecha y hora de cierre <span style={{ color: 'var(--red)' }}>*</span>
@@ -5613,7 +5613,7 @@ export default function Admin() {
                     )}
                   </div>
 
-                  {/* 4. Acceso — quién puede entrar */}
+                  {/* 4. Acceso: quién puede entrar */}
                   <div style={card}>
                     <label htmlFor="edit-codigo" style={{ ...lbl, marginBottom: 4 }}>Código de acceso <span style={{ color: 'var(--red)' }}>*</span></label>
                     <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>
@@ -5825,7 +5825,7 @@ export default function Admin() {
   )
 }
 
-// ─── Componente de card de quiniela en la lista ───────────────────────────────
+// Componente de card de quiniela en la lista
 function QuinielaCard({ q, conteos, onGestionar, dueno, superCompact = false, softManage = false }) {
   const cerrada = esCerradaQ(q)
   const finalizada = cerrada && esFinalizadaQ(q)

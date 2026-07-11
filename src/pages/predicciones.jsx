@@ -326,7 +326,7 @@ export default function Predicciones() {
   // Detectar si ya se envió una predicción para esta quiniela desde este dispositivo.
   // Antes de bloquear, verificamos en el servidor que la predicción SIGA existiendo:
   // si el organizador ya la borró (para que el jugador re-capture sus picks), limpiamos
-  // la marca local sola — así puede volver a registrarse en el mismo navegador, sin
+  // la marca local sola: así puede volver a registrarse en el mismo navegador, sin
   // incógnito ni borrar caché. Si no existe nada, no hay nada que bloquear.
   useEffect(() => {
     if (!quiniela || cerrada || !lsEnviadoKey) return
@@ -364,7 +364,7 @@ export default function Predicciones() {
   }, [quiniela, cerrada, lsEnviadoKey, quinielaId])
 
   // Restaurar progreso desde localStorage cuando se carga la quiniela (si no está cerrada)
-  // En quinielas tipo "bote" NO restauramos confirmadoRegla — forzamos reconfirmación cada vez
+  // En quinielas tipo "bote" NO restauramos confirmadoRegla: forzamos reconfirmación cada vez
   useEffect(() => {
     if (!quiniela || cerrada || restauradoRef.current || !lsKey) return
     restauradoRef.current = true
@@ -502,7 +502,7 @@ export default function Predicciones() {
     }
   }
 
-  // ── Estados ─────────────────────────────────────────────────
+  // Estados
 
   if (cargando) return (
     <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: '#070d18', color: 'var(--muted)', fontSize: 14 }}>
@@ -577,7 +577,7 @@ export default function Predicciones() {
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 'var(--pred-review-center-gap, 5px)' }}>
                       <span style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--pred-review-score-size, 18px)', fontWeight: 700, color: 'var(--text-strong)', padding: 'var(--pred-review-score-padding, 2px 12px)', minWidth: 'var(--pred-review-score-min-width, 58px)', textAlign: 'center', background: 'var(--green-bg)', borderRadius: 'var(--radius-sm)' }}>
-                        {pick?.local ?? '?'}–{pick?.visitante ?? '?'}
+                        {pick?.local ?? '?'}-{pick?.visitante ?? '?'}
                       </span>
                       <span style={{ fontSize: 'var(--pred-review-badge-size, 10px)', fontWeight: 700, padding: 'var(--pred-review-badge-padding, 2px 8px)', borderRadius: 'var(--radius-full)', background: info?.bg ?? 'transparent', color: info?.color ?? 'transparent', whiteSpace: 'nowrap', textAlign: 'center' }}>
                         {info?.label ?? ''}
@@ -750,7 +750,7 @@ export default function Predicciones() {
 
       <div className="pred-content" style={{ width: '100%', maxWidth: 560, margin: '0 auto', padding: pantallaArmonia ? 'var(--pred-content-padding-armonia, 0.5rem 1rem 3rem)' : 'var(--pred-content-padding, 1.25rem 1rem 3rem)', flex: '1 0 auto', display: 'flex', flexDirection: 'column' }}>
 
-        {/* ── Quiniela cerrada ────────────────────────────────────────── */}
+        {/* Quiniela cerrada */}
         {cerrada ? (
           <div style={{ textAlign: 'center', padding: 'var(--pred-closed-padding, 3rem 1.5rem)', maxWidth: 440, margin: '0 auto', width: '100%' }}>
             <span className="pred-live-ball-wrap" aria-hidden="true">
@@ -777,7 +777,7 @@ export default function Predicciones() {
           </div>
 
         ) : !accesoOk ? (
-          /* ── Gate: código de acceso (quinielas privadas) ─────────────── */
+          /* Gate: código de acceso (quinielas privadas) */
           <div>
             <div style={{
               background: 'linear-gradient(135deg, rgba(30,41,59,0.92), rgba(15,24,40,0.95))',
@@ -856,7 +856,7 @@ export default function Predicciones() {
           </div>
 
         ) : yaEnviadoAntes ? (
-          /* ── Ya envió desde este dispositivo (mitigación duplicados) ─── */
+          /* Ya envió desde este dispositivo (mitigación duplicados) */
           <div>
             <div style={{
               background: 'var(--card)', borderRadius: 'var(--radius-lg)',
@@ -894,7 +894,7 @@ export default function Predicciones() {
           </div>
 
         ) : (tienePremio(quiniela) && !confirmadoRegla) ? (
-          /* ── Banner de premio + confirmación ──────────────────────────── */
+          /* Banner de premio + confirmación */
           <div>
             <div style={{
               background: 'linear-gradient(135deg, rgba(30,41,59,0.92), rgba(15,24,40,0.95))',
@@ -1088,7 +1088,7 @@ export default function Predicciones() {
               </div>
             )}
 
-            {/* ── Pantalla de resumen ─────────────────────────────────── */}
+            {/* Pantalla de resumen */}
             {mostrarResumen ? (
           <div>
             <div style={{
@@ -1118,7 +1118,7 @@ export default function Predicciones() {
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 'var(--pred-review-center-gap, 5px)' }}>
                           <span style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--pred-review-score-size, 20px)', fontWeight: 700, color: 'var(--text-strong)', padding: 'var(--pred-review-score-padding, 2px 14px)', minWidth: 'var(--pred-review-score-min-width, 64px)', textAlign: 'center', background: 'var(--green-bg)', borderRadius: 'var(--radius-sm)' }}>
-                            {pick?.local ?? '?'} – {pick?.visitante ?? '?'}
+                            {pick?.local ?? '?'} - {pick?.visitante ?? '?'}
                           </span>
                           <span style={{ fontSize: 'var(--pred-review-badge-size, 10px)', fontWeight: 700, padding: 'var(--pred-review-badge-padding, 2px 8px)', borderRadius: 'var(--radius-full)', background: info?.bg ?? 'transparent', color: info?.color ?? 'transparent', whiteSpace: 'nowrap', textAlign: 'center' }}>
                             {info?.label ?? ''}
@@ -1169,7 +1169,7 @@ export default function Predicciones() {
             </button>
           </div>
 
-            /* ── Formulario principal ─────────────────────────────── */
+            /* Formulario principal */
             ) : (
           <>
             {/* Nombre */}
@@ -1254,7 +1254,7 @@ export default function Predicciones() {
                           setPick(i, 'local', norm)
                           if (eraVacio && v.length === 1) visitanteRefs.current[i]?.focus()
                         }}
-                        placeholder="–"
+                        placeholder="-"
                         style={{
                           width: 'var(--pred-score-input-width, 68px)', textAlign: 'center', fontFamily: 'var(--font-display)', fontSize: 'var(--pred-score-input-size, 30px)', fontWeight: 700,
                           padding: 'var(--pred-score-input-padding, 10px 4px)', borderRadius: 'var(--radius-md)',
@@ -1265,7 +1265,7 @@ export default function Predicciones() {
                       />
                     </div>
 
-                    <span style={{ fontSize: 'var(--pred-score-separator-size, 22px)', color: 'var(--muted-dim)', fontWeight: 700, paddingBottom: 'var(--pred-score-separator-pad, 12px)' }}>–</span>
+                    <span style={{ fontSize: 'var(--pred-score-separator-size, 22px)', color: 'var(--muted-dim)', fontWeight: 700, paddingBottom: 'var(--pred-score-separator-pad, 12px)' }}>-</span>
 
                     {/* Visitante */}
                     <div style={{ textAlign: 'center' }}>
@@ -1285,7 +1285,7 @@ export default function Predicciones() {
                           setPick(i, 'visitante', v === '' ? '' : String(Number(v)))
                           if (eraVacio && v.length === 1) localRefs.current[i + 1]?.focus()
                         }}
-                        placeholder="–"
+                        placeholder="-"
                         style={{
                           width: 'var(--pred-score-input-width, 68px)', textAlign: 'center', fontFamily: 'var(--font-display)', fontSize: 'var(--pred-score-input-size, 30px)', fontWeight: 700,
                           padding: 'var(--pred-score-input-padding, 10px 4px)', borderRadius: 'var(--radius-md)',

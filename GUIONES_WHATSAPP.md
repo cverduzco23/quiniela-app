@@ -1,9 +1,9 @@
-# Guiones de WhatsApp — Alta de clientes-admin
+# Guiones de WhatsApp: Alta de clientes-admin
 
 Mensajes para responder por WhatsApp en el flujo de alta de un cliente que quiere
 crear su quiniela y su cuenta.
 
-**Número oficial:** +52 56 5249 1143 (`525652491143`) — definido en `src/utils/whatsapp.js`.
+**Número oficial:** +52 56 5249 1143 (`525652491143`): definido en `src/utils/whatsapp.js`.
 
 > ⚠️ **Importante:** un mensaje lo manda la app sola (el de los accesos, paso 3). Los demás los respondes tú.
 > Datos alineados con la app: primera quiniela gratis, **$49 por quiniela**, **$299 Pase Mundial**,
@@ -18,7 +18,7 @@ crear su quiniela y su cuenta.
 
 ---
 
-## 2️⃣ Tu respuesta — bienvenida + cómo funciona + pedir datos
+## 2️⃣ Tu respuesta: bienvenida + cómo funciona + pedir datos
 
 ```
 ¡Hola! Claro, con gusto te ayudo 🙌
@@ -37,7 +37,7 @@ Me los pasas y en un momento te mando tus datos para entrar.
 
 ---
 
-## 3️⃣ Accesos — ⚙️ lo manda la app por ti
+## 3️⃣ Accesos: ⚙️ lo manda la app por ti
 
 Después de que te den sus datos, créalos en el panel: **pestaña Clientes → crear cliente**.
 El panel genera la contraseña temporal y muestra el botón **"enviar accesos por WhatsApp"**,
@@ -49,7 +49,7 @@ que envía solito este mensaje:
 
 ---
 
-## 4️⃣ Tu respuesta — orientación rápida (opcional, justo después)
+## 4️⃣ Tu respuesta: orientación rápida (opcional, justo después)
 
 ```
 Ya que entres y cambies tu contraseña, te saldrá un tour rápido 👀
@@ -76,7 +76,7 @@ En cuanto lo cubras te activo [una quiniela más / el Pase Mundial] y te confirm
 
 ---
 
-## 6️⃣ Tu respuesta — confirmar pago y activación
+## 6️⃣ Tu respuesta: confirmar pago y activación
 
 ```
 ¡Listo! Ya quedó activado tu [+1 quiniela / Pase Mundial] ✅

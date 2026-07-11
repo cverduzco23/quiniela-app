@@ -1,4 +1,4 @@
-# Plan de onboarding de clientes (admins) — QuinielApp
+# Plan de onboarding de clientes (admins): QuinielApp
 
 > Estado: **IMPLEMENTADO y en producción (2026-06-05).** Fases A+B+C pusheadas a `main`
 > (deploy automático a Vercel). Pendiente: Fase D (ver §12).
@@ -10,7 +10,7 @@
 > [ROADMAP.md](ROADMAP.md) (incluye la auditoría completa de seguridad y costos). Ese
 > documento manda sobre esta sección.
 
-## ⏳ Pendiente (Fase D — post-lanzamiento, opcional)
+## ⏳ Pendiente (Fase D: post-lanzamiento, opcional)
 - **Automatizar sincronización de resultados ESPN** (Cloud Function programada, plan Blaze).
   Hoy es manual: el admin da "⚡ Sincronizar ESPN" al terminar los partidos.
 - **App Check (reCAPTCHA v3)** para endurecer seguridad antes de abrir a público amplio.
@@ -38,7 +38,7 @@ filtrado por dueño en reglas y en `admin.jsx`). Solo hay que construir lo de ar
 
 - **Roles** en [`firestore.rules`](firestore.rules): `isSuperAdmin()` (César) + `esDuenoDeQuiniela()` + `ownerUid` por quiniela.
 - **Login** email/contraseña en [`admin.jsx`](src/pages/admin.jsx) (`signInWithEmailAndPassword`, `onAuthStateChanged`).
-- **Filtrado por dueño**: `esMia(q)` — un admin normal solo ve/edita sus quinielas.
+- **Filtrado por dueño**: `esMia(q)`: un admin normal solo ve/edita sus quinielas.
 - **CTA comercial** ya presente: [`PromoCTA.jsx`](src/components/PromoCTA.jsx) y [`Footer.jsx`](src/components/Footer.jsx) (hoy apuntan a `quinielapp.fun`, NO a WhatsApp).
 - **Signups públicos deshabilitados** en Firebase Auth (correcto).
 - **Tracking** vía `track()` en [`firebase.js`](src/firebase.js).
@@ -47,7 +47,7 @@ filtrado por dueño en reglas y en `admin.jsx`). Solo hay que construir lo de ar
 
 ## 2. Lo que FALTA construir (4 piezas)
 
-1. **Colección `admins/{uid}`** — perfil + derechos (plan, cuota, activo, flag de cambio de contraseña).
+1. **Colección `admins/{uid}`**: perfil + derechos (plan, cuota, activo, flag de cambio de contraseña).
 2. **Cambio de contraseña forzado** en primer ingreso + **"Olvidé mi contraseña"**.
 3. **Mini-tour / onboarding** + **paywall post-primera-quiniela** con deep-links a WhatsApp.
 4. **Panel de Clientes** (solo super admin) para crear/activar clientes y marcar pagos.
@@ -84,7 +84,7 @@ puedeCrear = activo && ( temporadaVigente || quinielasCreadas < quinielasPermiti
 
 ---
 
-## 4. Seguridad — qué es gate DURO y qué es suave (honestidad total)
+## 4. Seguridad: qué es gate DURO y qué es suave (honestidad total)
 
 > Esta es la parte que el usuario pidió cuidar. Hay un trade-off real que conviene entender.
 
@@ -102,7 +102,7 @@ puedeCrear = activo && ( temporadaVigente || quinielasCreadas < quinielasPermiti
 - **Por qué es aceptable para lanzar:** (1) son clientes que pagan y ya validaste por WhatsApp;
   (2) tú ves TODAS las quinielas en tu panel, así que detectas abuso; (3) el `activo` te deja
   apagar a cualquiera al instante; (4) burlarlo requiere abrir DevTools y saber del SDK de
-  Firestore — desproporcionado para ahorrarse ~$79.
+  Firestore: desproporcionado para ahorrarse ~$79.
 - **Endurecimiento futuro (Fase D, opcional):** mover la creación de quinielas a una **Cloud
   Function** (plan Blaze de Firebase, con costo) que descuente la cuota del lado servidor. Solo
   vale la pena si el volumen/abuso lo justifica. Documentado, no bloquea el lanzamiento.
@@ -115,7 +115,7 @@ puedeCrear = activo && ( temporadaVigente || quinielasCreadas < quinielasPermiti
 
 ---
 
-## 5. Reglas de Firestore — cambios
+## 5. Reglas de Firestore: cambios
 
 ```js
 // Helper nuevo
@@ -178,8 +178,8 @@ match /quinielas/{quinielaId} {
 10. **Al terminar**, si ya usó su cuota (`quinielasCreadas >= quinielasPermitidas` y sin
     temporada), ve una pantalla: *"🎉 ¡Tu primera quiniela gratis quedó lista! Para crear más,
     elige tu plan:"* con dos opciones:
-    - **Por quiniela** — $XX
-    - **Pase de temporada** — $XXX
+    - **Por quiniela**: $XX
+    - **Pase de temporada**: $XXX
 11. Cada opción abre **WhatsApp** con mensaje pre-armado según el plan (ver §8).
 12. (César valida el pago y marca el plan en su panel.)
 13. El cliente ya puede crear más quinielas (por 1 más, o ilimitadas hasta la fecha del pase).
@@ -191,37 +191,37 @@ match /quinielas/{quinielaId} {
 
 ---
 
-## 7. Flujo del SUPER ADMIN (César) — panel de Clientes
+## 7. Flujo del SUPER ADMIN (César): panel de Clientes
 
 Nuevo tab **"Clientes"** en `/admin`, visible solo si `soySuper`:
 - **Lista de clientes**: nombre, empresa, email, plan, `quinielasCreadas/quinielasPermitidas`,
   estado (activo/inactivo), temporada hasta.
 - **Acciones por cliente**:
   - ✅ **Activar / desactivar** (`activo`).
-  - ➕ **+1 quiniela** (incrementa `quinielasPermitidas`) — tras validar pago por quiniela.
+  - ➕ **+1 quiniela** (incrementa `quinielasPermitidas`): tras validar pago por quiniela.
   - 🏆 **Dar pase de temporada** (set `temporadaHasta` con date-picker + `plan='temporada'`).
   - 📝 Editar notas internas.
 - **Crear cliente desde el panel**: formulario que registra el doc `admins/{uid}`.
   > ⚠️ La cuenta de **Auth** (email+contraseña) se sigue creando a mano en Firebase Console
   > (decisión confirmada). El panel solo crea el doc de perfil/derechos. Para vincularlos,
   > César pega el **UID** que Console le dio. (Alternativa futura: script con Admin SDK que
-  > cree Auth + doc en un paso — Fase D.)
+  > cree Auth + doc en un paso: Fase D.)
 
 > **Pagos**: 100% manual por ahora (link MercadoPago genérico + validación en su dashboard +
 > botón "marcar pagado" en el panel). Sin webhooks. Coincide con el plan de pagos ya documentado.
 
 ---
 
-## 8. Mensajes de WhatsApp (borradores — ajustar tono)
+## 8. Mensajes de WhatsApp (borradores: ajustar tono)
 
 Se arman como links `https://wa.me/<NUMERO>?text=<mensaje-encodeado>`.
 > ✅ **Número WhatsApp Business: `525652491143`** (+52 56 5249 1143). Se guarda como
 > constante `WHATSAPP_NUMERO` en `src/utils/whatsapp.js`.
 
-**A) Desde el home — "Quiero crear mi quiniela":**
+**A) Desde el home: "Quiero crear mi quiniela":**
 > ¡Hola! 👋 Quiero crear mi propia quiniela en QuinielApp.fun. ¿Me ayudas a empezar?
 
-**B) Plantilla que César responde (manual, para tener lista) — datos + alta:**
+**B) Plantilla que César responde (manual, para tener lista): datos + alta:**
 > ¡Hola! Con gusto te creamos tu quiniela 🎉
 > Para darte de alta necesito:
 > 1) Nombre de quien la organiza
@@ -236,15 +236,15 @@ Se arman como links `https://wa.me/<NUMERO>?text=<mensaje-encodeado>`.
 > 👉 Al entrar la primera vez, la app te pedirá **cambiar tu contraseña**. Después te damos un
 > mini-tour y creas tu primera quiniela. ¡Cualquier duda, aquí estoy!
 
-**D) Desde el paywall — "Por quiniela":**
+**D) Desde el paywall: "Por quiniela":**
 > ¡Hola! Quiero adquirir **una quiniela más** en QuinielApp. ¿Me pasas el link de pago?
 
-**E) Desde el paywall — "Pase de temporada":**
+**E) Desde el paywall: "Pase de temporada":**
 > ¡Hola! Quiero el **pase de temporada** de QuinielApp (quinielas ilimitadas). ¿Me pasas el link de pago?
 
 ---
 
-## 9. Precios (propuesta — bajos, para captar clientes)
+## 9. Precios (propuesta: bajos, para captar clientes)
 
 | Plan | Para quién | Precio (MXN) |
 |------|-----------|----------------------|
@@ -257,7 +257,7 @@ Se arman como links `https://wa.me/<NUMERO>?text=<mensaje-encodeado>`.
 
 ---
 
-## 10. Onboarding / tour — recomendación
+## 10. Onboarding / tour: recomendación
 
 **Recomendado: enfoque ligero y a prueba de fallos**, sin librerías pesadas de tour
 (react-joyride añade peso y bugs; contra el objetivo "nada debe fallar"). En su lugar:
@@ -290,30 +290,30 @@ Se arman como links `https://wa.me/<NUMERO>?text=<mensaje-encodeado>`.
 
 ## 12. Plan por fases
 
-### Fase A — Mínimo para vender YA (prioridad por el Mundial)
+### Fase A: Mínimo para vender YA (prioridad por el Mundial)
 - [ ] Colección `admins/{uid}` + reglas (gate `activo`, perfil, self-update acotado).
 - [ ] Pantalla de **cambio de contraseña forzado** + **"Olvidé mi contraseña"**.
 - [ ] CTA del home → **WhatsApp** + acceso "Soy organizador".
 - [ ] Helper `whatsapp.js` + mensajes.
-- [ ] **Ocultar botón "💰 Caja"** para admins normales (envolver en `soySuper`) —
+- [ ] **Ocultar botón "💰 Caja"** para admins normales (envolver en `soySuper`):
       la colección `movimientos` es solo super admin; si un cliente le pica, truena.
-- [ ] Crear 1–2 cuentas de prueba a mano (Console) y validar el flujo completo.
+- [ ] Crear 1-2 cuentas de prueba a mano (Console) y validar el flujo completo.
 
 → Con esto ya puedes dar de alta clientes y cobrar manualmente (Pase Mundial).
 
-### Fase B — Monetización en-app
+### Fase B: Monetización en-app
 - [ ] Lógica de entitlements + incremento `quinielasCreadas`.
 - [ ] **Paywall** post-primera-quiniela con deep-links de plan.
 - [ ] **Tab Clientes** (super admin): activar, +1 quiniela, dar temporada, notas.
 - [ ] Mini-tour de bienvenida.
 
-### Fase C — Pulido
+### Fase C: Pulido
 - [ ] Empty states, textos de ayuda, "¿Cómo funciona?".
 - [ ] Métricas (`track`) de cada paso del embudo.
 
-### Fase D — Endurecimiento (opcional, post-lanzamiento)
+### Fase D: Endurecimiento (opcional, post-lanzamiento)
 - [ ] App Check (reCAPTCHA v3).
-- [ ] Cloud Function para crear quinielas server-side (cuota dura) — requiere Blaze.
+- [ ] Cloud Function para crear quinielas server-side (cuota dura): requiere Blaze.
 - [ ] Script Admin SDK para crear Auth + doc en un paso.
 
 ---
@@ -332,7 +332,7 @@ Se arman como links `https://wa.me/<NUMERO>?text=<mensaje-encodeado>`.
 
 ---
 
-## 14. Decisiones — estado
+## 14. Decisiones: estado
 
 1. ✅ **WhatsApp:** `525652491143`.
 2. ✅ **Precios:** $49 por quiniela (lanzamiento) + $299 Pase Mundial. Sin pase de temporada.
@@ -346,13 +346,13 @@ Se arman como links `https://wa.me/<NUMERO>?text=<mensaje-encodeado>`.
 ## 15. Datos del cliente a guardar (recomendación)
 
 **Mínimo necesario (Fase A):**
-- `nombre` — quién organiza.
-- `email` — identificador de login (espejo de Auth).
-- `telefono` — su WhatsApp, para tu seguimiento.
+- `nombre`: quién organiza.
+- `email`: identificador de login (espejo de Auth).
+- `telefono`: su WhatsApp, para tu seguimiento.
 
 **Útil pero opcional:**
-- `empresa` — si aplica.
-- `notas` — campo libre tuyo (ej. "pagó por SPEI 5/jun", "cliente de Monterrey").
+- `empresa`: si aplica.
+- `notas`: campo libre tuyo (ej. "pagó por SPEI 5/jun", "cliente de Monterrey").
 
 **NO recomiendo guardar por ahora:**
 - **RFC / razón social:** solo si vas a **facturar**. Si no emites facturas todavía, no lo pidas

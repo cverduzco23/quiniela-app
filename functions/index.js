@@ -33,7 +33,7 @@ const db = getFirestore()
 
 export { crearSesionDonativo, webhookDonativos } from './stripe.js'
 
-// ─── Helpers copiados de src/utils (scoring.js, cierre.js, espn.js) ─────────
+// Helpers copiados de src/utils (scoring.js, cierre.js, espn.js)
 // Las funciones de la app viven en src/utils pero el deploy de Cloud Functions
 // solo empaca esta carpeta, así que se duplican aquí. Si cambias la lógica de
 // scoring o de match contra ESPN, actualiza ambos lados.
@@ -99,7 +99,7 @@ function findEventByTeamsAndDate(events, partidoLocal, partidoVisitante, partido
   return matches.length === 1 ? matches[0] : null
 }
 
-// ─── Selección de quinielas a sincronizar ────────────────────────────────────
+// Selección de quinielas a sincronizar
 
 // Cuántos días después del último partido seguimos intentando sincronizar.
 // Evita trabajar para siempre en quinielas abandonadas (ej. un partido que
@@ -116,7 +116,7 @@ function tieneMarcadorFinal(r) {
 export function necesitaSync(q, ahora = new Date()) {
   // OJO: no descartamos por q.finalizada. El ranking (ranking.jsx) marca
   // finalizada:true desde el navegador cuando ve todos los partidos terminados
-  // en ESPN, pero NO guarda los marcadores — si la saltáramos por ese flag,
+  // en ESPN, pero NO guarda los marcadores; si la saltáramos por ese flag,
   // los resultados nunca quedarían persistidos. El filtro real es "¿quedan
   // partidos ESPN sin marcador guardado?", que ya cubre ambos casos.
   if (!q) return false
@@ -136,7 +136,7 @@ export function necesitaSync(q, ahora = new Date()) {
   return true
 }
 
-// ─── Consulta a ESPN ─────────────────────────────────────────────────────────
+// Consulta a ESPN
 
 function fmtDia(d) {
   const pad = n => String(n).padStart(2, '0')
@@ -185,7 +185,7 @@ function resultadoDeEvento(ev) {
   return { local: home.score, visitante: away.score, resultado: goalsToResultado(home.score, away.score) }
 }
 
-// ─── Sincronizar una quiniela ────────────────────────────────────────────────
+// Sincronizar una quiniela
 
 async function sincronizarQuiniela(q, cache) {
   const partidos = q.partidos ?? []
@@ -241,7 +241,7 @@ async function sincronizarQuiniela(q, cache) {
   return { actualizados, idsCorregidos, finalizada: !!patch.finalizada }
 }
 
-// ─── La función programada ───────────────────────────────────────────────────
+// La función programada
 
 export const sincronizarResultados = onSchedule({
   schedule: 'every 10 minutes',
@@ -272,7 +272,7 @@ export const sincronizarResultados = onSchedule({
       if (r) {
         logger.info(`Quiniela ${q.id} ("${q.nombre ?? ''}"): ${r.actualizados} resultado(s) guardado(s)` +
           (r.idsCorregidos ? `, ${r.idsCorregidos} ID(s) de ESPN corregido(s)` : '') +
-          (r.finalizada ? ' — FINALIZADA 🏆' : ''))
+          (r.finalizada ? ' (FINALIZADA 🏆)' : ''))
       }
     } catch (err) {
       logger.error(`Error sincronizando quiniela ${q.id}: ${err.message}`)

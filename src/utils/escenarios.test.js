@@ -6,8 +6,8 @@ import { simularUltimoPartido } from './escenarios'
 function quinielaBase() {
   return {
     partidos: [
-      { local: 'A', visitante: 'B' },          // idx 0 — decidido
-      { local: 'Türkiye', visitante: 'Paraguay' }, // idx 1 — pendiente
+      { local: 'A', visitante: 'B' },          // idx 0: decidido
+      { local: 'Türkiye', visitante: 'Paraguay' }, // idx 1: pendiente
     ],
     resultados: { 0: { local: 1, visitante: 0 } }, // home
   }

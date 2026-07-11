@@ -1,13 +1,13 @@
 import { goalsToResultado, getResultado, getPickResultado, getEfectivo } from './scoring'
 import { normalizarNombre } from './nombres'
 
-// ── ¿Quién gana según el marcador del último partido? ───────────────────────
+// ¿Quién gana según el marcador del último partido?
 //
 // Cuando queda EXACTAMENTE un partido sin definir, el desenlace de toda la
 // quiniela depende solo de ese marcador. El espacio de posibilidades es finito
 // y se puede enumerar:
-//   • El punto por RESULTADO solo depende de Local / Empate / Visitante.
-//   • El +2 por EXACTO solo lo puede ganar quien pronosticó ESE marcador.
+// • El punto por RESULTADO solo depende de Local / Empate / Visitante.
+// • El +2 por EXACTO solo lo puede ganar quien pronosticó ESE marcador.
 // Por eso basta simular: cada marcador que algún jugador pronosticó para ese
 // partido + tres casos genéricos ("cualquier otra" victoria local / empate /
 // victoria visitante). Eso cubre el 100% de los desenlaces sin tablas infinitas.
@@ -40,7 +40,7 @@ export function simularUltimoPartido(quiniela, predicciones, liveScores = {}) {
 
   // Clasificar: un partido está "decidido" si ya tiene resultado final o está
   // cancelado. Un partido en curso (ESPN state === 'in') cuenta como pendiente,
-  // porque su marcador aún puede cambiar — y es justo lo que queremos simular.
+  // porque su marcador aún puede cambiar, justo lo que queremos simular.
   const pendientes = []
   partidos.forEach((p, i) => {
     const live = p?.espnId ? liveScores?.[p.espnId] : null

@@ -68,7 +68,7 @@ function Banda({ d, miNombreVisible, onAlias }) {
       <div className="tq-banda" style={{ background: 'linear-gradient(135deg,rgba(250,204,21,0.12),rgba(250,204,21,0.03))', border: '1px solid rgba(250,204,21,0.28)' }}>
         <div className="tq-banda-num-col">
           <p className="tq-banda-num" style={{ color: '#FCD34D' }}>
-            {d.restante ? d.restante.valor : '—'}<span className="tq-banda-num-suf">{d.restante ? d.restante.unidad : ''}</span>
+            {d.restante ? d.restante.valor : '-'}<span className="tq-banda-num-suf">{d.restante ? d.restante.unidad : ''}</span>
           </p>
           <p className="tq-banda-sub">PARA CERRAR</p>
         </div>
@@ -118,7 +118,7 @@ function Banda({ d, miNombreVisible, onAlias }) {
         <div className="tq-banda-mid" style={{ flex: 1 }}>
           <p className="tq-banda-label" style={{ color: '#86EFAC' }}>TU POSICIÓN</p>
           <p className="tq-banda-value">
-            {miNombreVisible} — <span className="tq-banda-value-pts">{d.misPuntos}</span> pts
+            {miNombreVisible} - <span className="tq-banda-value-pts">{d.misPuntos}</span> pts
           </p>
           {d.subnota && <p className="tq-banda-subnota tq-banda-subnota--inline">{d.subnota.toLowerCase()}</p>}
         </div>
@@ -147,7 +147,7 @@ function Banda({ d, miNombreVisible, onAlias }) {
       <div className="tq-banda-mid" style={{ flex: 1 }}>
         <p className="tq-banda-label" style={{ color: dorado ? '#FCD34D' : '#9CA3AF' }}>{dorado ? '🏆 GANASTE' : 'TU POSICIÓN'}</p>
         <p className="tq-banda-value">
-          {miNombreVisible} — <span className="tq-banda-value-pts">{d.misPuntos}</span> pts
+          {miNombreVisible} - <span className="tq-banda-value-pts">{d.misPuntos}</span> pts
         </p>
         {d.subnota && <p className="tq-banda-subnota tq-banda-subnota--inline">{d.subnota.toLowerCase()}</p>}
       </div>

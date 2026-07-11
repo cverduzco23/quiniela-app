@@ -39,7 +39,7 @@ export function datosTarjetaQuiniela(q, predicciones, participantes) {
       estado: 'abierta',
       numPartidos: partidos.length,
       participantes,
-      cierreTexto: cierreDate ? formatCierre(cierreDate) : '—',
+      cierreTexto: cierreDate ? formatCierre(cierreDate) : '-',
       restante: cierreDate ? restante(cierreDate) : null,
       enviada: haEnviadoQuiniela(q.id),
     }

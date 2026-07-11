@@ -146,7 +146,7 @@ export default function Donar() {
               disabled={!montoValido || enviando}
               onClick={donar}
             >
-              {enviando ? 'Redirigiendo…' : `Donar $${montoValido ? montoFinal : '—'} MXN`}
+              {enviando ? 'Redirigiendo…' : montoValido ? `Donar $${montoFinal} MXN` : 'Donar MXN'}
             </button>
           </div>
         )}

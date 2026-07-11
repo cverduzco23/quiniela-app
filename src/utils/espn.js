@@ -8,7 +8,7 @@
 // Fallback seguro: buscar en la respuesta de ESPN por nombres de equipos
 // + mismo día. Si hay exactamente 1 candidato, lo proponemos al admin para
 // que confirme antes de aplicar. Si hay 0 o >1 candidatos, no proponemos
-// nada — comportamiento conservador.
+// nada: comportamiento conservador.
 
 /** Normaliza el nombre de un equipo para comparación: lowercase, sin acentos, sin espacios extras. */
 export function normalizarEquipo(nombre) {

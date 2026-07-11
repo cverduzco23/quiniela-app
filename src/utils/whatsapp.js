@@ -5,7 +5,7 @@
  * En formato wa.me va sin "+", sin espacios y con lada de país (52 = México).
  *
  * Escalabilidad: si algún día hay varios números (soporte, ventas, etc.) o el
- * número se mueve a una variable de entorno, solo se cambia aquí — toda la app
+ * número se mueve a una variable de entorno, solo se cambia aquí. Toda la app
  * arma los links desde estos helpers, no con strings sueltos.
  */
 export const WHATSAPP_NUMERO = '525652491143'

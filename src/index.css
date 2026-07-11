@@ -629,7 +629,7 @@ a:focus-visible {
   color: var(--text-strong);
 }
 
-/* ── Página /donar ── */
+/* Página /donar */
 .donar-shell {
   flex: 1;
   display: flex;
@@ -766,7 +766,7 @@ a:focus-visible {
   }
 }
 
-/* ── Tarjetas "Tus quinielas" ── */
+/* Tarjetas "Tus quinielas" */
 .tq-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -848,7 +848,7 @@ a:focus-visible {
   40%, 80% { transform: translateX(6px); }
 }
 
-/* ── Cursor decorativo del input de código: pista de "aquí se escribe" ── */
+/* Cursor decorativo del input de código: pista de "aquí se escribe" */
 .public-code-caret {
   position: absolute;
   left: 13px;
@@ -1038,7 +1038,7 @@ a:focus-visible {
   background: rgba(239, 68, 68, 0.08);
 }
 
-/* ── Autoasignación de nombre (tarjeta sin identidad en este dispositivo) ── */
+/* Autoasignación de nombre (tarjeta sin identidad en este dispositivo) */
 .tq-alias {
   display: flex;
   align-items: center;
@@ -3180,7 +3180,7 @@ a:focus-visible {
   background: var(--muted-soft);
 }
 
-/* ── Estadísticas del super admin (tabs General / Por quiniela) ──────────── */
+/* Estadísticas del super admin (tabs General / Por quiniela) */
 .stats-segment {
   display: flex;
   gap: 4px;
@@ -5190,7 +5190,7 @@ button.admin-account-data-row {
   padding: 8px 12px;
 }
 
-/* Card "Si terminara ahora" — líder único, empate de dos, o empate múltiple */
+/* Card "Si terminara ahora": líder único, empate de dos, o empate múltiple */
 .ranking-live-card {
   position: relative;
   overflow: hidden;
@@ -5653,7 +5653,7 @@ button.admin-account-data-row {
   }
 }
 
-/* Ranking — escritorio: fila de partido "ancha" (equipos completos + fecha
+/* Ranking: escritorio: fila de partido "ancha" (equipos completos + fecha
    bajo el local) y avatar de iniciales en la tabla. Ocultos por defecto;
    se activan solo en el breakpoint de escritorio más abajo. */
 .ranking-match-wide {
@@ -6046,7 +6046,7 @@ button.admin-account-data-row {
   line-height: 1;
 }
 
-/* Ranking — escritorio (≥1024px): layout de dos columnas.
+/* Ranking: escritorio (≥1024px): layout de dos columnas.
    Reglas/premio/stats/partidos a la izquierda (540px fijos); tabla de
    ranking + acciones a la derecha. El móvil/tablet no cambia. */
 @media (min-width: 1024px) {

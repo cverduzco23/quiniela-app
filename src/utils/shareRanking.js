@@ -943,14 +943,14 @@ function drawOracleImage(ctx, datos, assets = {}) {
   drawCrestOrAvatar(ctx, awayAvatarX, 374, avatarR * 2, escudoVisitante, partido.visitante, COLORS.text, 'rgba(255,255,255,0.08)')
 
   // Tabla de escenarios: los 3 genéricos (Local/Empate/Visitante) SIEMPRE
-  // aparecen, en su propia subsección "Cualquier otro marcador" — igual que
+  // aparecen, en su propia subsección "Cualquier otro marcador": igual que
   // en la web. Antes se recortaba a las primeras 6 filas de la lista y, si
   // había 6+ marcadores exactos distintos entre los jugadores, los genéricos
   // se quedaban fuera de la imagen.
   const genericas = (simulacion?.filas ?? []).filter(f => f.esc.tipo === 'generico')
   const liveCtx = { enVivo, curL, curV, curRes, hayExactaActual }
 
-  // Se muestran TODOS los marcadores, sin recortar — la imagen es un
+  // Se muestran TODOS los marcadores, sin recortar: la imagen es un
   // "screenshot" fiel de lo que ya se ve en el oráculo de la web. El lienzo
   // (computeOracleCanvasHeight) se calculó con esta misma geometría antes de
   // crear el canvas, así que aquí solo hace falta dibujar.
@@ -1060,7 +1060,7 @@ export async function generarImagenOraculo(datos) {
     loadImageSafe(partido.escudoLocal),
     loadImageSafe(partido.escudoVisitante),
   ])
-  // El lienzo crece según cuántos marcadores haya que mostrar — sin esto se
+  // El lienzo crece según cuántos marcadores haya que mostrar: sin esto se
   // recortarían filas o quedaría un hueco vacío si son pocas.
   const height = computeOracleCanvasHeight(datos.simulacion)
   const { canvas, ctx } = setupCanvas(height)

@@ -47,7 +47,7 @@ function levenshtein(a, b) {
 
 /**
  * ¿Dos nombres son sospechosos de ser la misma persona?
- * Devuelve true solo cuando hay alta probabilidad — no marca coincidencias
+ * Devuelve true solo cuando hay alta probabilidad: no marca coincidencias
  * de primer nombre con apellidos distintos.
  */
 export function nombreSimilar(a, b) {

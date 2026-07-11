@@ -1,4 +1,4 @@
-# Aviso de Privacidad Integral — QuinielApp (quinielapp.fun)
+# Aviso de Privacidad Integral: QuinielApp (quinielapp.fun)
 
 **Última actualización: 11 de julio de 2026**
 
@@ -17,7 +17,7 @@ No recabamos datos personales sensibles (origen étnico, salud, creencias, orien
 - **Nombre completo** (nombre y al menos un apellido), tal como tú lo escribes.
 - **Tus predicciones** (marcadores pronosticados) y la **fecha y hora de envío**.
 
-> **Importante — visibilidad pública:** tu nombre y tus predicciones se muestran públicamente en el ranking de la quiniela en la que participas, visible para cualquier persona que tenga el enlace. Al enviar tus predicciones aceptas esta visibilidad. Si no deseas que tu nombre real sea visible, puedes solicitar al organizador de tu quiniela o a nosotros (vía WhatsApp) la rectificación o eliminación de tu registro antes o después del cierre.
+> **Importante: visibilidad pública:** tu nombre y tus predicciones se muestran públicamente en el ranking de la quiniela en la que participas, visible para cualquier persona que tenga el enlace. Al enviar tus predicciones aceptas esta visibilidad. Si no deseas que tu nombre real sea visible, puedes solicitar al organizador de tu quiniela o a nosotros (vía WhatsApp) la rectificación o eliminación de tu registro antes o después del cierre.
 
 ### 2.2 Si creas una cuenta de organizador
 

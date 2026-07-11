@@ -31,10 +31,10 @@ export default function Ranking() {
   const [actualizando, setActualizando] = useState(false)
   const [mostrarReglas, setMostrarReglas] = useState(false)
 
-  // ── Carga de datos (lectura puntual, no escucha permanente) ──────
+  // Carga de datos (lectura puntual, no escucha permanente)
   // Usamos getDoc/getDocs (una sola lectura) en vez de onSnapshot. Una escucha
-  // en tiempo real mantiene una conexión ABIERTA por pestaña; iOS —donde todos
-  // los navegadores (incluido Chrome) usan el motor de Safari— limita las
+  // en tiempo real mantiene una conexión ABIERTA por pestaña; iOS (donde todos
+  // los navegadores (incluido Chrome) usan el motor de Safari) limita las
   // conexiones por sitio (~6), así que al abrir varias pestañas del mismo enlace
   // la siguiente se quedaba "Cargando…" sin conexión libre. Con lecturas
   // puntuales cada pestaña pide los datos, los recibe y suelta la conexión.
@@ -56,7 +56,7 @@ export default function Ranking() {
     return true
   }
 
-  // ── Carga inicial + reintento ────────────────────────────────────
+  // Carga inicial + reintento
   // `intento` se incrementa para forzar una recarga (timeout o regreso de una
   // pestaña congelada por el navegador).
   const [intento, setIntento] = useState(0)
@@ -81,7 +81,7 @@ export default function Ranking() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [quinielaId, intento])
 
-  // ── Recarga al volver de una pestaña "congelada" ─────────────────
+  // Recarga al volver de una pestaña "congelada"
   // Safari/Chrome móvil congelan las pestañas en segundo plano (bfcache). Al
   // volver al enlace recargamos los datos para no mostrar algo viejo o pegado.
   useEffect(() => {
@@ -92,7 +92,7 @@ export default function Ranking() {
     return () => window.removeEventListener('pageshow', onPageShow)
   }, [])
 
-  // ── Polling ESPN ────────────────────────────────────────────────
+  // Polling ESPN
   const fetchLiveData = async (quinielaData) => {
     const partidos = quinielaData?.partidos ?? []
     const conEspn  = partidos.filter(p => p.espnId && p.ligaId)
@@ -103,7 +103,7 @@ export default function Ranking() {
       if (!porLiga[p.ligaId]) porLiga[p.ligaId] = []
       porLiga[p.ligaId].push(p)
     })
-    const getStat = (stats, name) => stats?.find(s => s.name === name)?.displayValue ?? '—'
+    const getStat = (stats, name) => stats?.find(s => s.name === name)?.displayValue ?? '-'
     const nuevos = {}
     const nuevosStats = {}
     const nuevosEventos = {}
@@ -143,7 +143,7 @@ export default function Ranking() {
           const statusName = ev.status?.type?.name ?? ''
           const esHalftime = statusName === 'STATUS_HALFTIME'
           // ESPN reporta cancelados/pospuestos/forfeits con state="post" pero completed=false.
-          // No los tratamos como resultado válido — marcamos cancelado para que el scoring los skip.
+          // No los tratamos como resultado válido: marcamos cancelado para que el scoring los skip.
           const esCancelado = state === 'post' && completed === false
           if (esCancelado) {
             nuevos[p.espnId] = { state, cancelado: true, halftime: false, local: '', visitante: '' }
@@ -152,7 +152,7 @@ export default function Ranking() {
           // Tanda de penales: ESPN reporta el global aparte en `shootoutScore`
           // (el `score` regular se queda en el empate). Lo detectamos por el
           // status, por el detalle ("AET-pens" / "FT-Pens", que es lo que ESPN
-          // realmente manda para soccer — STATUS_SHOOTOUT casi no aparece) o
+          // realmente manda para soccer: STATUS_SHOOTOUT casi no aparece) o
           // por la presencia del marcador de penales.
           const statusDetail = (ev.status?.type?.shortDetail || ev.status?.type?.detail || '')
           const enFaseDePenales = /pen/i.test(statusDetail)
@@ -307,7 +307,7 @@ export default function Ranking() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [quiniela?.id])
 
-  // ── Tracking: ranking visto ─────────────────────────────────────
+  // Tracking: ranking visto
   useEffect(() => {
     if (quinielaId) {
       track('ranking_visto', { quinielaId })
@@ -316,7 +316,7 @@ export default function Ranking() {
     }
   }, [quinielaId])
 
-  // ── Analítica: espectadores mientras un partido está EN VIVO ─────
+  // Analítica: espectadores mientras un partido está EN VIVO
   // Cuando un partido marca state==='in', registramos al espectador una vez
   // por sesión y partido (la función ya hace ese control internamente).
   useEffect(() => {
@@ -326,7 +326,7 @@ export default function Ranking() {
     })
   }, [quinielaId, liveScores])
 
-  // ── Detectar si este dispositivo ya envió predicción ─────────────
+  // Detectar si este dispositivo ya envió predicción
   // (para esconder el CTA de "Entrar a la quiniela")
   const [yaEnvió, setYaEnvió] = useState(false)
   useEffect(() => {
@@ -338,7 +338,7 @@ export default function Ranking() {
     } catch { /* localStorage no disponible */ }
   }, [quinielaId])
 
-  // ── Refrescar el banner de "Cierra en X min" cada minuto cerca del cierre
+  // Refrescar el banner de "Cierra en X min" cada minuto cerca del cierre
   const [, setTickCierre] = useState(0)
   useEffect(() => {
     if (!quiniela?.cierre || quinielaCerrada(quiniela)) return
@@ -364,7 +364,7 @@ export default function Ranking() {
     window.history.back()
   }
 
-  // ── Render estados ────────────────────────────────────────────────
+  // Render estados
   if (cargando) return (
     <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', color: 'var(--muted)', fontSize: 14 }}>
       Cargando ranking…
@@ -525,7 +525,7 @@ export default function Ranking() {
       </div>
 
       <div className="ranking-content" style={{ width: '100%', maxWidth: 'var(--ranking-max-width, 480px)', margin: '0 auto', padding: 'var(--ranking-content-padding, 1.25rem 1rem 3rem)', paddingTop: 'calc(var(--ranking-section-gap, 16px) + 8px)', flex: '1 0 auto', display: 'flex', flexDirection: 'column' }}>
-        {/* CTA para registrar predicción — solo si la quiniela sigue abierta y este dispositivo aún no envió */}
+        {/* CTA para registrar predicción: solo si la quiniela sigue abierta y este dispositivo aún no envió */}
         {!quinielaCerrada(quiniela) && !yaEnvió && (() => {
           const tr = tiempoRestante(quiniela.cierre)
           // Tono del banner según urgencia

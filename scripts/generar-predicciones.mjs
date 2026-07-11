@@ -9,7 +9,7 @@
 //   node scripts/generar-predicciones.mjs aBcD123 --limpiar  # borra todas
 //
 // El script usa el SDK web (mismo cliente que un usuario real), por lo que
-// pasa por las reglas de Firestore — si las reglas rechazan algo, lo verás
+// pasa por las reglas de Firestore. Si las reglas rechazan algo, lo verás
 // como error y sabrás que en producción también fallaría.
 
 import { initializeApp } from 'firebase/app'
@@ -31,7 +31,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig)
 const db = getFirestore(app)
 
-// Pool grande de nombres y apellidos mexicanos comunes — suficiente para >200 únicos
+// Pool grande de nombres y apellidos mexicanos comunes: suficiente para >200 únicos
 const NOMBRES = [
   'Carlos','María','José','Ana','Juan','Luis','Sofía','Miguel','Laura','Pedro',
   'Diego','Elena','Roberto','Patricia','Fernando','Andrea','Javier','Gabriela','Alberto','Isabel',
@@ -83,7 +83,7 @@ async function limpiar() {
     process.stdout.write(`\r  Progreso: ${borradas + fallos}/${snap.size}`)
   }
   console.log(`\n✓ Listo. Borradas: ${borradas}. Errores: ${fallos}.`)
-  console.log('NOTA: si hay errores, probablemente sea por reglas — solo super-admin o owner pueden borrar.')
+  console.log('NOTA: si hay errores, probablemente sea por reglas; solo super-admin o owner pueden borrar.')
 }
 
 function nombreAleatorio(usados, requiereDosApellidos) {

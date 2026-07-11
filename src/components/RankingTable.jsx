@@ -16,7 +16,7 @@ function formatFecha(value) {
 }
 
 function pickDisplay(pick) {
-  if (!pick) return '—'
+  if (!pick) return '-'
   if (typeof pick === 'object') {
     const l = pick.local ?? '?', v = pick.visitante ?? '?'
     return `${l}-${v}`
@@ -541,12 +541,12 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
             const cancelado = !!stored?.cancelado
             const esVivo    = !cancelado && live?.state === 'in'
             const esFinish  = !cancelado && live?.state === 'post'
-            let scoreLocal = '–', scoreVisitante = '–', resDisplay = null
+            let scoreLocal = '-', scoreVisitante = '-', resDisplay = null
             if (!cancelado && live && (esVivo || esFinish) && live.local !== '') {
               scoreLocal = live.local; scoreVisitante = live.visitante
               resDisplay = goalsToResultado(live.local, live.visitante)
             } else if (!cancelado && stored) {
-              scoreLocal = stored.local ?? '–'; scoreVisitante = stored.visitante ?? '–'
+              scoreLocal = stored.local ?? '-'; scoreVisitante = stored.visitante ?? '-'
               resDisplay = getResultado(stored)
             }
             const pendiente = !cancelado && !resDisplay && !esVivo && !esFinish
@@ -556,7 +556,7 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
             const st = liveStats[p.espnId]
             const eventos = liveEventos[p.espnId] ?? []
             // Penales: los goles de la tanda llegan mezclados como "goal" en los
-            // eventos normales — los filtramos. La secuencia completa de la tanda
+            // eventos normales: los filtramos. La secuencia completa de la tanda
             // (con anotados y fallados) viene aparte en livePenales.
             const eventosNormales = eventos.filter(e => !e.penalShootout)
             const penalesTanda    = livePenales[p.espnId] ?? []
@@ -578,7 +578,7 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
             const hayResumen = tieneStats && (esFinish || !!stored) && !cancelado
             const tieneAlgo = hayStats || hayResumen
             const jugado = !cancelado && (esFinish || getResultado(stored) !== null)
-            const matchScoreText = pendiente ? 'VS' : `${scoreLocal} – ${scoreVisitante}`
+            const matchScoreText = pendiente ? 'VS' : `${scoreLocal} - ${scoreVisitante}`
             const posH = hayStats ? parseFloat(st.home.posesion) || 50 : 50
             const badgeNode = cancelado ? (
               <span className="ranking-match-badge" style={{ background: 'var(--neutral-bg)', color: 'var(--muted)', borderColor: 'var(--border-strong)' }}>Cancelado</span>
@@ -750,7 +750,7 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                     {hayPenales && (
                       <div style={{ marginTop: (hayStats || eventosNormales.length > 0) ? 12 : 0, paddingTop: (hayStats || eventosNormales.length > 0) ? 10 : 0, borderTop: (hayStats || eventosNormales.length > 0) ? '1px solid var(--border)' : 'none' }}>
                         <p style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6, textAlign: 'center' }}>
-                          Tanda de penales{tienePenalScore ? ` · ${penalLocal}–${penalVisitante}` : ''}
+                          Tanda de penales{tienePenalScore ? ` · ${penalLocal}-${penalVisitante}` : ''}
                         </p>
                         {penalesRondas.length > 0 ? penalesRondas.map((r, j) => {
                           const tiro = (k, alinear) => (
@@ -805,7 +805,7 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
       </div>
 
       <div className="ranking-desktop-right">
-      {/* ¿Quién gana según el marcador del último partido? — en escritorio queda
+      {/* ¿Quién gana según el marcador del último partido?: en escritorio queda
           arriba de la tabla de ranking; en móvil el orden visual no cambia
           porque la columna izquierda ya terminó de renderizarse antes. */}
       {simulacion && (
@@ -826,7 +826,7 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
           </div>
         )}
 
-        {/* Buscador — solo cuando hay suficientes participantes */}
+        {/* Buscador: solo cuando hay suficientes participantes */}
         {mostrarBuscador && (
           <div className="ranking-search-bar">
             <input
@@ -1288,7 +1288,7 @@ function EscenariosUltimoPartido({ sim, conPremio, liveScores = {}, quiniela, bo
   const curV = enVivo ? Number(live.visitante) : null
   const curRes = enVivo ? goalsToResultado(curL, curV) : null
   const hayExactaActual = enVivo && exactas.some(f => f.esc.local === curL && f.esc.visitante === curV)
-  const marcadorActual = enVivo ? `${curL}–${curV}` : ''
+  const marcadorActual = enVivo ? `${curL}-${curV}` : ''
 
   const Fila = ({ marcador, esExacto, fila, ultima, actual, imposible }) => (
     <div className={`oracle-row${actual ? ' is-current' : ''}${imposible ? ' is-impossible' : ''}${ultima ? ' is-last' : ''}`}>
@@ -1365,7 +1365,7 @@ function EscenariosUltimoPartido({ sim, conPremio, liveScores = {}, quiniela, bo
               <span>Ganadores posibles</span>
             </div>
             {exactas.map((f, i) => (
-              <Fila key={i} esExacto marcador={`${f.esc.local}–${f.esc.visitante}`} fila={f}
+              <Fila key={i} esExacto marcador={`${f.esc.local}-${f.esc.visitante}`} fila={f}
                 ultima={i === exactas.length - 1}
                 actual={enVivo && f.esc.local === curL && f.esc.visitante === curV}
                 imposible={enVivo && (f.esc.local < curL || f.esc.visitante < curV)} />

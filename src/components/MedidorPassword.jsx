@@ -18,7 +18,7 @@ export function MedidorPassword({ pwd }) {
       </div>
       <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4, lineHeight: 1.4 }}>
         Seguridad: <strong style={{ color }}>{nivel}</strong>
-        {nivel !== 'fuerte' && ' — agrégale símbolos o hazla más larga para reforzarla.'}
+        {nivel !== 'fuerte' && '. Agrégale símbolos o hazla más larga para reforzarla.'}
       </p>
     </div>
   )

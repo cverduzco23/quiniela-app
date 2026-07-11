@@ -2,10 +2,7 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ──────────────────────────────────────────────────────────────
     // Helpers
-    // ──────────────────────────────────────────────────────────────
-
     function isSignedIn() {
       return request.auth != null;
     }
@@ -15,7 +12,7 @@ service cloud.firestore {
     function isSuperAdmin() {
       return isSignedIn() && request.auth.uid in [
         'w6uc7cHowgM4Pmsya4bUHt1G3Pu2'  // César
-        // 'UID_DEL_PRIMO_AQUI'         // Agregar cuando se cree su cuenta — si quieres que sea super admin también
+        // 'UID_DEL_PRIMO_AQUI'         // Agregar cuando se cree su cuenta: si quieres que sea super admin también
       ];
     }
 
@@ -48,9 +45,7 @@ service cloud.firestore {
       return exists(/databases/$(database)/documents/bloqueados/$(request.auth.uid));
     }
 
-    // ──────────────────────────────────────────────────────────────
     // admins/  (perfil + derechos de cada cuenta de cliente)
-    // ──────────────────────────────────────────────────────────────
     match /admins/{uid} {
 
       // Cada cliente lee solo su propio doc; el super admin los lee todos.
@@ -88,7 +83,7 @@ service cloud.firestore {
       allow delete: if isSuperAdmin();
 
       // Actualizar: el super admin puede todo (incluye resetear el contador).
-      // El dueño solo toca campos operativos (allowlist por diff) — `activo`,
+      // El dueño solo toca campos operativos (allowlist por diff): `activo`,
       // `email` y `origen` quedan intocables para que nadie se auto-otorgue
       // acceso. `eliminada` es el marcador que deja la auto-eliminación de
       // cuenta justo antes de borrar el usuario de Auth. El contador de cuota
@@ -108,21 +103,17 @@ service cloud.firestore {
       );
     }
 
-    // ──────────────────────────────────────────────────────────────
     // bloqueados/  (veto de cuentas: impide el re-registro del perfil)
-    // ──────────────────────────────────────────────────────────────
     // Escrito por el super admin al eliminar un cliente. El create de
     // admins/{uid} lo consulta vía estaBloqueado().
     match /bloqueados/{uid} {
       allow read, write: if isSuperAdmin();
     }
 
-    // ──────────────────────────────────────────────────────────────
     // quinielas/
-    // ──────────────────────────────────────────────────────────────
     match /quinielas/{quinielaId} {
 
-      // Lectura pública — necesaria para que el home, predicciones y ranking
+      // Lectura pública: necesaria para que el home, predicciones y ranking
       // funcionen sin login para participantes.
       allow read: if true;
 
@@ -156,12 +147,10 @@ service cloud.firestore {
         (isSignedIn() && resource.data.ownerUid == request.auth.uid);
     }
 
-    // ──────────────────────────────────────────────────────────────
     // predicciones/
-    // ──────────────────────────────────────────────────────────────
     match /predicciones/{prediccionId} {
 
-      // Lectura pública — el ranking las muestra a todos.
+      // Lectura pública: el ranking las muestra a todos.
       allow read: if true;
 
       // Crear: validaciones estrictas + quiniela existe + dentro del plazo.
@@ -200,18 +189,14 @@ service cloud.firestore {
         esDuenoDeQuiniela(resource.data.quinielaId);
     }
 
-    // ──────────────────────────────────────────────────────────────
     // movimientos/  (caja interna del admin)
-    // ──────────────────────────────────────────────────────────────
     // Solo super admin. Esta colección es contabilidad interna del producto
-    // global — no escala por owner por ahora.
+    // global: no escala por owner por ahora.
     match /movimientos/{movimientoId} {
       allow read, write: if isSuperAdmin();
     }
 
-    // ──────────────────────────────────────────────────────────────
     // donativos/  (registro de donativos vía Stripe)
-    // ──────────────────────────────────────────────────────────────
     // Solo el webhook de Stripe (Admin SDK, bypassa estas reglas) escribe aquí.
     // Ningún cliente puede crear/editar/borrar donativos.
     match /donativos/{donativoId} {
@@ -219,9 +204,7 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // ──────────────────────────────────────────────────────────────
     // config/  (configuración global del producto)
-    // ──────────────────────────────────────────────────────────────
     // config/home guarda qué secciones del inicio se muestran. Lectura
     // pública (el home la lee sin sesión); solo el super admin la edita.
     match /config/{docId} {
@@ -229,11 +212,8 @@ service cloud.firestore {
       allow write: if isSuperAdmin();
     }
 
-    // ──────────────────────────────────────────────────────────────
-    // analytics/  (estadísticas propias — solo contadores agregados)
-    // ──────────────────────────────────────────────────────────────
+    // analytics/  (estadísticas propias: solo contadores agregados)
     // Lectura: SOLO super admin. Los números nunca se filtran a los visitantes.
-    //
     // Escritura: pública pero ACOTADA. Las páginas públicas suman +1 a contadores.
     // Permitimos solo campos conocidos (hasOnly) y limitamos el tamaño de los
     // mapas, de modo que nadie pueda crear campos basura ni inflar el documento

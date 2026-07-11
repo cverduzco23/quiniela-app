@@ -45,6 +45,6 @@ cuesta nada.
 
 ## Fundamentos usados (referencia)
 
-- Nueva LFPDPPP (DOF 20-mar-2025, vigente desde 21-mar-2025): art. 15 — identidad y domicilio del responsable, datos tratados, finalidades primarias/secundarias, decisiones automatizadas, plazos de conservación, mecanismos ARCO, cambios al aviso. La autoridad ahora es la Secretaría Anticorrupción y Buen Gobierno (ya no el INAI).
+- Nueva LFPDPPP (DOF 20-mar-2025, vigente desde 21-mar-2025): art. 15: identidad y domicilio del responsable, datos tratados, finalidades primarias/secundarias, decisiones automatizadas, plazos de conservación, mecanismos ARCO, cambios al aviso. La autoridad ahora es la Secretaría Anticorrupción y Buen Gobierno (ya no el INAI).
 - Ley Federal de Juegos y Sorteos: por eso los Términos §1 deslindan explícitamente a la plataforma de apuestas/sorteos y de cualquier dinero entre participantes (mismo enfoque que usa Quiniela PRO, competidor directo).
 - Términos de Google reCAPTCHA / Analytics y de Stripe: divulgación de terceros en el Aviso §2.4, §5.

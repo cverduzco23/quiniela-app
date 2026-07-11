@@ -1,6 +1,6 @@
-# ROADMAP — QuinielApp
+# ROADMAP: QuinielApp
 
-> **Última actualización: 2026-07-04** (PIVOTE de modelo de negocio — ver §0).
+> **Última actualización: 2026-07-04** (PIVOTE de modelo de negocio: ver §0).
 > Lote de mejoras de UX: 2026-06-15 (§4.bis). Auditoría de código/seguridad/costos: 2026-06-11 (§3).
 > Este documento es la fuente de verdad para retomar el proyecto en cualquier momento:
 > qué busca el proyecto, qué está hecho, qué está pendiente, por qué, y en qué orden.
@@ -10,10 +10,10 @@
 
 ---
 
-## 0. Pivote de modelo de negocio (2026-07-04) — ESTADO VIGENTE
+## 0. Pivote de modelo de negocio (2026-07-04): ESTADO VIGENTE
 
 **Decisión.** Se abandona el modelo SaaS de vender quinielas/planes. Razones (del dueño):
-el negocio no crecería sin invertir tiempo en ventas —que no lo hay—, no le gana a competidores
+el negocio no crecería sin invertir tiempo en ventas (que no lo hay), no le gana a competidores
 (algunos regalan quinielas o transmiten partidos), y los caminos "públicos con premio" o
 "puntos canjeables" chocan con la regulación (SEGOB). El proyecto se mantiene porque el dueño
 lo usa con familia y amigos; se busca un **ingreso ligero pasivo**, no una fuente principal.
@@ -30,7 +30,7 @@ alto al monetizar; no se hace). Quinielas públicas con premio en dinero. Puntos
 regalos como producto público.
 
 **Qué se distingue (importante):** la **cuota/bote/premio DENTRO de una quiniela** (entre amigos,
-"marcar pagado", `premios.js`) **se conserva** — es función de juego, no modelo de negocio, y es
+"marcar pagado", `premios.js`) **se conserva**: es función de juego, no modelo de negocio, y es
 legal en pools privados de conocidos.
 
 ### 0.1 Limpieza de código ya ejecutada (2026-07-04)
@@ -46,7 +46,7 @@ Se eliminó toda la capa SaaS de planes/pagos, front y back:
 - **`firestore.rules`:** el update del propio admin ya no congela `plan/quinielasPermitidas/
   temporadaHasta` (no existen); **sigue congelando `activo` y `email`** (gate de acceso).
   ⚠️ **Pendiente del dueño: re-desplegar reglas** (`firebase deploy --only firestore:rules`).
-- Docs viejos de clientes en Firestore quedan con campos `plan`, etc. sin uso — inofensivos, se ignoran.
+- Docs viejos de clientes en Firestore quedan con campos `plan`, etc. sin uso: inofensivos, se ignoran.
 - Verificado: 744 tests ✓, build ✓. Se **conserva** el módulo "Clientes" (alta manual) hasta implementar auto-registro.
 
 ### 0.2 Siguientes pasos acordados (en orden)
@@ -60,7 +60,7 @@ Se eliminó toda la capa SaaS de planes/pagos, front y back:
 ## 1. Visión final (lo que buscamos)
 
 **Meta:** una app que cualquier organizador pueda usar de punta a punta **sin que César
-tenga que gestionar casi nada** — solo recibir el pago correspondiente por el uso.
+tenga que gestionar casi nada**: solo recibir el pago correspondiente por el uso.
 
 > ⚠️ **Revisado por §0 (2026-07-04):** la meta ya NO es "recibir el pago por el uso". Ahora es
 > mantener la app **gratis** para familia/amigos con un **ingreso pasivo ligero** (donativos; y
@@ -101,7 +101,7 @@ WhatsApp Business: `525652491143`. Detalle del flujo de onboarding (histórico):
 
 ---
 
-## 3. Auditoría 2026-06-11 — hallazgos de seguridad y costos
+## 3. Auditoría 2026-06-11: hallazgos de seguridad y costos
 
 Estado al momento de la auditoría: 727 tests pasando, lint limpio en `src/` (los errores
 de lint que aparecen vienen de worktrees viejos en `.claude/worktrees/`, no del código real).
@@ -128,7 +128,7 @@ de lint que aparecen vienen de worktrees viejos en `.claude/worktrees/`, no del 
 
 ### 3.3 Hallazgos NUEVOS de esta auditoría (pendientes de resolver)
 
-**H1 — Agotamiento de cuota gratuita = caída del sitio (riesgo #1 real). 🔴**
+**H1: Agotamiento de cuota gratuita = caída del sitio (riesgo #1 real). 🔴**
 [home.jsx:103](src/pages/home.jsx:103) y [admin.jsx:665](src/pages/admin.jsx:665) leen **la
 colección completa de `predicciones`** en cada visita. Con lecturas públicas y sin App Check,
 cualquiera puede consumir las 50,000 lecturas/día del plan Spark en minutos → **la app se apaga
@@ -137,48 +137,48 @@ crece con cada predicción acumulada (500 predicciones × 100 visitas/día = 50,
 *Fix barato:* `getCountFromServer` (agregación: contar 1,000 docs = 1 lectura) para los conteos
 de participantes en home y predicciones. No requiere Blaze ni backend.
 
-**H2 — Spam de predicciones sin freno. 🟠**
+**H2: Spam de predicciones sin freno. 🟠**
 Las reglas permiten a cualquier anónimo crear predicciones ilimitadas en una quiniela abierta
 (el anti-duplicado por nombre es client-side y tiene race condition). Un atacante puede inflar
 un ranking con cientos de nombres basura. *Mitigación parcial:* App Check; el admin puede borrar
 desde el panel. *Solución real:* backend (post-Mundial).
 
-**H3 — Valores de `picks` sin validar en reglas. 🟠**
+**H3: Valores de `picks` sin validar en reglas. 🟠**
 `firestore.rules` valida que `picks` sea map de ≤30 llaves, pero **no qué contienen los
 valores**: se pueden guardar strings de casi 1 MB por documento (infla el storage gratuito de
 1 GB). *Fix:* ~5 líneas en rules validando estructura/tamaño de cada pick. Aditivo, sin riesgo.
 
-**H4 — Registro público de cuentas Auth probablemente habilitado. 🟡**
+**H4: Registro público de cuentas Auth probablemente habilitado. 🟡**
 `crearUsuarioAislado` en [firebase.js:62](src/firebase.js:62) crea cuentas desde el navegador,
 lo cual solo funciona si el signup email/password está **habilitado para cualquiera** (el plan
-de onboarding decía "deshabilitado" — contradicción a verificar en Firebase Console).
+de onboarding decía "deshabilitado": contradicción a verificar en Firebase Console).
 No es crítico: una cuenta sin doc en `admins/` no tiene ningún permiso. Pero cualquiera puede
 crear cuentas Auth en el proyecto. *Solución limpia:* crear cuentas vía Admin SDK (post-Mundial).
 
-**H5 — Sin headers de seguridad en Vercel. 🟡**
+**H5: Sin headers de seguridad en Vercel. 🟡**
 [vercel.json](vercel.json) solo tiene el rewrite de SPA. Faltan `X-Frame-Options`,
 `X-Content-Type-Options`, `Referrer-Policy` (gratis, aditivo, sin riesgo). CSP completo NO
 se hará: chocaría con los estilos inline (preferencia de diseño deliberada).
 
-**H6 — Sin respaldos. 🟠**
+**H6: Sin respaldos. 🟠**
 No existe ningún respaldo de Firestore. Una corrupción o borrado accidental pierde todo.
 El export automático requiere Blaze; mientras tanto, hacer export manual (o script JSON)
 antes de cada quiniela grande.
 
-**H7 — Limpieza menor. ⚪**
+**H7: Limpieza menor. ⚪**
 Worktrees viejos en `.claude/worktrees/` ensucian el lint global. Borrarlos cuando se pueda.
 Nota de comportamiento (no bug): el auto-`finalizada` en [ranking.jsx:120](src/pages/ranking.jsx:120)
 solo surte efecto cuando el dueño/super admin tiene el ranking abierto (para anónimos la regla
-lo rechaza en silencio — esperado).
+lo rechaza en silencio: esperado).
 
 ---
 
 ## 4. Plan priorizado
 
-> **⚠️ CONGELAMIENTO ACTIVO:** el Mundial 2026 arrancó (11 jun – 19 jul 2026). Durante el
+> **⚠️ CONGELAMIENTO ACTIVO:** el Mundial 2026 arrancó (11 jun - 19 jul 2026). Durante el
 > torneo **solo cambios seguros y aditivos**; nada de refactors ni infraestructura nueva.
 
-### Fase AHORA (durante el Mundial — seguro y aditivo, costo $0)
+### Fase AHORA (durante el Mundial: seguro y aditivo, costo $0)
 
 | # | Tarea | Por qué | Resuelve |
 |---|---|---|---|
@@ -188,7 +188,7 @@ lo rechaza en silencio — esperado).
 | 4 | **Conteos con `getCountFromServer`** en home y predicciones | Corta el 90%+ de lecturas; reduce mucho la superficie del DoS por cuota. Toca el home → hacerlo con tests y entre jornadas | H1 |
 | 5 | **Respaldo manual** de quinielas+predicciones (export o script JSON) antes de quinielas grandes | Hoy no hay ningún respaldo | H6 |
 
-### §4.bis — Mejoras de UX hechas el 2026-06-15 (seguras y aditivas, costo $0)
+### §4.bis: Mejoras de UX hechas el 2026-06-15 (seguras y aditivas, costo $0)
 
 Lote de pulido para uso casero (la app la usa César con familia/amigos). Nada de esto
 toca seguridad ni infraestructura; todo es client-side y sin lecturas nuevas a Firestore.
@@ -198,7 +198,7 @@ toca seguridad ni infraestructura; todo es client-side y sin lecturas nuevas a F
 - **Secciones del inicio configurables** (solo super admin): tarjeta "🏠 Secciones del inicio"
   para mostrar/ocultar y **reordenar** cada bloque del home (código, cómo funciona, crear
   quiniela, quiniela activa, jugándose, terminada, imagen, promo). Config en **`config/home`**
-  (doc nuevo: lectura pública, escritura super admin — regla agregada en [firestore.rules](firestore.rules),
+  (doc nuevo: lectura pública, escritura super admin: regla agregada en [firestore.rules](firestore.rules),
   ya desplegada). Util único: [src/utils/homeSections.js](src/utils/homeSections.js). El home usa
   flexbox `order`; default = todo visible en orden estándar.
 - **Panel super admin**: quinielas de otros admins ocultas por defecto (desplegables), mis
@@ -250,10 +250,10 @@ toca seguridad ni infraestructura; todo es client-side y sin lecturas nuevas a F
 
 ## 6. Para retomar el proyecto (mapa de documentación)
 
-- **Este archivo** — visión, auditoría, prioridades.
-- [README.md](README.md) — qué es la app, stack, estructura, cómo correr y desplegar.
-- [PLAN_ONBOARDING_CLIENTES.md](PLAN_ONBOARDING_CLIENTES.md) — flujo de alta/cobro manual vigente (implementado) + su Fase D.
-- [GUIONES_WHATSAPP.md](GUIONES_WHATSAPP.md) — mensajes para clientes.
-- [firestore.rules](firestore.rules) — la seguridad real (comentada línea por línea).
+- **Este archivo**: visión, auditoría, prioridades.
+- [README.md](README.md): qué es la app, stack, estructura, cómo correr y desplegar.
+- [PLAN_ONBOARDING_CLIENTES.md](PLAN_ONBOARDING_CLIENTES.md): flujo de alta/cobro manual vigente (implementado) + su Fase D.
+- [GUIONES_WHATSAPP.md](GUIONES_WHATSAPP.md): mensajes para clientes.
+- [firestore.rules](firestore.rules): la seguridad real (comentada línea por línea).
 - Memoria de Claude (sesiones previas): planes de pagos, rollout, decisiones de estilo y
-  seguridad — índice en `~/.claude/projects/-Users-cesarverduzco-quiniela-app/memory/MEMORY.md`.
+  seguridad: índice en `~/.claude/projects/-Users-cesarverduzco-quiniela-app/memory/MEMORY.md`.

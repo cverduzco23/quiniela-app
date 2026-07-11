@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { nombreSimilar, detectarSimilares } from './duplicados'
 
-describe('nombreSimilar — debe MARCAR', () => {
+describe('nombreSimilar: debe MARCAR', () => {
   it('diferencias solo de acentos', () => {
     expect(nombreSimilar('Juan Pérez', 'Juan Perez')).toBe(true)
   })
@@ -28,7 +28,7 @@ describe('nombreSimilar — debe MARCAR', () => {
   })
 })
 
-describe('nombreSimilar — NO debe marcar', () => {
+describe('nombreSimilar: NO debe marcar', () => {
   it('cadena exactamente igual no se considera similar', () => {
     expect(nombreSimilar('Juan Pérez', 'Juan Pérez')).toBe(false)
   })

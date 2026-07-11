@@ -10,7 +10,7 @@ predicciones antes del cierre y siguen el ranking en vivo (marcadores de ESPN).
 
 ## Stack
 
-React 19 + Vite (JSX, estilos inline — sin frameworks CSS, decisión deliberada),
+React 19 + Vite (JSX, estilos inline, sin frameworks CSS por decisión deliberada),
 React Router, Firebase (Firestore + Auth + Analytics, plan Spark gratuito), Vercel.
 Sin backend propio: la app habla directo con Firestore y con la API pública de ESPN
 desde el navegador.
@@ -60,7 +60,7 @@ vive en `firestore.rules`, no en ocultar las llaves).
 
 ## Reglas de oro del proyecto
 
-1. **Costo ~$0** mientras el uso sea familiar/amigos — todo debe caber en capas gratuitas.
+1. **Costo ~$0** mientras el uso sea familiar/amigos: todo debe caber en capas gratuitas.
 2. **Dinero como premio solo en grupos privados de conocidos** (tema regulatorio SEGOB);
    para público general el modelo futuro es puntos + anuncios, nunca cash.
 3. Estilos inline, español, sin dependencias pesadas.

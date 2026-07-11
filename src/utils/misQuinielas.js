@@ -55,7 +55,7 @@ export function haEnviadoQuiniela(id) {
 // si no hay, el alias que el usuario se haya autoasignado (ver
 // `asignarAliasQuiniela`) para poder ver su posición desde otro aparato. La
 // usan tanto la tarjeta de "Tus quinielas" como el Ranking (resaltar tu fila,
-// centrar tu fila al compartir la imagen) — nunca el gate de "¿ya jugaste?"
+// centrar tu fila al compartir la imagen); nunca el gate de "¿ya jugaste?"
 // que decide si mostrar el CTA de entrar a predicciones, ese depende solo
 // del envío real.
 export function miIdentidadEnQuiniela(id) {
@@ -85,8 +85,8 @@ export function asignarAliasQuiniela(id, nombre) {
 
 // Quita una quiniela de "Tus quinielas" (esta lista solamente) y cualquier
 // alias autoasignado ahí. No borra el envío real de predicciones: si el
-// usuario vuelve a entrar con el código, su posición real sigue intacta —
-// solo quien nunca envió (y por eso dependía del alias) tendrá que elegir
+// usuario vuelve a entrar con el código, su posición real sigue intacta.
+// Solo quien nunca envió (y por eso dependía del alias) tendrá que elegir
 // su nombre de nuevo.
 export function olvidarMiQuiniela(id) {
   if (!id) return
