@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { collection, getDocs, query, orderBy, limit, where, doc, getDoc } from 'firebase/firestore'
 import { db, track } from '../firebase'
 import { quinielaCerrada, quinielaFinalizada, hayPartidoEnVivo } from '../utils/cierre'
@@ -70,8 +70,6 @@ const sectionTitleStyle = {
   color: 'var(--text-strong)',
   margin: '0 0 16px',
 }
-
-const DONATION_URL = 'https://link.mercadopago.com.mx/donativoapp'
 
 // Bucket de orden para "Tus quinielas": abiertas primero, luego las que están
 // jugándose, y el historial finalizado solo cuando se expande la sección.
@@ -470,7 +468,7 @@ function FaqSection() {
     ['¿Cuánto cuesta jugar?', (
       <>
         Depende de la quiniela que organice tu grupo.{' '}
-        <span className="public-brand-inline">Quiniel<span>App</span></span>
+        <a href="/" style={{ color: 'var(--green-light)', fontWeight: 800, textDecoration: 'none' }}>QuinielApp</a>
         {' '}solo facilita el registro, predicciones y ranking.
       </>
     )],
@@ -562,15 +560,13 @@ function ProjectSupportCard() {
           </p>
         </div>
       </div>
-      <a
-        href={DONATION_URL}
-        target="_blank"
-        rel="noreferrer"
+      <Link
+        to="/donar"
         onClick={() => track('home_donar')}
         className="public-donation-button"
       >
-        Donar
-      </a>
+        Apoyar
+      </Link>
     </div>
   )
 }

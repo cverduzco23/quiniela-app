@@ -8,5 +8,10 @@
       "codebase": "default",
       "ignore": ["node_modules", ".git", "*.log"]
     }
-  ]
+  ],
+  "emulators": {
+    "functions": { "port": 5001 },
+    "firestore": { "port": 8080 },
+    "ui": { "enabled": true }
+  }
 }

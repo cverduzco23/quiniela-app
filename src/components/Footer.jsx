@@ -1,6 +1,5 @@
+import { Link } from 'react-router-dom'
 import { BrandMark } from './Brand'
-
-const DONATION_URL = 'https://link.mercadopago.com.mx/donativoapp'
 
 function FooterIcon({ name, size = 15 }) {
   const common = {
@@ -42,15 +41,10 @@ export function Footer({ maxWidth = '100%' }) {
           <BrandMark size={14} />
           <span>quinielapp.fun · © {year}</span>
         </a>
-        <a
-          href={DONATION_URL}
-          target="_blank"
-          rel="noreferrer"
-          className="app-footer-link"
-        >
+        <Link to="/donar" className="app-footer-link">
           <FooterIcon name="heart" size={15} />
           Apoyar
-        </a>
+        </Link>
       </div>
     </footer>
   )

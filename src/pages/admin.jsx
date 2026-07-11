@@ -304,6 +304,7 @@ function AdminIcon({ name, size = 14, style, strokeWidth = 2 }) {
   if (name === 'smile') return <svg {...common}><circle cx="12" cy="12" r="9" /><path d="M8 14s1.4 2 4 2 4-2 4-2" /><path d="M9 9h.01" /><path d="M15 9h.01" /></svg>
   if (name === 'party') return <svg {...common}><path d="m5 19 5.8-15.3 9.5 9.5L5 19Z" /><path d="m8.5 11.5 4 4" /><path d="m13 5 6-2" /><path d="m16 8 4-4" /><path d="M18 11h3" /><path d="M9.5 3.5 11 2" /><path d="M20.5 7.5 22 6" /></svg>
   if (name === 'alert') return <svg {...common}><path d="M12 3 2.5 19.5a1 1 0 0 0 .9 1.5h17.2a1 1 0 0 0 .9-1.5L12 3Z" /><path d="M12 9v5" /><path d="M12 17.5h.01" /></svg>
+  if (name === 'heart') return <svg {...common}><path d="M19.5 12.6 12 20l-7.5-7.4A5 5 0 0 1 12 6a5 5 0 0 1 7.5 6.6Z" /></svg>
   return <svg {...common}><circle cx="12" cy="12" r="9" /></svg>
 }
 
@@ -767,6 +768,9 @@ export default function Admin() {
   const [eliminarCuentaAbierta, setEliminarCuentaAbierta] = useState(false)
   const [eliminandoCuenta, setEliminandoCuenta] = useState(false)
   const [eliminarCuentaMsg, setEliminarCuentaMsg] = useState(null) // { tipo, texto }
+  // Super admin: mismo botón/UI que el cliente, pero solo informa que la
+  // auto-eliminación es exclusiva de cuentas de jugador.
+  const [eliminarCuentaSoloUsuariosAbierta, setEliminarCuentaSoloUsuariosAbierta] = useState(false)
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async user => {
@@ -1442,6 +1446,10 @@ export default function Admin() {
   const [nuevoMonto, setNuevoMonto]                 = useState('')
   const [nuevaNota, setNuevaNota]                   = useState('')
   const [guardandoMov, setGuardandoMov]             = useState(false)
+
+  // ─── Donativos (registrados por el webhook de Stripe) ──────────────────────
+  const [donativos, setDonativos]                   = useState([])
+  const [loadingDonativos, setLoadingDonativos]     = useState(false)
   const [buscarNombreCaja, setBuscarNombreCaja]     = useState('')
   // Participante seleccionado en el panel "Registrar movimiento" (Caja de escritorio).
   const [cajaMovNombre, setCajaMovNombre]           = useState('')
@@ -1641,6 +1649,23 @@ export default function Admin() {
     if (autenticado && authListo && (vista === 'caja' || (vista === 'lista' && soySuper))) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       cargarMovimientos()
+    }
+  }, [autenticado, authListo, vista, soySuper])
+
+  // ─── Donativos: carga ────────────────────────────────────────────────────
+  const cargarDonativos = async () => {
+    setLoadingDonativos(true)
+    try {
+      const snap = await getDocs(query(collection(db, 'donativos'), orderBy('fecha', 'desc')))
+      setDonativos(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+    } catch { /* silent */ }
+    finally { setLoadingDonativos(false) }
+  }
+
+  useEffect(() => {
+    if (autenticado && authListo && vista === 'lista' && soySuper) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      cargarDonativos()
     }
   }, [autenticado, authListo, vista, soySuper])
 
@@ -4121,6 +4146,7 @@ export default function Admin() {
                       const maxV = Math.max(1, ...d7.map(d => Number(d.visitas) || 0))
                       const idxPico = d7.reduce((best, d, i) => (Number(d.visitas) || 0) > (Number(d7[best]?.visitas) || 0) ? i : best, 0)
                       const cajaNeto = saldos.reduce((a, s) => a + s.saldo, 0)
+                      const totalDonado = donativos.reduce((a, d) => a + (Number(d.monto) || 0), 0)
                       const cliAct = clientes.filter(c => c.activo).length
                       const saludo = auth.currentUser?.displayName || 'César'
 
@@ -4174,11 +4200,12 @@ export default function Admin() {
                             </div>
                           </div>
                           {/* KPIs */}
-                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 20 }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 14, marginBottom: 20 }}>
                             {kpi({ icon: 'users', color: 'var(--green-light)', tint: 'var(--green-bg)', valor: cliAct, sub: `/ ${clientes.length}`, label: 'Clientes activos' })}
                             {kpi({ icon: 'list', color: '#93C5FD', tint: 'rgba(59,130,246,0.16)', valor: quinielas.length, label: 'Quinielas totales' })}
                             {kpi({ icon: 'wallet', color: 'var(--green-light)', tint: 'var(--green-bg)', valor: formatearMXN(cajaNeto), label: 'Caja global' })}
                             {kpi({ icon: 'trending-up', color: '#C4B5FD', tint: 'rgba(167,139,250,0.16)', valor: visitas7.toLocaleString('es-MX'), label: 'Visitas · 7 días' })}
+                            {kpi({ icon: 'heart', color: '#FB7185', tint: 'rgba(251,113,133,0.14)', valor: loadingDonativos ? '…' : formatearMXN(totalDonado), sub: donativos.length ? `· ${donativos.length}` : null, label: 'Donativos (Stripe)' })}
                           </div>
                           {/* En movimiento: accesos directos a quinielas abiertas o jugándose */}
                           {enMovimientoSuper.length > 0 && (
@@ -4837,9 +4864,13 @@ export default function Admin() {
                   Cerrar sesión
                 </button>
 
-                {!soySuper && adminDoc && (
+                {(soySuper || adminDoc) && (
                   <section className="admin-account-danger-zone" aria-label="Eliminar cuenta">
-                    <button type="button" className="admin-account-delete-link" onClick={abrirEliminarCuenta}>
+                    <button
+                      type="button"
+                      className="admin-account-delete-link"
+                      onClick={soySuper ? () => setEliminarCuentaSoloUsuariosAbierta(true) : abrirEliminarCuenta}
+                    >
                       Eliminar mi cuenta
                     </button>
                   </section>
@@ -4887,6 +4918,30 @@ export default function Admin() {
                       {eliminandoCuenta ? 'Eliminando…' : 'Sí, eliminar definitivamente'}
                     </button>
                     <button type="button" className="admin-account-sheet-secondary is-bordered" onClick={cerrarEliminarCuenta} disabled={eliminandoCuenta}>
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {eliminarCuentaSoloUsuariosAbierta && (
+                <div className="admin-account-sheet-overlay" role="dialog" aria-modal="true" aria-labelledby="cuenta-eliminar-solo-usuarios-title" onClick={() => setEliminarCuentaSoloUsuariosAbierta(false)}>
+                  <div className="admin-account-sheet is-danger" onClick={e => e.stopPropagation()}>
+                    <span className="admin-account-sheet-grabber" aria-hidden="true" />
+                    <div className="admin-account-danger-heading">
+                      <span className="admin-account-sheet-icon is-danger">
+                        <AdminIcon name="alert" size={24} />
+                      </span>
+                      <h2 id="cuenta-eliminar-solo-usuarios-title" className="admin-account-sheet-title">¿Eliminar tu cuenta?</h2>
+                    </div>
+                    <p className="admin-account-sheet-copy is-danger">
+                      Esta función es solo para usuarios de tu app. Los botones no ejecutan acciones mas que salir del modal.
+                    </p>
+                    <button type="button" className="admin-account-sheet-primary is-danger" onClick={() => setEliminarCuentaSoloUsuariosAbierta(false)}>
+                      <AdminIcon name="trash" size={18} />
+                      Sí, eliminar definitivamente
+                    </button>
+                    <button type="button" className="admin-account-sheet-secondary is-bordered" onClick={() => setEliminarCuentaSoloUsuariosAbierta(false)}>
                       Cancelar
                     </button>
                   </div>

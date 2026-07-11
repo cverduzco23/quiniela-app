@@ -3,6 +3,7 @@ import Index from './pages/index'
 import Predicciones from './pages/predicciones'
 import Ranking from './pages/ranking'
 import Admin from './pages/admin'
+import Donar from './pages/donar'
 import { DialogProvider } from './components/Dialogs'
 
 function App() {
@@ -20,6 +21,7 @@ function App() {
         <Route path="/ranking/:id" element={<Ranking />} />
         <Route path="/ranking" element={<Ranking />} />
         <Route path="/admin" element={<Admin />} />
+        <Route path="/donar" element={<Donar />} />
       </Routes>
       </DialogProvider>
     </BrowserRouter>

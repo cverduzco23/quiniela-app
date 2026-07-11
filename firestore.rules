@@ -210,6 +210,16 @@ service cloud.firestore {
     }
 
     // ──────────────────────────────────────────────────────────────
+    // donativos/  (registro de donativos vía Stripe)
+    // ──────────────────────────────────────────────────────────────
+    // Solo el webhook de Stripe (Admin SDK, bypassa estas reglas) escribe aquí.
+    // Ningún cliente puede crear/editar/borrar donativos.
+    match /donativos/{donativoId} {
+      allow read: if isSuperAdmin();
+      allow write: if false;
+    }
+
+    // ──────────────────────────────────────────────────────────────
     // config/  (configuración global del producto)
     // ──────────────────────────────────────────────────────────────
     // config/home guarda qué secciones del inicio se muestran. Lectura

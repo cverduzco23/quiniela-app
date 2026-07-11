@@ -31,6 +31,8 @@ import { getFirestore } from 'firebase-admin/firestore'
 initializeApp()
 const db = getFirestore()
 
+export { crearSesionDonativo, webhookDonativos } from './stripe.js'
+
 // ─── Helpers copiados de src/utils (scoring.js, cierre.js, espn.js) ─────────
 // Las funciones de la app viven en src/utils pero el deploy de Cloud Functions
 // solo empaca esta carpeta, así que se duplican aquí. Si cambias la lógica de
