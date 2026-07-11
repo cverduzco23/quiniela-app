@@ -6,7 +6,6 @@ import { quinielaCerrada, quinielaFinalizada, hayPartidoEnVivo } from '../utils/
 import { tienePremio } from '../utils/premios'
 import { datosTarjetaQuiniela } from '../utils/quinielaCard'
 import { Footer } from '../components/Footer'
-import { waLink, MENSAJES_WA } from '../utils/whatsapp'
 import { ordenSeccionesHome } from '../utils/homeSections'
 import { leerMisQuinielasGuardadas, recordarMiQuiniela, olvidarMiQuiniela } from '../utils/misQuinielas'
 import { BrandWordmark } from '../components/Brand'
@@ -18,10 +17,10 @@ const esFinalizada = quinielaFinalizada
 const badgeSinPremio = {
   display: 'inline-flex',
   alignItems: 'center',
-  gap: 4,
-  fontSize: 10,
-  fontWeight: 750,
-  padding: '3px 8px',
+  gap: 6,
+  fontSize: 10.5,
+  fontWeight: 800,
+  padding: '5px 10px',
   borderRadius: 'var(--radius-full)',
   background: 'var(--neutral-bg)',
   color: 'var(--muted)',
@@ -172,7 +171,7 @@ function HomeHeader({ scrolled }) {
       position: 'sticky',
       top: 0,
       zIndex: 20,
-      background: scrolled ? 'rgba(11,18,32,0.92)' : 'transparent',
+      background: scrolled ? 'rgba(7,13,24,0.92)' : 'transparent',
       backdropFilter: scrolled ? 'blur(14px)' : 'none',
       borderBottom: scrolled ? '1px solid var(--border)' : '1px solid transparent',
       transition: 'background-color 0.25s ease, border-color 0.25s ease',
@@ -244,17 +243,23 @@ function CodeEntry({ codigoBusqueda, setCodigoBusqueda, errorBusqueda, setErrorB
           {!buscando && <HomeIcon name="arrow" size={16} />}
         </button>
       </div>
-      <div style={{ minHeight: 20, marginTop: 11 }}>
-        {errorBusqueda && (
-          <p style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: '#FCA5A5', margin: 0 }}>
-            <HomeIcon name="warning" size={13} />
-            {errorBusqueda}
-          </p>
-        )}
-      </div>
+      {errorBusqueda && (
+        <p style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: '#FCA5A5', margin: '11px 0 0' }}>
+          <HomeIcon name="warning" size={13} />
+          {errorBusqueda}
+        </p>
+      )}
     </div>
   )
 }
+
+// Mismo relleno metálico "apagado" que usa el podio del ranking real (RankingTable)
+const medalPreviewBg = [
+  'radial-gradient(circle at 34% 28%, #FFF6BA 0%, #F6D978 24%, #C9941F 58%, #7D5407 100%)',
+  'radial-gradient(circle at 34% 28%, #F8FAFC 0%, #D9DEE7 26%, #9CA3AF 62%, #59616D 100%)',
+  'radial-gradient(circle at 34% 28%, #FFE0B2 0%, #D99A5B 28%, #A85F25 64%, #5F3517 100%)',
+]
+const medalPreviewText = ['#3F2D00', '#29313D', '#2F1809']
 
 function RankingPreview({ principal, conteos }) {
   const nombre = principal?.nombre || 'Mundial 2026'
@@ -267,11 +272,11 @@ function RankingPreview({ principal, conteos }) {
   ]
   return (
     <aside className="public-ranking-preview" aria-label="Vista previa de ranking" style={{
-      background: '#151F32',
-      border: '1px solid rgba(255,255,255,0.09)',
-      borderRadius: 16,
+      background: 'linear-gradient(135deg, rgba(30,41,59,0.92), rgba(15,24,40,0.95))',
+      border: '1px solid rgba(255,255,255,0.10)',
+      borderRadius: 14,
       padding: 18,
-      boxShadow: '0 30px 70px rgba(0,0,0,0.45)',
+      boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 12px 26px rgba(0,0,0,0.32)',
       transform: 'rotate(1.2deg)',
     }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 14 }}>
@@ -279,7 +284,7 @@ function RankingPreview({ principal, conteos }) {
           <p style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 700, color: 'var(--text-strong)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nombre}</p>
           <p style={{ fontSize: 11.5, color: 'var(--muted-soft)', marginTop: 2 }}>{participantes} jugando · {partidos} partidos</p>
         </div>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 9px', borderRadius: 'var(--radius-full)', background: 'var(--red-bg-strong)', color: '#FCA5A5', fontSize: 10, fontWeight: 850, flexShrink: 0 }}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 10px', borderRadius: 'var(--radius-full)', background: 'var(--red-bg-strong)', color: '#FCA5A5', fontSize: 10.5, fontWeight: 800, flexShrink: 0 }}>
           <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--red)', animation: 'pulse-dot 1.2s infinite' }} />
           EN VIVO
         </span>
@@ -290,8 +295,8 @@ function RankingPreview({ principal, conteos }) {
             display: 'flex',
             alignItems: 'center',
             gap: 11,
-            background: i === 2 ? 'rgba(34,197,94,0.08)' : '#0F1A2C',
-            border: i === 2 ? '1px solid rgba(34,197,94,0.3)' : '1px solid rgba(255,255,255,0.06)',
+            background: i === 2 ? 'rgba(34,197,94,0.08)' : 'rgba(6,12,24,0.55)',
+            border: i === 2 ? '1px solid rgba(34,197,94,0.3)' : '1px solid rgba(255,255,255,0.07)',
             borderRadius: 10,
             padding: '11px 13px',
           }}>
@@ -302,8 +307,8 @@ function RankingPreview({ principal, conteos }) {
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
-              background: i === 0 ? 'linear-gradient(135deg,#FDE68A,#FACC15)' : i === 1 ? 'linear-gradient(135deg,#E5E7EB,#9CA3AF)' : 'linear-gradient(135deg,#FCD9B6,#D08B4F)',
-              color: i === 0 ? '#3F2700' : '#1F2937',
+              background: medalPreviewBg[i],
+              color: medalPreviewText[i],
               fontSize: 12,
               fontWeight: 900,
             }}>{pos}</span>
@@ -320,7 +325,7 @@ function RankingPreview({ principal, conteos }) {
 
 function estadoQuiniela(q) {
   if (esFinalizada(q)) return { label: 'Finalizada', color: 'var(--muted)', bg: 'var(--neutral-bg)', href: `/ranking/${q.id}`, cta: 'Ver resultados' }
-  if (esCerrada(q)) return { label: hayPartidoEnVivo(q) ? 'En vivo' : 'Jugándose', color: hayPartidoEnVivo(q) ? '#FCA5A5' : 'var(--yellow)', bg: hayPartidoEnVivo(q) ? 'var(--red-bg-strong)' : 'var(--yellow-bg)', href: `/ranking/${q.id}`, cta: 'Ver ranking' }
+  if (esCerrada(q)) return { label: hayPartidoEnVivo(q) ? 'En vivo' : 'Jugándose', color: hayPartidoEnVivo(q) ? '#FCA5A5' : 'var(--green-light)', bg: hayPartidoEnVivo(q) ? 'var(--red-bg-strong)' : 'var(--green-bg)', href: `/ranking/${q.id}`, cta: 'Ver ranking' }
   return { label: 'Abierta', color: 'var(--green-light)', bg: 'var(--green-bg)', href: `/quiniela/${q.id}`, cta: 'Jugar' }
 }
 
@@ -328,10 +333,11 @@ function HomeQuinielaRow({ q, conteos }) {
   const estado = estadoQuiniela(q)
   return (
     <div className="public-live-card" style={{
-      background: 'var(--card)',
+      background: 'linear-gradient(135deg, rgba(30,41,59,0.92), rgba(15,24,40,0.95))',
       borderRadius: 14,
       padding: '18px 20px',
-      border: '1px solid rgba(34,197,94,0.28)',
+      border: '1px solid rgba(255,255,255,0.10)',
+      boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 12px 26px rgba(0,0,0,0.32)',
       display: 'grid',
       gridTemplateColumns: 'minmax(0, 1fr) auto auto',
       alignItems: 'center',
@@ -350,9 +356,9 @@ function HomeQuinielaRow({ q, conteos }) {
         alignItems: 'center',
         justifyContent: 'center',
         gap: 6,
-        fontSize: 11,
-        fontWeight: 850,
-        padding: '4px 10px',
+        fontSize: 10.5,
+        fontWeight: 800,
+        padding: '5px 10px',
         borderRadius: 'var(--radius-full)',
         background: estado.bg,
         color: estado.color,
@@ -439,8 +445,8 @@ function TusQuinielasSection({ quinielas, conteos, predicciones, onQuitar }) {
 
 function HowItWorks() {
   return (
-    <section id="como-funciona" style={{ background: '#0E1626', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)' }}>
-      <div className="public-home-shell public-how-inner" style={{ maxWidth: 1100, margin: '0 auto', padding: '44px 24px' }}>
+    <section id="como-funciona">
+      <div className="public-home-shell public-how-inner" style={{ maxWidth: 1100, margin: '0 auto', padding: '12px 24px' }}>
         <h2 style={{ ...sectionTitleStyle, textAlign: 'center', marginBottom: 24 }}>Cómo funciona</h2>
         <div className="public-steps-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20 }}>
           {[
@@ -497,7 +503,7 @@ function FaqSection() {
         {faq.map(([titulo, texto], i) => {
           const abierta = abiertas.has(i)
           return (
-            <div key={titulo} className={`public-faq-item${abierta ? ' public-faq-item--open' : ''}`} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12, padding: '15px 18px' }}>
+            <div key={titulo} className={`public-faq-item${abierta ? ' public-faq-item--open' : ''}`} style={{ background: 'linear-gradient(135deg, rgba(30,41,59,0.92), rgba(15,24,40,0.95))', border: '1px solid rgba(255,255,255,0.10)', borderRadius: 12, padding: '15px 18px', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 12px 26px rgba(0,0,0,0.32)' }}>
               <button
                 type="button"
                 onClick={() => toggle(i)}
@@ -505,8 +511,8 @@ function FaqSection() {
                 style={{ all: 'unset', boxSizing: 'border-box', width: '100%', fontFamily: 'inherit', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, fontSize: 14.5, fontWeight: 850, color: 'var(--text-strong)' }}
               >
                 <span>{titulo}</span>
-                <span className="public-faq-chevron" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: '50%', flexShrink: 0, background: 'var(--neutral-bg)', color: 'var(--muted)' }}>
-                  <HomeIcon name="chevron" size={15} />
+                <span className="public-faq-chevron" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: 'var(--muted)' }}>
+                  <HomeIcon name="chevron" size={16} />
                 </span>
               </button>
               <div style={{ display: 'grid', gridTemplateRows: abierta ? '1fr' : '0fr', transition: 'grid-template-rows 0.25s ease' }}>
@@ -716,15 +722,16 @@ export default function Home() {
   const mainClassName = `public-home-main${seccionesVisibles[0]?.clave === 'mostrarComoFunciona' ? ' public-home-main--starts-with-how' : ''}`
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg)', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ background: 'var(--hero-gradient)' }}>
+    <div style={{ minHeight: '100vh', background: '#070d18', position: 'relative', zIndex: 0, display: 'flex', flexDirection: 'column' }}>
+      <div className="public-home-bg-fade" aria-hidden="true" />
+      <div>
         <HomeHeader scrolled={scrolled} />
 
-        <section style={{ borderBottom: '1px solid var(--border)' }}>
+        <section>
           <div className="public-home-hero public-home-shell" style={{
             maxWidth: 1100,
             margin: '0 auto',
-            padding: '56px 24px 58px',
+            padding: '56px 24px 40px',
             display: 'grid',
             gridTemplateColumns: '1.05fr 0.95fr',
             gap: 46,
@@ -759,7 +766,7 @@ export default function Home() {
         </section>
       </div>
 
-      <main className={mainClassName} style={{ display: 'flex', flexDirection: 'column', gap: 32, padding: '32px 0', flex: '1 0 auto' }}>
+      <main className={mainClassName} style={{ display: 'flex', flexDirection: 'column', gap: 32, padding: '20px 0 0', flex: '1 0 auto' }}>
         {verSeccion('mostrarComoFunciona') && (
           <div style={{ order: ordenDe('mostrarComoFunciona') }}>
             <HowItWorks />

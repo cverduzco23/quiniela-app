@@ -670,7 +670,7 @@ function cierreSugerido(partidos) {
 }
 
 // ─── Estilos compartidos ──────────────────────────────────────────────────────
-const card = { background: 'var(--card)', borderRadius: 'var(--radius-md)', padding: '1.1rem 1.25rem', marginBottom: 10, border: '1px solid var(--border)' }
+const card = { background: 'linear-gradient(135deg, rgba(30,41,59,0.92), rgba(15,24,40,0.95))', borderRadius: 14, padding: '1.1rem 1.25rem', marginBottom: 10, border: '1px solid rgba(255,255,255,0.10)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 12px 26px rgba(0,0,0,0.32)' }
 const lbl = { fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 8 }
 const greenCta = 'linear-gradient(135deg, var(--green), var(--green-light))'
 const greenCtaStyle = (disabled) => ({
@@ -836,7 +836,7 @@ export default function Admin() {
           <AdminIcon name="chevron-right" size={16} style={{ color: 'var(--muted)' }} />
         </a>
         <a href={reporteLink} target="_blank" rel="noreferrer" style={{ ...actionStyle(false), textDecoration: 'none' }}>
-          <AdminIcon name="alert" size={18} style={{ color: 'var(--yellow)' }} />
+          <AdminIcon name="alert" size={18} style={{ color: 'var(--muted)' }} />
           <span style={{ flex: 1 }}>
             <span style={labelStyle}>Reportar un problema</span>
             <span style={subStyle}>¿Algo no funciona? Cuéntanos</span>
@@ -2871,7 +2871,8 @@ export default function Admin() {
     setClienteTab(tab)
   }
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg)', display: (superDesktop || clienteDesktop) ? 'flex' : 'block', alignItems: (superDesktop || clienteDesktop) ? 'stretch' : undefined }}>
+    <div style={{ minHeight: '100vh', background: '#070d18', position: 'relative', zIndex: 0, display: (superDesktop || clienteDesktop) ? 'flex' : 'block', alignItems: (superDesktop || clienteDesktop) ? 'stretch' : undefined }}>
+      <div className="admin-bg-fade" aria-hidden="true" />
       {superDesktop && (
         <SidebarSuper
           activo={vista === 'lista' ? superModulo : null}
@@ -2929,7 +2930,7 @@ export default function Admin() {
                 const filtroCaja = buscarNombreCaja.trim().toLowerCase()
                 const saldosFiltrados = filtroCaja ? saldos.filter(s => s.nombre.toLowerCase().includes(filtroCaja)) : saldos
                 const kpiCaja = (valor, label, color) => (
-                  <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 13, padding: '15px 16px' }}>
+                  <div style={{ background: 'linear-gradient(135deg, rgba(30,41,59,0.92), rgba(15,24,40,0.95))', border: '1px solid rgba(255,255,255,0.10)', borderRadius: 13, padding: '15px 16px', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 12px 26px rgba(0,0,0,0.32)' }}>
                     <p style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 700, color, margin: 0, lineHeight: 1 }}>{valor}</p>
                     <p style={{ fontSize: 11.5, color: 'var(--muted)', fontWeight: 700, margin: '5px 0 0' }}>{label}</p>
                   </div>
@@ -3035,7 +3036,7 @@ export default function Admin() {
                                 type="button"
                                 onClick={e => { e.stopPropagation(); eliminarParticipanteCaja(nombre) }}
                                 aria-label={`Eliminar a ${nombre} de Caja`}
-                                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'transparent', color: 'var(--muted)', cursor: 'pointer', flexShrink: 0 }}
+                                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: 'var(--radius-sm)', border: '1px solid rgba(255,255,255,0.10)', background: 'transparent', color: 'var(--muted)', cursor: 'pointer', flexShrink: 0 }}
                               >
                                 <AdminIcon name="trash" size={14} />
                               </button>
@@ -3061,7 +3062,7 @@ export default function Admin() {
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1.55fr 1fr', gap: 16, alignItems: 'start' }}>
                       {/* Izquierda: saldos */}
-                      <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 13, padding: '14px 16px' }}>
+                      <div style={{ background: 'linear-gradient(135deg, rgba(30,41,59,0.92), rgba(15,24,40,0.95))', border: '1px solid rgba(255,255,255,0.10)', borderRadius: 13, padding: '14px 16px', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 12px 26px rgba(0,0,0,0.32)' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
                           <div style={{ flex: 1, minWidth: 160, display: 'flex', alignItems: 'center', gap: 8, background: 'var(--bg-soft)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0 10px', height: 36 }}>
                             <AdminIcon name="search" size={14} style={{ color: 'var(--muted)' }} />
@@ -3106,7 +3107,7 @@ export default function Admin() {
                                   type="button"
                                   onClick={e => { e.stopPropagation(); eliminarParticipanteCaja(nombre) }}
                                   title={`Eliminar a ${nombre} de Caja`}
-                                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 26, borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'transparent', color: 'var(--muted)', cursor: 'pointer' }}
+                                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 26, borderRadius: 'var(--radius-sm)', border: '1px solid rgba(255,255,255,0.10)', background: 'transparent', color: 'var(--muted)', cursor: 'pointer' }}
                                 >
                                   <AdminIcon name="trash" size={13} />
                                 </button>
@@ -3116,7 +3117,7 @@ export default function Admin() {
                         })}
                       </div>
                       {/* Derecha: registrar movimiento */}
-                      <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 13, padding: '16px 18px' }}>
+                      <div style={{ background: 'linear-gradient(135deg, rgba(30,41,59,0.92), rgba(15,24,40,0.95))', border: '1px solid rgba(255,255,255,0.10)', borderRadius: 13, padding: '16px 18px', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 12px 26px rgba(0,0,0,0.32)' }}>
                         <p style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 14, fontWeight: 800, color: 'var(--text-strong)', margin: '0 0 14px' }}>
                           <AdminIcon name="wallet" size={15} /> Registrar movimiento
                         </p>
@@ -3515,7 +3516,7 @@ export default function Admin() {
                     ) : (
                       <>
                         {(filtroMisSuper === 'todas' || filtroMisSuper === 'abiertas') && renderGrupoMisMobile('Abiertas', misActivasF, 'var(--green)')}
-                        {(filtroMisSuper === 'todas' || filtroMisSuper === 'jugando') && renderGrupoMisMobile('Jugándose', misEnJuegoF, 'var(--yellow)')}
+                        {(filtroMisSuper === 'todas' || filtroMisSuper === 'jugando') && renderGrupoMisMobile('Jugándose', misEnJuegoF, 'var(--green)')}
                         {(filtroMisSuper === 'todas' || filtroMisSuper === 'finalizadas') && renderGrupoMisMobile('Finalizadas', misFinalizadasF, 'var(--muted)', true)}
                       </>
                     )}
@@ -3583,7 +3584,7 @@ export default function Admin() {
                     ) : (
                       <>
                         {(filtroMisSuper === 'todas' || filtroMisSuper === 'abiertas') && grupoQ('Abiertas', misActivasF, 'var(--green)')}
-                        {(filtroMisSuper === 'todas' || filtroMisSuper === 'jugando') && grupoQ('Jugándose', misEnJuegoF, 'var(--yellow)')}
+                        {(filtroMisSuper === 'todas' || filtroMisSuper === 'jugando') && grupoQ('Jugándose', misEnJuegoF, 'var(--green)')}
                         {(filtroMisSuper === 'todas' || filtroMisSuper === 'finalizadas') && grupoQ('Finalizadas', misFinalizadasF, 'var(--muted)', true)}
                       </>
                     )}
@@ -3906,7 +3907,7 @@ export default function Admin() {
 
                       <div className="stats-hour-card">
                         <p style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 700, color: 'var(--text)', marginBottom: 10 }}>
-                          <AdminIcon name="clock" size={14} style={{ color: 'var(--yellow)' }} /> Actividad por hora {infoBtn('hora')}
+                          <AdminIcon name="clock" size={14} style={{ color: 'var(--muted)' }} /> Actividad por hora {infoBtn('hora')}
                         </p>
                         {defBox('hora')}
                         <div style={{ display: 'flex', gap: 3 }}>
@@ -3932,7 +3933,7 @@ export default function Admin() {
                         </div>
                         {horaPico && (
                           <p style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 10 }}>
-                            Pico a las <strong style={{ color: 'var(--yellow)' }}>{horaPico}</strong> — ideal para avisar por WhatsApp.
+                            Pico a las <strong style={{ color: 'var(--text-strong)' }}>{horaPico}</strong> — ideal para avisar por WhatsApp.
                           </p>
                         )}
                       </div>
@@ -4151,7 +4152,7 @@ export default function Admin() {
                       const saludo = auth.currentUser?.displayName || 'César'
 
                       const kpi = ({ icon, color, tint, valor, sub, label }) => (
-                        <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 13, padding: '15px 16px' }}>
+                        <div style={{ background: 'linear-gradient(135deg, rgba(30,41,59,0.92), rgba(15,24,40,0.95))', border: '1px solid rgba(255,255,255,0.10)', borderRadius: 13, padding: '15px 16px', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 12px 26px rgba(0,0,0,0.32)' }}>
                           <span style={{ display: 'inline-flex', width: 32, height: 32, borderRadius: 9, background: tint, color, alignItems: 'center', justifyContent: 'center', marginBottom: 10 }}>
                             <AdminIcon name={icon} size={16} />
                           </span>
@@ -4167,8 +4168,9 @@ export default function Admin() {
                           onClick={() => setSuperModulo(modulo)}
                           style={{
                             textAlign: 'left', cursor: 'pointer',
-                            border: '1px solid var(--border)', borderRadius: 13,
-                            background: 'linear-gradient(145deg, rgba(34,197,94,0.10), transparent 45%), var(--card)',
+                            border: '1px solid rgba(255,255,255,0.10)', borderRadius: 13,
+                            background: 'linear-gradient(135deg, rgba(30,41,59,0.92), rgba(15,24,40,0.95))',
+                            boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 12px 26px rgba(0,0,0,0.32)',
                             padding: '15px 16px',
                           }}
                         >
@@ -4189,7 +4191,7 @@ export default function Admin() {
                             <div>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
                                 <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 27, fontWeight: 700, color: 'var(--text-strong)', margin: 0, lineHeight: 1.1 }}>Hola, {saludo}</h2>
-                                <span style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: '0.06em', padding: '3px 8px', borderRadius: 6, background: 'var(--yellow-bg)', color: 'var(--yellow-soft)' }}>PANEL MAESTRO</span>
+                                <span style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '0.06em', padding: '5px 10px', borderRadius: 'var(--radius-full)', background: 'var(--neutral-bg)', color: 'var(--muted)' }}>PANEL MAESTRO</span>
                               </div>
                               <p style={{ fontSize: 12.5, color: 'var(--muted)', margin: '4px 0 0' }}>Vista general de toda la plataforma</p>
                             </div>
@@ -4202,16 +4204,16 @@ export default function Admin() {
                           {/* KPIs */}
                           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 14, marginBottom: 20 }}>
                             {kpi({ icon: 'users', color: 'var(--green-light)', tint: 'var(--green-bg)', valor: cliAct, sub: `/ ${clientes.length}`, label: 'Clientes activos' })}
-                            {kpi({ icon: 'list', color: '#93C5FD', tint: 'rgba(59,130,246,0.16)', valor: quinielas.length, label: 'Quinielas totales' })}
+                            {kpi({ icon: 'list', color: 'var(--muted)', tint: 'var(--neutral-bg)', valor: quinielas.length, label: 'Quinielas totales' })}
                             {kpi({ icon: 'wallet', color: 'var(--green-light)', tint: 'var(--green-bg)', valor: formatearMXN(cajaNeto), label: 'Caja global' })}
-                            {kpi({ icon: 'trending-up', color: '#C4B5FD', tint: 'rgba(167,139,250,0.16)', valor: visitas7.toLocaleString('es-MX'), label: 'Visitas · 7 días' })}
+                            {kpi({ icon: 'trending-up', color: 'var(--muted)', tint: 'var(--neutral-bg)', valor: visitas7.toLocaleString('es-MX'), label: 'Visitas · 7 días' })}
                             {kpi({ icon: 'heart', color: '#FB7185', tint: 'rgba(251,113,133,0.14)', valor: loadingDonativos ? '…' : formatearMXN(totalDonado), sub: donativos.length ? `· ${donativos.length}` : null, label: 'Donativos (Stripe)' })}
                           </div>
                           {/* En movimiento: accesos directos a quinielas abiertas o jugándose */}
                           {enMovimientoSuper.length > 0 && (
                             <div style={{ marginBottom: 20 }}>
                               <p style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--muted-soft)', margin: '0 0 11px' }}>
-                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true" style={{ color: '#F59E0B' }}>
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true" style={{ color: 'var(--muted)' }}>
                                   <path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z" fill="currentColor" />
                                 </svg>
                                 En movimiento
@@ -4231,7 +4233,7 @@ export default function Admin() {
                             {deskModule({ modulo: 'cuenta', icon: 'key', title: 'Mi cuenta', desc: 'Accesos, seguridad y herramientas.' })}
                           </div>
                           {/* Actividad 7 días */}
-                          <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 13, padding: '16px 18px', display: 'flex', alignItems: 'center', gap: 26 }}>
+                          <div style={{ background: 'linear-gradient(135deg, rgba(30,41,59,0.92), rgba(15,24,40,0.95))', border: '1px solid rgba(255,255,255,0.10)', borderRadius: 13, padding: '16px 18px', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 12px 26px rgba(0,0,0,0.32)', display: 'flex', alignItems: 'center', gap: 26 }}>
                             <div style={{ flex: '0 0 auto' }}>
                               <p style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--muted-soft)', margin: '0 0 4px' }}>Actividad 7 días</p>
                               <p style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 700, color: 'var(--text-strong)', margin: 0 }}>{visitas7.toLocaleString('es-MX')} visitas</p>
@@ -4245,7 +4247,7 @@ export default function Admin() {
                             </div>
                             <div style={{ flex: '0 0 auto', display: 'flex', gap: 22, borderLeft: '1px solid var(--border)', paddingLeft: 24 }}>
                               <div><p style={{ fontSize: 11.5, color: 'var(--muted)', margin: 0 }}>Celular</p><p style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-strong)', margin: '2px 0 0' }}>{celPct}%</p></div>
-                              <div><p style={{ fontSize: 11.5, color: 'var(--muted)', margin: 0 }}>Hora pico</p><p style={{ fontSize: 16, fontWeight: 800, color: 'var(--yellow-soft)', margin: '2px 0 0' }}>{horaPico}</p></div>
+                              <div><p style={{ fontSize: 11.5, color: 'var(--muted)', margin: 0 }}>Hora pico</p><p style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-strong)', margin: '2px 0 0' }}>{horaPico}</p></div>
                             </div>
                           </div>
                         </div>
@@ -4267,7 +4269,7 @@ export default function Admin() {
                           <p style={{ fontSize: 12.5, color: 'var(--muted)', margin: '4px 0 0' }}>Datos, seguridad y herramientas.</p>
                         </div>
                         {/* Tu cuenta */}
-                        <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 13, padding: '16px 18px', marginBottom: 14 }}>
+                        <div style={{ background: 'linear-gradient(135deg, rgba(30,41,59,0.92), rgba(15,24,40,0.95))', border: '1px solid rgba(255,255,255,0.10)', borderRadius: 14, boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 12px 26px rgba(0,0,0,0.32)', padding: '16px 18px', marginBottom: 14 }}>
                           <p style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--text-strong)', margin: '0 0 12px' }}>Tu cuenta</p>
                           <label style={{ ...lbl, marginBottom: 6 }}>Correo</label>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--bg-soft)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '10px 12px' }}>
@@ -4277,7 +4279,7 @@ export default function Admin() {
                           <p style={{ fontSize: 11, color: 'var(--muted)', margin: '8px 0 0' }}>El correo no se puede cambiar.</p>
                         </div>
                         {/* Seguridad */}
-                        <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 13, padding: '16px 18px', marginBottom: 14 }}>
+                        <div style={{ background: 'linear-gradient(135deg, rgba(30,41,59,0.92), rgba(15,24,40,0.95))', border: '1px solid rgba(255,255,255,0.10)', borderRadius: 14, boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 12px 26px rgba(0,0,0,0.32)', padding: '16px 18px', marginBottom: 14 }}>
                           <p style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--text-strong)', margin: '0 0 12px' }}>Seguridad</p>
                           <label htmlFor="superd-p1" style={{ ...lbl, marginBottom: 6 }}>Nueva contraseña</label>
                           <input id="superd-p1" type="password" placeholder="Mínimo 8 caracteres" value={cuentaP1} onChange={e => { setCuentaP1(e.target.value); setCuentaPassMsg(null) }} style={{ marginBottom: 8 }} />
@@ -4290,7 +4292,7 @@ export default function Admin() {
                           </button>
                         </div>
                         {/* Herramientas */}
-                        <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 13, padding: '8px 6px' }}>
+                        <div style={{ background: 'linear-gradient(135deg, rgba(30,41,59,0.92), rgba(15,24,40,0.95))', border: '1px solid rgba(255,255,255,0.10)', borderRadius: 14, boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 12px 26px rgba(0,0,0,0.32)', padding: '8px 6px' }}>
                           {[
                             ['Consola de Firebase', 'https://console.firebase.google.com/project/quiniela-app-24896/overview', 'external', 'var(--text)'],
                             ['Ver quinielapp.fun', 'https://quinielapp.fun', 'external', 'var(--text)'],
@@ -4367,7 +4369,7 @@ export default function Admin() {
                     {extras.length > 0 && (
                       <button
                         onClick={() => setVerTodo(v => ({ ...v, [clave]: !abierto }))}
-                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%', padding: '9px', margin: '8px 0 4px', background: 'transparent', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--muted)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}
+                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, width: '100%', padding: '8px', margin: '4px 0 4px', background: 'transparent', border: 'none', color: 'var(--muted)', fontSize: 12.5, fontWeight: 500, cursor: 'pointer' }}
                       >
                         {abierto ? 'Mostrar menos' : `Mostrar ${extras.length} más`}
                         <AdminIcon name="chevron-down" size={15} style={{ color: 'var(--muted-soft)', transform: abierto ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }} />
@@ -4402,7 +4404,7 @@ export default function Admin() {
               const filtrosQuinielasCliente = [
                 { key: 'todas', label: 'Todas', count: totalQuinielasFiltradas, tone: 'all' },
                 { key: 'abiertas', label: 'Abiertas', count: miasFiltradas.activas.length, tone: 'green' },
-                { key: 'jugando', label: 'Jugándose', count: miasFiltradas.enJuego.length, tone: 'yellow' },
+                { key: 'jugando', label: 'Jugándose', count: miasFiltradas.enJuego.length, tone: 'green' },
                 { key: 'finalizadas', label: 'Finalizadas', count: miasFiltradas.finalizadas.length, tone: 'muted' },
               ]
               const quinielasClienteFiltradas = filtroQuinielasCliente === 'abiertas'
@@ -4490,7 +4492,7 @@ export default function Admin() {
               const proximamente = (icon, titulo, desc) => (
                 <div style={{ ...card, textAlign: 'center', padding: '3rem 2rem' }}>
                   <div style={{ color: 'var(--muted)', marginBottom: 12, display: 'flex', justifyContent: 'center' }}><AdminIcon name={icon} size={40} /></div>
-                  <span style={{ display: 'inline-block', fontSize: 10.5, fontWeight: 800, letterSpacing: '0.06em', padding: '3px 10px', borderRadius: 'var(--radius-full)', background: 'var(--yellow-bg)', color: 'var(--yellow-soft)', marginBottom: 12 }}>PRÓXIMAMENTE</span>
+                  <span style={{ display: 'inline-block', fontSize: 10.5, fontWeight: 800, letterSpacing: '0.06em', padding: '5px 10px', borderRadius: 'var(--radius-full)', background: 'var(--neutral-bg)', color: 'var(--muted)', marginBottom: 12 }}>PRÓXIMAMENTE</span>
                   <p style={{ fontWeight: 700, fontSize: 16, color: 'var(--text)', marginBottom: 8 }}>{titulo}</p>
                   <p style={{ fontSize: 13, color: 'var(--muted)', maxWidth: 380, margin: '0 auto', lineHeight: 1.5 }}>{desc}</p>
                 </div>
@@ -4526,10 +4528,10 @@ export default function Admin() {
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 20 }}>
                     {[
                       { v: mias.activas.length, l: 'Abiertas', c: 'var(--green-light)' },
-                      { v: mias.enJuego.length, l: 'Jugándose', c: 'var(--yellow-soft)' },
+                      { v: mias.enJuego.length, l: 'Jugándose', c: 'var(--green-light)' },
                       { v: totalJugadores, l: 'Jugadores', c: 'var(--text-strong)' },
                     ].map(s => (
-                      <div key={s.l} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 13, padding: '14px 16px' }}>
+                      <div key={s.l} style={{ background: 'linear-gradient(135deg, rgba(30,41,59,0.92), rgba(15,24,40,0.95))', border: '1px solid rgba(255,255,255,0.10)', borderRadius: 13, padding: '14px 16px', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 12px 26px rgba(0,0,0,0.32)' }}>
                         <p style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 700, color: s.c, margin: 0, lineHeight: 1 }}>{s.v}</p>
                         <p style={{ fontSize: 11.5, color: 'var(--muted)', fontWeight: 700, margin: '4px 0 0' }}>{s.l}</p>
                       </div>
@@ -4568,7 +4570,7 @@ export default function Admin() {
                 <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 700, color: 'var(--text-strong)', margin: 0, lineHeight: 1.1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cajaNombre}</h2>
               </div>
             )}
-            <div className="super-balance-current">
+            <div className={`super-balance-current${saldoParticipante > 0 ? ' is-positive' : saldoParticipante < 0 ? ' is-negative' : ''}`}>
               <span className="super-balance-current-label">Saldo actual</span>
               <span className="super-balance-current-value" style={{ color: saldoParticipante > 0 ? 'var(--green)' : saldoParticipante === 0 ? 'var(--muted)' : 'var(--red)' }}>
                 {saldoParticipante >= 0 ? '+' : ''}{formatearMXN(saldoParticipante)}
@@ -5006,19 +5008,18 @@ export default function Admin() {
               )}
               {partidos.map((p, i) => (
                 // ── Tarjeta solo lectura (los partidos vienen de ESPN, no se editan) ──
-                <div key={i} style={{ padding: '10px 12px', marginBottom: 10, background: 'var(--card-light)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', flexShrink: 0 }}>{i + 1}</span>
-                    {escudoMini(p.escudoLocal, p.local)}
-                    <span style={{ fontSize: 13, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: '1 1 0%', minWidth: 0 }}>{p.local}</span>
-                    <span style={{ fontSize: 11, color: 'var(--muted)', flexShrink: 0 }}>vs</span>
-                    <span style={{ fontSize: 13, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: '1 1 0%', minWidth: 0, textAlign: 'right' }}>{p.visitante}</span>
-                    {escudoMini(p.escudoVisitante, p.visitante)}
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: i < partidos.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {escudoMini(p.escudoLocal, p.local)}
+                      <span style={{ fontSize: 13, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: '1 1 0%', minWidth: 0 }}>{p.local}</span>
+                      <span style={{ fontSize: 11, color: 'var(--muted)', flexShrink: 0 }}>vs</span>
+                      <span style={{ fontSize: 13, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: '1 1 0%', minWidth: 0, textAlign: 'right' }}>{p.visitante}</span>
+                      {escudoMini(p.escudoVisitante, p.visitante)}
+                    </div>
+                    {p.hora && <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{formatFixtureDate(p.hora)}</div>}
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginTop: 6 }}>
-                    <span style={{ fontSize: 11, color: 'var(--muted)' }}>{p.hora ? formatFixtureDate(p.hora) : ''}</span>
-                    <button type="button" onClick={() => quitarPartido(i)} aria-label="Quitar partido" title="Quitar" style={{ background: 'none', border: 'none', color: 'var(--red)', cursor: 'pointer', fontSize: 12, fontWeight: 700, padding: '2px 6px', flexShrink: 0 }}>Quitar ✕</button>
-                  </div>
+                  <button type="button" onClick={() => quitarPartido(i)} aria-label="Quitar partido" title="Quitar" style={{ background: 'none', border: 'none', color: 'var(--red)', cursor: 'pointer', fontSize: 12, fontWeight: 700, padding: '2px 6px', flexShrink: 0 }}>Quitar ✕</button>
                 </div>
               ))}
             </div>
@@ -5077,7 +5078,7 @@ export default function Admin() {
           const estadoBadge = estaFinalizada
             ? { label: 'Finalizada', bg: 'var(--neutral-bg)', color: 'var(--muted)' }
             : estaCerrada
-              ? { label: 'Jugándose', bg: 'var(--yellow-bg)', color: 'var(--yellow)' }
+              ? { label: 'Jugándose', bg: 'var(--green-bg)', color: 'var(--green-light)' }
               : { label: 'Abierta', bg: 'var(--green-bg)', color: 'var(--green)' }
           const volverAtras = () => { setVista('lista'); setQuinielaActual(null); setFixtures([]); setSeleccionados([]); setCajaNombre(null) }
           return (
@@ -5108,9 +5109,10 @@ export default function Admin() {
                     aria-label={toggling ? undefined : (estaCerrada ? 'Reabrir quiniela' : 'Cerrar quiniela')}
                     style={{
                       padding: '8px 14px', fontSize: 12, flexShrink: 0,
-                      borderRadius: 'var(--radius-sm)', border: 'none', fontWeight: 700, cursor: toggling ? 'not-allowed' : 'pointer',
-                      background: toggling ? 'var(--card-light)' : (estaCerrada ? 'var(--green)' : 'var(--yellow)'),
-                      color: toggling ? 'var(--muted)' : (estaCerrada ? '#07120A' : '#3F2700'),
+                      borderRadius: 'var(--radius-sm)', fontWeight: 700, cursor: toggling ? 'not-allowed' : 'pointer',
+                      border: estaCerrada ? 'none' : '1px solid var(--border-strong)',
+                      background: toggling ? 'var(--card-light)' : (estaCerrada ? 'var(--green)' : 'var(--neutral-bg)'),
+                      color: toggling ? 'var(--muted)' : (estaCerrada ? '#07120A' : 'var(--text)'),
                     }}
                   >
                     {toggling ? '…' : (
@@ -5267,8 +5269,8 @@ export default function Admin() {
                   {tienePremio(quinielaActual) && esFinalizadaQ(quinielaActual) && (
                     <div style={{
                       marginTop: 16, padding: '14px 16px',
-                      background: 'var(--bg-soft)', borderRadius: 'var(--radius-md)',
-                      border: '1px solid var(--border)',
+                      background: 'linear-gradient(135deg, rgba(30,41,59,0.92), rgba(15,24,40,0.95))', borderRadius: 14,
+                      border: '1px solid rgba(255,255,255,0.10)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 12px 26px rgba(0,0,0,0.32)',
                     }}>
                       <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-strong)', marginBottom: 4, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                         {quinielaActual.boteDevuelto && <AdminIcon name="banknote" size={14} />}
@@ -5486,9 +5488,9 @@ export default function Admin() {
                                     title={estaOculto ? 'Mostrar de nuevo en el ranking público' : 'Ocultar del ranking público (no se borra; puedes mostrarla de nuevo cuando quieras)'}
                                     aria-label={estaOculto ? 'Mostrar predicción' : 'Ocultar predicción'}
                                     style={{
-                                      background: estaOculto ? 'var(--yellow-bg)' : 'transparent',
-                                      border: `1px solid ${estaOculto ? 'var(--yellow)' : 'var(--border-strong)'}`,
-                                      color: estaOculto ? 'var(--yellow)' : 'var(--muted)',
+                                      background: estaOculto ? 'var(--neutral-bg)' : 'transparent',
+                                      border: '1px solid var(--border-strong)',
+                                      color: estaOculto ? 'var(--text)' : 'var(--muted)',
                                       fontSize: 13, fontWeight: 700, padding: '5px 9px',
                                       borderRadius: 'var(--radius-sm)', cursor: togglingOcultoEste ? 'not-allowed' : 'pointer',
                                       opacity: togglingOcultoEste ? 0.5 : 1, lineHeight: 1,

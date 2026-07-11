@@ -29,8 +29,8 @@ const overlayStyle = {
 }
 
 const panelStyle = {
-  background: 'var(--card)', borderRadius: 'var(--radius-lg)',
-  border: '1px solid var(--border)', boxShadow: 'var(--shadow-lg)',
+  background: 'linear-gradient(135deg, rgba(30,41,59,0.92), rgba(15,24,40,0.95))', borderRadius: 14,
+  border: '1px solid rgba(255,255,255,0.10)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 12px 26px rgba(0,0,0,0.32)',
   width: '100%', maxWidth: 380, padding: '1.4rem 1.5rem',
   animation: 'qpDialogPop 0.14s ease-out',
 }
@@ -44,7 +44,7 @@ const btnBase = {
   fontSize: 13, fontWeight: 700, cursor: 'pointer', border: '1px solid transparent',
 }
 const btnCancel = { ...btnBase, background: 'var(--neutral-bg)', border: '1px solid var(--border-strong)', color: 'var(--text)' }
-const btnOk = { ...btnBase, background: 'var(--green)', color: '#07120A' }
+const btnOk = { ...btnBase, background: 'linear-gradient(135deg, var(--green), var(--green-light))', color: '#07120A', boxShadow: 'var(--shadow-green)' }
 const btnDanger = { ...btnBase, background: 'var(--red)', color: '#fff' }
 
 const inputStyle = {

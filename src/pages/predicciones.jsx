@@ -38,7 +38,7 @@ function getPickResultado(pick) {
 const resultadoInfo = (res, local, visitante) => ({
   home:  { label: `${local} gana`,     bg: 'var(--green-bg)',  color: 'var(--green)' },
   draw:  { label: 'Empate',            bg: 'var(--neutral-bg)', color: 'var(--muted)' },
-  away:  { label: `${visitante} gana`, bg: 'var(--green-bg)', color: 'var(--green)' },
+  away:  { label: `${visitante} gana`, bg: 'var(--yellow-bg)', color: 'var(--yellow)' },
 }[res])
 
 const ctaPrimary = (disabled) => ({
@@ -505,13 +505,13 @@ export default function Predicciones() {
   // ── Estados ─────────────────────────────────────────────────
 
   if (cargando) return (
-    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', color: 'var(--muted)', fontSize: 14 }}>
+    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: '#070d18', color: 'var(--muted)', fontSize: 14 }}>
       Cargando quiniela…
     </div>
   )
 
   if (error) return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '5rem 1.5rem', color: 'var(--muted)' }}>
+      <div style={{ minHeight: '100vh', background: '#070d18', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '5rem 1.5rem', color: 'var(--muted)' }}>
       <div style={{ textAlign: 'center', maxWidth: 360 }}>
         <div style={{ display: 'inline-flex', color: 'var(--yellow)', marginBottom: 20 }}>
           <PredIcon name="warning" size={52} />
@@ -533,8 +533,9 @@ export default function Predicciones() {
   )
 
   if (enviado) return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg)', display: 'flex', flexDirection: 'column' }}>
-      <div className="hero-pad pred-hero-pad" style={{ background: 'var(--hero-gradient)', color: 'var(--text)', borderBottom: '1px solid var(--border)' }}>
+    <div style={{ minHeight: '100vh', background: '#070d18', position: 'relative', zIndex: 0, display: 'flex', flexDirection: 'column' }}>
+      <div className="pred-gate-bg-fade" aria-hidden="true" />
+      <div className="hero-pad pred-hero-pad" style={{ color: 'var(--text)' }}>
         <div className="pred-brand-row" style={{ maxWidth: 560, margin: '0 auto', display: 'flex', alignItems: 'center', gap: 12 }}>
           <BackHomeButton />
           <a className="pred-brand-link" href="/" style={{ textDecoration: 'none' }}>
@@ -637,8 +638,8 @@ export default function Predicciones() {
   const pantallaArmonia = !cerrada && !yaEnviadoAntes
 
   return (
-    <div style={{ minHeight: '100vh', background: pantallaArmonia ? '#070d18' : 'var(--bg)', position: 'relative', zIndex: 0, overflow: celebrando ? 'hidden' : 'visible', display: 'flex', flexDirection: 'column' }}>
-      {pantallaArmonia && <div className="pred-gate-bg-fade" aria-hidden="true" />}
+    <div style={{ minHeight: '100vh', background: '#070d18', position: 'relative', zIndex: 0, overflow: celebrando ? 'hidden' : 'visible', display: 'flex', flexDirection: 'column' }}>
+      <div className="pred-gate-bg-fade" aria-hidden="true" />
       {celebrando && (
         <div aria-hidden="true" style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 9999, overflow: 'hidden' }}>
           <div style={{
@@ -670,7 +671,7 @@ export default function Predicciones() {
       )}
 
       {/* Hero */}
-      <div className="hero-pad pred-hero-pad" style={{ background: pantallaArmonia ? 'transparent' : 'var(--hero-gradient)', color: 'var(--text)', borderBottom: pantallaArmonia ? 'none' : '1px solid var(--border)', paddingBottom: pantallaArmonia ? '0.5rem' : undefined }}>
+      <div className="hero-pad pred-hero-pad" style={{ color: 'var(--text)', paddingBottom: pantallaArmonia ? '0.5rem' : undefined }}>
         <div style={{ maxWidth: 560, margin: '0 auto' }}>
           <div className="pred-brand-row" style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: (cerrada || pantallaArmonia) ? 'var(--ranking-brand-margin-bottom, 16px)' : 8 }}>
             <BackHomeButton />
@@ -903,7 +904,7 @@ export default function Predicciones() {
               boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 12px 26px rgba(0,0,0,0.32), 0 0 0 3px rgba(34,197,94,0.10)',
               textAlign: 'center',
             }}>
-              <div style={{ display: 'inline-flex', color: 'var(--green)', marginBottom: 8 }}>
+              <div style={{ display: 'inline-flex', color: 'var(--yellow)', marginBottom: 8 }}>
                 <PredIcon name="money" size={40} />
               </div>
               {(() => {
@@ -961,7 +962,7 @@ export default function Predicciones() {
                       <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1.2, marginBottom: 6 }}>
                         {cuotaNum > 0 ? 'Cuota para participar' : 'Premio de esta quiniela'}
                       </p>
-                      <p style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--pred-amount-size, 34px)', fontWeight: 800, color: 'var(--green)', marginBottom: 6, letterSpacing: '-0.01em' }}>
+                      <p style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--pred-amount-size, 34px)', fontWeight: 800, color: 'var(--yellow)', marginBottom: 6, letterSpacing: '-0.01em' }}>
                         {formatearMXN(cuotaNum > 0 ? cuotaNum : boteTotal)}
                       </p>
                       {esPrimero ? <PillPrimero /> : (esFijoPuro && <PillParticipantes />)}
@@ -986,12 +987,12 @@ export default function Predicciones() {
                       {quiniela.tipoPremio === TIPO_PREMIO.BOTE ? 'Cuota para participar' : 'Premio de esta quiniela'}
                     </p>
                     {quiniela.tipoPremio === TIPO_PREMIO.BOTE && (
-                      <p style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--pred-amount-size, 34px)', fontWeight: 800, color: 'var(--green)', marginBottom: 6, letterSpacing: '-0.01em' }}>
+                      <p style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--pred-amount-size, 34px)', fontWeight: 800, color: 'var(--yellow)', marginBottom: 6, letterSpacing: '-0.01em' }}>
                         {formatearMXN(Number(quiniela.cuota) || 0)}
                       </p>
                     )}
                     {quiniela.tipoPremio === TIPO_PREMIO.BOTE && esPrimero && <PillPrimero />}
-                    <p style={{ fontFamily: 'var(--font-display)', fontSize: quiniela.tipoPremio === TIPO_PREMIO.BOTE ? 20 : 34, fontWeight: 800, color: 'var(--green)', marginBottom: 4, letterSpacing: '-0.01em' }}>
+                    <p style={{ fontFamily: 'var(--font-display)', fontSize: quiniela.tipoPremio === TIPO_PREMIO.BOTE ? 20 : 34, fontWeight: 800, color: 'var(--yellow)', marginBottom: 4, letterSpacing: '-0.01em' }}>
                       {formatearMXN(boteTotal)}
                     </p>
                     {quiniela.tipoPremio !== TIPO_PREMIO.BOTE && (esPrimero ? <PillPrimero /> : <PillParticipantes />)}
