@@ -38,6 +38,18 @@ function partes(ms) {
   return { h: pad(h), m: pad(m), s: pad(s), texto: `${pad(h)}:${pad(m)}:${pad(s)}` }
 }
 
+// Igual que partes(), pero separa los días completos cuando faltan 24h o más
+// (ej. "1d 02:37:01" en vez de "26:37:01").
+function partesConDias(ms) {
+  const totalSeg = Math.floor(ms / 1000)
+  const dias = Math.floor(totalSeg / 86400)
+  const h = Math.floor((totalSeg % 86400) / 3600)
+  const m = Math.floor((totalSeg % 3600) / 60)
+  const s = totalSeg % 60
+  const pad = n => String(n).padStart(2, '0')
+  return { dias, h: pad(h), m: pad(m), s: pad(s) }
+}
+
 function PanelTimeBlock({ val, label, color }) {
   return (
     <span style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', lineHeight: 1 }}>
@@ -77,6 +89,28 @@ export function CuentaRegresiva({ cierre, umbralHoras = UMBRAL_HORAS_DEFAULT, pr
   // Tono según urgencia: rojo en la última hora, amarillo antes.
   const critico = ms < 60 * 60 * 1000
   const p = partes(ms)
+  if (variante === 'linea') {
+    const pd = partesConDias(ms)
+    return (
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontVariantNumeric: 'tabular-nums', ...estilo }}>
+        {mostrarIcono && <span style={{ display: 'inline-flex', color: 'var(--muted)' }}><TimerIcon size={13} /></span>}
+        {prefijo && (
+          <span style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.6 }}>
+            {prefijo}
+          </span>
+        )}
+        <span style={{ fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 700, letterSpacing: 0.5 }}>
+          {pd.dias > 0 && <span style={{ color: 'var(--yellow)' }}>{pd.dias}d </span>}
+          <span style={{ color: 'var(--text-strong)' }}>{pd.h}</span>
+          <span style={{ color: 'var(--muted)' }}>:</span>
+          <span style={{ color: 'var(--text-strong)' }}>{pd.m}</span>
+          <span style={{ color: 'var(--muted)' }}>:</span>
+          <span style={{ color: critico ? '#FCA5A5' : 'var(--yellow)' }}>{pd.s}</span>
+        </span>
+      </span>
+    )
+  }
+
   if (variante === 'panel') {
     return (
       <div style={{ ...estilo }}>

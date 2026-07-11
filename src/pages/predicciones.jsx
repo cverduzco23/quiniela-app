@@ -38,7 +38,7 @@ function getPickResultado(pick) {
 const resultadoInfo = (res, local, visitante) => ({
   home:  { label: `${local} gana`,     bg: 'var(--green-bg)',  color: 'var(--green)' },
   draw:  { label: 'Empate',            bg: 'var(--neutral-bg)', color: 'var(--muted)' },
-  away:  { label: `${visitante} gana`, bg: 'var(--yellow-bg)', color: 'var(--yellow)' },
+  away:  { label: `${visitante} gana`, bg: 'var(--green-bg)', color: 'var(--green)' },
 }[res])
 
 const ctaPrimary = (disabled) => ({
@@ -51,9 +51,11 @@ const ctaPrimary = (disabled) => ({
 })
 
 const card = {
-  background: 'var(--card)', borderRadius: 'var(--radius-md)',
+  background: 'linear-gradient(135deg, rgba(30,41,59,0.92), rgba(15,24,40,0.95))',
+  borderRadius: 14,
   padding: 'var(--pred-card-padding, 1.1rem 1.25rem)', marginBottom: 'var(--pred-card-gap, 10px)',
-  border: '1px solid var(--border)',
+  border: '1px solid rgba(255,255,255,0.10)',
+  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 12px 26px rgba(0,0,0,0.32)',
 }
 
 const lbl = { fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 8 }
@@ -177,6 +179,17 @@ function PredIcon({ name, size = 16, style }) {
         <path d="M12 19v3" />
         <path d="M2 12h3" />
         <path d="M19 12h3" />
+      </svg>
+    )
+  }
+  if (name === 'trophy') {
+    return (
+      <svg {...common}>
+        <path d="M8 21h8" />
+        <path d="M12 17v4" />
+        <path d="M7 4h10v5a5 5 0 0 1-10 0V4Z" />
+        <path d="M7 6H4v1a3 3 0 0 0 3 3" />
+        <path d="M17 6h3v1a3 3 0 0 1-3 3" />
       </svg>
     )
   }
@@ -621,9 +634,11 @@ export default function Predicciones() {
   )
 
   const pct = partidos.length > 0 ? (progreso / partidos.length) * 100 : 0
+  const pantallaArmonia = !cerrada && !yaEnviadoAntes
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg)', position: 'relative', overflow: celebrando ? 'hidden' : 'visible', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ minHeight: '100vh', background: pantallaArmonia ? '#070d18' : 'var(--bg)', position: 'relative', zIndex: 0, overflow: celebrando ? 'hidden' : 'visible', display: 'flex', flexDirection: 'column' }}>
+      {pantallaArmonia && <div className="pred-gate-bg-fade" aria-hidden="true" />}
       {celebrando && (
         <div aria-hidden="true" style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 9999, overflow: 'hidden' }}>
           <div style={{
@@ -655,9 +670,9 @@ export default function Predicciones() {
       )}
 
       {/* Hero */}
-      <div className="hero-pad pred-hero-pad" style={{ background: 'var(--hero-gradient)', color: 'var(--text)', borderBottom: '1px solid var(--border)' }}>
+      <div className="hero-pad pred-hero-pad" style={{ background: pantallaArmonia ? 'transparent' : 'var(--hero-gradient)', color: 'var(--text)', borderBottom: pantallaArmonia ? 'none' : '1px solid var(--border)', paddingBottom: pantallaArmonia ? '0.5rem' : undefined }}>
         <div style={{ maxWidth: 560, margin: '0 auto' }}>
-          <div className="pred-brand-row" style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: cerrada ? 'var(--ranking-brand-margin-bottom, 16px)' : 8 }}>
+          <div className="pred-brand-row" style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: (cerrada || pantallaArmonia) ? 'var(--ranking-brand-margin-bottom, 16px)' : 8 }}>
             <BackHomeButton />
             {cerrada ? (
               <a href="/" className="ranking-brand-link" aria-label="QuinielApp">
@@ -685,7 +700,7 @@ export default function Predicciones() {
                 {quiniela.empresa}
               </span>
             )}
-            {quiniela.cierre && (() => {
+            {!pantallaArmonia && quiniela.cierre && (() => {
               // Si ya cerro, el estado se muestra solo en la barra de progreso.
               // Mientras sigue abierta, usamos el timer en vivo.
               // A más de 24h → fecha de cierre.
@@ -710,10 +725,29 @@ export default function Predicciones() {
             })()}
           </div>
           {cerrada && <ProgresoPasos etapa={finalizada ? 'final' : 'enjuego'} />}
+          {pantallaArmonia && <ProgresoPasos etapa="abierta" />}
+          {pantallaArmonia && quiniela.cierre && (
+            <div style={{
+              marginTop: 22,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              width: '100%',
+              background: 'rgba(255,255,255,0.04)',
+              border: '1px solid rgba(255,255,255,0.08)',
+              borderRadius: 8,
+              padding: '8px 12px',
+            }}>
+              <CuentaRegresiva
+                cierre={quiniela.cierre}
+                umbralHoras={24 * 365}
+                variante="linea"
+                prefijo="Cierra en"
+              />
+            </div>
+          )}
         </div>
       </div>
 
-      <div className="pred-content" style={{ width: '100%', maxWidth: 560, margin: '0 auto', padding: 'var(--pred-content-padding, 1.25rem 1rem 3rem)', flex: '1 0 auto', display: 'flex', flexDirection: 'column' }}>
+      <div className="pred-content" style={{ width: '100%', maxWidth: 560, margin: '0 auto', padding: pantallaArmonia ? 'var(--pred-content-padding-armonia, 0.5rem 1rem 3rem)' : 'var(--pred-content-padding, 1.25rem 1rem 3rem)', flex: '1 0 auto', display: 'flex', flexDirection: 'column' }}>
 
         {/* ── Quiniela cerrada ────────────────────────────────────────── */}
         {cerrada ? (
@@ -745,37 +779,52 @@ export default function Predicciones() {
           /* ── Gate: código de acceso (quinielas privadas) ─────────────── */
           <div>
             <div style={{
-              background: 'var(--card)', borderRadius: 'var(--radius-lg)',
+              background: 'linear-gradient(135deg, rgba(30,41,59,0.92), rgba(15,24,40,0.95))',
+              borderRadius: 14,
               padding: 'var(--pred-large-card-padding, 1.75rem 1.5rem)', marginBottom: 'var(--pred-large-card-gap, 14px)',
-              border: '1.5px solid var(--border)', boxShadow: 'var(--shadow-md)', textAlign: 'center',
+              border: '1px solid rgba(255,255,255,0.10)',
+              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 12px 26px rgba(0,0,0,0.32)',
+              textAlign: 'center',
             }}>
-              <div style={{ display: 'inline-flex', color: 'var(--yellow)', marginBottom: 8 }}>
-                <PredIcon name="lock" size={40} />
+              <div style={{
+                width: 54, height: 54, borderRadius: '50%',
+                background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.10)',
+                boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)',
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                color: 'var(--muted)', marginBottom: 12,
+              }}>
+                <PredIcon name="lock" size={26} />
               </div>
               <p style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--pred-card-title-size, 20px)', fontWeight: 700, color: 'var(--text-strong)', marginBottom: 6 }}>
                 Quiniela privada
               </p>
               <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 18, lineHeight: 1.5 }}>
-                {quiniela?.empresa
-                  ? <>Esta quiniela es exclusiva de <strong style={{ color: 'var(--text)' }}>{quiniela.empresa}</strong>. Ingresa el código que te compartieron.</>
-                  : 'Ingresa el código de acceso que te compartió el organizador.'}
+                Escribe el código que te compartió el organizador para registrar tus predicciones.
               </p>
               <label htmlFor="codigo-acceso" style={{ ...lbl, textAlign: 'left', display: 'block' }}>Código de acceso</label>
-              <input
-                id="codigo-acceso"
-                type="text"
-                placeholder="Ej. ACME2026"
-                value={codigoInput}
-                autoCapitalize="characters"
-                onChange={e => { setCodigoInput(e.target.value.toUpperCase()); setCodigoError('') }}
-                onKeyDown={e => e.key === 'Enter' && validarCodigo()}
-                autoFocus
-                style={{
-                  fontSize: 15, marginBottom: codigoError ? 8 : 14,
-                  textAlign: 'center', letterSpacing: 2, fontWeight: 700,
-                  borderColor: codigoError ? 'var(--red)' : undefined,
-                }}
-              />
+              <div className="public-code-input-wrap" style={{ position: 'relative', marginBottom: codigoError ? 8 : 14 }}>
+                <input
+                  id="codigo-acceso"
+                  type="text"
+                  placeholder="ACME2026"
+                  value={codigoInput}
+                  autoCapitalize="characters"
+                  onChange={e => { setCodigoInput(e.target.value.toUpperCase()); setCodigoError('') }}
+                  onKeyDown={e => e.key === 'Enter' && validarCodigo()}
+                  autoFocus
+                  style={{
+                    width: '100%', minHeight: 56,
+                    background: 'rgba(6,12,24,0.55)',
+                    borderRadius: 10,
+                    border: codigoError ? '1px solid var(--red)' : '1px solid rgba(134,239,172,0.36)',
+                    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05), 0 0 0 3px rgba(34,197,94,0.14)',
+                    fontFamily: 'var(--font-display)',
+                    fontSize: 20,
+                    textAlign: 'center', letterSpacing: 5, fontWeight: 700,
+                  }}
+                />
+                <span className="public-code-caret" aria-hidden="true" />
+              </div>
               {codigoError && (
                 <p style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#FCA5A5', marginBottom: 12, textAlign: 'left' }}>
                   <PredIcon name="warning" size={13} />
@@ -787,20 +836,21 @@ export default function Predicciones() {
                 disabled={validandoCodigo}
                 style={ctaPrimary(validandoCodigo)}
               >
-                {validandoCodigo ? 'Validando…' : 'Entrar →'}
+                {validandoCodigo ? 'Validando…' : 'Entrar a la quiniela →'}
               </button>
+              <p style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, fontSize: 11, color: 'var(--muted-soft)', marginTop: 12 }}>
+                <PredIcon name="check" size={12} />
+                Sin cuenta ni registro · solo tu nombre
+              </p>
             </div>
-            <p style={{ fontSize: 12, color: 'var(--muted)', textAlign: 'center', marginBottom: 6 }}>
-              ¿Solo quieres ver el ranking?{' '}
+            <p style={{ fontSize: 12, color: 'var(--muted)', textAlign: 'center' }}>
+              Solo ver el{' '}
               <a
                 href={`/ranking/${quinielaId}`}
-                style={{ color: 'var(--green-light)', fontWeight: 700, textDecoration: 'underline' }}
+                style={{ color: 'var(--green-light)', fontWeight: 700, textDecoration: 'none' }}
               >
-                Entrar al ranking
+                ranking
               </a>
-            </p>
-            <p style={{ fontSize: 11, color: 'var(--muted)', textAlign: 'center', lineHeight: 1.6 }}>
-              ¿No tienes el código? Pídelo al organizador de la quiniela.
             </p>
           </div>
 
@@ -843,12 +893,15 @@ export default function Predicciones() {
           </div>
 
         ) : (tienePremio(quiniela) && !confirmadoRegla) ? (
-          /* ── Banner de premio + confirmación ─────────────────────────── */
+          /* ── Banner de premio + confirmación ──────────────────────────── */
           <div>
             <div style={{
-              background: 'var(--card)', borderRadius: 'var(--radius-lg)',
+              background: 'linear-gradient(135deg, rgba(30,41,59,0.92), rgba(15,24,40,0.95))',
+              borderRadius: 14,
               padding: 'var(--pred-large-card-padding, 1.75rem 1.5rem)', marginBottom: 'var(--pred-large-card-gap, 14px)',
-              border: '1.5px solid var(--green)', boxShadow: 'var(--shadow-md)', textAlign: 'center',
+              border: '1px solid rgba(134,239,172,0.36)',
+              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 12px 26px rgba(0,0,0,0.32), 0 0 0 3px rgba(34,197,94,0.10)',
+              textAlign: 'center',
             }}>
               <div style={{ display: 'inline-flex', color: 'var(--green)', marginBottom: 8 }}>
                 <PredIcon name="money" size={40} />
@@ -857,28 +910,71 @@ export default function Predicciones() {
                 const desglose = desglosePremio(quiniela, conteoParticipantes)
                 const boteTotal = calcularBote(quiniela, conteoParticipantes)
                 const cuotaNum = Number(quiniela.cuota) || 0
+                const esPrimero = conteoParticipantes === 0
+
+                const PillPrimero = () => (
+                  <div style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 10,
+                    background: 'rgba(6,12,24,0.6)', borderRadius: 'var(--radius-full)',
+                    padding: '6px 18px 6px 6px', margin: '2px 0 12px',
+                  }}>
+                    <span style={{
+                      width: 34, height: 34, borderRadius: '50%',
+                      border: '1.5px dashed rgba(134,239,172,0.55)',
+                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                      color: 'var(--green)', flexShrink: 0,
+                    }}>
+                      <PredIcon name="target" size={15} />
+                    </span>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-strong)' }}>
+                      Sé el primero en entrar
+                    </span>
+                  </div>
+                )
+
+                const AVATAR_TONOS = ['#3B4A63', '#3F4A2E', '#4A3B52']
+                const PillParticipantes = () => (
+                  <div style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 10,
+                    background: 'rgba(6,12,24,0.6)', borderRadius: 'var(--radius-full)',
+                    padding: '6px 18px 6px 6px', margin: '2px 0 12px',
+                  }}>
+                    <span style={{ display: 'inline-flex' }}>
+                      {AVATAR_TONOS.map((bg, idx) => (
+                        <span key={idx} aria-hidden="true" style={{
+                          width: 28, height: 28, borderRadius: '50%',
+                          background: bg, border: '2px solid #151F32',
+                          marginLeft: idx === 0 ? 0 : -10, flexShrink: 0,
+                        }} />
+                      ))}
+                    </span>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-strong)' }}>
+                      {conteoParticipantes} ya {conteoParticipantes === 1 ? 'va' : 'van'} dentro
+                    </span>
+                  </div>
+                )
+
                 if (desglose) {
+                  const esFijoPuro = cuotaNum === 0
                   return (
                     <>
                       <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1.2, marginBottom: 6 }}>
                         {cuotaNum > 0 ? 'Cuota para participar' : 'Premio de esta quiniela'}
                       </p>
-                      {cuotaNum > 0 && (
-                        <p style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--pred-amount-size, 34px)', fontWeight: 800, color: 'var(--green)', marginBottom: 6, letterSpacing: '-0.01em' }}>
-                          {formatearMXN(cuotaNum)}
-                        </p>
-                      )}
-                      <p style={{ fontSize: 'var(--pred-body-size, 12px)', color: 'var(--muted)', marginBottom: 4, lineHeight: 1.5 }}>
-                        Premio total: <strong style={{ color: 'var(--text)' }}>{formatearMXN(boteTotal)}</strong> ({conteoParticipantes} {conteoParticipantes === 1 ? 'participante' : 'participantes'})
+                      <p style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--pred-amount-size, 34px)', fontWeight: 800, color: 'var(--green)', marginBottom: 6, letterSpacing: '-0.01em' }}>
+                        {formatearMXN(cuotaNum > 0 ? cuotaNum : boteTotal)}
                       </p>
+                      {esPrimero ? <PillPrimero /> : (esFijoPuro && <PillParticipantes />)}
                       {desglose.fijo > 0 && desglose.cuota > 0 && (
                         <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4, fontStyle: 'italic' }}>
-                          {formatearMXN(desglose.fijo)} fijo + {formatearMXN(desglose.deCuotas)} de cuotas
+                          <span style={{ fontFamily: 'var(--font-display)' }}>{formatearMXN(desglose.fijo)}</span> fijo + <span style={{ fontFamily: 'var(--font-display)' }}>{formatearMXN(desglose.deCuotas)}</span> de cuotas
                         </p>
                       )}
                       {cuotaNum > 0 && (
                         <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8, fontStyle: 'italic' }}>
-                          El bote crece {formatearMXN(cuotaNum)} por cada nuevo participante.
+                          Bote actual <span style={{ fontFamily: 'var(--font-display)' }}>{formatearMXN(boteTotal)}</span>
+                          {!esPrimero && <> ({conteoParticipantes} {conteoParticipantes === 1 ? 'participante' : 'participantes'})</>}
+                          {' '}· crece <span style={{ fontFamily: 'var(--font-display)' }}>{formatearMXN(cuotaNum)}</span> por participante.
                         </p>
                       )}
                     </>
@@ -894,35 +990,55 @@ export default function Predicciones() {
                         {formatearMXN(Number(quiniela.cuota) || 0)}
                       </p>
                     )}
+                    {quiniela.tipoPremio === TIPO_PREMIO.BOTE && esPrimero && <PillPrimero />}
                     <p style={{ fontFamily: 'var(--font-display)', fontSize: quiniela.tipoPremio === TIPO_PREMIO.BOTE ? 20 : 34, fontWeight: 800, color: 'var(--green)', marginBottom: 4, letterSpacing: '-0.01em' }}>
                       {formatearMXN(boteTotal)}
                     </p>
+                    {quiniela.tipoPremio !== TIPO_PREMIO.BOTE && (esPrimero ? <PillPrimero /> : <PillParticipantes />)}
                     <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 8 }}>
                       {quiniela.tipoPremio === TIPO_PREMIO.BOTE
-                        ? `Bote actual (${conteoParticipantes} ${conteoParticipantes === 1 ? 'participante' : 'participantes'})`
+                        ? (esPrimero ? 'Bote actual' : <>Bote actual (<span style={{ fontFamily: 'var(--font-display)' }}>{conteoParticipantes}</span> {conteoParticipantes === 1 ? 'participante' : 'participantes'})</>)
                         : 'Premio fijo otorgado por el organizador'}
                     </p>
                   </>
                 )
               })()}
               <div style={{
-                background: 'var(--bg-soft)', borderRadius: 'var(--radius-sm)',
+                background: 'rgba(6,12,24,0.55)', borderRadius: 10,
                 padding: 'var(--pred-info-box-padding, 12px 14px)', marginTop: 'var(--pred-info-box-gap, 14px)', marginBottom: 4,
-                border: '1px solid var(--border)', textAlign: 'left',
+                border: '1px solid rgba(255,255,255,0.07)', textAlign: 'left',
               }}>
-                <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>
+                <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
                   Cómo se reparte
                 </p>
-                <p style={{ fontSize: 'var(--pred-info-size, 13px)', color: 'var(--text)', lineHeight: 1.5 }}>
-                  {descripcionRegla(quiniela)}
-                </p>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                  <span style={{
+                    width: 34, height: 34, borderRadius: 8, flexShrink: 0,
+                    background: 'rgba(34,197,94,0.10)', border: '1px solid rgba(134,239,172,0.35)',
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: 'var(--green)',
+                  }}>
+                    <PredIcon name="trophy" size={16} />
+                  </span>
+                  <p style={{ fontSize: 'var(--pred-info-size, 13px)', color: 'var(--text)', lineHeight: 1.5 }}>
+                    {(() => {
+                      const texto = descripcionRegla(quiniela)
+                      const corte = texto.indexOf('. ')
+                      if (corte === -1) return texto
+                      return (
+                        <>
+                          <strong style={{ color: 'var(--green-light)' }}>{texto.slice(0, corte + 1)}</strong>{texto.slice(corte + 1)}
+                        </>
+                      )
+                    })()}
+                  </p>
+                </div>
               </div>
             </div>
             {tieneCuota(quiniela) && (
               <p style={{
                 fontSize: 'var(--pred-body-size, 12px)', color: 'var(--yellow-soft)', lineHeight: 1.5,
-                background: 'var(--yellow-bg)', border: '1px solid var(--yellow-soft)',
-                borderRadius: 'var(--radius-sm)', padding: 'var(--pred-warning-padding, 10px 12px)', marginBottom: 'var(--pred-card-gap, 12px)',
+                background: 'var(--yellow-bg)', border: '1px solid rgba(250,204,21,0.35)',
+                borderRadius: 10, padding: 'var(--pred-warning-padding, 10px 12px)', marginBottom: 'var(--pred-card-gap, 12px)',
               }}>
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                   <PredIcon name="warning" size={14} />
@@ -936,32 +1052,28 @@ export default function Predicciones() {
             >
               {tieneCuota(quiniela) ? 'Confirmo que ya pagué →' : 'Entendido, continuar →'}
             </button>
-            <a
-              href={`/ranking/${quinielaId}`}
-              style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
-                marginTop: 10, padding: '12px', borderRadius: 'var(--radius-md)',
-                background: 'linear-gradient(135deg, rgba(34,197,94,0.14), rgba(34,197,94,0.06))',
-                border: '1px solid rgba(34,197,94,0.42)',
-                color: 'var(--green-light)', fontWeight: 800, fontSize: 14, textDecoration: 'none',
-                boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05), 0 0 0 1px rgba(34,197,94,0.04)',
-              }}
-            >
-              <PredIcon name="ranking" size={15} />
-              Ver ranking
-            </a>
+            <p style={{ fontSize: 12, color: 'var(--muted)', textAlign: 'center', marginTop: 12 }}>
+              Solo ver el{' '}
+              <a
+                href={`/ranking/${quinielaId}`}
+                style={{ color: 'var(--green-light)', fontWeight: 700, textDecoration: 'none' }}
+              >
+                ranking
+              </a>
+            </p>
           </div>
         ) : (
           <>
             {/* Banner "Solo por diversión" para quinielas sin premio */}
             {!tienePremio(quiniela) && (
               <div style={{
-                background: 'var(--card)', borderRadius: 'var(--radius-md)',
+                background: 'linear-gradient(135deg, rgba(30,41,59,0.92), rgba(15,24,40,0.95))',
+                borderRadius: 12,
                 padding: '12px 14px', marginBottom: 12,
-                border: '1px dashed var(--border-strong)',
+                border: '1px dashed rgba(255,255,255,0.16)',
                 display: 'flex', alignItems: 'center', gap: 12,
               }}>
-                <span style={{ display: 'inline-flex', color: 'var(--yellow)', flexShrink: 0 }} aria-hidden="true">
+                <span style={{ display: 'inline-flex', color: 'var(--green-light)', flexShrink: 0 }} aria-hidden="true">
                   <PredIcon name="party" size={24} />
                 </span>
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -975,30 +1087,15 @@ export default function Predicciones() {
               </div>
             )}
 
-            {/* Reglas de puntos */}
-            <div style={{ display: 'flex', gap: 6, marginBottom: 'var(--pred-rules-margin-bottom, 16px)', flexWrap: 'nowrap' }}>
-              {[
-                { pts: '1 pt', desc: 'resultado', icon: 'check', color: 'var(--green)' },
-                { pts: '+2 pts', desc: 'exacto', icon: 'target', color: 'var(--yellow)' },
-              ].map(r => (
-                <div key={r.desc} style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                  background: 'var(--card)', borderRadius: 'var(--radius-sm)', padding: 'var(--pred-rule-padding, 6px 10px)',
-                  border: '1px solid var(--border)', flex: '1 1 auto', minWidth: 0, textAlign: 'center',
-                }}>
-                  <span style={{ display: 'inline-flex', color: r.color, flexShrink: 0 }}>
-                    <PredIcon name={r.icon} size={13} />
-                  </span>
-                  <span style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--pred-rule-points-size, 13px)', fontWeight: 700, color: 'var(--text-strong)', flexShrink: 0 }}>{r.pts}</span>
-                  <span style={{ fontSize: 'var(--pred-rule-desc-size, 11.5px)', color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.desc}</span>
-                </div>
-              ))}
-            </div>
-
             {/* ── Pantalla de resumen ─────────────────────────────────── */}
             {mostrarResumen ? (
           <div>
-            <div style={{ background: 'var(--card)', borderRadius: 'var(--radius-lg)', padding: 'var(--pred-large-card-padding, 1.5rem)', marginBottom: 10, border: '1px solid var(--green)', boxShadow: 'var(--shadow-md)' }}>
+            <div style={{
+              background: 'linear-gradient(135deg, rgba(30,41,59,0.92), rgba(15,24,40,0.95))',
+              borderRadius: 14, padding: 'var(--pred-large-card-padding, 1.5rem)', marginBottom: 10,
+              border: '1px solid rgba(134,239,172,0.36)',
+              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 12px 26px rgba(0,0,0,0.32), 0 0 0 3px rgba(34,197,94,0.10)',
+            }}>
               <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>
                 Revisa tus picks
               </p>
@@ -1097,16 +1194,37 @@ export default function Predicciones() {
             </div>
 
             {/* Partidos */}
+            {/* Reglas de puntos */}
+            <div style={{ display: 'flex', gap: 6, marginBottom: 'var(--pred-rules-margin-bottom, 16px)', flexWrap: 'nowrap' }}>
+              {[
+                { pts: '1 pt', desc: 'resultado', icon: 'check', color: 'var(--green)' },
+                { pts: '+2 pts', desc: 'exacto', icon: 'target', color: 'var(--green-light)' },
+              ].map(r => (
+                <div key={r.desc} style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                  background: 'rgba(6,12,24,0.55)', borderRadius: 10, padding: 'var(--pred-rule-padding, 6px 10px)',
+                  border: '1px solid rgba(255,255,255,0.07)', flex: '1 1 auto', minWidth: 0, textAlign: 'center',
+                }}>
+                  <span style={{ display: 'inline-flex', color: r.color, flexShrink: 0 }}>
+                    <PredIcon name={r.icon} size={13} />
+                  </span>
+                  <span style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--pred-rule-points-size, 13px)', fontWeight: 700, color: 'var(--text-strong)', flexShrink: 0 }}>{r.pts}</span>
+                  <span style={{ fontSize: 'var(--pred-rule-desc-size, 11.5px)', color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.desc}</span>
+                </div>
+              ))}
+            </div>
+
             <p style={{ fontSize: 11, color: 'var(--muted)', textAlign: 'center', marginBottom: 12, lineHeight: 1.5 }}>
               El resultado se toma del marcador al final del partido (incluye tiempo extra si lo hay). <strong style={{ color: 'var(--text)' }}>No cuentan los goles de tanda de penales.</strong>
             </p>
+
             {partidos.map((p, i) => {
               const pick = picks[i]
               const res  = getPickResultado(pick)
               const info = res ? resultadoInfo(res, p.local, p.visitante) : null
 
               return (
-                <div key={i} style={card}>
+                <div key={i} style={{ ...card, paddingBottom: 'var(--pred-match-card-padding-bottom, 0.85rem)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--pred-match-header-gap, 16px)' }}>
                     <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', letterSpacing: 1, textTransform: 'uppercase' }}>
                       Partido {i + 1}
@@ -1179,7 +1297,7 @@ export default function Predicciones() {
                   </div>
 
                   {/* Resultado derivado */}
-                  <div style={{ textAlign: 'center', marginTop: 'var(--pred-result-margin-top, 12px)', minHeight: 'var(--pred-result-min-height, 24px)' }}>
+                  <div style={{ textAlign: 'center', marginTop: info ? 'var(--pred-result-margin-top, 12px)' : 0, minHeight: info ? 'var(--pred-result-min-height, 24px)' : 0 }}>
                     {info && (
                       <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 12px', borderRadius: 'var(--radius-full)', background: info.bg, color: info.color }}>
                         {info.label}
