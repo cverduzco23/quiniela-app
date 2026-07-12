@@ -11,6 +11,10 @@ function formatCierre(d) {
   return `${DIAS[d.getDay()]} ${d.getDate()} ${MESES[d.getMonth()]} · ${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
+function ptsTexto(n) {
+  return `${n} ${n === 1 ? 'pt' : 'pts'}`
+}
+
 // Tiempo restante hasta el cierre, ya redondeado a la unidad más útil para el
 // número grande de la banda ("2d", "5h", "20m").
 function restante(d) {
@@ -70,10 +74,19 @@ export function datosTarjetaQuiniela(q, predicciones, participantes) {
   const misPuntos = tengoPosicion ? jugadores[idx].puntos : null
   const totalJugadores = jugadores.length
 
-  const puntosOrdenados = [...new Set(jugadores.map(j => j.puntos))].sort((a, b) => b - a)
-  const iPts = tengoPosicion ? puntosOrdenados.indexOf(misPuntos) : -1
-  const diffConAnterior = iPts > 0 ? puntosOrdenados[iPts - 1] - misPuntos : 0
-  const diffConSiguiente = iPts >= 0 && iPts < puntosOrdenados.length - 1 ? misPuntos - puntosOrdenados[iPts + 1] : 0
+  const gruposPuntos = []
+  jugadores.forEach((j, i) => {
+    if (i === 0 || jugadores[i - 1].puntos !== j.puntos) {
+      gruposPuntos.push({ puntos: j.puntos, posicion: posiciones[i] })
+    }
+  })
+  const iGrupo = tengoPosicion ? gruposPuntos.findIndex(g => g.puntos === misPuntos) : -1
+  const grupoAnterior = iGrupo > 0 ? gruposPuntos[iGrupo - 1] : null
+  const grupoSiguiente = iGrupo >= 0 && iGrupo < gruposPuntos.length - 1 ? gruposPuntos[iGrupo + 1] : null
+  const puntosLider = jugadores[0]?.puntos ?? 0
+  const diffConLider = tengoPosicion ? puntosLider - misPuntos : 0
+  const diffConAnterior = grupoAnterior ? grupoAnterior.puntos - misPuntos : 0
+  const diffConSiguiente = grupoSiguiente ? misPuntos - grupoSiguiente.puntos : 0
 
   const base = {
     numPartidos: partidos.length,
@@ -92,7 +105,7 @@ export function datosTarjetaQuiniela(q, predicciones, participantes) {
       ...base,
       estado: 'jugandose',
       enVivo: hayPartidoEnVivo(q),
-      subnota: tengoPosicion && posicion > 1 ? `A ${diffConAnterior} pts del ${posicion - 1}º` : null,
+      subnota: grupoAnterior ? `A ${ptsTexto(diffConAnterior)} del ${grupoAnterior.posicion}º` : null,
     }
   }
 
@@ -104,7 +117,7 @@ export function datosTarjetaQuiniela(q, predicciones, participantes) {
     subnota: !tengoPosicion
       ? null
       : esGanador
-        ? (totalJugadores > 1 ? `+${diffConSiguiente} sobre el 2º` : null)
-        : `A ${diffConAnterior} pts del 1º`,
+        ? (grupoSiguiente ? `+${ptsTexto(diffConSiguiente)} sobre el ${grupoSiguiente.posicion}º` : null)
+        : `A ${ptsTexto(diffConLider)} del 1º`,
   }
 }
