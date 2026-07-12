@@ -52,12 +52,24 @@ export function quinielaFinalizada(q) {
   return resultadosCompletos(q)
 }
 
-// ¿Hay algún partido jugándose en este momento? (heurística por horario, sin ESPN)
-// Un partido se considera "en vivo" si ya pasó su hora de inicio, sigue dentro de
-// una ventana de ~2.5h (90 min + medio tiempo + tiempo añadido + margen) y todavía
-// no tiene marcador final ni está cancelado. Pensado para un indicador ligero en el
-// inicio; no es exacto (no contempla retrasos), pero no requiere llamadas a la API.
+// ¿Hay algún partido jugándose en este momento?
+//
+// Fuente exacta: la Cloud Function sincronizarResultados escribe en la quiniela
+// `enVivoEspnIds` (partidos que ESPN reporta en juego) y `enVivoActualizado`
+// (cuándo lo escribió, corre cada 10 min). Si ese dato es FRESCO, se usa tal
+// cual: exacto y sin llamadas a ESPN desde cada navegador.
+//
+// Respaldo: si el dato no existe o ya caducó (la función solo corre mientras
+// hay partidos pendientes), cae a la heurística por horario de siempre: en vivo
+// = ya pasó su hora de inicio, dentro de ~2.5h (90 min + medio tiempo + añadido
+// + margen) y sin marcador final ni cancelación. No contempla retrasos.
+const FRESCURA_EN_VIVO = 25 * 60 * 1000 // 2.5 corridas de la función
+
 export function hayPartidoEnVivo(quiniela, ahora = Date.now()) {
+  const escrito = quiniela?.enVivoActualizado ? new Date(quiniela.enVivoActualizado).getTime() : NaN
+  if (!isNaN(escrito) && ahora - escrito >= 0 && ahora - escrito <= FRESCURA_EN_VIVO) {
+    return (quiniela.enVivoEspnIds ?? []).length > 0
+  }
   const partidos = quiniela?.partidos ?? []
   const resultados = quiniela?.resultados ?? {}
   const VENTANA = 2.5 * 60 * 60 * 1000

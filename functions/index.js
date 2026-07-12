@@ -202,6 +202,12 @@ async function sincronizarQuiniela(q, cache) {
   let actualizados = 0
   let idsCorregidos = 0
   let nuevosPartidos = null // solo si algún espnId cambió
+  // Estado EN VIVO exacto: ids de ESPN de los partidos que están en juego
+  // ahora mismo. El front (hayPartidoEnVivo en src/utils/cierre.js) lo lee
+  // en lugar de adivinar por horario. Si alguna liga falla no tocamos el
+  // campo, para no apagar el badge por un error transitorio de ESPN.
+  const enVivoIds = []
+  let huboErrorESPN = false
 
   for (const [liga, ps] of Object.entries(porLiga)) {
     let events
@@ -209,6 +215,7 @@ async function sincronizarQuiniela(q, cache) {
       events = await fetchScoreboard(cache, liga, ps)
     } catch (err) {
       logger.warn(`ESPN falló para liga ${liga}: ${err.message}`)
+      huboErrorESPN = true
       continue
     }
     ps.forEach(p => {
@@ -222,6 +229,7 @@ async function sincronizarQuiniela(q, cache) {
         nuevosPartidos[p.idx].espnId = ev.id
         idsCorregidos++
       }
+      if (ev.status?.type?.state === 'in') enVivoIds.push(String(ev.id))
       const res = resultadoDeEvento(ev)
       if (!res) return
       resultados[p.idx] = res
@@ -229,16 +237,27 @@ async function sincronizarQuiniela(q, cache) {
     })
   }
 
-  if (actualizados === 0 && idsCorregidos === 0) return null
+  const prevEnVivo = (q.enVivoEspnIds ?? []).map(String)
+  const enVivoCambio = !huboErrorESPN &&
+    (enVivoIds.length !== prevEnVivo.length || enVivoIds.some((id, i) => id !== prevEnVivo[i]))
+  // Con partidos en vivo se escribe siempre (refresca enVivoActualizado, la
+  // señal de frescura del front); sin cambios ni resultados, no hay escritura.
+  const escribirEnVivo = !huboErrorESPN && (enVivoIds.length > 0 || enVivoCambio)
+
+  if (actualizados === 0 && idsCorregidos === 0 && !escribirEnVivo) return null
 
   const patch = { resultados }
+  if (!huboErrorESPN) {
+    patch.enVivoEspnIds = enVivoIds
+    patch.enVivoActualizado = new Date().toISOString()
+  }
   if (nuevosPartidos) patch.partidos = nuevosPartidos
   if (!q.finalizada && resultadosCompletos({ partidos: nuevosPartidos ?? partidos, resultados })) {
     patch.finalizada = true
     patch.finalizadaEn = new Date().toISOString()
   }
   await db.collection('quinielas').doc(q.id).update(patch)
-  return { actualizados, idsCorregidos, finalizada: !!patch.finalizada }
+  return { actualizados, idsCorregidos, enVivo: enVivoIds.length, finalizada: !!patch.finalizada }
 }
 
 // La función programada
@@ -272,6 +291,7 @@ export const sincronizarResultados = onSchedule({
       if (r) {
         logger.info(`Quiniela ${q.id} ("${q.nombre ?? ''}"): ${r.actualizados} resultado(s) guardado(s)` +
           (r.idsCorregidos ? `, ${r.idsCorregidos} ID(s) de ESPN corregido(s)` : '') +
+          (r.enVivo ? `, ${r.enVivo} partido(s) EN VIVO` : '') +
           (r.finalizada ? ' (FINALIZADA 🏆)' : ''))
       }
     } catch (err) {

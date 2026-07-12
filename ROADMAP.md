@@ -1,12 +1,13 @@
 # ROADMAP: QuinielApp
 
-> **Última actualización: 2026-07-04** (PIVOTE de modelo de negocio: ver §0).
-> Lote de mejoras de UX: 2026-06-15 (§4.bis). Auditoría de código/seguridad/costos: 2026-06-11 (§3).
+> **Última actualización: 2026-07-12** (código LISTO PARA LANZAR: ver §0.bis).
+> Pivote de modelo de negocio (2026-07-04): §0. Mejoras de UX: 2026-06-15 (§4.bis).
+> Auditoría de código/seguridad/costos: 2026-06-11 (§3).
 > Este documento es la fuente de verdad para retomar el proyecto en cualquier momento:
 > qué busca el proyecto, qué está hecho, qué está pendiente, por qué, y en qué orden.
 >
-> ⚠️ **§0 (abajo) es el estado vigente y MANDA sobre cualquier referencia a "planes", "Pase
-> Mundial", "$49/$199" o "cobro por quiniela" que quede en secciones anteriores de este doc.**
+> ⚠️ **§0 y §0.bis (abajo) son el estado vigente y MANDAN sobre cualquier referencia a
+> "planes", "Pase Mundial", "$49/$199" o "cobro por quiniela" que quede en este doc.**
 
 ---
 
@@ -52,8 +53,72 @@ Se eliminó toda la capa SaaS de planes/pagos, front y back:
 ### 0.2 Siguientes pasos acordados (en orden)
 
 1. ✅ **Limpiar la app de planes/pagos** (hecho, §0.1).
-2. **Auto-registro de usuarios** (que creen su cuenta solos, sin alta manual del dueño). Reemplazará el módulo "Clientes" manual.
-3. **Botón "Apoya el proyecto"** con link de Mercado Pago (donativo, sin checkout ni webhook).
+2. ✅ **Auto-registro de usuarios** (hecho 2026-07-09, ver §0.bis).
+3. ✅ **Botón "Apoya el proyecto"** (hecho: al final se implementó con Stripe Checkout
+   en vez de link de Mercado Pago, ver §0.bis).
+
+---
+
+## 0.bis Estado al 2026-07-12: código LISTO PARA LANZAR (uso libre)
+
+Todo lo de abajo ya está en `main` local. **No queda desarrollo bloqueante**; lo que
+falta para lanzar es operación (checklist más abajo).
+
+### Completado desde el pivote (§0)
+
+- **Auto-registro de organizadores** (2026-07-09): tabs Entrar/Crear cuenta en `/admin`,
+  verificación de correo obligatoria, cuota dura de 50 quinielas validada en rules
+  (ID determinístico `{uid}-{N}` + contador en el mismo batch), moderación
+  Pausar/Eliminar/Bloquear y auto-eliminación de cuenta. Reemplaza el alta manual por WhatsApp.
+- **Sync automática de resultados** (2026-07-07, EN PRODUCCIÓN): Cloud Function
+  `sincronizarResultados` corre cada 10 min; el botón "⚡ Sincronizar" se eliminó.
+  El proyecto ya está en **Blaze** (tareas #6 y #10 del plan: hechas).
+- **Donativos con Stripe** (`functions/stripe.js`: crearSesionDonativo + webhookDonativos;
+  página `/donar` con montos preset). Reemplazó la idea del link de Mercado Pago.
+- **Docs legales integrados** (2026-07-12): rutas `/privacidad` y `/terminos`, enlaces en
+  footer, leyendas al capturar datos (predicciones, registro, donar) y atribución de
+  reCAPTCHA. Checklist [legal/PENDIENTES_LEGAL.md](legal/PENDIENTES_LEGAL.md) al 100%.
+- **Auditoría §3.3 cerrada en código** (2026-07-12):
+  - **H1** ✅ conteos con `getCountFromServer` en home, panel admin y predicciones
+    (ya nadie descarga la colección completa de `predicciones`).
+  - **H3** ✅ rules validan cada pick (`picksValidos`: índices "0".."29", valores
+    `{local, visitante}` strings ≤4) y acotan `quinielaId`/`fecha`/`codigoAcceso`.
+  - **H5** ✅ headers de seguridad en `vercel.json`.
+  - **H6** ◐ script de respaldo manual: `node scripts/respaldo.mjs` (dump JSON local de
+    todas las colecciones; `--publico` para no pedir login). Correrlo antes de lanzar y de
+    cada quiniela grande. El respaldo automático (export programado o PITR) sigue pendiente.
+- **Indicador "Partido en vivo" EXACTO** (2026-07-12): la Cloud Function guarda en cada
+  quiniela `enVivoEspnIds` + `enVivoActualizado`; `hayPartidoEnVivo` (cierre.js) usa ese
+  dato si es fresco (≤25 min) y si no cae a la heurística por horario. Cierra la mejora
+  anotada en §4.bis. **Requiere re-deploy de functions.**
+- **Límite de 30 partidos por quiniela** en el panel (`MAX_PARTIDOS`, en sync con
+  `picksValidos()` de rules): sin esto, una quiniela de 31+ partidos dejaba a los
+  jugadores sin poder enviar.
+- **App Check listo en código** (clave reCAPTCHA v3 en `src/firebase.js`); falta activarlo
+  en consola (monitoreo → enforce).
+- Rediseño visual "Armonía" completo (home, admin, donar, predicciones, ranking).
+
+### CHECKLIST DÍA DE LANZAMIENTO (todo el mismo día, en este orden)
+
+1. **Respaldo**: `node scripts/respaldo.mjs`.
+2. **`git push`** (Vercel despliega el front solo).
+3. **`npx firebase deploy --only firestore:rules`** — obligatorio el mismo día: las reglas
+   de cuota del auto-registro y la validación de picks van en sync con el front nuevo.
+4. **`npx firebase deploy --only functions`** — sube el estado "en vivo" y las funciones de
+   Stripe. En el dashboard de Stripe: configurar webhook + clave live.
+5. **Consola Firebase → Authentication**: habilitar sign-up Email/Password, plantillas de
+   correo en español, protección contra enumeración de emails.
+6. **Consola Firebase → App Check**: registrar la app en modo MONITOREO; tras ~1 semana sin
+   falsos positivos, pasar a ENFORCE (cierra H2/spam y protege la cuota).
+
+### Pendiente post-lanzamiento (sin prisa, ver también §4)
+
+- #11 Cerrar lectura pública de picks pre-cierre (el pendiente de seguridad más profundo).
+- #12 Refactor de `admin.jsx` (~5,900 líneas) + cuentas vía Admin SDK (H4).
+- #13 Correo propio para restablecer contraseña (`noreply@quinielapp.fun`).
+- Respaldo automático: export programado a Cloud Storage o activar PITR en consola (H6).
+- Fases 3 (UX) y 4 (accesibilidad) especificadas en la memoria de Claude.
+- Idea futura: self-edit de predicciones por el jugador (Firebase Anonymous Auth).
 
 ---
 
@@ -87,11 +152,11 @@ Eso implica, en estado final:
 
 | Tarea | Cómo se hace hoy | Automatización futura |
 |---|---|---|
-| Alta de clientes | WhatsApp → César crea cuenta desde el panel | Self-service con pago primero (post-Mundial) |
-| Cobro | Link MercadoPago manual + César marca pagado en panel | Checkout + webhook (post-Mundial) |
-| Cuota "1 gratis, luego paga" | Conteo client-side (suave, burlable) | Cloud Function con cuota dura (post-Mundial) |
-| Resultados de partidos | Botón "⚡ Sincronizar ESPN" en el panel | Función programada (post-Mundial) |
-| Respaldos | **No hay** ⚠️ | Export programado; mientras tanto, manual |
+| Alta de clientes | ✅ Auto-registro self-service (2026-07-09, sin pago) | — hecha |
+| Cobro | ✅ No hay cobro; donativos voluntarios vía Stripe | — hecha (modelo gratis §0) |
+| Cuota "1 gratis, luego paga" | ✅ Cuota dura de 50 en firestore.rules | — hecha |
+| Resultados de partidos | ✅ Cloud Function cada 10 min (2026-07-07) | — hecha |
+| Respaldos | ◐ Script manual `node scripts/respaldo.mjs` | Export programado o PITR |
 
 > ⚠️ **Obsoleto por §0 (2026-07-04):** ya NO se cobra por quiniela ni Pase Mundial. La app es
 > gratis; el alta de clientes manual se conserva solo hasta el auto-registro. La tabla de arriba
@@ -128,7 +193,7 @@ de lint que aparecen vienen de worktrees viejos en `.claude/worktrees/`, no del 
 
 ### 3.3 Hallazgos NUEVOS de esta auditoría (pendientes de resolver)
 
-**H1: Agotamiento de cuota gratuita = caída del sitio (riesgo #1 real). 🔴**
+**H1: Agotamiento de cuota gratuita = caída del sitio (riesgo #1 real). 🔴 ✅ RESUELTO 2026-07-12 (ver §0.bis).**
 [home.jsx:103](src/pages/home.jsx:103) y [admin.jsx:665](src/pages/admin.jsx:665) leen **la
 colección completa de `predicciones`** en cada visita. Con lecturas públicas y sin App Check,
 cualquiera puede consumir las 50,000 lecturas/día del plan Spark en minutos → **la app se apaga
@@ -137,13 +202,13 @@ crece con cada predicción acumulada (500 predicciones × 100 visitas/día = 50,
 *Fix barato:* `getCountFromServer` (agregación: contar 1,000 docs = 1 lectura) para los conteos
 de participantes en home y predicciones. No requiere Blaze ni backend.
 
-**H2: Spam de predicciones sin freno. 🟠**
+**H2: Spam de predicciones sin freno. 🟠 (Mitigación lista: App Check en código; falta enforce en consola.)**
 Las reglas permiten a cualquier anónimo crear predicciones ilimitadas en una quiniela abierta
 (el anti-duplicado por nombre es client-side y tiene race condition). Un atacante puede inflar
 un ranking con cientos de nombres basura. *Mitigación parcial:* App Check; el admin puede borrar
 desde el panel. *Solución real:* backend (post-Mundial).
 
-**H3: Valores de `picks` sin validar en reglas. 🟠**
+**H3: Valores de `picks` sin validar en reglas. 🟠 ✅ RESUELTO 2026-07-12 (falta re-deploy de reglas).**
 `firestore.rules` valida que `picks` sea map de ≤30 llaves, pero **no qué contienen los
 valores**: se pueden guardar strings de casi 1 MB por documento (infla el storage gratuito de
 1 GB). *Fix:* ~5 líneas en rules validando estructura/tamaño de cada pick. Aditivo, sin riesgo.
@@ -155,12 +220,12 @@ de onboarding decía "deshabilitado": contradicción a verificar en Firebase Con
 No es crítico: una cuenta sin doc en `admins/` no tiene ningún permiso. Pero cualquiera puede
 crear cuentas Auth en el proyecto. *Solución limpia:* crear cuentas vía Admin SDK (post-Mundial).
 
-**H5: Sin headers de seguridad en Vercel. 🟡**
+**H5: Sin headers de seguridad en Vercel. 🟡 ✅ RESUELTO 2026-07-12.**
 [vercel.json](vercel.json) solo tiene el rewrite de SPA. Faltan `X-Frame-Options`,
 `X-Content-Type-Options`, `Referrer-Policy` (gratis, aditivo, sin riesgo). CSP completo NO
 se hará: chocaría con los estilos inline (preferencia de diseño deliberada).
 
-**H6: Sin respaldos. 🟠**
+**H6: Sin respaldos. 🟠 ◐ PARCIAL 2026-07-12: script manual `scripts/respaldo.mjs`; falta respaldo automático (export programado o PITR).**
 No existe ningún respaldo de Firestore. Una corrupción o borrado accidental pierde todo.
 El export automático requiere Blaze; mientras tanto, hacer export manual (o script JSON)
 antes de cada quiniela grande.
@@ -182,11 +247,11 @@ lo rechaza en silencio: esperado).
 
 | # | Tarea | Por qué | Resuelve |
 |---|---|---|---|
-| 1 | **App Check (reCAPTCHA v3) en modo "monitoreo"** (lo activa César en Firebase Console; NO enforce todavía) | Medir tráfico ilegítimo sin riesgo de bloquear usuarios reales en pleno Mundial | Prepara H1, H2 |
-| 2 | **Validar valores de `picks` en firestore.rules** | 5 líneas, cero impacto en UI | H3 |
-| 3 | **Headers de seguridad en vercel.json** | Gratis, sin riesgo | H5 |
-| 4 | **Conteos con `getCountFromServer`** en home y predicciones | Corta el 90%+ de lecturas; reduce mucho la superficie del DoS por cuota. Toca el home → hacerlo con tests y entre jornadas | H1 |
-| 5 | **Respaldo manual** de quinielas+predicciones (export o script JSON) antes de quinielas grandes | Hoy no hay ningún respaldo | H6 |
+| 1 | ◐ **App Check (reCAPTCHA v3) en modo "monitoreo"** — código listo, falta consola (checklist §0.bis) | Medir tráfico ilegítimo sin riesgo de bloquear usuarios reales | Prepara H1, H2 |
+| 2 | ✅ **Validar valores de `picks` en firestore.rules** (2026-07-12; falta re-deploy de reglas) | 5 líneas, cero impacto en UI | H3 |
+| 3 | ✅ **Headers de seguridad en vercel.json** (2026-07-12) | Gratis, sin riesgo | H5 |
+| 4 | ✅ **Conteos con `getCountFromServer`** en home, admin y predicciones (2026-07-12) | Corta el 90%+ de lecturas; reduce mucho la superficie del DoS por cuota | H1 |
+| 5 | ✅ **Respaldo manual**: `node scripts/respaldo.mjs` (2026-07-12; correrlo antes de lanzar) | Hoy no hay ningún respaldo | H6 (parcial) |
 
 ### §4.bis: Mejoras de UX hechas el 2026-06-15 (seguras y aditivas, costo $0)
 
@@ -209,23 +274,21 @@ toca seguridad ni infraestructura; todo es client-side y sin lecturas nuevas a F
   por categorías con "Sugeridos" arriba). [src/components/EmojiPicker.jsx](src/components/EmojiPicker.jsx)
 - **Cuenta regresiva** (HH:MM:SS) en inicio (Quiniela activa) y ranking (banner de no-registrados)
   cuando faltan <24h para el cierre. [src/components/CuentaRegresiva.jsx](src/components/CuentaRegresiva.jsx)
-- **Indicador "Partido en vivo"** en "Jugándose ahora" del inicio. Hoy es **heurística por
-  horario** (`hayPartidoEnVivo` en [src/utils/cierre.js](src/utils/cierre.js)): en vivo = pasó la
-  hora de inicio, dentro de ~2.5h, sin marcador final. ⚠️ No exacto (no contempla retrasos).
-  **Mejora futura ligada a la tarea #10**: cuando exista la Cloud Function que consulta ESPN,
-  guardar el estado real de cada partido en Firestore y que el indicador lo lea (preciso y sin
-  llamadas a ESPN desde cada navegador). `hayPartidoEnVivo` solo pasaría de calcular por horario
-  a leer ese campo; la UI no cambia.
+- **Indicador "Partido en vivo"** en "Jugándose ahora" del inicio. ✅ **Desde 2026-07-12 es
+  exacto**: la Cloud Function de sync guarda `enVivoEspnIds`/`enVivoActualizado` en la quiniela
+  y `hayPartidoEnVivo` ([src/utils/cierre.js](src/utils/cierre.js)) lee ese dato si es fresco
+  (≤25 min). Si no hay dato fresco cae a la heurística por horario original (pasó la hora de
+  inicio, dentro de ~2.5h, sin marcador final).
 
 ### Fase POST-MUNDIAL (rumbo a la app autónoma)
 
 | # | Tarea | Por qué / qué buscamos |
 |---|---|---|
-| 6 | **Migrar a Blaze + alertas de presupuesto ($5/$20)** | Prerequisito de Functions/pagos. Blaze incluye la misma capa gratis: a bajo volumen sigue costando ~$0; las alertas son el seguro |
-| 7 | **Pagos automáticos**: Checkout MercadoPago + webhook (Cloud Function) que activa cuenta/derechos | Elimina "César valida y marca pagado". Plan detallado ya escrito (memoria `project_pending_payments`) |
-| 8 | **Auto-alta self-service** (registro con pago primero) | Junto con #7 es el corazón de "solo recibir el pago". Elimina el alta por WhatsApp |
-| 9 | **Cuota dura server-side** (Cloud Function crea las quinielas) | El "1 gratis" deja de ser burlable; necesario cuando los clientes ya no son conocidos |
-| 10 | **Auto-sync ESPN** (función programada) | Elimina el botón ⚡ manual. Ojo: duplica lógica de scoring server-side → hacerlo con tests contra el contrato real de ESPN (hay spike local propuesto en memoria `project_plan_tecnico`). **Aprovechar para guardar el estado en vivo de cada partido en Firestore** y que el indicador "Partido en vivo" del inicio (hoy heurística por horario, ver §4.bis) sea exacto y sin llamadas a ESPN por visitante |
+| 6 | ✅ **Migrar a Blaze** (hecho para la Cloud Function de sync). Revisar que las alertas de presupuesto ($5/$20) estén configuradas | Blaze incluye la misma capa gratis: a bajo volumen sigue costando ~$0; las alertas son el seguro |
+| 7 | ~~**Pagos automáticos**~~ descartado por el pivote (§0); en su lugar: ✅ donativos con Stripe | — |
+| 8 | ✅ **Auto-alta self-service** (2026-07-09, sin pago: la app es gratis) | Eliminó el alta por WhatsApp |
+| 9 | ✅ **Cuota dura server-side** (en firestore.rules con contador + ID determinístico, no requirió Cloud Function) | El límite de 50 ya no es burlable |
+| 10 | ✅ **Auto-sync ESPN** (2026-07-07) + **estado en vivo por partido en Firestore** (2026-07-12): el indicador "Partido en vivo" ya es exacto, sin llamadas a ESPN por visitante | — |
 | 11 | **Cerrar lectura pública de picks pre-cierre** | El riesgo de trampa escala con botes/desconocidos. Requiere backend (posible con #6). Es el pendiente de seguridad más profundo |
 | 12 | **App Check en enforce** + **refactor de admin.jsx** (3,506 líneas) + cuentas vía Admin SDK (H4) | Endurecimiento y mantenibilidad cuando ya no haya presión de torneo |
 | 13 | **Correo propio para restablecer contraseña** | Firebase Console dejó las plantillas de Auth como no editables. Cuando se quiera mejorar el correo y usar `noreply@quinielapp.fun`, crear un endpoint en Vercel (`/api/password-reset`) que use Firebase Admin SDK para generar el link de reset y Resend/SendGrid para mandar un HTML propio con botón/logo, apuntando a una pantalla custom de recuperación |

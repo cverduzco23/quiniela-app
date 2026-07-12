@@ -30,6 +30,11 @@ function esSuperAdminUid(uid) {
 // contador). Mantener sincronizado con `maxQuinielas()` en firestore.rules.
 const MAX_QUINIELAS = 50
 
+// Máximo de partidos por quiniela. Mantener sincronizado con picksValidos()
+// en firestore.rules (índices "0".."29"): con más partidos, las reglas
+// rechazarían las predicciones de los jugadores.
+const MAX_PARTIDOS = 30
+
 // Slugs verificados contra el scoreboard de ESPN. Los torneos solo devuelven
 // partidos cuando están en temporada; fuera de temporada el buscador sale vacío
 // (es esperado, no es un error). Orden: lo más seguido por la afición mexicana
@@ -1611,6 +1616,7 @@ export default function Admin() {
   // Estadísticas: detecta si alguno de los partidos de la quiniela elegida está
   // EN VIVO ahora mismo, para el badge en "Partidos con más conectados en vivo".
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!statsQId) { setStatsQLiveIds(new Set()); return }
     const qObj = quinielas.find(q => q.id === statsQId)
     const conEspn = (qObj?.partidos || []).filter(p => p.espnId && p.ligaId)
@@ -1815,7 +1821,17 @@ export default function Admin() {
     const baseExistente = (partidos.length === 1 && !partidos[0].local && !partidos[0].visitante)
       ? []
       : partidos
-    const aceptados = await filtrarDuplicados(baseExistente, nuevos)
+    let aceptados = await filtrarDuplicados(baseExistente, nuevos)
+    const disponibles = MAX_PARTIDOS - baseExistente.length
+    if (aceptados.length > disponibles) {
+      alerta(
+        `Una quiniela puede tener máximo ${MAX_PARTIDOS} partidos.\n\n` +
+        (disponibles > 0
+          ? `Se agregarán solo los primeros ${disponibles}; los demás se omiten.`
+          : 'Ya llegaste al límite: quita algún partido o crea otra quiniela.')
+      )
+      aceptados = aceptados.slice(0, Math.max(0, disponibles))
+    }
     if (aceptados.length === 0) {
       setSeleccionados([])
       setFixtures([])
@@ -1834,7 +1850,17 @@ export default function Admin() {
 
   const agregarSeleccionadosAEdicion = async () => {
     const nuevos = seleccionados.map(fixtureAPartido)
-    const aceptados = await filtrarDuplicados(editPartidos, nuevos)
+    let aceptados = await filtrarDuplicados(editPartidos, nuevos)
+    const disponibles = MAX_PARTIDOS - editPartidos.length
+    if (aceptados.length > disponibles) {
+      alerta(
+        `Una quiniela puede tener máximo ${MAX_PARTIDOS} partidos.\n\n` +
+        (disponibles > 0
+          ? `Se agregarán solo los primeros ${disponibles}; los demás se omiten.`
+          : 'Ya llegaste al límite: quita algún partido o crea otra quiniela.')
+      )
+      aceptados = aceptados.slice(0, Math.max(0, disponibles))
+    }
     if (aceptados.length === 0) {
       setSeleccionados([])
       setFixtures([])
@@ -1855,6 +1881,7 @@ export default function Admin() {
   const guardarEdicion = async () => {
     if (!quinielaActual || guardandoEdicion) return
     if (editPartidos.length === 0) return alerta('La quiniela debe tener al menos un partido.')
+    if (editPartidos.length > MAX_PARTIDOS) return alerta(`Una quiniela puede tener máximo ${MAX_PARTIDOS} partidos. Quita ${editPartidos.length - MAX_PARTIDOS} para poder guardar.`)
     if (!editNombre.trim()) return alerta('El nombre no puede estar vacío.')
     if (!editCierre) return alerta('La fecha y hora de cierre es obligatoria.')
     const chkCierre = validarCierreVsPartidos(editCierre, editPartidos)
@@ -2161,6 +2188,7 @@ export default function Admin() {
     if (!nombre.trim()) return alerta('Ponle un nombre a la quiniela')
     if (!cierre) return alerta('La fecha y hora de cierre es obligatoria')
     if (partidos.length === 0) return alerta('Agrega al menos un partido')
+    if (partidos.length > MAX_PARTIDOS) return alerta(`Una quiniela puede tener máximo ${MAX_PARTIDOS} partidos. Quita ${partidos.length - MAX_PARTIDOS} para poder guardar.`)
     if (partidos.some(p => !p.local.trim() || !p.visitante.trim())) return alerta('Completa nombre de equipos en todos los partidos')
     const chkCierre = validarCierreVsPartidos(cierre, partidos)
     if (chkCierre.conflicto) {
