@@ -460,8 +460,32 @@ function SidebarCliente({ activo, onNav, adminDoc, onSalir }) {
   )
 }
 
-// Barra de pestañas inferior del panel Cliente (móvil <960px)
+// Barra de pestañas inferior del panel Cliente (móvil <960px).
+// Se oculta al hacer scroll hacia abajo y reaparece al scrollear hacia arriba,
+// para recuperar espacio de pantalla ahora que el header superior es fijo.
 function TabBarCliente({ activo, onNav }) {
+  const [visible, setVisible] = useState(true)
+  const lastY = useRef(0)
+
+  useEffect(() => {
+    lastY.current = window.scrollY
+    let ticking = false
+    const onScroll = () => {
+      if (ticking) return
+      ticking = true
+      requestAnimationFrame(() => {
+        const y = window.scrollY
+        const delta = y - lastY.current
+        if (delta > 6 && y > 80) setVisible(false)
+        else if (delta < -6 || y <= 80) setVisible(true)
+        lastY.current = y
+        ticking = false
+      })
+    }
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
+
   const item = (tab, icon, label) => {
     const on = activo === tab
     return (
@@ -483,6 +507,8 @@ function TabBarCliente({ activo, onNav }) {
       position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 900,
       height: 60, background: 'rgba(11,18,32,0.96)', backdropFilter: 'blur(8px)',
       borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'stretch',
+      transform: visible ? 'translateY(0)' : 'translateY(100%)',
+      transition: 'transform 0.25s ease',
     }}>
       {item('inicio', 'home', 'Inicio')}
       {item('quinielas', 'ball', 'Quinielas')}
@@ -4877,6 +4903,24 @@ export default function Admin() {
                     </button>
                   </section>
                 )}
+
+                <section className="admin-account-footer-group" aria-label="Apoyo y legal">
+                  <a href="/donar" className="admin-account-footer-link is-apoyar">
+                    <AdminIcon name="heart" size={16} />
+                    Apoyar el proyecto
+                  </a>
+                  <a href={soporteLink} target="_blank" rel="noreferrer" className="admin-account-footer-link">
+                    Contacto
+                  </a>
+                  <a href="/privacidad" className="admin-account-footer-link">
+                    Aviso de privacidad
+                  </a>
+                  <a href="/terminos" className="admin-account-footer-link">
+                    Términos y condiciones
+                  </a>
+                  <hr className="admin-account-footer-divider" />
+                  <p className="admin-account-footer-copy">© {new Date().getFullYear()} QuinielApp · v1.0</p>
+                </section>
               </div>
 
               {correoCuentaSheetAbierto && (

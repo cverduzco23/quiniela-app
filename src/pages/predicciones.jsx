@@ -533,7 +533,7 @@ export default function Predicciones() {
   )
 
   if (enviado) return (
-    <div style={{ minHeight: '100vh', background: '#070d18', position: 'relative', zIndex: 0, display: 'flex', flexDirection: 'column' }}>
+    <div style={{ background: '#070d18', position: 'relative', zIndex: 0, display: 'flex', flexDirection: 'column' }}>
       <div className="pred-gate-bg-fade" aria-hidden="true" />
       <div className="hero-pad pred-hero-pad" style={{ color: 'var(--text)' }}>
         <div className="pred-brand-row" style={{ maxWidth: 560, margin: '0 auto', display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -638,7 +638,7 @@ export default function Predicciones() {
   const pantallaArmonia = !cerrada && !yaEnviadoAntes
 
   return (
-    <div style={{ minHeight: '100vh', background: '#070d18', position: 'relative', zIndex: 0, overflow: celebrando ? 'hidden' : 'visible', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ background: '#070d18', position: 'relative', zIndex: 0, overflow: celebrando ? 'hidden' : 'visible', display: 'flex', flexDirection: 'column' }}>
       <div className="pred-gate-bg-fade" aria-hidden="true" />
       {celebrando && (
         <div aria-hidden="true" style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 9999, overflow: 'hidden' }}>

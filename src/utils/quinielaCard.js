@@ -1,4 +1,4 @@
-import { cierreToDate, quinielaCerrada, quinielaFinalizada } from './cierre'
+import { cierreToDate, quinielaCerrada, quinielaFinalizada, hayPartidoEnVivo } from './cierre'
 import { calcularPuntos, getResultado } from './scoring'
 import { normalizarNombre } from './nombres'
 import { haEnviadoQuiniela, miIdentidadEnQuiniela } from './misQuinielas'
@@ -91,6 +91,7 @@ export function datosTarjetaQuiniela(q, predicciones, participantes) {
     return {
       ...base,
       estado: 'jugandose',
+      enVivo: hayPartidoEnVivo(q),
       subnota: tengoPosicion && posicion > 1 ? `A ${diffConAnterior} pts del ${posicion - 1}º` : null,
     }
   }

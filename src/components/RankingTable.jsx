@@ -614,8 +614,8 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                       {p.hora && <span className="ranking-match-wide-fecha">{formatFecha(p.hora)}</span>}
                     </div>
                     <span
-                      className={`ranking-match-wide-score${esVivo ? ' is-live-score' : ''}${pendiente ? ' is-pending' : ''}`}
-                      style={{ color: cancelado ? 'var(--muted)' : esVivo ? '#FCA5A5' : 'var(--text-strong)', textDecoration: cancelado ? 'line-through' : 'none' }}
+                      className={`ranking-match-wide-score${pendiente ? ' is-pending' : ''}`}
+                      style={{ color: cancelado ? 'var(--muted)' : 'var(--text-strong)', textDecoration: cancelado ? 'line-through' : 'none' }}
                     >
                       {matchScoreText}
                     </span>
@@ -650,8 +650,8 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                         <span className="ranking-match-name">{p.local}</span>
                       </div>
                       <span
-                        className={`ranking-match-score is-desktop${esVivo ? ' is-live-score' : ''}${pendiente ? ' is-pending' : ''}`}
-                        style={{ color: cancelado ? 'var(--muted)' : esVivo ? '#FCA5A5' : 'var(--text-strong)', textDecoration: cancelado ? 'line-through' : 'none' }}
+                        className={`ranking-match-score is-desktop${pendiente ? ' is-pending' : ''}`}
+                        style={{ color: cancelado ? 'var(--muted)' : 'var(--text-strong)', textDecoration: cancelado ? 'line-through' : 'none' }}
                       >
                         {matchScoreText}
                       </span>
@@ -1320,8 +1320,10 @@ function EscenariosUltimoPartido({ sim, conPremio, liveScores = {}, quiniela, bo
             <span className="oracle-kicker">Oráculo del último partido</span>
             <span className="oracle-title">¿Quién gana según el marcador?</span>
           </span>
-          <span className="oracle-toggle">
-            {abierto ? 'Ocultar' : 'Ver'}
+          <span className="oracle-toggle" aria-hidden="true">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.75" strokeLinecap="round" strokeLinejoin="round" style={{ transform: abierto ? 'rotate(180deg)' : 'rotate(0deg)' }}>
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
           </span>
         </button>
         <button

@@ -722,7 +722,7 @@ export default function Home() {
   const mainClassName = `public-home-main${seccionesVisibles[0]?.clave === 'mostrarComoFunciona' ? ' public-home-main--starts-with-how' : ''}`
 
   return (
-    <div style={{ minHeight: '100vh', background: '#070d18', position: 'relative', zIndex: 0, display: 'flex', flexDirection: 'column' }}>
+    <div style={{ background: '#070d18', position: 'relative', zIndex: 0, display: 'flex', flexDirection: 'column' }}>
       <div className="public-home-bg-fade" aria-hidden="true" />
       <div>
         <HomeHeader scrolled={scrolled} />
@@ -813,7 +813,7 @@ export default function Home() {
       </main>
 
       <div style={{ width: '100%', maxWidth: 1100, margin: 'auto auto 0', padding: '0 24px 28px' }}>
-        <Footer />
+        <Footer variant="simple" />
       </div>
     </div>
   )

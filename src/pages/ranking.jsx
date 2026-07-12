@@ -424,7 +424,7 @@ export default function Ranking() {
   const mostrarControlesActualizacion = hayPartidosActualizables && quinielaCerrada(quiniela) && !finalizada
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg)', position: 'relative', zIndex: 0, display: 'flex', flexDirection: 'column' }}>
+    <div style={{ background: 'var(--bg)', position: 'relative', zIndex: 0, display: 'flex', flexDirection: 'column' }}>
       <div className="ranking-bg-fade" aria-hidden="true" />
       {/* Hero */}
       <div className="hero-pad ranking-hero-pad" style={{ color: 'var(--text)' }}>
@@ -471,9 +471,8 @@ export default function Ranking() {
                 display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 10.5, fontWeight: 600,
                 padding: '3px 9px', borderRadius: 'var(--radius-full)',
                 background: 'var(--red-bg-strong)', border: '1px solid var(--red)',
-                animation: 'pulse-badge 1.4s ease-in-out infinite',
               }}>
-                <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#FCA5A5', display: 'inline-block' }} />
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#FCA5A5', display: 'inline-block', animation: 'pulse-dot 1.2s ease-in-out infinite' }} />
                 EN VIVO
               </span>
             )}

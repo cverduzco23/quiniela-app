@@ -86,7 +86,7 @@ export default function Donar() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#070d18', position: 'relative', zIndex: 0, display: 'flex', flexDirection: 'column' }}>
+    <div style={{ background: '#070d18', position: 'relative', zIndex: 0, display: 'flex', flexDirection: 'column' }}>
       <div className="public-home-bg-fade" aria-hidden="true" />
       <div className="hero-pad donar-hero-pad" style={{ color: 'var(--text)' }}>
         <div className="donar-brand-row" style={{ maxWidth: 460, margin: '0 auto', display: 'flex', alignItems: 'center', gap: 12 }}>

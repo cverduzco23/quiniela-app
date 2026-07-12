@@ -32,7 +32,7 @@ function compartirQuiniela(q) {
   }
 }
 
-function Badge({ estado, enviada }) {
+function Badge({ estado, enviada, enVivo }) {
   if (estado === 'abierta') {
     if (enviada) {
       return (
@@ -50,8 +50,8 @@ function Badge({ estado, enviada }) {
   if (estado === 'jugandose') {
     return (
       <span className="tq-badge" style={{ background: 'rgba(34,197,94,0.14)', color: '#86EFAC' }}>
-        <span className="tq-pulse-dot" style={{ background: '#86EFAC' }} />
-        En vivo
+        {enVivo && <span className="tq-pulse-dot" style={{ background: '#86EFAC' }} />}
+        {enVivo ? 'En vivo' : 'Jugándose'}
       </span>
     )
   }
@@ -168,7 +168,9 @@ function ProgressRow({ d }) {
       <>
         <div className="tq-progress-row">
           <span>{d.partidosJugados} de {d.numPartidos} partidos</span>
-          <span style={{ color: '#86EFAC', fontWeight: 700 }}>{restantes > 0 ? `${restantes} por jugarse` : 'Todos jugados'}</span>
+          <span style={{ color: '#86EFAC', fontWeight: 700 }}>
+            {d.enVivo ? 'Partido en vivo' : restantes > 0 ? `${restantes} por jugarse` : 'Todos jugados'}
+          </span>
         </div>
         <div className="tq-bar"><div className="tq-bar-fill" style={{ width: `${pct}%`, background: 'linear-gradient(90deg,#22C55E,#86EFAC)' }} /></div>
       </>
@@ -226,7 +228,7 @@ export function TusQuinielaCard({ q, predicciones, participantes, onQuitar }) {
             <p className="tq-title">{q.nombre}</p>
             <p className="tq-meta">{d.numPartidos} partidos · {d.participantes} participantes</p>
           </div>
-          <Badge estado={d.estado} enviada={d.enviada} />
+          <Badge estado={d.estado} enviada={d.enviada} enVivo={d.enVivo} />
         </div>
         <Banda d={d} miNombreVisible={d.miNombre} onAlias={handleAlias} />
         {d.estado !== 'abierta' && (
