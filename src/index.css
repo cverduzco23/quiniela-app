@@ -456,6 +456,31 @@ a:focus-visible {
 .app-footer-copy-link:hover {
   color: var(--text);
 }
+.app-footer-recaptcha {
+  margin: 8px auto 0;
+  max-width: 460px;
+  color: var(--muted-soft);
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.5;
+}
+.app-footer-recaptcha a {
+  color: var(--muted-soft);
+  text-decoration: underline;
+}
+/* Leyenda corta de privacidad/términos junto a formularios que capturan datos */
+.legal-note {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 11.5px;
+  line-height: 1.55;
+  text-align: center;
+}
+.legal-note a {
+  color: var(--green-light);
+  text-decoration: none;
+  font-weight: 600;
+}
 .public-free-badge {
   display: inline-flex;
   align-items: center;

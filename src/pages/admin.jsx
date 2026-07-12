@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
-import { collection, addDoc, doc, updateDoc, getDoc, getDocs, deleteDoc, query, orderBy, where, setDoc, serverTimestamp, writeBatch, increment } from 'firebase/firestore'
+import { collection, addDoc, doc, updateDoc, getDoc, getDocs, deleteDoc, query, orderBy, where, setDoc, serverTimestamp, writeBatch, increment, getCountFromServer } from 'firebase/firestore'
 import { signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, updatePassword, createUserWithEmailAndPassword, sendEmailVerification, reload, updateProfile, deleteUser } from 'firebase/auth'
 import { db, auth, crearUsuarioAislado, generarPasswordTemporal } from '../firebase'
 import { CambioPassword } from '../components/CambioPassword'
@@ -1519,22 +1519,28 @@ export default function Admin() {
   const cargarQuinielas = async () => {
     setLoadingLista(true)
     try {
-      const [qSnap, pSnap] = await Promise.all([
-        getDocs(query(collection(db, 'quinielas'), orderBy('creada', 'desc'))),
-        getDocs(collection(db, 'predicciones')),
-      ])
+      const qSnap = await getDocs(query(collection(db, 'quinielas'), orderBy('creada', 'desc')))
+      const lista = qSnap.docs.map(d => ({ id: d.id, ...d.data() }))
+      // Conteos de participantes por AGREGACIÓN (getCountFromServer): 1 lectura
+      // por quiniela en lugar de descargar la colección completa de predicciones
+      // (hallazgo H1 de la auditoría). Un cliente solo necesita los de SUS quinielas.
+      const paraConteo = soySuper ? lista : lista.filter(q => q.ownerUid === miUid)
       const conteoMap = {}
-      pSnap.docs.forEach(d => {
-        const qId = d.data().quinielaId
-        conteoMap[qId] = (conteoMap[qId] ?? 0) + 1
-      })
+      await Promise.all(paraConteo.map(async q => {
+        try {
+          const c = await getCountFromServer(query(collection(db, 'predicciones'), where('quinielaId', '==', q.id)))
+          conteoMap[q.id] = c.data().count
+        } catch { conteoMap[q.id] = 0 }
+      }))
       setConteos(conteoMap)
-      setQuinielas(qSnap.docs.map(d => ({ id: d.id, ...d.data() })))
+      setQuinielas(lista)
     } catch { /* silent */ }
     finally { setLoadingLista(false) }
   }
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect
+  // Corre solo cuando la sesión queda lista; para entonces soySuper/miUid ya
+  // tienen su valor final, por eso no van en los deps.
+  // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
   useEffect(() => { if (autenticado && authListo) cargarQuinielas() }, [autenticado, authListo])
 
   // Estadísticas: carga el resumen (días + total de dispositivos). Se necesita en el
@@ -2586,6 +2592,10 @@ export default function Admin() {
           </button>
           <p style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 12, lineHeight: 1.5, textAlign: 'center' }}>
             Te mandaremos un correo para verificar tu cuenta.
+          </p>
+          <p className="legal-note">
+            Al crear tu cuenta aceptas los <a href="/terminos">Términos y Condiciones</a> y
+            el <a href="/privacidad">Aviso de Privacidad</a>.
           </p>
           </>)}
         </div>

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, Fragment } from 'react'
 import { useSearchParams, useParams } from 'react-router-dom'
-import { doc, getDoc, addDoc, collection, getDocs, query, where } from 'firebase/firestore'
+import { doc, getDoc, addDoc, collection, getDocs, query, where, getCountFromServer } from 'firebase/firestore'
 import { db, track } from '../firebase'
 import { registrarVisita, registrarVisitaQuiniela, registrarEnvio } from '../utils/analytics'
 import { cierreToDate, quinielaCerrada, quinielaFinalizada, tiempoRestante } from '../utils/cierre'
@@ -236,9 +236,10 @@ export default function Predicciones() {
   const [mostrarResumen, setMostrarResumen] = useState(false)
   const [celebrando, setCelebrando]       = useState(false)
   const [confirmadoRegla, setConfirmadoRegla] = useState(false)
-  const [prediccionesIds, setPrediccionesIds] = useState([])
+  const [totalPredicciones, setTotalPredicciones] = useState(0)
+  // Igual que en el panel: total por agregación menos los ocultos por el admin.
   const ocultosIds = quiniela?.ocultos ?? []
-  const conteoParticipantes = prediccionesIds.filter(id => !ocultosIds.includes(id)).length
+  const conteoParticipantes = Math.max(0, totalPredicciones - ocultosIds.length)
 
   // Gate de código de acceso (quinielas privadas)
   const [accesoOk, setAccesoOk]         = useState(false)
@@ -267,8 +268,10 @@ export default function Predicciones() {
       })
       .catch(() => setError('error'))
       .finally(() => setCargando(false))
-    getDocs(query(collection(db, 'predicciones'), where('quinielaId', '==', quinielaId)))
-      .then(snap => setPrediccionesIds(snap.docs.map(d => d.id)))
+    // Conteo por AGREGACIÓN: 1 lectura en vez de descargar todas las
+    // predicciones de la quiniela en cada visita (hallazgo H1 de la auditoría).
+    getCountFromServer(query(collection(db, 'predicciones'), where('quinielaId', '==', quinielaId)))
+      .then(c => setTotalPredicciones(c.data().count))
       .catch(() => {})
     // Analítica: cuenta la visita (una vez por sesión).
     registrarVisita()
@@ -1156,6 +1159,10 @@ export default function Predicciones() {
                 {enviando ? 'Enviando…' : 'Enviar predicciones ahora →'}
               </span>
             </button>
+            <p className="legal-note" style={{ margin: '0 0 12px' }}>
+              Al enviar aceptas los <a href="/terminos">Términos</a>. Tu nombre y predicciones
+              serán visibles públicamente en el ranking. <a href="/privacidad">Aviso de Privacidad</a>.
+            </p>
             <button
               onClick={() => setMostrarResumen(false)}
               disabled={enviando}

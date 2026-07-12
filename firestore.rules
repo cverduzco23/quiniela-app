@@ -147,6 +147,37 @@ service cloud.firestore {
         (isSignedIn() && resource.data.ownerUid == request.auth.uid);
     }
 
+    // Un pick individual: mapa {local, visitante} con marcadores cortos (strings
+    // tipo "2", "10"). Cualquier otra cosa (strings largos, mapas anidados, tipos
+    // raros) se rechaza para que nadie infle el storage con documentos gigantes
+    // (hallazgo H3 de la auditoría). Si el índice no está en el mapa, pasa.
+    function pickOk(m, k) {
+      return !(k in m) || (
+        m[k] is map &&
+        m[k].keys().hasOnly(['local', 'visitante']) &&
+        m[k].get('local', '') is string && m[k].get('local', '').size() <= 4 &&
+        m[k].get('visitante', '') is string && m[k].get('visitante', '').size() <= 4
+      );
+    }
+
+    // El mapa completo de picks: solo índices "0".."29" (las reglas no pueden
+    // iterar mapas, por eso la lista explícita) y cada valor con forma válida.
+    function picksValidos(m) {
+      return m.keys().hasOnly([
+          '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+          '10', '11', '12', '13', '14', '15', '16', '17', '18', '19',
+          '20', '21', '22', '23', '24', '25', '26', '27', '28', '29'
+        ]) &&
+        pickOk(m, '0') && pickOk(m, '1') && pickOk(m, '2') && pickOk(m, '3') &&
+        pickOk(m, '4') && pickOk(m, '5') && pickOk(m, '6') && pickOk(m, '7') &&
+        pickOk(m, '8') && pickOk(m, '9') && pickOk(m, '10') && pickOk(m, '11') &&
+        pickOk(m, '12') && pickOk(m, '13') && pickOk(m, '14') && pickOk(m, '15') &&
+        pickOk(m, '16') && pickOk(m, '17') && pickOk(m, '18') && pickOk(m, '19') &&
+        pickOk(m, '20') && pickOk(m, '21') && pickOk(m, '22') && pickOk(m, '23') &&
+        pickOk(m, '24') && pickOk(m, '25') && pickOk(m, '26') && pickOk(m, '27') &&
+        pickOk(m, '28') && pickOk(m, '29');
+    }
+
     // predicciones/
     match /predicciones/{prediccionId} {
 
@@ -162,16 +193,24 @@ service cloud.firestore {
         request.resource.data.keys().hasOnly(
           ['quinielaId', 'nombre', 'picks', 'fecha', 'codigoAcceso']
         ) &&
-        // Tipos básicos
+        // Tipos básicos (con tope de tamaño: mismo motivo que picksValidos)
         request.resource.data.quinielaId is string &&
+        request.resource.data.quinielaId.size() <= 100 &&
         request.resource.data.nombre is string &&
         request.resource.data.picks is map &&
         request.resource.data.fecha is string &&
+        request.resource.data.fecha.size() <= 40 &&
+        (
+          !('codigoAcceso' in request.resource.data) ||
+          (request.resource.data.codigoAcceso is string &&
+           request.resource.data.codigoAcceso.size() <= 60)
+        ) &&
         // Tamaños razonables
         request.resource.data.nombre.size() >= 2 &&
         request.resource.data.nombre.size() <= 60 &&
         request.resource.data.nombre.trim() == request.resource.data.nombre &&
         request.resource.data.picks.size() <= 30 &&
+        picksValidos(request.resource.data.picks) &&
         // La quiniela debe existir
         exists(/databases/$(database)/documents/quinielas/$(request.resource.data.quinielaId)) &&
         // Dentro del plazo de cierre (si la quiniela define `cierre`)

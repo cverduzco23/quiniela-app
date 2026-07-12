@@ -10,20 +10,20 @@ viven en esta carpeta: `AVISO_DE_PRIVACIDAD.md` y `TERMINOS_Y_CONDICIONES.md`.
 
 ## 2. Publicar los documentos en la app
 
-- [ ] Crear rutas `/privacidad` y `/terminos` que rendericen los dos documentos (páginas estáticas con el mismo estilo del sitio).
-- [ ] Agregar enlaces "Términos" y "Privacidad" en el `Footer` (aparece en todas las páginas públicas).
+- [x] Crear rutas `/privacidad` y `/terminos` que rendericen los dos documentos (páginas estáticas con el mismo estilo del sitio).
+- [x] Agregar enlaces "Términos" y "Privacidad" en el `Footer` (aparece en todas las páginas públicas).
 
 ## 3. Aviso de privacidad simplificado en los puntos de captura de datos
 
 La LFPDPPP pide que el aviso esté disponible **al momento de recabar** los datos.
 Basta una línea con enlace al aviso integral:
 
-- [ ] **Formulario de predicciones** (`predicciones.jsx`, junto al botón de enviar):
+- [x] **Formulario de predicciones** (`predicciones.jsx`, junto al botón de enviar):
   > Al enviar aceptas los [Términos](/terminos). Tu nombre y predicciones serán visibles públicamente en el ranking. [Aviso de Privacidad](/privacidad).
-- [ ] **Registro de organizadores** (`admin.jsx`, formulario de crear cuenta):
+- [x] **Registro de organizadores** (`admin.jsx`, formulario de crear cuenta):
   > Al crear tu cuenta aceptas los [Términos y Condiciones](/terminos) y el [Aviso de Privacidad](/privacidad).
   (Opcional pero recomendado: checkbox obligatorio en vez de solo la leyenda.)
-- [ ] **Página de donativos** (`donar.jsx`, bajo el botón de donar):
+- [x] **Página de donativos** (`donar.jsx`, bajo el botón de donar):
   > Donativo voluntario, no reembolsable y no deducible. Procesado por Stripe. [Términos](/terminos) · [Privacidad](/privacidad).
 
 ## 4. Atribución de reCAPTCHA (App Check)
@@ -31,7 +31,7 @@ Basta una línea con enlace al aviso integral:
 reCAPTCHA v3 corre invisible en todas las páginas. Los términos de Google piden
 avisar al usuario. Agregar en el Footer (letra pequeña):
 
-- [ ] > Este sitio está protegido por reCAPTCHA; aplican la [Política de Privacidad](https://policies.google.com/privacy) y los [Términos](https://policies.google.com/terms) de Google.
+- [x] > Este sitio está protegido por reCAPTCHA; aplican la [Política de Privacidad](https://policies.google.com/privacy) y los [Términos](https://policies.google.com/terms) de Google.
 
 Nota: a partir de abril de 2026 Google relajó este requisito (pasó a rol de
 encargado), pero mantener la leyenda sigue siendo la práctica recomendada y no

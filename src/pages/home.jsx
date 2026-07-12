@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { collection, getDocs, query, orderBy, limit, where, doc, getDoc } from 'firebase/firestore'
+import { collection, getDocs, query, orderBy, limit, where, doc, getDoc, getCountFromServer } from 'firebase/firestore'
 import { db, track } from '../firebase'
 import { quinielaCerrada, quinielaFinalizada, hayPartidoEnVivo } from '../utils/cierre'
 import { tienePremio } from '../utils/premios'
@@ -665,32 +665,43 @@ export default function Home() {
     const guardadas = leerMisQuinielasGuardadas()
     Promise.all([
       getDocs(query(collection(db, 'quinielas'), orderBy('creada', 'desc'), limit(10))),
-      getDocs(collection(db, 'predicciones')),
       Promise.all(guardadas.map(q => getDoc(doc(db, 'quinielas', q.id)).catch(() => null))),
-    ]).then(([qSnap, pSnap, misSnaps]) => {
-      const guardadasIds = new Set(guardadas.map(q => q.id))
-      const conteoMap = {}
-      const prediccionesMap = {}
-      pSnap.docs.forEach(d => {
-        const data = d.data()
-        const qId = data.quinielaId
-        conteoMap[qId] = (conteoMap[qId] ?? 0) + 1
-        if (guardadasIds.has(qId)) {
-          if (!prediccionesMap[qId]) prediccionesMap[qId] = []
-          prediccionesMap[qId].push(data)
-        }
-      })
-      setConteos(conteoMap)
-      setMisPredicciones(prediccionesMap)
+    ]).then(async ([qSnap, misSnaps]) => {
       // Públicas: solo las que el super admin marcó explícitamente como tal.
       // Todas las demás (incluidas las viejas sin este campo) son privadas por default.
-      setQuinielasPublicas(qSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(q => q.privada === false))
+      const publicas = qSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(q => q.privada === false)
+      setQuinielasPublicas(publicas)
       const porId = new Map(guardadas.map((q, idx) => [q.id, { guardada: q, idx }]))
       const personales = misSnaps
         .filter(s => s?.exists?.())
         .map(s => ({ id: s.id, ...s.data(), _miOrden: porId.get(s.id)?.idx ?? 999 }))
         .sort((a, b) => a._miOrden - b._miOrden)
       setMisQuinielas(personales)
+      // Conteos de participantes por AGREGACIÓN (getCountFromServer): 1 lectura
+      // por quiniela mostrada, en lugar de descargar la colección completa de
+      // predicciones en cada visita (hallazgo H1: eso permitía agotar la cuota
+      // gratuita de lecturas y tirar el sitio).
+      const idsConteo = [...new Set([...publicas.map(q => q.id), ...personales.map(q => q.id)])]
+      const conteoMap = {}
+      const prediccionesMap = {}
+      await Promise.all([
+        ...idsConteo.map(async id => {
+          try {
+            const c = await getCountFromServer(query(collection(db, 'predicciones'), where('quinielaId', '==', id)))
+            conteoMap[id] = c.data().count
+          } catch { conteoMap[id] = 0 }
+        }),
+        // Predicciones completas SOLO de tus quinielas guardadas (la tarjeta
+        // "Tus quinielas" las necesita para calcular líder y puntos).
+        ...personales.map(async q => {
+          try {
+            const snap = await getDocs(query(collection(db, 'predicciones'), where('quinielaId', '==', q.id)))
+            prediccionesMap[q.id] = snap.docs.map(d => d.data())
+          } catch { /* la tarjeta muestra solo el conteo */ }
+        }),
+      ])
+      setConteos(conteoMap)
+      setMisPredicciones(prediccionesMap)
     }).catch(() => {}).finally(() => setCargando(false))
   }, [])
 

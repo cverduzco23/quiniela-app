@@ -27,6 +27,19 @@ function FooterIcon({ name, size = 15 }) {
   return null
 }
 
+// Los términos de Google piden avisar que reCAPTCHA (App Check) corre en el sitio.
+function RecaptchaNotice() {
+  return (
+    <p className="app-footer-recaptcha">
+      Este sitio está protegido por reCAPTCHA; aplican la{' '}
+      <a href="https://policies.google.com/privacy" target="_blank" rel="noreferrer">Política de Privacidad</a>
+      {' '}y los{' '}
+      <a href="https://policies.google.com/terms" target="_blank" rel="noreferrer">Términos</a>
+      {' '}de Google.
+    </p>
+  )
+}
+
 export function Footer({ maxWidth = '100%', variant = 'full' }) {
   const year = new Date().getFullYear()
 
@@ -43,6 +56,7 @@ export function Footer({ maxWidth = '100%', variant = 'full' }) {
         <p className="app-footer-copy">
           © {year} QuinielApp · <a href="https://quinielapp.fun" target="_blank" rel="noreferrer" className="app-footer-copy-link">quinielapp.fun</a>
         </p>
+        <RecaptchaNotice />
       </footer>
     )
   }
@@ -63,6 +77,7 @@ export function Footer({ maxWidth = '100%', variant = 'full' }) {
       <p className="app-footer-copy">
         © {year} <BrandMark size={14} /> QuinielApp
       </p>
+      <RecaptchaNotice />
     </footer>
   )
 }

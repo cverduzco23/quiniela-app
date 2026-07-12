@@ -148,6 +148,10 @@ export default function Donar() {
             >
               {enviando ? 'Redirigiendo…' : montoValido ? `Donar $${montoFinal} MXN` : 'Donar MXN'}
             </button>
+            <p className="legal-note">
+              Donativo voluntario, no reembolsable y no deducible. Procesado por Stripe.{' '}
+              <Link to="/terminos">Términos</Link> · <Link to="/privacidad">Privacidad</Link>.
+            </p>
           </div>
         )}
         <Footer />
