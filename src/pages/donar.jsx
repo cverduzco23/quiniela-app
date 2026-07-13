@@ -160,7 +160,7 @@ export default function Donar() {
             </p>
           </div>
         )}
-        <Footer />
+        <Footer variant="simple" />
       </div>
     </div>
   )

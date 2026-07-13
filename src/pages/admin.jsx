@@ -21,6 +21,7 @@ import { EmojiPicker } from '../components/EmojiPicker'
 // UIDs con privilegios globales (ver/editar todas las quinielas).
 // Mantener sincronizado con `isSuperAdmin()` en firestore.rules.
 const SUPER_ADMIN_UIDS = ['w6uc7cHowgM4Pmsya4bUHt1G3Pu2']
+const ADMIN_HISTORY_KEY = 'quinielappAdminScreen'
 
 function esSuperAdminUid(uid) {
   return !!uid && SUPER_ADMIN_UIDS.includes(uid)
@@ -894,6 +895,7 @@ export default function Admin() {
 
   // Abre "Mi cuenta" precargando el formulario con los datos actuales.
   const abrirMiCuenta = () => {
+    registrarVistaAdmin({ vista: 'cuenta', clienteTab: 'cuenta', quinielaId: null, cajaNombre: null })
     setCuentaNombre(adminDoc?.nombre ?? '')
     setCuentaTel(adminDoc?.telefono ?? '')
     setCuentaMsg(null)
@@ -969,11 +971,13 @@ export default function Admin() {
   }
 
   const entrar = async () => {
-    if (!email.trim() || !password) return
+    const correo = email.trim()
+    if (!correo) return setLoginError('Escribe tu correo.')
+    if (!password) return setLoginError('Escribe tu contraseña.')
     setLoginLoading(true)
     setLoginError('')
     try {
-      await signInWithEmailAndPassword(auth, email.trim(), password)
+      await signInWithEmailAndPassword(auth, correo, password)
       setPassword('')
       setResetMsg('')
     } catch {
@@ -1010,9 +1014,9 @@ export default function Admin() {
     setRegError('')
     const nombre = regNombre.trim()
     const correo = regEmail.trim().toLowerCase()
-    if (nombre.length < 2) return setRegError('Escribe tu nombre (mínimo 2 letras).')
+    if (nombre.length < 2) return setRegError('Escribe tu nombre.')
     if (nombre.length > 60) return setRegError('El nombre es muy largo (máximo 60 caracteres).')
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo)) return setRegError('Ese correo no se ve válido. Revísalo.')
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo)) return setRegError('El correo no es válido.')
     const v = evaluarPassword(regP1)
     if (!v.ok) return setRegError(v.error)
     if (regP1 !== regP2) return setRegError('Las contraseñas no coinciden.')
@@ -1028,7 +1032,7 @@ export default function Admin() {
       if (e?.code === 'auth/email-already-in-use') {
         setRegError('Ya existe una cuenta con ese correo. Usa la pestaña Entrar o toca "¿Olvidaste tu contraseña?".')
       } else if (e?.code === 'auth/invalid-email') {
-        setRegError('Ese correo no se ve válido. Revísalo.')
+        setRegError('El correo no es válido.')
       } else if (e?.code === 'auth/weak-password') {
         setRegError('Esa contraseña es muy débil. Usa al menos 8 caracteres con letras y números.')
       } else if (e?.code === 'auth/too-many-requests') {
@@ -1486,6 +1490,72 @@ export default function Admin() {
   const [cajaMovNombre, setCajaMovNombre]           = useState('')
   // Orden de la lista de saldos en Caja: 'nombre' (A-Z) o 'monto' (mayor a menor).
   const [cajaOrden, setCajaOrden]                   = useState('monto')
+
+  // Las vistas del panel viven bajo la misma ruta (/admin), así que el
+  // ScrollToTop global no detecta estos cambios. Cada pantalla o pestaña
+  // interna debe comenzar arriba, sin heredar el scroll de la anterior.
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [vista, tab, clienteTab, superModulo, cajaNombre, statsTab])
+
+  // Las pantallas internas de /admin comparten URL. Guardamos su estado en el
+  // historial para que tanto el back del navegador como los botones "Volver"
+  // regresen a la pestaña y lista exactas desde las que se abrieron.
+  const snapshotVistaAdmin = (overrides = {}) => ({
+    vista,
+    clienteTab,
+    superModulo,
+    quinielaId: quinielaActual?.id ?? null,
+    cajaNombre,
+    ...overrides,
+  })
+  const registrarVistaAdmin = (destino) => {
+    const base = window.history.state ?? {}
+    window.history.replaceState(
+      { ...base, [ADMIN_HISTORY_KEY]: snapshotVistaAdmin() },
+      '',
+      window.location.href,
+    )
+    window.history.pushState(
+      { ...base, [ADMIN_HISTORY_KEY]: snapshotVistaAdmin(destino) },
+      '',
+      window.location.href,
+    )
+  }
+  const reemplazarVistaAdmin = (destino) => {
+    const base = window.history.state ?? {}
+    window.history.replaceState(
+      { ...base, [ADMIN_HISTORY_KEY]: snapshotVistaAdmin(destino) },
+      '',
+      window.location.href,
+    )
+  }
+  const volverVistaAdmin = (fallback) => {
+    if (window.history.state?.[ADMIN_HISTORY_KEY]) window.history.back()
+    else fallback()
+  }
+
+  useEffect(() => {
+    const restaurarVista = (event) => {
+      const destino = event.state?.[ADMIN_HISTORY_KEY]
+      if (!destino) return
+
+      const quiniela = destino.quinielaId
+        ? quinielas.find(q => q.id === destino.quinielaId) ?? null
+        : null
+      setVista(destino.vista ?? 'lista')
+      setClienteTab(destino.clienteTab ?? 'inicio')
+      setSuperModulo(destino.superModulo ?? null)
+      setQuinielaActual(quiniela)
+      if (quiniela) setResultados(resultadosParaUI(quiniela.resultados ?? {}))
+      setCajaNombre(destino.cajaNombre ?? null)
+      setFixtures([])
+      setSeleccionados([])
+    }
+
+    window.addEventListener('popstate', restaurarVista)
+    return () => window.removeEventListener('popstate', restaurarVista)
+  }, [quinielas])
 
   const uidSesionAnterior = useRef(undefined)
   useEffect(() => {
@@ -2148,6 +2218,7 @@ export default function Admin() {
 
   // Abre el formulario de nueva quiniela, pre-llenando un código de acceso editable.
   const abrirNuevaQuiniela = () => {
+    registrarVistaAdmin({ vista: 'nueva', superModulo: null, quinielaId: null, cajaNombre: null })
     setSuperModulo(null)
     if (!codigoAcceso.trim()) setCodigoAcceso(generarCodigoAcceso())
     setVista('nueva')
@@ -2238,6 +2309,7 @@ export default function Admin() {
         ? await addDoc(collection(db, 'quinielas'), base)
         : await crearQuinielaConCuota(base)
       const nueva = { id: ref.id, ...base }
+      reemplazarVistaAdmin({ vista: 'gestionar', quinielaId: nueva.id, superModulo: null, cajaNombre: null })
       setQuinielaActual(nueva)
       setResultados({})
       setSuperModulo(null)
@@ -2262,6 +2334,7 @@ export default function Admin() {
   const gestionarQuiniela = (q) => {
     // No reseteamos superModulo: así el botón Atrás regresa a la lista del
     // módulo de origen ('mis' / 'otros') en vez de la cuadrícula de secciones.
+    registrarVistaAdmin({ vista: 'gestionar', quinielaId: q.id, cajaNombre: null })
     setQuinielaActual(q)
     setResultados(resultadosParaUI(q.resultados ?? {}))
     setSyncResultadosMsg(null)
@@ -2617,9 +2690,6 @@ export default function Admin() {
           <button onClick={registrarse} disabled={regLoading} style={{ ...greenCtaStyle(regLoading), width: '100%', padding: '13px', borderRadius: 10 }}>
             {regLoading ? 'Creando cuenta…' : 'Crear mi cuenta'}
           </button>
-          <p style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 12, lineHeight: 1.5, textAlign: 'center' }}>
-            Te mandaremos un correo para verificar tu cuenta.
-          </p>
           <p className="legal-note">
             Al crear tu cuenta aceptas los <a href="/terminos">Términos y Condiciones</a> y
             el <a href="/privacidad">Aviso de Privacidad</a>.
@@ -3007,6 +3077,7 @@ export default function Admin() {
                 const abrirDetalleCaja = (nombre) => {
                   const limpio = normalizarNombre(nombre || '')
                   if (!limpio) return
+                  registrarVistaAdmin({ vista: 'caja', cajaNombre: limpio, quinielaId: null })
                   setCajaNombre(limpio)
                   setVista('caja')
                   setBuscarNombreCaja('')
@@ -4627,7 +4698,7 @@ export default function Admin() {
           <div className="super-module-content">
             {clienteShell && (
               <div style={{ marginBottom: 14 }}>
-                <button onClick={() => { setVista('lista'); setCajaNombre(null) }} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: 'transparent', border: 'none', color: 'var(--muted)', fontSize: 13, fontWeight: 700, cursor: 'pointer', padding: 0, marginBottom: 10 }}>
+                <button onClick={() => volverVistaAdmin(() => { setVista('lista'); setCajaNombre(null) })} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: 'transparent', border: 'none', color: 'var(--muted)', fontSize: 13, fontWeight: 700, cursor: 'pointer', padding: 0, marginBottom: 10 }}>
                   <AdminIcon name="arrow-left" size={15} /> Caja
                 </button>
                 <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 700, color: 'var(--text-strong)', margin: 0, lineHeight: 1.1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cajaNombre}</h2>
@@ -5139,7 +5210,7 @@ export default function Admin() {
             {renderFormularioPremio(premioFijo, setPremioFijo, cuota, setCuota)}
 
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-              <button onClick={() => { setVista('lista'); setFixtures([]); setSeleccionados([]) }} style={{ padding: '10px 20px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-strong)', background: 'transparent', color: 'var(--muted)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+              <button onClick={() => volverVistaAdmin(() => { setVista('lista'); setFixtures([]); setSeleccionados([]) })} style={{ padding: '10px 20px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-strong)', background: 'transparent', color: 'var(--muted)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
                 Cancelar
               </button>
               <button onClick={guardarNuevaQuiniela} disabled={guardando} style={greenCtaStyle(guardando)}>
@@ -5161,7 +5232,7 @@ export default function Admin() {
             : estaCerrada
               ? { label: 'Jugándose', bg: 'var(--green-bg)', color: 'var(--green-light)' }
               : { label: 'Abierta', bg: 'var(--green-bg)', color: 'var(--green)' }
-          const volverAtras = () => { setVista('lista'); setQuinielaActual(null); setFixtures([]); setSeleccionados([]); setCajaNombre(null) }
+          const volverAtras = () => volverVistaAdmin(() => { setVista('lista'); setQuinielaActual(null); setFixtures([]); setSeleccionados([]); setCajaNombre(null) })
           return (
             <>
               {/* Volver (escritorio super o cualquier vista del cliente: el hero con su back está oculto) */}
