@@ -931,7 +931,7 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
           )
         }) : (() => {
           const zonaPremioIdxs = shown.reduce((acc, p, idx) => {
-            if (premioPorNombre[p.nombre] !== undefined) acc.push(idx)
+            if (hayResultados && premioPorNombre[p.nombre] !== undefined) acc.push(idx)
             return acc
           }, [])
           const zonaPremioInicioIdx = zonaPremioIdxs.length ? zonaPremioIdxs[0] : -1
@@ -942,8 +942,11 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
           const pos = j._pos
           const esLider = pos === 1 && hayResultados
           const esMiFila = !!miNombreRanking && j.nombre === miNombreRanking
-          const medalColor = pos <= 3 ? medalColors[pos - 1] : null
-          const tienePremioFila = premioPorNombre[j.nombre] !== undefined
+          // Una quiniela cerrada pero todavía sin actividad no tiene posiciones
+          // reales: todos conservan 0 puntos, pero no declaramos un empate en 1°.
+          const posicionVisible = hayResultados ? pos : '—'
+          const medalColor = hayResultados && pos <= 3 ? medalColors[pos - 1] : null
+          const tienePremioFila = hayResultados && premioPorNombre[j.nombre] !== undefined
           const esInicioZonaPremio = tienePremioFila && !shown.slice(0, i).some(p => premioPorNombre[p.nombre] !== undefined)
           const nombreDetalle = String(j.nombre || '').trim().split(/\s+/)[0] || nombreCorto(j.nombre)
 
@@ -983,7 +986,7 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                     fontSize: 14, fontWeight: esLider ? 800 : 700,
                     color: medalColor || 'var(--muted)',
                     textShadow: esLider ? '0 0 10px rgba(250,204,21,0.55), 0 1px 1px rgba(0,0,0,0.3)' : 'none',
-                  }}>{pos}</span>
+                  }}>{posicionVisible}</span>
                 </span>
                 <div style={{ position: 'relative', minWidth: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
                   <span className="ranking-player-avatar" aria-hidden="true">{inicialesPersona(j.nombre)}</span>

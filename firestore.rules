@@ -113,6 +113,25 @@ service cloud.firestore {
     // quinielas/
     match /quinielas/{quinielaId} {
 
+      // Mantener en sync con MAX_NOMBRE_QUINIELA y MAX_CODIGO_ACCESO en
+      // admin.jsx. Aplica también a escrituras desde consola o clientes viejos.
+      function identidadQuinielaValida() {
+        return request.resource.data.nombre is string &&
+          request.resource.data.nombre.trim() == request.resource.data.nombre &&
+          request.resource.data.nombre.size() >= 1 &&
+          request.resource.data.nombre.size() <= 60 &&
+          (
+            !('codigoAcceso' in request.resource.data) ||
+            (request.resource.data.codigoAcceso is string &&
+             request.resource.data.codigoAcceso.size() <= 10)
+          ) &&
+          (
+            !('codigoAccesoLower' in request.resource.data) ||
+            (request.resource.data.codigoAccesoLower is string &&
+             request.resource.data.codigoAccesoLower.size() <= 10)
+          );
+      }
+
       // Lectura pública: necesaria para que el home, predicciones y ranking
       // funcionen sin login para participantes.
       allow read: if true;
@@ -124,7 +143,7 @@ service cloud.firestore {
       // el incremento +1 de su contador quinielasCreadas. Como dos docs no
       // pueden compartir ID, es imposible colar más de una quiniela por
       // incremento (ni con batches manipulados desde la consola).
-      allow create: if isSignedIn() &&
+      allow create: if identidadQuinielaValida() && isSignedIn() &&
         (
           isSuperAdmin() ||
           (
@@ -151,10 +170,12 @@ service cloud.firestore {
       // del super admin: sin esto, cualquier organizador podría autopublicarse
       // en la portada) y `ownerUid` (la quiniela no se transfiere; congela el
       // vínculo con la cuota del contador).
-      allow update: if isSuperAdmin() || (
-        isSignedIn() && resource.data.ownerUid == request.auth.uid &&
-        !request.resource.data.diff(resource.data).affectedKeys()
-          .hasAny(['privada', 'ownerUid'])
+      allow update: if identidadQuinielaValida() && (
+        isSuperAdmin() || (
+          isSignedIn() && resource.data.ownerUid == request.auth.uid &&
+          !request.resource.data.diff(resource.data).affectedKeys()
+            .hasAny(['privada', 'ownerUid'])
+        )
       );
 
       // Borrar: super admin o el dueño.

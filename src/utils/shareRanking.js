@@ -30,12 +30,6 @@ const COLORS = {
   purpleLight: '#C084FC',
 }
 
-const medal = [
-  { fg: '#FACC15', light: '#FDE68A', dark: '#5B4A12', h: 172 },
-  { fg: '#E5E7EB', light: '#F8FAFC', dark: '#334155', h: 124 },
-  { fg: '#E0A870', light: '#FCD9B6', dark: '#472B20', h: 102 },
-]
-
 function setupCanvas(height = H) {
   const canvas = document.createElement('canvas')
   canvas.width = W * SCALE
@@ -47,9 +41,17 @@ function setupCanvas(height = H) {
 }
 
 async function waitFonts() {
-  if (document.fonts?.ready) {
-    try { await document.fonts.ready } catch { /* noop */ }
-  }
+  if (!document.fonts) return
+  try {
+    // `document.fonts.ready` puede resolver antes de que una fuente usada solo
+    // por canvas haya sido solicitada. La cargamos explícitamente para que la
+    // primera imagen también salga con la tipografía correcta.
+    await Promise.all([
+      document.fonts.load('900 32px Inter'),
+      document.fonts.load('700 120px Rajdhani'),
+    ])
+    await document.fonts.ready
+  } catch { /* el canvas conserva sus fallbacks si la red no está disponible */ }
 }
 
 function roundRect(ctx, x, y, w, h, r) {
@@ -87,20 +89,24 @@ function truncate(ctx, text, maxWidth) {
   return `${s.slice(0, Math.max(0, lo - 1))}...`
 }
 
-function drawCenteredText(ctx, text, cx, y, maxWidth = Infinity) {
-  const s = Number.isFinite(maxWidth) ? truncate(ctx, text, maxWidth) : String(text || '')
-  const prevAlign = ctx.textAlign
-  // Mobile Safari can mis-anchor centered canvas text when a custom font string
-  // includes an emoji/color-font glyph. Compute the left edge ourselves.
-  ctx.textAlign = 'left'
-  ctx.fillText(s, cx - ctx.measureText(s).width / 2, y)
-  ctx.textAlign = prevAlign
-}
-
 function textWidthWithTracking(ctx, text, tracking) {
   const s = String(text || '')
   if (s.length <= 1) return ctx.measureText(s).width
   return ctx.measureText(s).width + tracking * (s.length - 1)
+}
+
+function truncateTracked(ctx, text, maxWidth, tracking) {
+  const s = String(text || '')
+  if (textWidthWithTracking(ctx, s, tracking) <= maxWidth) return s
+  let lo = 0
+  let hi = s.length
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1
+    const trial = `${s.slice(0, mid)}...`
+    if (textWidthWithTracking(ctx, trial, tracking) <= maxWidth) lo = mid + 1
+    else hi = mid
+  }
+  return `${s.slice(0, Math.max(0, lo - 1))}...`
 }
 
 function drawCenteredTrackedText(ctx, text, cx, y, tracking) {
@@ -132,40 +138,6 @@ function drawCenteredRichText(ctx, parts, cx, y) {
   ctx.restore()
 }
 
-function drawTableIcon(ctx, name, cx, cy, size = 18, color = COLORS.dim) {
-  ctx.save()
-  ctx.translate(cx - size / 2, cy - size / 2)
-  ctx.strokeStyle = color
-  ctx.lineWidth = 2.2
-  ctx.lineCap = 'round'
-  ctx.lineJoin = 'round'
-  if (name === 'check') {
-    ctx.beginPath()
-    ctx.moveTo(size * 0.18, size * 0.52)
-    ctx.lineTo(size * 0.42, size * 0.76)
-    ctx.lineTo(size * 0.84, size * 0.24)
-    ctx.stroke()
-  } else if (name === 'target') {
-    ctx.beginPath()
-    ctx.arc(size / 2, size / 2, size * 0.39, 0, Math.PI * 2)
-    ctx.stroke()
-    ctx.beginPath()
-    ctx.arc(size / 2, size / 2, size * 0.15, 0, Math.PI * 2)
-    ctx.stroke()
-    ctx.beginPath()
-    ctx.moveTo(size / 2, 0)
-    ctx.lineTo(size / 2, size * 0.18)
-    ctx.moveTo(size / 2, size * 0.82)
-    ctx.lineTo(size / 2, size)
-    ctx.moveTo(0, size / 2)
-    ctx.lineTo(size * 0.18, size / 2)
-    ctx.moveTo(size * 0.82, size / 2)
-    ctx.lineTo(size, size / 2)
-    ctx.stroke()
-  }
-  ctx.restore()
-}
-
 function drawBackground(ctx, theme = 'green', height = H) {
   const g = ctx.createLinearGradient(0, 0, W, height)
   g.addColorStop(0, COLORS.bg0)
@@ -174,14 +146,24 @@ function drawBackground(ctx, theme = 'green', height = H) {
   ctx.fillStyle = g
   ctx.fillRect(0, 0, W, height)
 
-  const glowA = theme === 'purple' ? 'rgba(168,85,247,0.25)' : 'rgba(34,197,94,0.20)'
-  const glowB = theme === 'purple' ? 'rgba(168,85,247,0.13)' : 'rgba(250,204,21,0.12)'
-  let rg = ctx.createRadialGradient(0, 0, 0, 0, 0, 560)
+  const glowA = theme === 'purple'
+    ? 'rgba(168,85,247,0.25)'
+    : theme === 'gold'
+      ? 'rgba(250,204,21,0.24)'
+      : 'rgba(34,197,94,0.20)'
+  const glowB = theme === 'purple'
+    ? 'rgba(168,85,247,0.13)'
+    : theme === 'gold'
+      ? 'rgba(34,197,94,0.10)'
+      : 'rgba(250,204,21,0.12)'
+  const glowAX = theme === 'gold' ? W / 2 : 0
+  let rg = ctx.createRadialGradient(glowAX, 0, 0, glowAX, 0, theme === 'gold' ? 660 : 560)
   rg.addColorStop(0, glowA)
   rg.addColorStop(1, 'rgba(0,0,0,0)')
   ctx.fillStyle = rg
   ctx.fillRect(0, 0, W, height)
-  rg = ctx.createRadialGradient(W, 0, 0, W, 0, 470)
+  const glowBX = theme === 'gold' ? 0 : W
+  rg = ctx.createRadialGradient(glowBX, 0, 0, glowBX, 0, 470)
   rg.addColorStop(0, glowB)
   rg.addColorStop(1, 'rgba(0,0,0,0)')
   ctx.fillStyle = rg
@@ -224,14 +206,6 @@ function drawBrand(ctx, x, y, size = 42) {
   ctx.restore()
 }
 
-function brandWidth(ctx, size = 42) {
-  ctx.save()
-  ctx.font = `900 ${Math.round(size * 0.54)}px Inter`
-  const width = size + 14 + ctx.measureText('Quiniel').width + ctx.measureText('App').width
-  ctx.restore()
-  return width
-}
-
 function drawLiveBadge(ctx, x, y, text = 'EN VIVO', theme = 'red') {
   const accent = theme === 'purple' ? COLORS.purpleLight : COLORS.redLight
   const bg = theme === 'purple' ? 'rgba(168,85,247,0.18)' : 'rgba(239,68,68,0.18)'
@@ -272,22 +246,6 @@ function drawAvatar(ctx, x, y, size, name, color, bg = 'rgba(255,255,255,0.05)')
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
   ctx.fillText(initials(name), x, y + 1)
-  ctx.textAlign = 'left'
-}
-
-function drawAvatarLabel(ctx, x, y, size, label, color, bg = 'rgba(255,255,255,0.05)') {
-  ctx.fillStyle = bg
-  ctx.beginPath()
-  ctx.arc(x, y, size / 2, 0, Math.PI * 2)
-  ctx.fill()
-  ctx.lineWidth = 3
-  ctx.strokeStyle = color
-  ctx.stroke()
-  ctx.fillStyle = color
-  ctx.font = `900 ${size > 34 ? 13 : 11}px Inter`
-  ctx.textAlign = 'center'
-  ctx.textBaseline = 'middle'
-  ctx.fillText(label, x, y + 1)
   ctx.textAlign = 'left'
 }
 
@@ -334,16 +292,25 @@ function drawCrestOrAvatar(ctx, x, y, size, img, name, color, bg = 'rgba(255,255
 
 function drawFooter(ctx, quiniela, theme = 'green', height = H) {
   const accent = theme === 'purple' ? COLORS.purpleLight : COLORS.greenLight
+  ctx.textAlign = 'left'
   ctx.font = '900 15px Inter'
   ctx.fillStyle = COLORS.dim
   ctx.textBaseline = 'middle'
   ctx.fillText('CÓDIGO', PAD, height - 84)
   const code = String(quiniela?.codigoAcceso || quiniela?.id || 'QUINIELA').toUpperCase()
-  ctx.font = '700 32px Rajdhani'
-  const w = Math.max(172, ctx.measureText(code).width + 42)
-  fillRound(ctx, PAD + 84, height - 112, w, 56, 10, theme === 'purple' ? 'rgba(168,85,247,0.16)' : 'rgba(34,197,94,0.16)', theme === 'purple' ? 'rgba(192,132,252,0.45)' : 'rgba(34,197,94,0.45)')
+  const pillX = PAD + 84
+  const brandX = W - PAD - 138
+  const maxPillW = brandX - pillX - 24
+  const codeMaxW = maxPillW - 42
+  const footerCodeSize = fitFont(ctx, code, {
+    weight: 700, size: 32, min: 16, family: 'Rajdhani', maxWidth: codeMaxW,
+  })
+  ctx.font = `700 ${footerCodeSize}px Rajdhani`
+  const shownCode = truncate(ctx, code, codeMaxW)
+  const w = Math.max(172, Math.min(maxPillW, ctx.measureText(shownCode).width + 42))
+  fillRound(ctx, pillX, height - 112, w, 56, 10, theme === 'purple' ? 'rgba(168,85,247,0.16)' : 'rgba(34,197,94,0.16)', theme === 'purple' ? 'rgba(192,132,252,0.45)' : 'rgba(34,197,94,0.45)')
   ctx.fillStyle = accent
-  ctx.fillText(code, PAD + 105, height - 84)
+  ctx.fillText(shownCode, pillX + 21, height - 84)
 
   drawBrandMark(ctx, W - PAD - 138, height - 102, 28)
   ctx.font = '900 17px Inter'
@@ -392,35 +359,6 @@ function drawTrophy(ctx, x, y, size, color = COLORS.yellowLight) {
   ctx.restore()
 }
 
-function drawStar(ctx, cx, cy, outer, inner, color) {
-  ctx.save()
-  ctx.beginPath()
-  for (let i = 0; i < 10; i++) {
-    const angle = -Math.PI / 2 + i * Math.PI / 5
-    const r = i % 2 === 0 ? outer : inner
-    const x = cx + Math.cos(angle) * r
-    const y = cy + Math.sin(angle) * r
-    if (i === 0) ctx.moveTo(x, y)
-    else ctx.lineTo(x, y)
-  }
-  ctx.closePath()
-  ctx.fillStyle = color
-  ctx.fill()
-  ctx.restore()
-}
-
-function rowHeightForPos(pos) {
-  if (pos === 1) return 68
-  if (pos === 2) return 62
-  if (pos === 3) return 58
-  return 54
-}
-
-function rowHighlightForPos(pos) {
-  if (pos === 1) return ['rgba(250,204,21,0.08)', 'rgba(250,204,21,0.35)']
-  return null
-}
-
 function positionsByPoints(jugadores) {
   const pos = []
   jugadores.forEach((j, i) => {
@@ -430,355 +368,692 @@ function positionsByPoints(jugadores) {
   return jugadores.map((j, i) => ({ ...j, _pos: pos[i] }))
 }
 
-function podiumGroups(jugadores) {
-  const groups = []
-  for (const j of jugadores) {
-    const last = groups[groups.length - 1]
-    if (last && last.puntos === j.puntos) last.jugadores.push(j)
-    else groups.push({ puntos: j.puntos, jugadores: [j] })
-    if (groups.length >= 3 && groups[groups.length - 1].jugadores.length >= 3) break
-  }
-  return [groups[0], groups[1], groups[2]].filter(Boolean)
+function finalRankingData(jugadores) {
+  const sorted = [...jugadores].sort((a, b) =>
+    (Number(b.puntos) || 0) - (Number(a.puntos) || 0) ||
+    (Number(b.exactos) || 0) - (Number(a.exactos) || 0) ||
+    (Number(b.aciertos) || 0) - (Number(a.aciertos) || 0)
+  )
+  const ranked = positionsByPoints(sorted)
+  const topPoints = ranked[0]?.puntos ?? 0
+  const champions = ranked.filter(j => j.puntos === topPoints)
+  const rest = ranked.filter(j => j.puntos !== topPoints)
+  return { ranked, champions, rest, topPoints }
 }
 
-function drawPodiumStep(ctx, group, place, cx, baseY, width) {
-  const cfg = medal[place - 1]
-  const shown = (group?.jugadores ?? []).slice(0, group.jugadores.length > 1 ? 2 : 1)
-  const avatarSize = place === 1 && shown.length === 1 ? 104 : shown.length > 1 ? 70 : 86
-  const avatarGap = shown.length > 1 ? 18 : 0
-  const startX = cx - ((shown.length - 1) * (avatarSize + avatarGap)) / 2
-  const avY = baseY - cfg.h - (place === 1 ? 92 : 84)
-  const nameY = baseY - cfg.h + (place === 1 ? 12 : 8)
-  const pointsY = nameY + (place === 1 ? 36 : 34)
+function drawFinalPrizePill(ctx, { label, amount, suffix = '', y }) {
+  ctx.font = '900 15px Inter'
+  const labelW = ctx.measureText(label).width
+  ctx.font = '700 42px Rajdhani'
+  const amountW = ctx.measureText(amount).width
+  ctx.font = '800 15px Inter'
+  const suffixW = suffix ? ctx.measureText(suffix).width : 0
+  const gap = 16
+  const w = Math.min(W - PAD * 2 - 96, labelW + amountW + suffixW + gap * (suffix ? 3 : 2) + 52)
+  const x = (W - w) / 2
+  const grad = ctx.createLinearGradient(x, y, x + w, y + 76)
+  grad.addColorStop(0, COLORS.yellow)
+  grad.addColorStop(1, COLORS.yellowLight)
+  ctx.shadowColor = 'rgba(250,204,21,0.28)'
+  ctx.shadowBlur = 28
+  fillRound(ctx, x, y, w, 76, 14, grad)
+  ctx.shadowBlur = 0
 
-  if (place === 1) {
-    drawStar(ctx, cx, avY - avatarSize / 2 - 22, 15, 6, COLORS.yellow)
+  ctx.textBaseline = 'middle'
+  ctx.textAlign = 'left'
+  let tx = x + 26
+  ctx.font = '900 15px Inter'
+  ctx.fillStyle = '#3A2E05'
+  ctx.fillText(label, tx, y + 39)
+  tx += labelW + gap
+  ctx.font = '700 42px Rajdhani'
+  ctx.fillStyle = '#1A1503'
+  ctx.fillText(amount, tx, y + 39)
+  if (suffix) {
+    tx += amountW + gap
+    ctx.font = '800 15px Inter'
+    ctx.fillText(suffix, tx, y + 39)
+  }
+}
+
+function drawFinalTable(ctx, rows, y, maxHeight, emptyLabel) {
+  const x = PAD
+  const w = W - PAD * 2
+  const headerH = 54
+  const rowH = 56
+  const overflowH = 36
+  const emptyH = 86
+  const availableRows = Math.max(1, Math.floor((maxHeight - headerH - overflowH) / rowH))
+  const hasOverflow = rows.length > availableRows
+  const shown = rows.slice(0, hasOverflow ? availableRows : Math.floor((maxHeight - headerH) / rowH))
+  const hidden = rows.length - shown.length
+  const contentH = rows.length === 0 ? emptyH : shown.length * rowH + (hidden > 0 ? overflowH : 0)
+  const h = Math.min(maxHeight, headerH + contentH)
+  fillRound(ctx, x, y, w, h, 14, 'rgba(19,28,46,0.94)', COLORS.border2)
+
+  ctx.textBaseline = 'middle'
+  ctx.textAlign = 'left'
+  ctx.font = '900 13px Inter'
+  ctx.fillStyle = COLORS.dim
+  ctx.fillText('TABLA FINAL', x + 28, y + headerH / 2 + 1)
+  ctx.textAlign = 'right'
+  ctx.fillText('PTS', x + w - 28, y + headerH / 2 + 1)
+
+  if (rows.length === 0) {
+    ctx.strokeStyle = 'rgba(255,255,255,0.06)'
+    ctx.beginPath()
+    ctx.moveTo(x + 24, y + headerH)
+    ctx.lineTo(x + w - 24, y + headerH)
+    ctx.stroke()
+    ctx.textAlign = 'center'
+    ctx.font = '600 18px Inter'
+    ctx.fillStyle = COLORS.muted
+    ctx.fillText(emptyLabel, W / 2, y + headerH + emptyH / 2)
+    ctx.textAlign = 'left'
+    return h
   }
 
-  shown.forEach((j, i) => drawAvatar(ctx, startX + i * (avatarSize + avatarGap), avY, avatarSize, j.nombre, cfg.fg, `${cfg.dark}99`))
+  let rowY = y + headerH
+  shown.forEach(row => {
+    ctx.strokeStyle = 'rgba(255,255,255,0.06)'
+    ctx.beginPath()
+    ctx.moveTo(x + 24, rowY)
+    ctx.lineTo(x + w - 24, rowY)
+    ctx.stroke()
+    const cy = rowY + rowH / 2 + 1
+    ctx.textAlign = 'center'
+    ctx.font = '700 25px Rajdhani'
+    ctx.fillStyle = COLORS.dim
+    ctx.fillText(String(row._pos), x + 54, cy)
+    ctx.textAlign = 'left'
+    ctx.font = '600 24px Inter'
+    ctx.fillStyle = '#D1D5DB'
+    ctx.fillText(truncate(ctx, row.nombre, w - 230), x + 96, cy)
+    ctx.textAlign = 'right'
+    ctx.font = '700 32px Rajdhani'
+    ctx.fillStyle = COLORS.strong
+    ctx.fillText(String(row.puntos ?? 0), x + w - 28, cy)
+    rowY += rowH
+  })
+  if (hidden > 0) {
+    ctx.textAlign = 'center'
+    ctx.font = '800 14px Inter'
+    ctx.fillStyle = COLORS.dim
+    ctx.fillText(`y ${hidden} participante${hidden === 1 ? '' : 's'} más`, W / 2, rowY + overflowH / 2 + 1)
+    ctx.textAlign = 'left'
+  }
+  return h
+}
 
-  ctx.textAlign = 'center'
+function fitFont(ctx, text, { weight = 700, size = 62, min = 32, family = 'Rajdhani', maxWidth }) {
+  let fitted = size
+  while (fitted > min) {
+    ctx.font = `${weight} ${fitted}px ${family}`
+    if (ctx.measureText(String(text || '')).width <= maxWidth) return fitted
+    fitted -= 2
+  }
+  ctx.font = `${weight} ${min}px ${family}`
+  return min
+}
+
+function formatOpenClose(cierre) {
+  const d = cierreToDate(cierre)
+  if (!d) return 'Cierre por confirmar'
+  const clean = value => value
+    .replace(/\./g, '')
+    .replace(/,/g, '')
+    .replace(/\s+de\s+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  const fecha = clean(new Intl.DateTimeFormat('es-MX', {
+    weekday: 'short', day: 'numeric', month: 'short',
+  }).format(d))
+  const hora = clean(new Intl.DateTimeFormat('es-MX', {
+    hour: 'numeric', minute: '2-digit', hour12: true,
+  }).format(d)).replace(/\s*a\s*m$/i, ' am').replace(/\s*p\s*m$/i, ' pm')
+  return `Cierra ${fecha} · ${hora}`
+}
+
+function drawPrizeCard(ctx, y, bote, nota) {
+  const x = PAD
+  const w = W - PAD * 2
+  const h = 104
+  const grad = ctx.createLinearGradient(x, y, x + w, y + h)
+  grad.addColorStop(0, 'rgba(30,41,59,0.94)')
+  grad.addColorStop(1, 'rgba(15,24,40,0.97)')
+  fillRound(ctx, x, y, w, h, 14, grad, 'rgba(250,204,21,0.34)')
+  fillRound(ctx, x + 24, y + 24, 56, 56, 11, 'rgba(250,204,21,0.15)', 'rgba(250,204,21,0.28)')
+  drawTrophy(ctx, x + 35, y + 34, 34, COLORS.yellowLight)
+  ctx.textAlign = 'left'
   ctx.textBaseline = 'alphabetic'
-  ctx.font = `900 ${place === 1 ? 30 : 27}px Inter`
+  ctx.font = '900 14px Inter'
+  ctx.fillStyle = COLORS.yellowLight
+  ctx.fillText('BOTE EN JUEGO', x + 102, y + 44)
+  ctx.font = '500 15px Inter'
+  ctx.fillStyle = COLORS.muted
+  ctx.fillText(nota, x + 102, y + 70)
+  ctx.textAlign = 'right'
+  ctx.font = '700 54px Rajdhani'
   ctx.fillStyle = COLORS.strong
-  const label = shown.length > 1 ? `Empate x${group.jugadores.length}` : shortName(shown[0]?.nombre)
-  ctx.fillText(truncate(ctx, label, width - 14), cx, nameY)
-  ctx.font = `900 ${place === 1 ? 24 : 21}px Rajdhani`
-  ctx.fillStyle = place === 1 ? COLORS.yellowLight : COLORS.muted
-  ctx.textBaseline = 'alphabetic'
-  ctx.fillText(`${group.puntos} pts`, cx, pointsY)
-
-  const pedestalY = baseY - cfg.h + 68
-  const grad = ctx.createLinearGradient(cx, pedestalY, cx, pedestalY + cfg.h)
-  grad.addColorStop(0, `${cfg.dark}E6`)
-  grad.addColorStop(1, 'rgba(19,28,46,0.2)')
-  fillRound(ctx, cx - width / 2, pedestalY, width, cfg.h, 16, grad, `${cfg.fg}55`)
-  ctx.font = `900 ${place === 1 ? 82 : 58}px Rajdhani`
-  ctx.fillStyle = cfg.fg
-  ctx.textBaseline = 'middle'
-  ctx.fillText(String(place), cx, pedestalY + cfg.h / 2)
+  ctx.fillText(formatearMXN(bote), x + w - 28, y + 69)
   ctx.textAlign = 'left'
 }
 
-function drawTableFrame(ctx, x, y, w, h) {
-  fillRound(ctx, x, y, w, h, 16, COLORS.card, COLORS.border)
-  ctx.fillStyle = '#18243A'
-  roundRect(ctx, x, y, w, 50, 16)
-  ctx.fill()
+function drawOpenPlayersCard(ctx, jugadores, y) {
+  const x = PAD
+  const w = W - PAD * 2
+  ctx.textAlign = 'left'
+  const names = jugadores.map(j => normalizarNombre(j?.nombre)).filter(Boolean)
+  const maxVisible = 12
+  const visible = names.slice(0, maxVisible)
+  const overflow = Math.max(0, names.length - visible.length)
+  const cols = 2
+  const rows = Math.max(1, Math.ceil(visible.length / cols))
+  const rowH = 48
+  const headerH = 48
+  const overflowH = overflow > 0 ? 34 : 0
+  const h = headerH + rows * rowH + overflowH + 10
+  const grad = ctx.createLinearGradient(x, y, x + w, y + h)
+  grad.addColorStop(0, 'rgba(30,41,59,0.92)')
+  grad.addColorStop(1, 'rgba(15,24,40,0.96)')
+  fillRound(ctx, x, y, w, h, 14, grad, COLORS.border)
 
-  ctx.font = '900 12px Inter'
+  ctx.font = '900 13px Inter'
   ctx.fillStyle = COLORS.dim
   ctx.textBaseline = 'middle'
-  ctx.fillText('#', x + 54, y + 26)
-  ctx.fillText('JUGADOR', x + 104, y + 26)
-  ctx.textAlign = 'center'
-  drawTableIcon(ctx, 'target', x + w - 270, y + 26, 18)
-  drawTableIcon(ctx, 'check', x + w - 180, y + 26, 18)
-  ctx.fillText('PTS', x + w - 48, y + 26)
-  ctx.textAlign = 'left'
-}
+  ctx.fillText('YA INSCRITOS', x + 28, y + 27)
+  const colW = (w - 56 - 34) / 2
 
-function drawRankingRows(ctx, jugadores, startY, miNombreNorm) {
-  const y0 = startY
-  const tableX = PAD
-  const tableW = W - PAD * 2
-  const tableH = 320
-  const rowH = 54
-  const sepH = 30
-  drawTableFrame(ctx, tableX, y0, tableW, tableH)
+  if (visible.length === 0) {
+    ctx.font = '600 20px Inter'
+    ctx.fillStyle = COLORS.muted
+    ctx.fillText('Sé el primero en unirte', x + 28, y + headerH + rowH / 2)
+  } else {
+    visible.forEach((name, index) => {
+      // Se llena por filas para que el orden de lectura sea izquierda-derecha.
+      const col = index % cols
+      const row = Math.floor(index / cols)
+      const cellX = x + 28 + col * (colW + 34)
+      const cellY = y + headerH + row * rowH
+      ctx.strokeStyle = 'rgba(255,255,255,0.06)'
+      ctx.beginPath()
+      ctx.moveTo(cellX, cellY)
+      ctx.lineTo(cellX + colW, cellY)
+      ctx.stroke()
+      ctx.font = '600 20px Inter'
+      ctx.fillStyle = COLORS.text
+      ctx.textBaseline = 'middle'
+      ctx.fillText(truncate(ctx, name, colW - 90), cellX, cellY + rowH / 2 + 1)
+      ctx.font = '700 14px Inter'
+      ctx.fillStyle = COLORS.greenLight
+      ctx.textAlign = 'right'
+      ctx.fillText('✓ Listo', cellX + colW, cellY + rowH / 2 + 1)
+      ctx.textAlign = 'left'
+    })
+  }
 
-  const ranked = positionsByPoints(jugadores)
-  const candidates = ranked.filter(j => j._pos > 3)
-  const wantsCutLine = candidates.length > 4
-  const topRows = candidates.slice(0, wantsCutLine ? 4 : 5)
-  let rows = topRows
-  const miIdx = miNombreNorm ? ranked.findIndex(j => j.nombre === miNombreNorm) : -1
-  const miEnRows = miIdx >= 0 && rows.some(j => j.nombre === miNombreNorm)
-  const miEnPodio = miIdx >= 0 && ranked[miIdx]._pos <= 3
-  const extra = miIdx >= 0 && !miEnRows && !miEnPodio ? ranked[miIdx] : null
-  if (extra && rows.length >= 5) rows = rows.slice(0, 4)
-
-  let y = y0 + 50
-  rows.forEach((j) => {
-    drawRankingRow(ctx, j, tableX, y, tableW)
-    y += rowH
-  })
-
-  const hidden = Math.max(0, ranked.length - 3 - rows.length - (extra ? 1 : 0))
-  if (hidden > 0 && y + sepH <= y0 + tableH) {
-    ctx.font = '800 15px Inter'
-    ctx.fillStyle = COLORS.dim
+  if (overflow > 0) {
+    ctx.font = '700 14px Inter'
+    ctx.fillStyle = COLORS.muted
     ctx.textAlign = 'center'
-    ctx.fillText(`y ${hidden} jugador${hidden === 1 ? '' : 'es'} más`, W / 2, y + 21)
+    ctx.fillText(`y ${overflow} inscrito${overflow === 1 ? '' : 's'} más`, W / 2, y + headerH + rows * rowH + 18)
     ctx.textAlign = 'left'
-    y += sepH
   }
-  if (extra && y + rowH <= y0 + tableH) drawRankingRow(ctx, extra, tableX, y, tableW)
 }
 
-function drawRankingRow(ctx, j, x, y, w) {
-  const rowH = rowHeightForPos(j._pos)
-  const hi = j._pos <= 3 ? rowHighlightForPos(j._pos) : null
-  if (hi) fillRound(ctx, x + 16, y + 6, w - 32, rowH - 4, 10, hi[0], hi[1])
-  ctx.strokeStyle = 'rgba(255,255,255,0.06)'
-  ctx.beginPath()
-  ctx.moveTo(x + 16, y)
-  ctx.lineTo(x + w - 16, y)
-  ctx.stroke()
-  ctx.textBaseline = 'middle'
-  const textY = y + Math.round(rowH / 2) + 2
-  ctx.font = '900 20px Inter'
-  ctx.fillStyle = j._pos <= 3 ? medal[j._pos - 1].fg : COLORS.dim
-  ctx.textAlign = 'center'
-  ctx.fillText(String(j._pos), x + 58, textY)
-  ctx.textAlign = 'left'
-  ctx.font = '700 21px Inter'
-  ctx.fillStyle = COLORS.text
-  const name = truncate(ctx, shortName(j.nombre, 3), w - 435)
-  ctx.fillText(name, x + 104, textY)
-  if (j._pos === 1) {
-    const nameW = ctx.measureText(name).width
-    drawStar(ctx, x + 104 + nameW + 20, textY - 2, 9, 4, COLORS.yellow)
-  }
-  ctx.font = '500 20px Inter'
-  ctx.fillStyle = COLORS.muted
-  ctx.textAlign = 'center'
-  ctx.fillText(String(j.exactos ?? 0), x + w - 270, textY)
-  ctx.fillText(String(j.aciertos ?? 0), x + w - 180, textY)
-  ctx.font = '900 31px Rajdhani'
-  ctx.fillStyle = COLORS.text
-  ctx.fillText(String(j.puntos ?? 0), x + w - 48, textY)
-  ctx.textAlign = 'left'
-  return rowH
-}
-
-function drawTiedRankingTable(ctx, jugadores, startY, tableH, miNombreNorm) {
-  const tableX = PAD
-  const tableW = W - PAD * 2
-  const sepH = 30
-  const headerH = 50
-  drawTableFrame(ctx, tableX, startY, tableW, tableH)
-
-  const ranked = positionsByPoints(jugadores)
-  const budget = tableH - headerH
-  let used = 0
-  let fitCount = 0
-  for (const j of ranked) {
-    const h = rowHeightForPos(j._pos)
-    if (used + h > budget) break
-    used += h
-    fitCount++
-  }
-  const maxFit = Math.max(1, fitCount)
-  const wantsCutLine = ranked.length > maxFit
-  let rows = ranked.slice(0, wantsCutLine ? maxFit - 1 : maxFit)
-
-  const miIdx = miNombreNorm ? ranked.findIndex(j => j.nombre === miNombreNorm) : -1
-  const miEnRows = miIdx >= 0 && rows.some(j => j.nombre === miNombreNorm)
-  const extra = miIdx >= 0 && !miEnRows ? ranked[miIdx] : null
-  if (extra && rows.length >= maxFit - 1) rows = rows.slice(0, Math.max(0, maxFit - 2))
-
-  let y = startY + headerH
-  rows.forEach((j) => {
-    y += drawRankingRow(ctx, j, tableX, y, tableW)
-  })
-
-  const hidden = Math.max(0, ranked.length - rows.length - (extra ? 1 : 0))
-  if (hidden > 0 && y + sepH <= startY + tableH) {
-    ctx.font = '800 15px Inter'
-    ctx.fillStyle = COLORS.dim
-    ctx.textAlign = 'center'
-    ctx.fillText(`y ${hidden} jugador${hidden === 1 ? '' : 'es'} más`, W / 2, y + 21)
-    ctx.textAlign = 'left'
-    y += sepH
-  }
-  if (extra && y + rowHeightForPos(extra._pos) <= startY + tableH) drawRankingRow(ctx, extra, tableX, y, tableW)
-}
-
-function countdownParts(cierre) {
-  const d = cierreToDate(cierre)
-  const ms = Math.max(0, (d?.getTime() ?? Date.now()) - Date.now())
-  const minTotal = Math.floor(ms / 60000)
-  const dias = Math.floor(minTotal / 1440)
-  const horas = Math.floor((minTotal % 1440) / 60)
-  const mins = minTotal % 60
-  return [dias, horas, mins].map(n => String(n).padStart(2, '0'))
-}
-
-function drawOpenImage(ctx, quiniela, jugadores) {
+function drawOpenImage(ctx, datos) {
+  const { quiniela = {}, jugadores = [], bote = 0, conPremio = false } = datos
   drawBackground(ctx)
-  ctx.textAlign = 'center'
-  const openBrandSize = 38
-  drawBrand(ctx, W / 2 - brandWidth(ctx, openBrandSize) / 2, 72, openBrandSize)
-  fillRound(ctx, W / 2 - 124, 154, 248, 40, 999, 'rgba(34,197,94,0.16)', 'rgba(34,197,94,0.48)')
-  ctx.font = '900 13px Inter'
-  ctx.fillStyle = COLORS.greenLight
-  ctx.textBaseline = 'middle'
-  const badgeText = 'REGISTRO ABIERTO'
-  const dotR = 5
-  const dotGap = 10
-  const badgeGroupW = dotR * 2 + dotGap + ctx.measureText(badgeText).width
-  const badgeGroupX = W / 2 - badgeGroupW / 2
-  ctx.fillStyle = COLORS.green
-  ctx.beginPath()
-  ctx.arc(badgeGroupX + dotR, 174, dotR, 0, Math.PI * 2)
-  ctx.fill()
-  ctx.fillStyle = COLORS.greenLight
-  ctx.textAlign = 'left'
-  ctx.fillText(badgeText, badgeGroupX + dotR * 2 + dotGap, 175)
-  ctx.textAlign = 'center'
+  drawBrand(ctx, PAD, 60, 46)
 
-  ctx.font = '700 68px Rajdhani'
+  ctx.textAlign = 'left'
+  ctx.textBaseline = 'middle'
+  const badgeY = 151
+  ctx.fillStyle = COLORS.green
+  ctx.shadowColor = 'rgba(34,197,94,0.9)'
+  ctx.shadowBlur = 14
+  ctx.beginPath()
+  ctx.arc(PAD + 6, badgeY, 6, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.shadowBlur = 0
+  ctx.font = '900 15px Inter'
+  ctx.fillStyle = COLORS.greenLight
+  ctx.fillText('INSCRIPCIONES ABIERTAS', PAD + 24, badgeY + 1)
+
+  const title = quiniela?.nombre || 'Quiniela'
+  const titleMaxW = W - PAD * 2
+  const titleSize = fitFont(ctx, title, { weight: 700, size: 62, min: 26, family: 'Rajdhani', maxWidth: titleMaxW })
+  ctx.font = `700 ${titleSize}px Rajdhani`
+  const shownTitle = truncate(ctx, title, titleMaxW)
   ctx.fillStyle = COLORS.strong
   ctx.textBaseline = 'alphabetic'
-  drawCenteredText(ctx, quiniela?.nombre || 'Quiniela', W / 2, 276, W - 170)
-  ctx.font = '500 23px Inter'
-  ctx.fillStyle = COLORS.muted
-  ctx.fillText('Aún puedes entrar - haz tus pronósticos antes de que', W / 2, 326)
-  ctx.fillText('empiece la quiniela.', W / 2, 358)
+  ctx.fillText(shownTitle, PAD, 226)
 
+  const inscritosLabel = `${jugadores.length} inscrito${jugadores.length === 1 ? '' : 's'}`
+  ctx.font = '500 22px Inter'
+  ctx.fillStyle = COLORS.muted
+  ctx.fillText(`${formatOpenClose(quiniela?.cierre)} · ${inscritosLabel}`, PAD, 272)
+
+  // El código es el héroe de la imagen abierta.
+  const heroY = 306
+  const heroH = 280
+  const heroGrad = ctx.createLinearGradient(PAD, heroY, W - PAD, heroY + heroH)
+  heroGrad.addColorStop(0, 'rgba(34,197,94,0.15)')
+  heroGrad.addColorStop(0.58, 'rgba(15,45,48,0.72)')
+  heroGrad.addColorStop(1, 'rgba(15,24,40,0.72)')
+  ctx.shadowColor = 'rgba(34,197,94,0.12)'
+  ctx.shadowBlur = 52
+  fillRound(ctx, PAD, heroY, W - PAD * 2, heroH, 18, heroGrad, 'rgba(34,197,94,0.46)')
+  ctx.shadowBlur = 0
+  ctx.textAlign = 'center'
   ctx.font = '900 16px Inter'
   ctx.fillStyle = COLORS.greenLight
-  ctx.fillText('CIERRA EL REGISTRO EN', W / 2, 424)
-
-  const parts = countdownParts(quiniela?.cierre)
-  const labels = ['DÍAS', 'HORAS', 'MIN']
-  const boxW = 172
-  const gap = 58
-  const totalW = boxW * 3 + gap * 2
-  let x = (W - totalW) / 2
-  for (let i = 0; i < 3; i++) {
-    const hi = i === 2
-    fillRound(ctx, x, 452, boxW, 172, 20, hi ? 'rgba(34,197,94,0.14)' : '#141F33', hi ? 'rgba(34,197,94,0.55)' : 'rgba(255,255,255,0.08)')
-    ctx.font = '700 96px Rajdhani'
-    ctx.fillStyle = hi ? COLORS.greenLight : COLORS.strong
-    ctx.textBaseline = 'middle'
-    ctx.fillText(parts[i], x + boxW / 2, 540)
-    ctx.font = '900 16px Inter'
-    ctx.fillStyle = COLORS.dim
-    ctx.fillText(labels[i], x + boxW / 2, 672)
-    if (i < 2) {
-      ctx.font = '900 56px Rajdhani'
-      ctx.fillStyle = '#334155'
-      ctx.fillText(':', x + boxW + gap / 2, 535)
-    }
-    x += boxW + gap
-  }
-
-  const countText = `${jugadores.length} jugador${jugadores.length === 1 ? '' : 'es'} ya están dentro`
-  ctx.font = '800 20px Inter'
-  const avatarSize = 40
-  const avatarGap = 7
-  const avs = jugadores.length > 4 ? jugadores.slice(0, 3) : jugadores.slice(0, 4)
-  const extraCount = jugadores.length - avs.length
-  const badgeCount = avs.length + (extraCount > 0 ? 1 : 0)
-  const badgesW = badgeCount > 0 ? badgeCount * avatarSize + (badgeCount - 1) * avatarGap : 0
-  const textGap = badgeCount > 0 ? 20 : 0
-  const pillPadX = 28
-  const pillW = Math.max(470, pillPadX * 2 + badgesW + textGap + ctx.measureText(countText).width)
-  const pillX = W / 2 - pillW / 2
-  fillRound(ctx, pillX, 724, pillW, 66, 999, '#141F33', COLORS.border2)
-  let avatarX = pillX + pillPadX + avatarSize / 2
-  avs.forEach((j) => {
-    drawAvatar(ctx, avatarX, 757, avatarSize, j.nombre, COLORS.muted, '#233047')
-    avatarX += avatarSize + avatarGap
+  ctx.fillText('ÚNETE CON EL CÓDIGO', W / 2, heroY + 58)
+  const code = String(quiniela?.codigoAcceso || quiniela?.id || 'QUINIELA').toUpperCase()
+  const codeTracking = code.length <= 10 ? 6 : 1
+  const heroCodeMaxW = W - PAD * 2 - 76
+  const codeSize = fitFont(ctx, code, {
+    weight: 700,
+    size: 120,
+    min: 18,
+    family: 'Rajdhani',
+    maxWidth: heroCodeMaxW - codeTracking * Math.max(0, code.length - 1),
   })
-  if (extraCount > 0) {
-    drawAvatarLabel(ctx, avatarX, 757, avatarSize, `+${extraCount}`, COLORS.greenLight, '#173A32')
-  }
-  ctx.font = '800 20px Inter'
-  ctx.textAlign = 'left'
-  ctx.fillStyle = COLORS.text
-  ctx.textBaseline = 'middle'
-  ctx.fillText(countText, pillX + pillPadX + badgesW + textGap, 758)
-
-  const ctaY = 1038
-  const ctaH = 224
-  const ctaGrad = ctx.createLinearGradient(PAD, ctaY, W - PAD, ctaY + ctaH)
-  ctaGrad.addColorStop(0, 'rgba(18,79,69,0.88)')
-  ctaGrad.addColorStop(0.45, 'rgba(17,45,57,0.86)')
-  ctaGrad.addColorStop(1, 'rgba(20,31,51,0.92)')
-  fillRound(ctx, PAD, ctaY, W - PAD * 2, ctaH, 18, ctaGrad, 'rgba(34,197,94,0.58)')
-  ctx.textAlign = 'center'
-  ctx.font = '900 14px Inter'
-  ctx.fillStyle = COLORS.greenLight
-  ctx.fillText('ENTRA CON EL CÓDIGO', W / 2, ctaY + 52)
-  ctx.font = '700 70px Rajdhani'
+  ctx.font = `700 ${codeSize}px Rajdhani`
   ctx.fillStyle = COLORS.strong
-  drawCenteredTrackedText(ctx, String(quiniela?.codigoAcceso || quiniela?.id || 'QUINIELA').toUpperCase(), W / 2, ctaY + 110, 1.5)
+  ctx.textBaseline = 'middle'
+  const shownHeroCode = truncateTracked(ctx, code, heroCodeMaxW, codeTracking)
+  drawCenteredTrackedText(ctx, shownHeroCode, W / 2, heroY + 145, codeTracking)
   drawCenteredRichText(ctx, [
-    { text: 'Ábrelo en ', font: '500 16px Inter', color: COLORS.muted },
-    { text: 'quinielapp.fun', font: '800 16px Inter', color: COLORS.text },
-    { text: ' y únete gratis', font: '500 16px Inter', color: COLORS.muted },
-  ], W / 2, ctaY + 172)
+    { text: 'Entra a ', font: '500 22px Inter', color: COLORS.muted },
+    { text: 'quinielapp.fun', font: '700 22px Inter', color: COLORS.greenLight },
+    { text: ' y haz tu pronóstico', font: '500 22px Inter', color: COLORS.muted },
+  ], W / 2, heroY + 232)
+
+  const showPrize = conPremio && Number(bote) > 0
+  const prizeY = heroY + heroH + 24
+  if (showPrize) drawPrizeCard(ctx, prizeY, bote, 'Gana quien acumule más puntos')
+  drawOpenPlayersCard(ctx, jugadores, showPrize ? prizeY + 128 : prizeY)
+  drawFooter(ctx, quiniela)
+}
+
+function buildPlayingRows(jugadores, miNombre, budget, hasMeaningfulLeader) {
+  const ranked = positionsByPoints(jugadores).map(j => ({
+    ...j,
+    _leader: hasMeaningfulLeader && j._pos === 1,
+  }))
+  if (ranked.length === 0) return []
+
+  const rowHeight = row => row?._separator ? 38 : row?._leader ? 78 : 68
+  const totalHeight = ranked.reduce((sum, row) => sum + rowHeight(row), 0)
+  if (totalHeight <= budget) return ranked
+
+  const separator = hiddenRows => ({
+    _separator: true,
+    hidden: hiddenRows.length,
+    hiddenLeaders: hiddenRows.filter(row => row._leader).length,
+  })
+  const separatorH = rowHeight(separator([]))
+  const miNombreNorm = miNombre ? normalizarNombre(miNombre) : null
+  const miIndex = miNombreNorm ? ranked.findIndex(j => normalizarNombre(j.nombre) === miNombreNorm) : -1
+
+  // Primero calculamos cuántas filas superiores caben dejando el resumen final.
+  const top = []
+  let used = 0
+  for (const row of ranked) {
+    const h = rowHeight(row)
+    if (used + h + separatorH > budget) break
+    top.push(row)
+    used += h
+  }
+
+  // El botón de esta pantalla es "Compartir mi posición". Si la persona está
+  // fuera del tramo visible, reservamos una fila para ella en vez de perderla.
+  if (miIndex >= top.length) {
+    const mine = ranked[miIndex]
+    const mineH = rowHeight(mine)
+    const withMine = []
+    used = 0
+    for (const row of ranked) {
+      if (row === mine) break
+      const h = rowHeight(row)
+      if (used + h + separatorH + mineH > budget) break
+      withMine.push(row)
+      used += h
+    }
+    return [
+      ...withMine,
+      separator(ranked.filter((_, index) => index >= withMine.length && index !== miIndex)),
+      { ...mine, _mine: true },
+    ]
+  }
+
+  return [...top, separator(ranked.slice(top.length))]
+}
+
+function drawPlayingTable(ctx, datos, y, maxHeight) {
+  const { jugadores = [], terminados = 0, enVivo = false, miNombre = null } = datos
+  const x = PAD
+  const w = W - PAD * 2
+  const headerH = 56
+  const bottomPad = 12
+  const rankingStarted = terminados > 0 || enVivo
+  const hasMeaningfulLeader = jugadores.length > 0 && jugadores[0].puntos > 0 && rankingStarted
+  const rows = buildPlayingRows(jugadores, miNombre, maxHeight - headerH - bottomPad, hasMeaningfulLeader)
+  const rowHeight = row => row?._separator ? 38 : row?._leader ? 78 : 68
+  const contentH = rows.length > 0
+    ? rows.reduce((sum, row) => sum + rowHeight(row), 0)
+    : 96
+  const h = Math.min(maxHeight, headerH + contentH + bottomPad)
+  const grad = ctx.createLinearGradient(x, y, x + w, y + h)
+  grad.addColorStop(0, 'rgba(30,41,59,0.92)')
+  grad.addColorStop(1, 'rgba(15,24,40,0.96)')
+  fillRound(ctx, x, y, w, h, 14, grad, COLORS.border)
+
+  ctx.fillStyle = 'rgba(255,255,255,0.025)'
+  roundRect(ctx, x, y, w, headerH, 14)
+  ctx.fill()
+  ctx.strokeStyle = 'rgba(255,255,255,0.06)'
+  ctx.beginPath()
+  ctx.moveTo(x, y + headerH)
+  ctx.lineTo(x + w, y + headerH)
+  ctx.stroke()
+  ctx.font = '900 13px Inter'
+  ctx.fillStyle = COLORS.dim
+  ctx.textBaseline = 'middle'
+  ctx.textAlign = 'center'
+  ctx.fillText('#', x + 58, y + headerH / 2 + 1)
   ctx.textAlign = 'left'
+  ctx.fillText('JUGADOR', x + 104, y + headerH / 2 + 1)
+  ctx.textAlign = 'right'
+  ctx.fillText('PTS', x + w - 32, y + headerH / 2 + 1)
+
+  if (rows.length === 0) {
+    ctx.textAlign = 'center'
+    ctx.font = '600 21px Inter'
+    ctx.fillStyle = COLORS.muted
+    ctx.fillText('Aún no hay participantes en el ranking', W / 2, y + headerH + 48)
+    ctx.textAlign = 'left'
+    return
+  }
+
+  let rowY = y + headerH
+  for (const row of rows) {
+    const rowH = rowHeight(row)
+    if (row._separator) {
+      ctx.font = '700 14px Inter'
+      ctx.fillStyle = COLORS.dim
+      ctx.textAlign = 'center'
+      const allHiddenAreLeaders = row.hidden > 0 && row.hiddenLeaders === row.hidden
+      const noun = allHiddenAreLeaders
+        ? `líder${row.hidden === 1 ? '' : 'es'}`
+        : `participante${row.hidden === 1 ? '' : 's'}`
+      const label = row.hidden > 0
+        ? `···  ${row.hidden} ${noun} más  ···`
+        : '···'
+      ctx.fillText(label, W / 2, rowY + rowH / 2)
+      ctx.textAlign = 'left'
+      rowY += rowH
+      continue
+    }
+
+    if (row._leader) {
+      const leaderGrad = ctx.createLinearGradient(x + 12, rowY, x + w - 12, rowY + rowH)
+      leaderGrad.addColorStop(0, 'rgba(34,197,94,0.15)')
+      leaderGrad.addColorStop(1, 'rgba(34,197,94,0.035)')
+      ctx.shadowColor = 'rgba(34,197,94,0.13)'
+      ctx.shadowBlur = 28
+      fillRound(ctx, x + 12, rowY + 7, w - 24, rowH - 10, 11, leaderGrad, 'rgba(34,197,94,0.44)')
+      ctx.shadowBlur = 0
+    } else if (row._mine) {
+      fillRound(ctx, x + 12, rowY + 6, w - 24, rowH - 8, 10, 'rgba(255,255,255,0.035)', 'rgba(134,239,172,0.18)')
+    }
+
+    if (!row._leader && !row._mine) {
+      ctx.strokeStyle = 'rgba(255,255,255,0.06)'
+      ctx.beginPath()
+      ctx.moveTo(x + 24, rowY)
+      ctx.lineTo(x + w - 24, rowY)
+      ctx.stroke()
+    }
+
+    const cy = rowY + rowH / 2 + 1
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.font = '700 28px Rajdhani'
+    ctx.fillStyle = row._leader ? COLORS.green : COLORS.dim
+    ctx.fillText(rankingStarted ? String(row._pos) : '—', x + 58, cy)
+
+    const nameX = x + 104
+    const badgeW = 72
+    const badgeGap = 12
+    const nameRight = x + w - 118
+    ctx.textAlign = 'left'
+    ctx.font = `700 ${row._leader ? 28 : 26}px Inter`
+    ctx.fillStyle = row._leader ? COLORS.strong : COLORS.text
+    const nameMax = nameRight - nameX - (row._leader ? badgeW + badgeGap : 0)
+    const shownName = truncate(ctx, row.nombre, nameMax)
+    ctx.fillText(shownName, nameX, cy)
+
+    if (row._leader) {
+      const badgeX = Math.min(nameX + ctx.measureText(shownName).width + badgeGap, nameRight - badgeW)
+      fillRound(ctx, badgeX, cy - 15, badgeW, 30, 7, 'rgba(34,197,94,0.17)', 'rgba(34,197,94,0.40)')
+      ctx.font = '900 12px Inter'
+      ctx.fillStyle = COLORS.greenLight
+      ctx.textAlign = 'center'
+      ctx.fillText('LÍDER', badgeX + badgeW / 2, cy + 1)
+    }
+
+    ctx.textAlign = 'right'
+    ctx.font = `700 ${row._leader ? 42 : 38}px Rajdhani`
+    ctx.fillStyle = row._leader ? COLORS.green : COLORS.strong
+    ctx.fillText(String(row.puntos ?? 0), x + w - 32, cy + 1)
+    rowY += rowH
+  }
+  ctx.textAlign = 'left'
+}
+
+function drawPlayingImage(ctx, datos) {
+  const {
+    quiniela = {}, jugadores = [], bote = 0, terminados = 0,
+    totalPartidos = 0, enVivo = false, conPremio = false,
+  } = datos
+  drawBackground(ctx)
+  drawBrand(ctx, PAD, 60, 46)
+
+  ctx.textAlign = 'left'
+  ctx.textBaseline = 'middle'
+  const badgeY = 151
+  ctx.fillStyle = COLORS.green
+  ctx.shadowColor = 'rgba(34,197,94,0.9)'
+  ctx.shadowBlur = 14
+  ctx.beginPath()
+  ctx.arc(PAD + 6, badgeY, 6, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.shadowBlur = 0
+  ctx.font = '900 15px Inter'
+  ctx.fillStyle = COLORS.greenLight
+  ctx.fillText(enVivo ? 'EN JUEGO · EN VIVO' : 'QUINIELA EN JUEGO', PAD + 24, badgeY + 1)
+
+  const title = quiniela?.nombre || 'Quiniela'
+  const titleMaxW = W - PAD * 2
+  const titleSize = fitFont(ctx, title, { weight: 700, size: 62, min: 26, family: 'Rajdhani', maxWidth: titleMaxW })
+  ctx.font = `700 ${titleSize}px Rajdhani`
+  const shownTitle = truncate(ctx, title, titleMaxW)
+  ctx.fillStyle = COLORS.strong
+  ctx.textBaseline = 'alphabetic'
+  ctx.fillText(shownTitle, PAD, 226)
+  ctx.font = '500 22px Inter'
+  ctx.fillStyle = COLORS.muted
+  ctx.fillText(`${terminados} de ${totalPartidos} partidos definidos · resultados parciales`, PAD, 272)
+
+  const showPrize = conPremio && Number(bote) > 0
+  const prizeY = 306
+  if (showPrize) {
+    drawPrizeCard(ctx, prizeY, bote, 'Todo puede cambiar en los próximos partidos')
+  }
+  const tableY = showPrize ? prizeY + 128 : prizeY
+  const tableBottom = H - 150
+  drawPlayingTable(ctx, { ...datos, jugadores }, tableY, tableBottom - tableY)
+  drawFooter(ctx, quiniela)
 }
 
 function drawRankingImage(ctx, datos) {
-  const { quiniela, jugadores = [], bote = 0, terminados = 0, totalPartidos = 0, finalizada = false, enVivo = false, miNombre = null } = datos
-  drawBackground(ctx)
-  drawBrand(ctx, PAD, 64, 42)
-  if (enVivo || !finalizada) drawLiveBadge(ctx, W - PAD, 66, finalizada ? 'FINAL' : 'EN VIVO')
+  const {
+    quiniela = {}, jugadores = [], bote = 0, conPremio = false,
+    premioPorNombre = {},
+  } = datos
+  drawBackground(ctx, 'gold')
+  drawBrand(ctx, PAD, 60, 46)
 
-  ctx.font = '900 14px Inter'
-  ctx.fillStyle = COLORS.greenLight
-  ctx.fillText(`RANKING · ${finalizada ? 'FINALIZADA' : 'JUGÁNDOSE'}`, PAD, 154)
-  ctx.font = '700 64px Rajdhani'
-  ctx.fillStyle = COLORS.strong
-  ctx.fillText(truncate(ctx, quiniela?.nombre || 'Quiniela', W - PAD * 2), PAD, 222)
-  ctx.font = '500 21px Inter'
-  ctx.fillStyle = COLORS.muted
-  ctx.fillText(`${terminados} de ${totalPartidos} partidos definidos · ${jugadores.length} participante${jugadores.length === 1 ? '' : 's'}`, PAD, 270)
-
-  fillRound(ctx, PAD, 306, W - PAD * 2, 76, 13, 'rgba(250,204,21,0.08)', 'rgba(250,204,21,0.38)')
-  fillRound(ctx, PAD + 30, 324, 46, 46, 9, 'rgba(250,204,21,0.17)')
-  drawTrophy(ctx, PAD + 39, 332, 30)
-  ctx.font = '900 12px Inter'
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.font = '900 15px Inter'
   ctx.fillStyle = COLORS.yellowLight
-  ctx.fillText('BOTE EN JUEGO', PAD + 102, 340)
-  ctx.font = '500 13px Inter'
-  ctx.fillStyle = COLORS.muted
-  ctx.fillText('Gana quien acumule más puntos', PAD + 102, 360)
-  ctx.font = '700 38px Rajdhani'
-  ctx.fillStyle = COLORS.strong
-  ctx.textAlign = 'right'
-  ctx.fillText(formatearMXN(bote), W - PAD - 28, 354)
-  ctx.textAlign = 'left'
+  ctx.fillText('QUINIELA FINALIZADA', W / 2, 156)
 
-  const miNombreNorm = miNombre ? normalizarNombre(miNombre) : null
-  const groups = podiumGroups(jugadores)
-  const hasTie = groups.some(g => g.jugadores.length > 1)
+  const { ranked, champions, rest, topPoints } = finalRankingData(jugadores)
+  const multi = champions.length > 1
+  const hasEntries = ranked.length > 0
+  // La lógica de premios vigente no entrega dinero si nadie sumó puntos.
+  // En quinielas sin premio sí conservamos el empate deportivo en 1° lugar.
+  const noPrizeWinner = hasEntries && conPremio && Number(topPoints) <= 0
+  const hasChampion = hasEntries && !noPrizeWinner
+  const awardActive = hasChampion && conPremio && Number(bote) > 0 &&
+    Number(topPoints) > 0 && !quiniela?.boteDevuelto
+  const isPodiumPrize = quiniela?.modeloPremio === 'podio'
 
-  if (hasTie) {
-    drawTiedRankingTable(ctx, jugadores, 414, 786, miNombreNorm)
+  // Con muchos empates no caben todos los nombres en un lienzo fijo. Mostramos
+  // tres y una línea-resumen; la tabla omite siempre a todos los campeones.
+  const shownChampions = multi && champions.length > 4 ? champions.slice(0, 3) : champions.slice(0, 4)
+  const hiddenChampions = Math.max(0, champions.length - shownChampions.length)
+  const championRows = hasChampion ? shownChampions.length + (hiddenChampions > 0 ? 1 : 0) : 1
+
+  const heroY = 190
+  const nameStartY = multi ? heroY + 214 : heroY + 250
+  const lastNameY = multi ? nameStartY + (championRows - 1) * 50 : nameStartY
+  const statsY = multi ? lastNameY + 56 : heroY + 310
+  const prizeY = statsY + 32
+  const heroBottom = awardActive ? prizeY + 76 + 30 : statsY + 50
+  const heroH = Math.max(400, heroBottom - heroY)
+  const heroGrad = ctx.createLinearGradient(PAD, heroY, W - PAD, heroY + heroH)
+  heroGrad.addColorStop(0, 'rgba(250,204,21,0.20)')
+  heroGrad.addColorStop(0.55, 'rgba(250,204,21,0.055)')
+  heroGrad.addColorStop(1, 'rgba(15,24,40,0.72)')
+  ctx.shadowColor = 'rgba(250,204,21,0.16)'
+  ctx.shadowBlur = 70
+  fillRound(ctx, PAD, heroY, W - PAD * 2, heroH, 22, heroGrad, 'rgba(250,204,21,0.58)')
+  ctx.shadowBlur = 0
+
+  const trophyCx = W / 2
+  const trophyCy = heroY + 80
+  const trophyGlow = ctx.createRadialGradient(trophyCx, trophyCy - 10, 4, trophyCx, trophyCy, 52)
+  trophyGlow.addColorStop(0, 'rgba(250,204,21,0.30)')
+  trophyGlow.addColorStop(1, 'rgba(250,204,21,0.055)')
+  ctx.beginPath()
+  ctx.arc(trophyCx, trophyCy, 48, 0, Math.PI * 2)
+  ctx.fillStyle = trophyGlow
+  ctx.fill()
+  ctx.strokeStyle = 'rgba(250,204,21,0.58)'
+  ctx.lineWidth = 1.5
+  ctx.stroke()
+  drawTrophy(ctx, trophyCx - 27, trophyCy - 29, 54, COLORS.yellow)
+
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.font = '900 17px Inter'
+  ctx.fillStyle = COLORS.yellowLight
+  const heroLabel = hasChampion
+    ? (multi ? 'GANADORES' : 'GANADOR')
+    : noPrizeWinner
+      ? 'SIN GANADOR'
+      : 'SIN PARTICIPANTES'
+  ctx.fillText(heroLabel, W / 2, heroY + 164)
+
+  if (hasChampion) {
+    if (multi) {
+      shownChampions.forEach((winner, i) => {
+        const maxNameW = W - PAD * 2 - 126
+        const nameSize = fitFont(ctx, winner.nombre, {
+          weight: 700, size: 52, min: 28, family: 'Rajdhani', maxWidth: maxNameW,
+        })
+        ctx.font = `700 ${nameSize}px Rajdhani`
+        ctx.fillStyle = COLORS.strong
+        ctx.fillText(truncate(ctx, winner.nombre, maxNameW), W / 2, nameStartY + i * 50)
+      })
+      if (hiddenChampions > 0) {
+        ctx.font = '700 26px Rajdhani'
+        ctx.fillStyle = COLORS.yellowLight
+        ctx.fillText(`y ${hiddenChampions} ganador${hiddenChampions === 1 ? '' : 'es'} más`, W / 2, lastNameY)
+      }
+    } else {
+      const winner = champions[0]
+      const maxNameW = W - PAD * 2 - 116
+      const nameSize = fitFont(ctx, winner.nombre, {
+        weight: 700, size: 76, min: 34, family: 'Rajdhani', maxWidth: maxNameW,
+      })
+      ctx.font = `700 ${nameSize}px Rajdhani`
+      ctx.fillStyle = COLORS.strong
+      ctx.fillText(truncate(ctx, winner.nombre, maxNameW), W / 2, nameStartY)
+    }
+
+    const principal = champions[0]
+    const pointsText = `${topPoints} PTS`
+    if (multi) {
+      drawCenteredRichText(ctx, [
+        { text: pointsText, font: '700 30px Rajdhani', color: COLORS.yellow },
+        { text: '  ·  empate en el 1er lugar', font: '500 20px Inter', color: '#D6C79A' },
+      ], W / 2, statsY)
+    } else {
+      const exactos = Number(principal.exactos) || 0
+      const aciertos = Number(principal.aciertos) || 0
+      drawCenteredRichText(ctx, [
+        { text: pointsText, font: '700 30px Rajdhani', color: COLORS.yellow },
+        { text: `  ·  ${exactos} exacto${exactos === 1 ? '' : 's'}  ·  ${aciertos} acierto${aciertos === 1 ? '' : 's'}`, font: '500 20px Inter', color: '#D6C79A' },
+      ], W / 2, statsY)
+    }
+
+    if (awardActive) {
+      let awardLabel
+      let awardAmount
+      let awardSuffix = ''
+      if (isPodiumPrize) {
+        const fallback = Number(bote) * 0.7 / champions.length
+        const firstPrize = Number(premioPorNombre[champions[0]?.nombre]) || fallback
+        awardLabel = 'PREMIO DEL 1° LUGAR'
+        awardAmount = formatearMXN(firstPrize)
+        if (multi) awardSuffix = 'C/U'
+      } else {
+        awardLabel = multi ? 'SE REPARTEN EL BOTE' : 'SE LLEVA EL BOTE'
+        awardAmount = formatearMXN(bote)
+      }
+      drawFinalPrizePill(ctx, { label: awardLabel, amount: awardAmount, suffix: awardSuffix, y: prizeY })
+    }
+  } else if (noPrizeWinner) {
+    ctx.font = '700 48px Rajdhani'
+    ctx.fillStyle = COLORS.strong
+    ctx.fillText('Nadie sumó puntos', W / 2, nameStartY)
+    ctx.font = '500 20px Inter'
+    ctx.fillStyle = COLORS.muted
+    ctx.fillText('El premio no se entrega.', W / 2, statsY)
   } else {
-    const baseY = 786
-    if (groups[1]) drawPodiumStep(ctx, groups[1], 2, 228, baseY, 280)
-    if (groups[0]) drawPodiumStep(ctx, groups[0], 1, W / 2, baseY, 300)
-    if (groups[2]) drawPodiumStep(ctx, groups[2], 3, W - 228, baseY, 280)
-    drawRankingRows(ctx, jugadores, 870, miNombreNorm)
+    ctx.font = '700 48px Rajdhani'
+    ctx.fillStyle = COLORS.strong
+    ctx.fillText('No hubo registros', W / 2, nameStartY)
+    ctx.font = '500 20px Inter'
+    ctx.fillStyle = COLORS.muted
+    ctx.fillText('La quiniela terminó sin participantes.', W / 2, statsY)
   }
 
+  const tableY = heroY + heroH + 22
+  const tableBottom = H - 150
+  const tableRows = noPrizeWinner ? ranked : rest
+  const emptyLabel = !hasEntries
+    ? 'Sin participantes registrados'
+    : multi
+      ? 'Todos compartieron el 1er lugar'
+      : 'No hubo más participantes'
+  drawFinalTable(ctx, tableRows, tableY, Math.max(120, tableBottom - tableY), emptyLabel)
   drawFooter(ctx, quiniela)
 }
 
@@ -1048,7 +1323,8 @@ export async function generarImagenRanking(datos) {
   await waitFonts()
   const { canvas, ctx } = setupCanvas()
   const abierta = !quinielaCerrada(datos.quiniela) && !datos.enVivo && (datos.terminados ?? 0) === 0
-  if (abierta) drawOpenImage(ctx, datos.quiniela, datos.jugadores ?? [])
+  if (abierta) drawOpenImage(ctx, datos)
+  else if (!datos.finalizada) drawPlayingImage(ctx, datos)
   else drawRankingImage(ctx, datos)
   return blobFromCanvas(canvas)
 }

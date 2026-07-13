@@ -1,6 +1,6 @@
 # ROADMAP: QuinielApp
 
-> **Última actualización: 2026-07-12** (código LISTO PARA LANZAR: ver §0.bis).
+> **Última actualización: 2026-07-13** (código LISTO PARA LANZAR: ver §0.bis).
 > Pivote de modelo de negocio (2026-07-04): §0. Mejoras de UX: 2026-06-15 (§4.bis).
 > Auditoría de código/seguridad/costos: 2026-06-11 (§3).
 > Este documento es la fuente de verdad para retomar el proyecto en cualquier momento:
@@ -118,6 +118,20 @@ falta para lanzar es operación (checklist más abajo).
 
 ### Pendiente post-lanzamiento (sin prisa, ver también §4)
 
+- **Centro de notificaciones y alertas operativas para el super admin:** campana en el header
+  con contador de no leídas y bandeja enlazada a la quiniela relacionada. Definir umbrales
+  configurables para avisar, por ejemplo, cuando una quiniela supera 100 participantes, cuando
+  el premio rebasa una cantidad `X`, cuando incluye más de 15 partidos y ante otros patrones de
+  riesgo/costo que se acuerden. Generar alertas desde Cloud Functions (no desde el navegador),
+  deduplicarlas por quiniela + regla + umbral y permitir marcarlas como leídas o descartadas.
+- **Cupo duro de 500 participantes por quiniela + registro seguro server-side (H2):**
+  hoy las predicciones se crean directamente desde el navegador, sin límite real; un atacante
+  puede omitir el código y el anti-duplicado client-side e inflar una quiniela. Mover el alta a
+  una Cloud Function protegida con App Check, validar cierre/cupo/nombre/picks, incrementar un
+  contador atómico y rechazar el participante 501 incluso con concurrencia. Bloquear después el
+  `create` directo en `predicciones` desde Firestore Rules, añadir protección contra ráfagas e
+  inicializar el contador de las quinielas existentes. En UI: `X de 500 participantes` y mensaje
+  claro al llenarse. Con este tope, el ranking actual puede seguir calculándose en cliente.
 - **Indexación (tras validar producción):** quitar `noindex` SOLO de la portada y las
   páginas legales (index.html hoy es noindex global); quinielas y rankings siguen noindex.
   Acordado 2026-07-13; hacerlo después de validar que todo funciona en producción.
@@ -214,11 +228,15 @@ crece con cada predicción acumulada (500 predicciones × 100 visitas/día = 50,
 *Fix barato:* `getCountFromServer` (agregación: contar 1,000 docs = 1 lectura) para los conteos
 de participantes en home y predicciones. No requiere Blaze ni backend.
 
-**H2: Spam de predicciones sin freno. 🟠 (Mitigación lista: App Check en código; falta enforce en consola.)**
+**H2: Spam de predicciones sin freno. 🟠 (Mitigación lista: App Check en código; falta enforce en consola. Solución real acordada: cupo duro de 500 + backend.)**
 Las reglas permiten a cualquier anónimo crear predicciones ilimitadas en una quiniela abierta
 (el anti-duplicado por nombre es client-side y tiene race condition). Un atacante puede inflar
 un ranking con cientos de nombres basura. *Mitigación parcial:* App Check; el admin puede borrar
-desde el panel. *Solución real:* backend (post-Mundial).
+desde el panel. *Solución real (pendiente post-lanzamiento):* registrar mediante Cloud Function,
+mantener contador atómico con máximo 500, bloquear escrituras directas, validar duplicados del
+lado servidor y limitar ráfagas. El ranking y el panel admin hoy descargan la lista completa, por
+lo que un ataque de decenas de miles de documentos también puede provocar muchas lecturas,
+timeouts y alto consumo de memoria en el dispositivo.
 
 **H3: Valores de `picks` sin validar en reglas. 🟠 ✅ RESUELTO 2026-07-12 (falta re-deploy de reglas).**
 `firestore.rules` valida que `picks` sea map de ≤30 llaves, pero **no qué contienen los
@@ -304,6 +322,8 @@ toca seguridad ni infraestructura; todo es client-side y sin lecturas nuevas a F
 | 11 | **Cerrar lectura pública de picks pre-cierre** | El riesgo de trampa escala con botes/desconocidos. Requiere backend (posible con #6). Es el pendiente de seguridad más profundo |
 | 12 | **App Check en enforce** + **refactor de admin.jsx** (3,506 líneas) + cuentas vía Admin SDK (H4) | Endurecimiento y mantenibilidad cuando ya no haya presión de torneo |
 | 13 | **Correo propio para restablecer contraseña** | Firebase Console dejó las plantillas de Auth como no editables. Cuando se quiera mejorar el correo y usar `noreply@quinielapp.fun`, crear un endpoint en Vercel (`/api/password-reset`) que use Firebase Admin SDK para generar el link de reset y Resend/SendGrid para mandar un HTML propio con botón/logo, apuntando a una pantalla custom de recuperación |
+| 14 | **Cupo de 500 participantes + alta server-side** (H2) | Cloud Function con contador atómico, validación de cierre/cupo/duplicado/picks, App Check y control de ráfagas; bloquear el `create` público directo en rules. Evita spam, costos y rankings inmanejables |
+| 15 | **Centro de notificaciones del super admin** | Campana + bandeja de avisos generados por Cloud Functions, con umbrales configurables, deduplicación y estado leído/descartado. Casos iniciales: >100 participantes, premio >X y >15 partidos |
 
 ### Descartado / decidido NO hacer
 - Mover estilos inline a CSS/frameworks (preferencia deliberada del usuario).

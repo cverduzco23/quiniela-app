@@ -36,6 +36,23 @@ const MAX_QUINIELAS = 50
 // rechazarían las predicciones de los jugadores.
 const MAX_PARTIDOS = 30
 
+// Límites de identidad de la quiniela. El código también se captura con un
+// máximo de 10 caracteres en la pantalla pública de acceso.
+const MAX_NOMBRE_QUINIELA = 60
+const MAX_CODIGO_ACCESO = 10
+
+function contarCaracteres(value) {
+  return Array.from(String(value ?? '')).length
+}
+
+function limitarCaracteres(value, max) {
+  return Array.from(String(value ?? '')).slice(0, max).join('')
+}
+
+function limitarNombreQuiniela(value) {
+  return limitarCaracteres(value, MAX_NOMBRE_QUINIELA)
+}
+
 // Slugs verificados contra el scoreboard de ESPN. Los torneos solo devuelven
 // partidos cuando están en temporada; fuera de temporada el buscador sale vacío
 // (es esperado, no es un error). Orden: lo más seguido por la afición mexicana
@@ -92,7 +109,7 @@ function generarCodigoAcceso() {
 }
 
 function normalizarCodigoAccesoInput(value) {
-  return (value ?? '').toUpperCase()
+  return limitarCaracteres((value ?? '').toUpperCase(), MAX_CODIGO_ACCESO)
 }
 
 // Heurística mínima para advertir (no bloquear) sobre códigos fáciles de adivinar:
@@ -1734,7 +1751,9 @@ export default function Admin() {
     setEditPremioFijo(quinielaActual.premioFijo != null ? String(quinielaActual.premioFijo) : '')
     setEditCuota(quinielaActual.cuota != null ? String(quinielaActual.cuota) : '')
     setEditModeloPremio(quinielaActual.modeloPremio ?? MODELO_PREMIO.GANADOR_UNICO)
-    setEditCodigoAcceso(normalizarCodigoAccesoInput(quinielaActual.codigoAcceso ?? ''))
+    // Conservamos completo un código histórico fuera de límite para que el
+    // administrador lo vea y lo corrija explícitamente al guardar.
+    setEditCodigoAcceso(String(quinielaActual.codigoAcceso ?? '').toUpperCase())
     setFixtures([]); setSeleccionados([])
     setConteoPredicciones(null)
     getDocs(query(collection(db, 'predicciones'), where('quinielaId', '==', quinielaActual.id)))
@@ -1953,6 +1972,7 @@ export default function Admin() {
     if (editPartidos.length === 0) return alerta('La quiniela debe tener al menos un partido.')
     if (editPartidos.length > MAX_PARTIDOS) return alerta(`Una quiniela puede tener máximo ${MAX_PARTIDOS} partidos. Quita ${editPartidos.length - MAX_PARTIDOS} para poder guardar.`)
     if (!editNombre.trim()) return alerta('El nombre no puede estar vacío.')
+    if (contarCaracteres(editNombre.trim()) > MAX_NOMBRE_QUINIELA) return alerta(`El nombre puede tener máximo ${MAX_NOMBRE_QUINIELA} caracteres.`)
     if (!editCierre) return alerta('La fecha y hora de cierre es obligatoria.')
     const chkCierre = validarCierreVsPartidos(editCierre, editPartidos)
     if (chkCierre.conflicto) {
@@ -1974,6 +1994,11 @@ export default function Admin() {
       // El código es obligatorio: es la llave de acceso para los jugadores.
       if (!codigoLimpio) {
         alerta('Ponle un código de acceso: es la llave para que entren tus jugadores.')
+        setGuardandoEdicion(false)
+        return
+      }
+      if (contarCaracteres(codigoLimpio) > MAX_CODIGO_ACCESO) {
+        alerta(`El código de acceso puede tener máximo ${MAX_CODIGO_ACCESO} caracteres.`)
         setGuardandoEdicion(false)
         return
       }
@@ -2256,6 +2281,7 @@ export default function Admin() {
       return alerta(`Llegaste al límite de ${MAX_QUINIELAS} quinielas por cuenta. Escríbenos por WhatsApp si necesitas más.`)
     }
     if (!nombre.trim()) return alerta('Ponle un nombre a la quiniela')
+    if (contarCaracteres(nombre.trim()) > MAX_NOMBRE_QUINIELA) return alerta(`El nombre puede tener máximo ${MAX_NOMBRE_QUINIELA} caracteres.`)
     if (!cierre) return alerta('La fecha y hora de cierre es obligatoria')
     if (partidos.length === 0) return alerta('Agrega al menos un partido')
     if (partidos.length > MAX_PARTIDOS) return alerta(`Una quiniela puede tener máximo ${MAX_PARTIDOS} partidos. Quita ${partidos.length - MAX_PARTIDOS} para poder guardar.`)
@@ -2278,6 +2304,11 @@ export default function Admin() {
       // El código es obligatorio: es la llave de acceso para los jugadores.
       if (!codigoLimpio) {
         alerta('Ponle un código de acceso: es la llave para que entren tus jugadores.')
+        setGuardando(false)
+        return
+      }
+      if (contarCaracteres(codigoLimpio) > MAX_CODIGO_ACCESO) {
+        alerta(`El código de acceso puede tener máximo ${MAX_CODIGO_ACCESO} caracteres.`)
         setGuardando(false)
         return
       }
@@ -5140,10 +5171,13 @@ export default function Admin() {
             {/* 1. ¿Qué es?: identidad de la quiniela */}
             <div style={card}>
               <label htmlFor="quiniela-nombre" style={lbl}>Nombre de la quiniela</label>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'stretch', marginBottom: 14 }}>
-                <input id="quiniela-nombre" type="text" placeholder="Ej. Jornada 17: Liga MX" value={nombre} onChange={e => setNombre(e.target.value)} style={{ flex: 1, marginBottom: 0 }} />
-                <EmojiPicker inputId="quiniela-nombre" value={nombre} onChange={setNombre} />
+              <div style={{ display: 'flex', gap: 8, alignItems: 'stretch', marginBottom: 6 }}>
+                <input id="quiniela-nombre" type="text" placeholder="Ej. Jornada 17: Liga MX" value={nombre} maxLength={MAX_NOMBRE_QUINIELA} onChange={e => setNombre(limitarNombreQuiniela(e.target.value))} style={{ flex: 1, marginBottom: 0 }} />
+                <EmojiPicker inputId="quiniela-nombre" value={nombre} onChange={value => setNombre(limitarNombreQuiniela(value))} />
               </div>
+              <p style={{ fontSize: 11, color: 'var(--muted)', textAlign: 'right', marginBottom: 14 }}>
+                {contarCaracteres(nombre)}/{MAX_NOMBRE_QUINIELA} caracteres
+              </p>
             </div>
 
             {/* 2. Partidos: buscador + lista (el corazón de la quiniela) */}
@@ -5201,9 +5235,9 @@ export default function Admin() {
             <div style={card}>
               <label htmlFor="quiniela-codigo" style={{ ...lbl, marginBottom: 4 }}>Código de acceso <span style={{ color: 'var(--red)' }}>*</span></label>
               <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>
-                Generado automático. Puedes cambiarlo, pero evita un código muy fácil. Solo quien lo tenga puede participar.
+                Generado automático. Puedes cambiarlo, pero evita un código muy fácil. Máximo {MAX_CODIGO_ACCESO} caracteres.
               </p>
-              <input id="quiniela-codigo" type="text" placeholder="Ej. ACME2026" value={codigoAcceso} autoCapitalize="characters" onChange={e => setCodigoAcceso(normalizarCodigoAccesoInput(e.target.value))} />
+              <input id="quiniela-codigo" type="text" placeholder="Ej. ACME2026" value={codigoAcceso} maxLength={MAX_CODIGO_ACCESO} autoCapitalize="characters" onChange={e => setCodigoAcceso(normalizarCodigoAccesoInput(e.target.value))} />
             </div>
 
             {/* 5. Premio */}
@@ -5401,21 +5435,6 @@ export default function Admin() {
 	                        </p>
 	                      )}
 	                    </div>
-	                    <p style={{ fontSize: 12, color: 'var(--muted)', textAlign: 'center', marginTop: 14, marginBottom: 0, lineHeight: 1.55 }}>
-	                      ¿Un marcador no llegó o está mal?
-	                      <br />
-	                      <a
-                        href={waLink(mensajeReporteProblema({
-                          correo: adminDoc?.email ?? auth.currentUser?.email ?? '',
-                          quiniela: quinielaActual.nombre,
-                          enlace: linkRanking,
-                        }))}
-                        target="_blank" rel="noreferrer"
-                        style={{ color: 'var(--green)', fontWeight: 700 }}
-                      >
-                        Repórtalo por WhatsApp
-                      </a>
-                    </p>
                   </div>
 
                   {tienePremio(quinielaActual) && esFinalizadaQ(quinielaActual) && (
@@ -5682,10 +5701,13 @@ export default function Admin() {
                   {/* 1. ¿Qué es? */}
                   <div style={card}>
                     <label htmlFor="edit-nombre" style={lbl}>Nombre de la quiniela</label>
-                    <div style={{ display: 'flex', gap: 8, alignItems: 'stretch', marginBottom: 14 }}>
-                      <input id="edit-nombre" type="text" value={editNombre} onChange={e => setEditNombre(e.target.value)} placeholder="Nombre de la quiniela" style={{ flex: 1, marginBottom: 0 }} />
-                      <EmojiPicker inputId="edit-nombre" value={editNombre} onChange={setEditNombre} />
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'stretch', marginBottom: 6 }}>
+                      <input id="edit-nombre" type="text" value={editNombre} maxLength={MAX_NOMBRE_QUINIELA} onChange={e => setEditNombre(limitarNombreQuiniela(e.target.value))} placeholder="Nombre de la quiniela" style={{ flex: 1, marginBottom: 0 }} />
+                      <EmojiPicker inputId="edit-nombre" value={editNombre} onChange={value => setEditNombre(limitarNombreQuiniela(value))} />
                     </div>
+                    <p style={{ fontSize: 11, color: contarCaracteres(editNombre) > MAX_NOMBRE_QUINIELA ? 'var(--red)' : 'var(--muted)', textAlign: 'right', marginBottom: 14 }}>
+                      {contarCaracteres(editNombre)}/{MAX_NOMBRE_QUINIELA} caracteres
+                    </p>
                   </div>
 
                   {/* 2. Partidos: el buscador solo aparece si aún no hay predicciones */}
@@ -5769,9 +5791,14 @@ export default function Admin() {
                   <div style={card}>
                     <label htmlFor="edit-codigo" style={{ ...lbl, marginBottom: 4 }}>Código de acceso <span style={{ color: 'var(--red)' }}>*</span></label>
                     <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>
-                      Solo quien lo tenga puede participar. Evita uno muy fácil.
+                      Solo quien lo tenga puede participar. Evita uno muy fácil. Máximo {MAX_CODIGO_ACCESO} caracteres.
                     </p>
-                    <input id="edit-codigo" type="text" placeholder="Ej. ACME2026" value={editCodigoAcceso} autoCapitalize="characters" onChange={e => setEditCodigoAcceso(normalizarCodigoAccesoInput(e.target.value))} />
+                    <input id="edit-codigo" type="text" placeholder="Ej. ACME2026" value={editCodigoAcceso} maxLength={MAX_CODIGO_ACCESO} autoCapitalize="characters" onChange={e => setEditCodigoAcceso(normalizarCodigoAccesoInput(e.target.value))} style={{ borderColor: contarCaracteres(editCodigoAcceso) > MAX_CODIGO_ACCESO ? 'var(--red)' : undefined }} />
+                    {contarCaracteres(editCodigoAcceso) > MAX_CODIGO_ACCESO && (
+                      <p style={{ fontSize: 11, color: 'var(--red)', marginTop: 6 }}>
+                        Este código histórico excede el límite. Acórtalo antes de guardar.
+                      </p>
+                    )}
                   </div>
 
                   {/* 5. Premio */}
