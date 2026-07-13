@@ -54,6 +54,8 @@ export function datosTarjetaQuiniela(q, predicciones, participantes) {
     if (r?.cancelado) return false
     return getResultado(r) !== null
   }).length
+  const enVivo = hayPartidoEnVivo(q)
+  const rankingIniciado = terminados > 0 || enVivo
 
   const miNombre = miIdentidadEnQuiniela(q.id)
   const jugadores = predicciones
@@ -92,6 +94,7 @@ export function datosTarjetaQuiniela(q, predicciones, participantes) {
     numPartidos: partidos.length,
     participantes,
     partidosJugados: terminados,
+    rankingIniciado,
     tengoPosicion,
     miNombre,
     posicion,
@@ -104,7 +107,7 @@ export function datosTarjetaQuiniela(q, predicciones, participantes) {
     return {
       ...base,
       estado: 'jugandose',
-      enVivo: hayPartidoEnVivo(q),
+      enVivo,
       subnota: grupoAnterior ? `A ${ptsTexto(diffConAnterior)} del ${grupoAnterior.posicion}º` : null,
     }
   }

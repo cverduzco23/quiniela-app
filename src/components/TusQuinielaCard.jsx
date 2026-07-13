@@ -109,8 +109,10 @@ function Banda({ d, miNombreVisible, onAlias }) {
     return (
       <div className="tq-banda" style={{ background: 'linear-gradient(135deg,rgba(34,197,94,0.14),rgba(34,197,94,0.04))', border: '1px solid rgba(34,197,94,0.28)' }}>
         <div className="tq-banda-num-col">
-          <p className="tq-banda-num tq-banda-num--lg" style={{ color: '#FFFFFF' }}>
-            {d.posicion}<span className="tq-banda-num-suf" style={{ color: '#86EFAC' }}>º</span>
+          <p className="tq-banda-num tq-banda-num--lg" style={{ color: d.rankingIniciado ? '#FFFFFF' : '#9CA3AF' }}>
+            {d.rankingIniciado ? (
+              <>{d.posicion}<span className="tq-banda-num-suf" style={{ color: '#86EFAC' }}>º</span></>
+            ) : '—'}
           </p>
           <p className="tq-banda-sub">DE {d.totalJugadores}</p>
         </div>

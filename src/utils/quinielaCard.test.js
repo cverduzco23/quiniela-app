@@ -164,6 +164,30 @@ describe('datosTarjetaQuiniela', () => {
     expect(d.subnota).toBe('A 2 pts del 2º')
   })
 
+  it('en juego mantiene la posición neutral mientras ningún partido ha comenzado', () => {
+    setMiNombre('César Verduzco')
+    const predicciones = [
+      { nombre: 'Norma Verduzco', picks: {} },
+      { nombre: 'César Verduzco', picks: {} },
+    ]
+
+    const d = datosTarjetaQuiniela(
+      q({
+        finalizada: false,
+        resultados: {},
+        enVivoActualizado: new Date().toISOString(),
+        enVivoEspnIds: [],
+      }),
+      predicciones,
+      predicciones.length,
+    )
+
+    expect(d.estado).toBe('jugandose')
+    expect(d.rankingIniciado).toBe(false)
+    expect(d.posicion).toBe(1)
+    expect(d.misPuntos).toBe(0)
+  })
+
   it('para ganadores empatados compara contra la siguiente posición real', () => {
     setMiNombre('Ana López')
     const predicciones = [
