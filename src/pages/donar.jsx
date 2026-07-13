@@ -53,6 +53,33 @@ function DonarGracias() {
   )
 }
 
+function DonarIntro() {
+  const beneficios = [
+    'Infraestructura y resultados en vivo',
+    'Mejoras continuas para jugadores y organizadores',
+    'Una experiencia gratuita y sin anuncios',
+  ]
+
+  return (
+    <section className="donar-intro" aria-labelledby="donar-page-title">
+      <span className="donar-intro-kicker">UN PROYECTO INDEPENDIENTE</span>
+      <h1 id="donar-page-title" className="donar-intro-title">Ayúdanos a mantener viva la emoción.</h1>
+      <p className="donar-intro-copy">
+        Tu apoyo mantiene QuinielApp estable, gratuita y enfocada en lo que importa: jugar con tu gente.
+      </p>
+      <div className="donar-benefits">
+        {beneficios.map(beneficio => (
+          <div key={beneficio} className="donar-benefit">
+            <span className="donar-benefit-icon"><DonarIcon name="check" size={15} /></span>
+            <span>{beneficio}</span>
+          </div>
+        ))}
+      </div>
+      <p className="donar-intro-note">Cada aportación, sin importar el monto, suma.</p>
+    </section>
+  )
+}
+
 export default function Donar() {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
@@ -95,7 +122,7 @@ export default function Donar() {
     <div style={{ minHeight: '100vh', background: '#070d18', position: 'relative', zIndex: 0, display: 'flex', flexDirection: 'column' }}>
       <div className="public-home-bg-fade" aria-hidden="true" />
       <div className="hero-pad donar-hero-pad" style={{ color: 'var(--text)' }}>
-        <div className="donar-brand-row" style={{ maxWidth: 460, margin: '0 auto', display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div className="donar-brand-row" style={{ margin: '0 auto', display: 'flex', alignItems: 'center', gap: 12 }}>
           <button type="button" onClick={volver} className="app-back-button" aria-label="Volver" title="Volver">
             <DonarIcon name="arrow-left" size={15} />
           </button>
@@ -104,60 +131,68 @@ export default function Donar() {
           </Link>
         </div>
       </div>
-      <div className="donar-shell">
+      <div className={`donar-shell${yaPago ? ' donar-shell--success' : ''}`}>
         {yaPago ? (
           <DonarGracias />
         ) : (
-          <div className="donar-card">
-            <span className="donar-icon">
-              <DonarIcon name="heart" size={24} />
-            </span>
-            <h1 className="donar-title">Apoya el proyecto</h1>
-            <p className="donar-subtitle">
-              QuinielApp es gratis y sin anuncios. Un donativo nos ayuda a mantenerlo vivo.
-            </p>
+          <div className="donar-layout">
+            <DonarIntro />
+            <div className="donar-card donar-payment-card">
+              <span className="donar-icon">
+                <DonarIcon name="heart" size={24} />
+              </span>
+              <h1 className="donar-title donar-title--mobile">Apoya el proyecto</h1>
+              <h2 className="donar-title donar-title--desktop">Elige tu aportación</h2>
+              <p className="donar-subtitle donar-subtitle--mobile">
+                QuinielApp es gratis y sin anuncios. Un donativo nos ayuda a mantenerlo vivo.
+              </p>
+              <p className="donar-subtitle donar-subtitle--desktop">
+                Selecciona un monto o escribe la cantidad que prefieras.
+              </p>
 
-            <div className="donar-amount-grid">
-              {MONTOS_PRESET.map((m) => (
-                <button
-                  key={m}
-                  type="button"
-                  className={`donar-amount-btn${montoCustom === '' && monto === m ? ' is-active' : ''}`}
-                  onClick={() => { setMonto(m); setMontoCustom('') }}
-                >
-                  ${m}
-                </button>
-              ))}
+              <div className="donar-amount-grid">
+                {MONTOS_PRESET.map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    className={`donar-amount-btn${montoCustom === '' && monto === m ? ' is-active' : ''}`}
+                    onClick={() => { setMonto(m); setMontoCustom('') }}
+                  >
+                    ${m}
+                  </button>
+                ))}
+              </div>
+
+              <label className="donar-custom-label">
+                Otro monto (MXN)
+                <input
+                  type="number"
+                  min="10"
+                  max="50000"
+                  step="1"
+                  placeholder="Ej. 150"
+                  value={montoCustom}
+                  onChange={(e) => setMontoCustom(e.target.value)}
+                  className="donar-custom-input"
+                />
+              </label>
+              <p className="donar-amount-helper">Entre $10 y $50,000 MXN</p>
+
+              {error && <p className="donar-error">{error}</p>}
+
+              <button
+                type="button"
+                className="donar-submit-btn"
+                disabled={!montoValido || enviando}
+                onClick={donar}
+              >
+                {enviando ? 'Redirigiendo…' : montoValido ? `Donar $${montoFinal} MXN` : 'Donar MXN'}
+              </button>
+              <p className="legal-note">
+                Donativo voluntario, no reembolsable y no deducible.<br />
+                Procesado por Stripe.
+              </p>
             </div>
-
-            <label className="donar-custom-label">
-              Otro monto (MXN)
-              <input
-                type="number"
-                min="10"
-                max="50000"
-                step="1"
-                placeholder="Ej. 150"
-                value={montoCustom}
-                onChange={(e) => setMontoCustom(e.target.value)}
-                className="donar-custom-input"
-              />
-            </label>
-
-            {error && <p className="donar-error">{error}</p>}
-
-            <button
-              type="button"
-              className="donar-submit-btn"
-              disabled={!montoValido || enviando}
-              onClick={donar}
-            >
-              {enviando ? 'Redirigiendo…' : montoValido ? `Donar $${montoFinal} MXN` : 'Donar MXN'}
-            </button>
-            <p className="legal-note">
-              Donativo voluntario, no reembolsable y no deducible.<br />
-              Procesado por Stripe.
-            </p>
           </div>
         )}
         <div className="app-footer-slot">

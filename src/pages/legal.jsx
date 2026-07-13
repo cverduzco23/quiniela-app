@@ -1,35 +1,53 @@
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import avisoPrivacidad from '../../legal/AVISO_DE_PRIVACIDAD.md?raw'
 import terminosCondiciones from '../../legal/TERMINOS_Y_CONDICIONES.md?raw'
-import { renderMarkdownLite } from '../utils/markdownLite'
+import { extraerSeccionesMarkdown, renderMarkdownLite } from '../utils/markdownLite'
 import { BrandWordmark } from '../components/Brand'
 import { Footer } from '../components/Footer'
 
-function LegalPage({ contenido }) {
+function LegalPage({ contenido, activa }) {
   const navigate = useNavigate()
+  const secciones = extraerSeccionesMarkdown(contenido)
   // Back = pantalla previa; si se llegó por link directo (sin historial), a Home.
   const volver = () => {
     if (window.history.length > 1) navigate(-1)
     else navigate('/')
   }
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg)', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ width: '100%', maxWidth: 720, margin: '0 auto', padding: '28px 20px 0', flex: 1 }}>
-        <button type="button" onClick={volver} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, color: 'var(--muted)', fontSize: 13, fontWeight: 750, textDecoration: 'none', marginBottom: 24, background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}>
+    <div className="legal-page">
+      <div className="public-home-bg-fade" aria-hidden="true" />
+      <header className="legal-header">
+        <button type="button" onClick={volver} className="legal-back-button">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <path d="M19 12H5" />
             <path d="m12 19-7-7 7-7" />
           </svg>
           Volver
         </button>
-        <div style={{ marginBottom: 28 }}>
+        <span className="legal-brand">
           <BrandWordmark markSize={26} fontSize={19} />
-        </div>
-        <article>
+        </span>
+        <nav className="legal-document-nav" aria-label="Documentos legales">
+          <Link to="/privacidad" className={activa === 'privacidad' ? 'is-active' : ''}>Privacidad</Link>
+          <Link to="/terminos" className={activa === 'terminos' ? 'is-active' : ''}>Términos</Link>
+        </nav>
+      </header>
+
+      <main className="legal-layout">
+        <aside className="legal-toc" aria-label="Índice del documento">
+          <p>EN ESTA PÁGINA</p>
+          <nav>
+            {secciones.map(seccion => (
+              <a key={seccion.id} href={`#${seccion.id}`}>{seccion.titulo}</a>
+            ))}
+          </nav>
+        </aside>
+        <article className="legal-article">
           {renderMarkdownLite(contenido)}
         </article>
-      </div>
-      <div style={{ width: '100%', maxWidth: 720, margin: '0 auto', padding: '0 20px 6px' }}>
+      </main>
+
+      <div className="legal-footer-wrap">
         <Footer />
       </div>
     </div>
@@ -37,9 +55,9 @@ function LegalPage({ contenido }) {
 }
 
 export function Privacidad() {
-  return <LegalPage contenido={avisoPrivacidad} />
+  return <LegalPage contenido={avisoPrivacidad} activa="privacidad" />
 }
 
 export function Terminos() {
-  return <LegalPage contenido={terminosCondiciones} />
+  return <LegalPage contenido={terminosCondiciones} activa="terminos" />
 }

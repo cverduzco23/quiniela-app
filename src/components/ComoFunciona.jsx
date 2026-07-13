@@ -33,9 +33,9 @@ export function ComoFunciona({ onClose }) {
   const reporteLink = waLink(mensajeReporteProblema())
 
   return (
-    <div style={overlay} onClick={onClose}>
-      <div style={modal} onClick={e => e.stopPropagation()}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+    <div className="como-funciona-overlay" style={overlay} onClick={onClose}>
+      <div className="como-funciona-modal" style={modal} onClick={e => e.stopPropagation()}>
+        <div className="como-funciona-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 700, color: 'var(--text-strong)' }}>
             ¿Cómo funciona?
           </h2>
@@ -48,7 +48,20 @@ export function ComoFunciona({ onClose }) {
           </button>
         </div>
 
-        <div style={seccion}>
+        <div className="como-funciona-layout">
+        <aside className="como-funciona-toc" aria-label="Contenido del centro de ayuda">
+          <p>EN ESTA PÁGINA</p>
+          <nav>
+            <a href="#ayuda-crear">Crear tu quiniela</a>
+            <a href="#ayuda-puntos">Cómo se miden los puntos</a>
+            <a href="#ayuda-resultados">Cierre y resultados</a>
+            <a href="#ayuda-compartir">Compartir</a>
+            <a href="#ayuda-cambiar">Cambiar predicciones</a>
+            <a href="#ayuda-soporte">Soporte</a>
+          </nav>
+        </aside>
+        <div className="como-funciona-grid">
+        <div id="ayuda-crear" className="como-funciona-section" style={seccion}>
           <p style={h}>1. Crear tu quiniela</p>
           <ul style={list}>
             <li style={li}>Ponle un <span style={strong}>nombre claro</span> a tu quiniela.</li>
@@ -64,7 +77,7 @@ export function ComoFunciona({ onClose }) {
           </ul>
         </div>
 
-        <div style={seccion}>
+        <div id="ayuda-puntos" className="como-funciona-section" style={seccion}>
           <p style={h}>2. Cómo se miden los puntos</p>
           <ul style={list}>
             <li style={li}><span style={strong}>1 punto</span> por acertar el resultado: local, empate o visitante.</li>
@@ -74,7 +87,7 @@ export function ComoFunciona({ onClose }) {
           </ul>
         </div>
 
-        <div style={seccion}>
+        <div id="ayuda-resultados" className="como-funciona-section" style={seccion}>
           <p style={h}>3. Cierre y resultados</p>
           <ul style={list}>
             <li style={li}>La quiniela se <span style={strong}>cierra</span> (deja de recibir registros de jugadores) automáticamente a la hora de cierre. Ya nadie puede entrar a jugar ni cambiar sus picks.</li>
@@ -86,17 +99,17 @@ export function ComoFunciona({ onClose }) {
           </ul>
         </div>
 
-        <div style={seccion}>
+        <div id="ayuda-compartir" className="como-funciona-section" style={seccion}>
           <p style={h}>4. Compartir</p>
           <p style={p}>Desde la pestaña <span style={strong}>Compartir</span> de cada quiniela copias el enlace y el código para mandarlos por WhatsApp a tus participantes.</p>
         </div>
 
-        <div style={seccion}>
+        <div id="ayuda-cambiar" className="como-funciona-section" style={seccion}>
           <p style={h}>5. Cambiar predicciones</p>
           <p style={p}>Si alguien quiere cambiar sus predicciones, ve a <span style={strong}>Participantes</span>, elimina su registro e indícale que vuelva a entrar y enviarlas de nuevo. En realidad no se editan: se elimina el registro y se sube de nuevo.</p>
         </div>
 
-        <div style={seccion}>
+        <div id="ayuda-soporte" className="como-funciona-section como-funciona-section--support" style={seccion}>
           <p style={h}>¿Algo no funciona?</p>
           <p style={{ ...p, marginBottom: 0 }}>
             Si un marcador no llegó o viste cualquier falla,{' '}
@@ -110,13 +123,16 @@ export function ComoFunciona({ onClose }) {
             y lo revisamos.
           </p>
         </div>
+        </div>
 
         <button
+          className="como-funciona-primary"
           onClick={onClose}
           style={{ width: '100%', marginTop: 6, padding: '12px', borderRadius: 'var(--radius-sm)', border: 'none', background: 'linear-gradient(135deg, var(--green), var(--green-light))', color: '#07120A', fontSize: 13, fontWeight: 800, cursor: 'pointer' }}
         >
           Entendido
         </button>
+        </div>
       </div>
     </div>
   )

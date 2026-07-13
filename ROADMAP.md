@@ -107,9 +107,9 @@ falta para lanzar es operación (checklist más abajo).
 
 1. **Respaldo**: `node scripts/respaldo.mjs`.
 2. **`git push`** (Vercel despliega el front solo).
-3. **`npx firebase deploy --only firestore:rules`** — obligatorio el mismo día: las reglas
+3. **`npx firebase deploy --only firestore:rules`**. Obligatorio el mismo día: las reglas
    de cuota del auto-registro y la validación de picks van en sync con el front nuevo.
-4. **`npx firebase deploy --only functions`** — sube el estado "en vivo" y las funciones de
+4. **`npx firebase deploy --only functions`**. Sube el estado "en vivo" y las funciones de
    Stripe. En el dashboard de Stripe: configurar webhook + clave live.
 5. **Consola Firebase → Authentication**: habilitar sign-up Email/Password, plantillas de
    correo en español, protección contra enumeración de emails.
@@ -121,8 +121,8 @@ falta para lanzar es operación (checklist más abajo).
 - **Automatizaciones del centro de notificaciones:** ✅ la base de avisos manuales del super admin
   hacia los organizadores quedó implementada el 2026-07-13 (campana, no leídas, bandeja, audiencia,
   prioridad, vigencia, historial, copia de experiencia y envío de prueba solo al super admin). Pendiente:
-  generar avisos automáticos para admins —registro de
-  participantes, cierre próximo, resultados pendientes— y alertas operativas para el super admin,
+  generar avisos automáticos para admins (registro de
+  participantes, cierre próximo y resultados pendientes) y alertas operativas para el super admin,
   por ejemplo cuando una quiniela supera 100 participantes, el premio rebasa una cantidad `X` o
   incluye más de 15 partidos. Generarlas desde Cloud Functions, deduplicarlas por quiniela + regla
   + umbral y permitir configurar qué tipos recibe cada cuenta.
@@ -180,10 +180,10 @@ Eso implica, en estado final:
 
 | Tarea | Cómo se hace hoy | Automatización futura |
 |---|---|---|
-| Alta de clientes | ✅ Auto-registro self-service (2026-07-09, sin pago) | — hecha |
-| Cobro | ✅ No hay cobro; donativos voluntarios vía Stripe | — hecha (modelo gratis §0) |
-| Cuota "1 gratis, luego paga" | ✅ Cuota dura de 50 en firestore.rules | — hecha |
-| Resultados de partidos | ✅ Cloud Function cada 10 min (2026-07-07) | — hecha |
+| Alta de clientes | ✅ Auto-registro self-service (2026-07-09, sin pago) | Hecha |
+| Cobro | ✅ No hay cobro; donativos voluntarios vía Stripe | Hecha (modelo gratis §0) |
+| Cuota "1 gratis, luego paga" | ✅ Cuota dura de 50 en firestore.rules | Hecha |
+| Resultados de partidos | ✅ Cloud Function cada 10 min (2026-07-07) | Hecha |
 | Respaldos | ◐ Script manual `node scripts/respaldo.mjs` | Export programado o PITR |
 
 > ⚠️ **Obsoleto por §0 (2026-07-04):** ya NO se cobra por quiniela ni Pase Mundial. La app es
@@ -279,7 +279,7 @@ lo rechaza en silencio: esperado).
 
 | # | Tarea | Por qué | Resuelve |
 |---|---|---|---|
-| 1 | ◐ **App Check (reCAPTCHA v3) en modo "monitoreo"** — código listo, falta consola (checklist §0.bis) | Medir tráfico ilegítimo sin riesgo de bloquear usuarios reales | Prepara H1, H2 |
+| 1 | ◐ **App Check (reCAPTCHA v3) en modo "monitoreo"**. Código listo, falta consola (checklist §0.bis) | Medir tráfico ilegítimo sin riesgo de bloquear usuarios reales | Prepara H1, H2 |
 | 2 | ✅ **Validar valores de `picks` en firestore.rules** (2026-07-12; falta re-deploy de reglas) | 5 líneas, cero impacto en UI | H3 |
 | 3 | ✅ **Headers de seguridad en vercel.json** (2026-07-12) | Gratis, sin riesgo | H5 |
 | 4 | ✅ **Conteos con `getCountFromServer`** en home, admin y predicciones (2026-07-12) | Corta el 90%+ de lecturas; reduce mucho la superficie del DoS por cuota | H1 |
@@ -317,10 +317,10 @@ toca seguridad ni infraestructura; todo es client-side y sin lecturas nuevas a F
 | # | Tarea | Por qué / qué buscamos |
 |---|---|---|
 | 6 | ✅ **Migrar a Blaze** (hecho para la Cloud Function de sync). Revisar que las alertas de presupuesto ($5/$20) estén configuradas | Blaze incluye la misma capa gratis: a bajo volumen sigue costando ~$0; las alertas son el seguro |
-| 7 | ~~**Pagos automáticos**~~ descartado por el pivote (§0); en su lugar: ✅ donativos con Stripe | — |
+| 7 | ~~**Pagos automáticos**~~ descartado por el pivote (§0); en su lugar: ✅ donativos con Stripe | Sin notas |
 | 8 | ✅ **Auto-alta self-service** (2026-07-09, sin pago: la app es gratis) | Eliminó el alta por WhatsApp |
 | 9 | ✅ **Cuota dura server-side** (en firestore.rules con contador + ID determinístico, no requirió Cloud Function) | El límite de 50 ya no es burlable |
-| 10 | ✅ **Auto-sync ESPN** (2026-07-07) + **estado en vivo por partido en Firestore** (2026-07-12): el indicador "Partido en vivo" ya es exacto, sin llamadas a ESPN por visitante | — |
+| 10 | ✅ **Auto-sync ESPN** (2026-07-07) + **estado en vivo por partido en Firestore** (2026-07-12): el indicador "Partido en vivo" ya es exacto, sin llamadas a ESPN por visitante | Sin notas |
 | 11 | **Cerrar lectura pública de picks pre-cierre** | El riesgo de trampa escala con botes/desconocidos. Requiere backend (posible con #6). Es el pendiente de seguridad más profundo |
 | 12 | **App Check en enforce** + **refactor de admin.jsx** (3,506 líneas) + cuentas vía Admin SDK (H4) | Endurecimiento y mantenibilidad cuando ya no haya presión de torneo |
 | 13 | **Correo propio para restablecer contraseña** | Firebase Console dejó las plantillas de Auth como no editables. Cuando se quiera mejorar el correo y usar `noreply@quinielapp.fun`, crear un endpoint en Vercel (`/api/password-reset`) que use Firebase Admin SDK para generar el link de reset y Resend/SendGrid para mandar un HTML propio con botón/logo, apuntando a una pantalla custom de recuperación |

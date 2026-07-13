@@ -822,7 +822,7 @@ function drawPlayingTable(ctx, datos, y, maxHeight) {
     ctx.textBaseline = 'middle'
     ctx.font = '700 28px Rajdhani'
     ctx.fillStyle = row._leader ? COLORS.green : COLORS.dim
-    ctx.fillText(rankingStarted ? String(row._pos) : '—', x + 58, cy)
+    ctx.fillText(rankingStarted ? String(row._pos) : 'N/D', x + 58, cy)
 
     const nameX = x + 104
     const badgeW = 72

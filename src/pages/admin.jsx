@@ -7,7 +7,7 @@ import { useDialog } from '../components/Dialogs'
 import { ComoFunciona } from '../components/ComoFunciona'
 import { TourBienvenida } from '../components/TourBienvenida'
 import { MedidorPassword } from '../components/MedidorPassword'
-import { BrandMark, BrandWordmark } from '../components/Brand'
+import { BrandWordmark } from '../components/Brand'
 import { evaluarPassword } from '../utils/password'
 import { waLink, MENSAJES_WA, mensajeReporteProblema } from '../utils/whatsapp'
 import { cierreToDate, cierreToInputValue, inputValueACierre, quinielaCerrada, quinielaFinalizada, resultadosCompletos, hayPartidoEnVivo } from '../utils/cierre'
@@ -333,6 +333,33 @@ function AdminIcon({ name, size = 14, style, strokeWidth = 2 }) {
   return <svg {...common}><circle cx="12" cy="12" r="9" /></svg>
 }
 
+function AdminAuthIntro() {
+  const beneficios = [
+    ['ball', 'Configura partidos, reglas y cierre'],
+    ['users', 'Comparte el acceso con todo tu grupo'],
+    ['chart', 'Sigue resultados y ranking en vivo'],
+  ]
+
+  return (
+    <section className="admin-auth-intro" aria-labelledby="admin-auth-intro-title">
+      <BrandWordmark markSize={30} fontSize={22} />
+      <span className="admin-auth-kicker">PANEL DE ORGANIZADORES</span>
+      <h1 id="admin-auth-intro-title">Organiza la quiniela. Nosotros llevamos las cuentas.</h1>
+      <p className="admin-auth-intro-copy">
+        Crea, comparte y administra tus quinielas desde un solo lugar. Tus jugadores entran sin crear una cuenta.
+      </p>
+      <div className="admin-auth-benefits">
+        {beneficios.map(([icono, texto]) => (
+          <div key={texto} className="admin-auth-benefit">
+            <span><AdminIcon name={icono} size={16} /></span>
+            {texto}
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+}
+
 // Responsive: escritorio (≥960px) vs móvil (<960px)
 // Hook simple sobre matchMedia. El rediseño usa un layout ancho con barra lateral
 // en escritorio y el patrón móvil (tablero de módulos / pestañas) por debajo.
@@ -361,128 +388,55 @@ function iniciales(str) {
   return base.slice(0, 2).toUpperCase()
 }
 
-// Barra lateral del Super Admin (solo escritorio ≥960px)
-// Navega cambiando `superModulo`. Reusa AdminIcon y BrandMark. Refleja el prototipo
-// de escritorio (design_handoff_super_admin_panel): logo · sello SUPER ADMIN ·
-// nav agrupada (Gestión / Plataforma) · footer de usuario.
-function SidebarSuper({ activo, onNav, counts, email, uid }) {
-  const item = (modulo, icon, label, badge) => {
-    const on = activo === modulo
-    return (
-      <button
-        onClick={() => onNav(modulo)}
-        style={{
-          display: 'flex', alignItems: 'center', gap: 11, width: '100%', textAlign: 'left',
-          padding: '10px 12px', borderRadius: 9, border: 'none', cursor: 'pointer',
-          background: on ? 'var(--green-bg)' : 'transparent',
-          color: on ? 'var(--green-light)' : 'var(--muted)',
-          fontSize: 13, fontWeight: on ? 800 : 600,
-        }}
-      >
-        <AdminIcon name={icon} size={17} />
-        <span style={{ flex: 1 }}>{label}</span>
-        {badge ? (
-          <span style={{ fontSize: 10, fontWeight: 800, background: 'var(--neutral-bg)', color: 'var(--muted)', padding: '2px 7px', borderRadius: 'var(--radius-full)' }}>{badge}</span>
-        ) : null}
-      </button>
-    )
-  }
-  const group = (t) => (
-    <span style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--muted-dim)', padding: '14px 12px 6px' }}>{t}</span>
-  )
-  return (
-    <aside style={{
-      width: 256, flex: '0 0 auto', position: 'sticky', top: 0, alignSelf: 'flex-start',
-      height: '100vh', background: '#0E1626', borderRight: '1px solid var(--border)',
-      display: 'flex', flexDirection: 'column', padding: '22px 16px', overflowY: 'auto',
-    }}>
-      <a href="/" style={{ display: 'inline-flex', alignItems: 'center', gap: 9, padding: '0 6px 6px', textDecoration: 'none' }}>
-        <BrandMark size={28} />
-        <span style={{ fontSize: 19, fontWeight: 900, letterSpacing: '-0.03em', color: 'var(--text-strong)' }}>
-          Quiniel<span style={{ color: 'var(--green)' }}>App</span>
-        </span>
-      </a>
-      <span style={{ alignSelf: 'flex-start', margin: '0 0 16px 6px', fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em', padding: '3px 8px', borderRadius: 6, background: 'var(--yellow-bg)', color: 'var(--yellow-soft)' }}>
-        SUPER ADMIN
-      </span>
-      <nav style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-        {item(null, 'home', 'Inicio')}
-        {group('Gestión')}
-        {item('clientes', 'users', 'Clientes', counts.clientes)}
-        {item('otros', 'user', 'Otros admins', counts.otros)}
-        {item('caja', 'wallet', 'Caja global')}
-        {item('mis', 'ball', 'Mis quinielas', counts.mis)}
-        {group('Plataforma')}
-        {item('estadisticas', 'chart', 'Estadísticas')}
-        {item('cuenta', 'key', 'Mi cuenta')}
-      </nav>
-      <div style={{ marginTop: 'auto', display: 'flex', alignItems: 'center', gap: 10, padding: '6px 4px' }}>
-        <span style={{ width: 34, height: 34, borderRadius: 'var(--radius-full)', background: 'linear-gradient(135deg, var(--yellow), var(--yellow-soft))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12.5, fontWeight: 800, color: '#3a2e05' }}>
-          {iniciales(email)}
-        </span>
-        <div style={{ minWidth: 0, flex: 1 }}>
-          <p style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-strong)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {email ? email.split('@')[0] : 'Super admin'}
-          </p>
-          <p style={{ fontSize: 10.5, color: 'var(--yellow-soft)', margin: '1px 0 0' }}>Dueño · super admin</p>
-        </div>
-        <NotificationBell uid={uid} />
-      </div>
-    </aside>
-  )
-}
-
 // Barra lateral del panel Cliente (escritorio ≥960px)
-function SidebarCliente({ activo, onNav, adminDoc, onSalir, uid }) {
+function SidebarCliente({ activo, onNav, adminDoc, uid, esSuper = false }) {
   const item = (tab, icon, label) => {
     const on = activo === tab
     return (
       <button
+        type="button"
+        className={`admin-sidebar-nav-item${on ? ' is-active' : ''}`}
         onClick={() => onNav(tab)}
-        style={{
-          display: 'flex', alignItems: 'center', gap: 11, width: '100%', textAlign: 'left',
-          padding: '10px 12px', borderRadius: 9, border: 'none', cursor: 'pointer',
-          background: on ? 'var(--green-bg)' : 'transparent',
-          color: on ? 'var(--green-light)' : 'var(--muted)',
-          fontSize: 13, fontWeight: on ? 800 : 600,
-        }}
       >
-        <AdminIcon name={icon} size={17} />
-        <span style={{ flex: 1 }}>{label}</span>
+        <span className="admin-sidebar-nav-icon"><AdminIcon name={icon} size={17} /></span>
+        <span>{label}</span>
       </button>
     )
   }
   return (
-    <aside style={{
-      width: 248, flex: '0 0 auto', position: 'sticky', top: 0, alignSelf: 'flex-start',
-      height: '100vh', background: '#0E1626', borderRight: '1px solid var(--border)',
-      display: 'flex', flexDirection: 'column', padding: '22px 16px', overflowY: 'auto',
-    }}>
-      <a href="/" style={{ display: 'inline-flex', alignItems: 'center', gap: 9, padding: '0 6px 18px', textDecoration: 'none' }}>
+    <aside className="admin-desktop-sidebar">
+      <a href="/" className="admin-sidebar-brand">
         <BrandWordmark markSize={26} fontSize={18} />
       </a>
-      <nav style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <nav className="admin-sidebar-nav" aria-label="Panel de administración">
         {item('inicio', 'home', 'Inicio')}
         {item('quinielas', 'ball', 'Quinielas')}
         {item('caja', 'wallet', 'Caja')}
         {item('stats', 'chart', 'Estadísticas')}
         {item('cuenta', 'key', 'Mi cuenta')}
         {item('soporte', 'message', 'Soporte')}
+        {esSuper && (
+          <>
+            <span className="admin-sidebar-nav-separator" aria-hidden="true" />
+            {item('super', 'settings', 'Super Admin')}
+          </>
+        )}
       </nav>
-      <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '4px' }}>
-          <span style={{ width: 34, height: 34, borderRadius: 'var(--radius-full)', background: 'linear-gradient(135deg, var(--green), var(--green-light))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12.5, fontWeight: 800, color: '#07120A' }}>
+      <section className="admin-sidebar-account" aria-label="Cuenta y sesión">
+        <button type="button" className="admin-sidebar-identity" onClick={() => onNav('cuenta')}>
+          <span className="admin-sidebar-avatar">
             {iniciales(adminDoc?.nombre || adminDoc?.email)}
           </span>
-          <div style={{ minWidth: 0, flex: 1 }}>
-            <p style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-strong)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{adminDoc?.nombre || 'Mi cuenta'}</p>
-          </div>
-          <NotificationBell uid={uid} />
-          <button onClick={onSalir} aria-label="Cerrar sesión" title="Cerrar sesión" style={{ background: 'transparent', border: 'none', color: 'var(--muted)', cursor: 'pointer', padding: 4, display: 'inline-flex' }}>
-            <AdminIcon name="logout" size={16} />
-          </button>
+          <span className="admin-sidebar-identity-copy">
+            <strong>{adminDoc?.nombre || 'Mi cuenta'}</strong>
+            <small>{adminDoc?.email || (esSuper ? 'Super Admin' : 'Organizador')}</small>
+          </span>
+          <AdminIcon name="chevron-right" size={15} style={{ color: 'var(--muted-soft)', flexShrink: 0 }} />
+        </button>
+        <div className="admin-sidebar-account-actions">
+          <NotificationBell uid={uid} variant="sidebar-action" />
         </div>
-      </div>
+      </section>
     </aside>
   )
 }
@@ -872,7 +826,7 @@ export default function Admin() {
     const reporteLink = waLink(mensajeReporteProblema({ correo: adminDoc?.email ?? auth.currentUser?.email ?? '' }))
 
     return (
-      <div style={{ display: 'grid', gap: framed ? 10 : 0, maxWidth: framed ? 560 : undefined }}>
+      <div className="admin-support-options" style={{ display: 'grid', gap: framed ? 10 : 0, maxWidth: framed ? 560 : undefined }}>
         <button type="button" onClick={() => setAyudaAbierta(true)} style={actionStyle(true)}>
           <AdminIcon name="info" size={18} style={{ color: 'var(--green)' }} />
           <span style={{ flex: 1 }}>
@@ -890,7 +844,7 @@ export default function Admin() {
           <AdminIcon name="chevron-right" size={16} style={{ color: 'var(--muted)' }} />
         </a>
         <a href={reporteLink} target="_blank" rel="noreferrer" style={{ ...actionStyle(false), textDecoration: 'none' }}>
-          <AdminIcon name="alert" size={18} style={{ color: 'var(--muted)' }} />
+          <AdminIcon name="alert" size={18} style={{ color: esEscritorio ? 'var(--red)' : 'var(--muted)' }} />
           <span style={{ flex: 1 }}>
             <span style={labelStyle}>Reportar un problema</span>
             <span style={subStyle}>¿Algo no funciona? Cuéntanos</span>
@@ -2581,47 +2535,27 @@ export default function Admin() {
   )
 
   if (!autenticado) return (
-    <div style={{
-      minHeight: '100vh',
-      background: 'radial-gradient(circle at 20% 0%, rgba(34,197,94,0.16), transparent 40%), radial-gradient(circle at 85% 10%, rgba(250,204,21,0.10), transparent 36%), linear-gradient(135deg, #08111F, #0B1220 55%, #111827)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: '40px 18px',
-    }}>
-      <div style={{ width: '100%', maxWidth: 392 }}>
-        <a href="/" style={{ display: 'inline-flex', alignItems: 'center', gap: 7, color: 'var(--muted)', fontSize: 13, fontWeight: 750, textDecoration: 'none', marginBottom: 28 }}>
+    <div className="admin-auth-shell">
+      <div className="admin-auth-page">
+        <a href="/" className="admin-auth-back">
           <AdminIcon name="arrow-left" size={15} />
           Inicio
         </a>
-        <div style={{ textAlign: 'center', marginBottom: 24 }}>
-          <BrandWordmark markSize={30} fontSize={20} />
-        </div>
-        <div style={{
-          background: 'var(--card)',
-          border: '1px solid rgba(255,255,255,0.09)',
-          borderRadius: 16,
-          padding: '26px 24px',
-          boxShadow: '0 30px 70px rgba(0,0,0,0.45)',
-        }}>
+        <div className="admin-auth-layout">
+          <AdminAuthIntro />
+          <div className="admin-auth-form-column">
+            <div className="admin-auth-mobile-brand">
+              <BrandWordmark markSize={30} fontSize={20} />
+            </div>
+            <div className="admin-auth-card">
           {/* Tabs Entrar / Crear cuenta */}
-          <div style={{ display: 'flex', gap: 4, background: '#0F1A2C', borderRadius: 10, padding: 4, marginBottom: 20 }}>
+          <div className="admin-auth-tabs">
             {[['entrar', 'Entrar'], ['crear', 'Crear cuenta']].map(([modo, etiqueta]) => (
               <button
                 key={modo}
+                type="button"
+                className={`admin-auth-tab${modoAuth === modo ? ' is-active' : ''}`}
                 onClick={() => { setModoAuth(modo); setLoginError(''); setRegError('') }}
-                style={{
-                  flex: 1,
-                  padding: '9px 0',
-                  borderRadius: 7,
-                  border: 'none',
-                  cursor: 'pointer',
-                  fontSize: 13,
-                  fontWeight: 750,
-                  background: modoAuth === modo ? 'var(--card)' : 'transparent',
-                  color: modoAuth === modo ? 'var(--text-strong)' : 'var(--muted)',
-                  boxShadow: modoAuth === modo ? '0 2px 8px rgba(0,0,0,0.35)' : 'none',
-                }}
               >
                 {etiqueta}
               </button>
@@ -2629,101 +2563,93 @@ export default function Admin() {
           </div>
 
           {modoAuth === 'entrar' ? (<>
-          <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 700, color: 'var(--text-strong)', marginBottom: 4, letterSpacing: 0 }}>Entrar al panel</h2>
-          <p style={{ fontSize: 12.5, color: 'var(--muted)', marginBottom: 22 }}>Para organizadores de quinielas.</p>
-          <label htmlFor="admin-email" style={lbl}>Correo</label>
+          <h2 className="admin-auth-title">Entrar al panel</h2>
+          <p className="admin-auth-subtitle">Para organizadores de quinielas.</p>
+          <label htmlFor="admin-email" className="admin-auth-label">Correo</label>
           <input
             id="admin-email"
+            className="admin-auth-input"
             type="email"
             placeholder="tu@correo.com"
             value={email}
             onChange={e => { setEmail(e.target.value); setLoginError('') }}
             onKeyDown={e => e.key === 'Enter' && entrar()}
-            style={{ marginBottom: 15, background: '#0F1A2C', borderColor: loginError ? 'var(--red)' : 'rgba(255,255,255,0.1)', borderRadius: 9, minHeight: 46 }}
+            style={{ borderColor: loginError ? 'var(--red)' : undefined }}
           />
-          <label htmlFor="admin-password" style={lbl}>Contraseña</label>
+          <label htmlFor="admin-password" className="admin-auth-label">Contraseña</label>
           <input
             id="admin-password"
+            className="admin-auth-input admin-auth-input--password"
             type="password"
             placeholder="Tu contraseña"
             value={password}
             onChange={e => { setPassword(e.target.value); setLoginError('') }}
             onKeyDown={e => e.key === 'Enter' && entrar()}
-            style={{ marginBottom: 9, background: '#0F1A2C', borderColor: loginError ? 'var(--red)' : 'rgba(255,255,255,0.1)', borderRadius: 9, minHeight: 46 }}
+            style={{ borderColor: loginError ? 'var(--red)' : undefined }}
           />
           <button
+            type="button"
+            className="admin-auth-forgot"
             onClick={recuperarPassword}
-            style={{
-              display: 'block',
-              marginLeft: 'auto',
-              marginBottom: 18,
-              padding: 0,
-              background: 'transparent',
-              border: 'none',
-              color: 'var(--green-light)',
-              fontSize: 12,
-              fontWeight: 750,
-              cursor: 'pointer',
-            }}
           >
             ¿Olvidaste tu contraseña?
           </button>
-          {loginError && <p style={{ fontSize: 12, color: '#FCA5A5', marginBottom: 12 }}>{loginError}</p>}
-          <button onClick={entrar} disabled={loginLoading} style={{ ...greenCtaStyle(loginLoading), width: '100%', padding: '13px', borderRadius: 10 }}>
+          {loginError && <p className="admin-auth-error">{loginError}</p>}
+          <button type="button" className="admin-auth-primary" onClick={entrar} disabled={loginLoading}>
             {loginLoading ? 'Entrando…' : 'Entrar'}
           </button>
           {resetMsg && (
-            <p style={{ fontSize: 12, color: 'var(--green-light)', marginTop: 12, lineHeight: 1.5 }}>
+            <p className="admin-auth-success" role="status">
               {resetMsg}
             </p>
           )}
           </>) : (<>
-          <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 700, color: 'var(--text-strong)', marginBottom: 4, letterSpacing: 0 }}>Crea tu cuenta</h2>
-          <p style={{ fontSize: 12.5, color: 'var(--muted)', marginBottom: 22 }}>
+          <h2 className="admin-auth-title">Crea tu cuenta</h2>
+          <p className="admin-auth-subtitle">
             Gratis. Solo para organizar quinielas: tus jugadores no necesitan cuenta.
           </p>
-          <label htmlFor="reg-nombre" style={lbl}>Tu nombre</label>
+          <label htmlFor="reg-nombre" className="admin-auth-label">Tu nombre</label>
           <input
             id="reg-nombre"
+            className="admin-auth-input"
             type="text"
             placeholder="¿Cómo te llamas?"
             value={regNombre}
             onChange={e => { setRegNombre(e.target.value); setRegError('') }}
-            style={{ marginBottom: 15, background: '#0F1A2C', borderColor: 'rgba(255,255,255,0.1)', borderRadius: 9, minHeight: 46 }}
           />
-          <label htmlFor="reg-email" style={lbl}>Correo</label>
+          <label htmlFor="reg-email" className="admin-auth-label">Correo</label>
           <input
             id="reg-email"
+            className="admin-auth-input"
             type="email"
             placeholder="tu@correo.com"
             value={regEmail}
             onChange={e => { setRegEmail(e.target.value); setRegError('') }}
-            style={{ marginBottom: 15, background: '#0F1A2C', borderColor: 'rgba(255,255,255,0.1)', borderRadius: 9, minHeight: 46 }}
           />
-          <label htmlFor="reg-p1" style={lbl}>Contraseña</label>
+          <label htmlFor="reg-p1" className="admin-auth-label">Contraseña</label>
           <input
             id="reg-p1"
+            className="admin-auth-input admin-auth-input--meter"
             type="password"
             placeholder="Mínimo 8 caracteres, letras y números"
             value={regP1}
             onChange={e => { setRegP1(e.target.value); setRegError('') }}
-            style={{ marginBottom: 8, background: '#0F1A2C', borderColor: 'rgba(255,255,255,0.1)', borderRadius: 9, minHeight: 46 }}
           />
-          <div style={{ marginBottom: 15 }}>
+          <div className="admin-auth-password-meter">
             <MedidorPassword pwd={regP1} />
           </div>
-          <label htmlFor="reg-p2" style={lbl}>Confirma tu contraseña</label>
+          <label htmlFor="reg-p2" className="admin-auth-label">Confirma tu contraseña</label>
           <input
             id="reg-p2"
+            className="admin-auth-input admin-auth-input--last"
             type="password"
             placeholder="Escríbela otra vez"
             value={regP2}
             onChange={e => { setRegP2(e.target.value); setRegError('') }}
             onKeyDown={e => e.key === 'Enter' && registrarse()}
-            style={{ marginBottom: 18, background: '#0F1A2C', borderColor: 'rgba(255,255,255,0.1)', borderRadius: 9, minHeight: 46 }}
           />
-          {regError && <p style={{ fontSize: 12, color: '#FCA5A5', marginBottom: 12 }}>{regError}</p>}
-          <button onClick={registrarse} disabled={regLoading} style={{ ...greenCtaStyle(regLoading), width: '100%', padding: '13px', borderRadius: 10 }}>
+          {regError && <p className="admin-auth-error">{regError}</p>}
+          <button type="button" className="admin-auth-primary" onClick={registrarse} disabled={regLoading}>
             {regLoading ? 'Creando cuenta…' : 'Crear mi cuenta'}
           </button>
           <p className="legal-note">
@@ -2731,6 +2657,8 @@ export default function Admin() {
             el <a href="/privacidad">Aviso de Privacidad</a>.
           </p>
           </>)}
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -3000,26 +2928,12 @@ export default function Admin() {
     </div>
   )
 
-  // Render principal
-  // En escritorio (≥960px) el super admin usa barra lateral fija + contenido ancho;
-  // en móvil se conserva el patrón actual (hero + tablero de módulos a pantalla completa).
-  const superDesktop = soySuper && esEscritorio
-  // La barra lateral cambia de módulo y sale de cualquier vista de detalle.
-  const navSuper = (modulo) => {
-    setVista('lista')
-    setQuinielaActual(null)
-    setFixtures([])
-    setSeleccionados([])
-    setCajaNombre(null)
-    setSuperModulo(modulo)
-  }
-  // Cliente: nuevo shell (barra lateral escritorio / pestañas móvil)
-  // El super admin en MÓVIL también usa este shell (barra inferior idéntica al
-  // admin): así maneja su panel tal cual lo haría un organizador. Solo el super
-  // de ESCRITORIO conserva su barra lateral propia (SidebarSuper).
-  const clienteShell = !superDesktop
-  const clienteDesktop = clienteShell && esEscritorio
-  const clienteMobile = clienteShell && !esEscritorio
+  // Render principal. Ambos roles comparten exactamente el mismo shell.
+  // El super admin solo agrega la pestaña `super` para herramientas globales.
+  const superModuleDesktop = soySuper && esEscritorio && clienteTab === 'super'
+  const clienteShell = true
+  const clienteDesktop = esEscritorio
+  const clienteMobile = !esEscritorio
   // El super móvil ya no tiene "home" ni "módulo" propios: navega por pestañas.
   const superMobileHome = false
   const superMobileModule = false
@@ -3027,40 +2941,40 @@ export default function Admin() {
   // Inicio/Quinielas se pintan con la rama cliente (diseño admin); Caja/Estadísticas
   // reusan sus módulos ya hechos fijando `superModulo`. Cuenta abre la ficha común.
   const navCliente = (tab) => {
+    if (tab === 'super' && !soySuper) return
     if (tab === 'cuenta') { abrirMiCuenta() }     // precarga el formulario y pone vista='cuenta'
     else { setVista('lista') }
     setQuinielaActual(null)
     setFixtures([])
     setSeleccionados([])
     setCajaNombre(null)
-    if (soySuper) {
-      // Caja/Estadísticas del super se renderizan por su módulo; el resto limpia.
+    if (soySuper && !esEscritorio) {
       setSuperModulo(tab === 'caja' ? 'caja' : tab === 'stats' ? 'estadisticas' : null)
+    } else {
+      setSuperModulo(null)
     }
     setClienteTab(tab)
   }
   return (
-    <div style={{ minHeight: '100vh', background: '#070d18', position: 'relative', zIndex: 0, display: (superDesktop || clienteDesktop) ? 'flex' : 'block', alignItems: (superDesktop || clienteDesktop) ? 'stretch' : undefined }}>
+    <div className="admin-workspace" style={{ minHeight: '100vh', background: '#070d18', position: 'relative', zIndex: 0, display: clienteDesktop ? 'flex' : 'block', alignItems: clienteDesktop ? 'stretch' : undefined }}>
       <div className="admin-bg-fade" aria-hidden="true" />
-      {superDesktop && (
-        <SidebarSuper
-          activo={vista === 'lista' ? superModulo : null}
-          onNav={navSuper}
-          counts={{ clientes: clientes.length || null, otros: quinielasOtras.length || null, mis: quinielasMias.length || null }}
-          email={auth.currentUser?.email}
-          uid={miUid}
-        />
-      )}
       {clienteDesktop && (
-        <SidebarCliente activo={clienteTab} onNav={navCliente} adminDoc={adminDoc} onSalir={salir} uid={miUid} />
+        <SidebarCliente activo={clienteTab} onNav={navCliente} adminDoc={adminDoc} uid={miUid} esSuper={soySuper} />
       )}
-      <div style={{ flex: (superDesktop || clienteDesktop) ? 1 : undefined, minWidth: 0, paddingBottom: clienteMobile ? 68 : undefined }}>
+      <div className="admin-workspace-main" style={{ flex: clienteDesktop ? 1 : undefined, minWidth: 0, paddingBottom: clienteMobile ? 68 : undefined }}>
         {clienteMobile && <MobileAdminHeader uid={miUid} mostrarNotificaciones />}
 
       {ayudaAbierta && <ComoFunciona onClose={() => setAyudaAbierta(false)} />}
       {tourAbierto && <TourBienvenida onClose={cerrarTour} />}
 
-      <div style={{ maxWidth: superDesktop ? 1200 : clienteDesktop ? 1040 : 580, margin: '0 auto', padding: (superDesktop || clienteDesktop) ? '26px 30px 48px' : (clienteMobile && vista === 'cuenta') ? '30px 20px 90px' : superMobileHome || superMobileModule ? '18px 16px 108px' : '1.25rem 1rem 3rem' }}>
+      <div
+        className={`admin-workspace-content${vista === 'lista' ? ' is-list' : ' is-detail'}${vista === 'cuenta' ? ' is-account' : ''}`}
+        style={{
+          maxWidth: superModuleDesktop ? 1280 : clienteDesktop ? (vista === 'lista' ? 1320 : vista === 'cuenta' ? 1180 : vista === 'gestionar' ? 1280 : 1040) : 580,
+          margin: '0 auto',
+          padding: clienteDesktop ? '34px 40px 56px' : (clienteMobile && vista === 'cuenta') ? '30px 20px 90px' : superMobileHome || superMobileModule ? '18px 16px 108px' : '1.25rem 1rem 3rem',
+        }}
+      >
 
         {/* Vista: Lista */}
         {vista === 'lista' && (
@@ -3081,7 +2995,7 @@ export default function Admin() {
 
             {loadingLista ? (
               <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--muted)', fontSize: 14 }}>Cargando…</div>
-            ) : (superDesktop || (soySuper && superModulo)) ? (
+            ) : (superModuleDesktop || (soySuper && superModulo)) ? (
               // Super escritorio (dashboard + módulos por sidebar) y super móvil en
               // Caja/Estadísticas (superModulo fijado por la barra inferior).
               (() => {
@@ -4211,8 +4125,8 @@ export default function Admin() {
                   )
 
                   return (
-                    <div className={superDesktop ? undefined : 'super-module-content'} style={superDesktop ? secCard : undefined}>
-                      {superDesktop && (
+                    <div className={superModuleDesktop ? undefined : 'super-module-content'} style={superModuleDesktop ? secCard : undefined}>
+                      {superModuleDesktop && (
                         <div style={{ ...secLabel, marginBottom: 4, justifyContent: 'space-between' }}>
                           <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                             <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 26, borderRadius: 8, background: 'var(--green-bg)', color: 'var(--green)' }}>
@@ -4259,31 +4173,9 @@ export default function Admin() {
                   )
                 })()
 
-                const enMovimientoSuper = [...mias.enJuego, ...mias.activas]
-                const movingCard = (q) => {
-                  const enJuego = esCerradaQ(q) && !esFinalizadaQ(q)
-                  const jugadores = conteos[q.id] ?? 0
-                  return (
-                    <button
-                      key={q.id}
-                      type="button"
-                      className="super-moving-card"
-                      onClick={() => gestionarQuiniela(q)}
-                    >
-                      <span className={`super-moving-badge ${enJuego ? 'is-playing' : 'is-open'}`}>
-                        {enJuego ? 'Jugándose' : 'Abierta'}
-                      </span>
-                      <span className="super-moving-name">{q.nombre}</span>
-                      <span className="super-moving-meta">
-                        {jugadores} jugador{jugadores === 1 ? '' : 'es'}
-                      </span>
-                    </button>
-                  )
-                }
-
                 // Título de página en móvil (mismo estilo que headerCli del admin),
                 // para que Caja/Estadísticas del super se vean igual que en un admin.
-                const tituloTabSuper = (titulo, sub, onBack, accion) => superDesktop ? null : (
+                const tituloTabSuper = (titulo, sub, onBack, accion) => superModuleDesktop ? null : (
                   <div style={{ marginBottom: 18 }}>
                     {onBack && (
                       <button onClick={onBack} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: 'transparent', border: 'none', color: 'var(--muted)', fontSize: 13, fontWeight: 700, cursor: 'pointer', padding: 0, marginBottom: 10 }}>
@@ -4299,15 +4191,24 @@ export default function Admin() {
                     </div>
                   </div>
                 )
-                // Vuelve a la ficha de Mi cuenta desde las sub-vistas (Otros/Clientes).
-                const volverACuentaSuper = () => { setSuperModulo(null); setVista('cuenta') }
-                const volverDesdeAnuncios = () => {
-                  if (superDesktop) { setVista('lista'); setSuperModulo('cuenta') }
-                  else volverACuentaSuper()
+                const volverACuentaSuper = () => {
+                  setSuperModulo(null)
+                  if (superModuleDesktop) {
+                    setClienteTab('super')
+                    setVista('lista')
+                  } else {
+                    setVista('cuenta')
+                  }
                 }
+                const volverDesdeAnuncios = volverACuentaSuper
                 return (
                   <>
-                    {!superModulo && superDesktop && (() => {
+                    {superModulo && superModuleDesktop && (
+                      <button type="button" onClick={volverACuentaSuper} className="super-desktop-back">
+                        <AdminIcon name="arrow-left" size={15} /> Super Admin
+                      </button>
+                    )}
+                    {!superModulo && superModuleDesktop && (() => {
                       // Inicio / tablero maestro (escritorio)
                       // statsDias trae 14 días (para la tendencia de Estadísticas); aquí solo usamos los últimos 7.
                       const d7 = (statsDias ?? []).slice(-7)
@@ -4366,7 +4267,7 @@ export default function Admin() {
                             <div>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
                                 <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 27, fontWeight: 700, color: 'var(--text-strong)', margin: 0, lineHeight: 1.1 }}>Hola, {saludo}</h2>
-                                <span style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '0.06em', padding: '5px 10px', borderRadius: 'var(--radius-full)', background: 'var(--neutral-bg)', color: 'var(--muted)' }}>PANEL MAESTRO</span>
+                                <span style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '0.06em', padding: '5px 10px', borderRadius: 'var(--radius-full)', background: 'var(--neutral-bg)', color: 'var(--muted)' }}>SUPER ADMIN</span>
                               </div>
                               <p style={{ fontSize: 12.5, color: 'var(--muted)', margin: '4px 0 0' }}>Vista general de toda la plataforma</p>
                             </div>
@@ -4382,30 +4283,16 @@ export default function Admin() {
                             {kpi({ icon: 'list', color: 'var(--muted)', tint: 'var(--neutral-bg)', valor: quinielas.length, label: 'Quinielas totales' })}
                             {kpi({ icon: 'wallet', color: 'var(--green-light)', tint: 'var(--green-bg)', valor: formatearMXN(cajaNeto), label: 'Caja global' })}
                             {kpi({ icon: 'trending-up', color: 'var(--muted)', tint: 'var(--neutral-bg)', valor: visitas7.toLocaleString('es-MX'), label: 'Visitas · 7 días' })}
-                            {kpi({ icon: 'heart', color: '#FB7185', tint: 'rgba(251,113,133,0.14)', valor: loadingDonativos ? '…' : formatearMXN(totalDonado), sub: donativos.length ? `· ${donativos.length}` : null, label: 'Donativos (Stripe)' })}
+                            {kpi({ icon: 'heart', color: 'var(--yellow-soft)', tint: 'rgba(250,204,21,0.12)', valor: loadingDonativos ? '…' : formatearMXN(totalDonado), sub: donativos.length ? `· ${donativos.length}` : null, label: 'Donativos (Stripe)' })}
                           </div>
-                          {/* En movimiento: accesos directos a quinielas abiertas o jugándose */}
-                          {enMovimientoSuper.length > 0 && (
-                            <div style={{ marginBottom: 20 }}>
-                              <p style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--muted-soft)', margin: '0 0 11px' }}>
-                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true" style={{ color: 'var(--muted)' }}>
-                                  <path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z" fill="currentColor" />
-                                </svg>
-                                En movimiento
-                              </p>
-                              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                                {enMovimientoSuper.map(movingCard)}
-                              </div>
-                            </div>
-                          )}
                           {/* Módulos */}
                           <p style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--muted-soft)', margin: '0 0 11px' }}>Módulos</p>
                           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 13, marginBottom: 20 }}>
                             {deskModule({ modulo: 'caja', icon: 'wallet', title: 'Caja global', desc: 'Saldos y movimientos de todos los participantes.' })}
                             {deskModule({ modulo: 'clientes', icon: 'users', title: 'Clientes', meta: clientes.length || null, desc: 'Altas, notas y estado de cuentas.' })}
                             {quinielasOtras.length > 0 && deskModule({ modulo: 'otros', icon: 'user', title: 'Otros admins', meta: quinielasOtras.length, desc: 'Quinielas agrupadas por cliente.' })}
-                            {deskModule({ modulo: 'mis', icon: 'ball', title: 'Mis quinielas', meta: misFlat.length || null, desc: 'Quinielas creadas desde tu cuenta.' })}
-                            {deskModule({ modulo: 'cuenta', icon: 'key', title: 'Mi cuenta', desc: 'Accesos, seguridad y herramientas.' })}
+                            {deskModule({ modulo: 'estadisticas', icon: 'chart', title: 'Estadísticas', desc: 'Actividad y uso de toda la plataforma.' })}
+                            {deskModule({ modulo: 'anuncios', icon: 'alert', title: 'Anuncios', desc: 'Avisos dirigidos a los administradores.' })}
                           </div>
                           {/* Actividad 7 días */}
                           <div style={{ background: 'linear-gradient(135deg, rgba(30,41,59,0.92), rgba(15,24,40,0.95))', border: '1px solid rgba(255,255,255,0.10)', borderRadius: 13, padding: '16px 18px', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 12px 26px rgba(0,0,0,0.32)', display: 'flex', alignItems: 'center', gap: 26 }}>
@@ -4428,17 +4315,14 @@ export default function Admin() {
                         </div>
                       )
                     })()}
-                    {superModulo === 'caja' && (superDesktop ? cajaDesktop : (<>{tituloTabSuper('Caja', 'Depósitos, premios y saldos por participante')}{cajaSection}</>))}
-                    {superModulo === 'clientes' && (superDesktop ? clientesDesktop : (<>{tituloTabSuper('Clientes', 'Altas, notas y estado de cuentas', volverACuentaSuper)}{clientesSection}</>))}
-                    {superModulo === 'mis' && (superDesktop ? misDesktop : misQuinielasSection)}
-                    {superModulo === 'otros' && (superDesktop ? otrosDesktop : (<>{tituloTabSuper('Otros admins', 'Quinielas agrupadas por cliente', volverACuentaSuper)}{otrosSection}</>))}
+                    {superModulo === 'caja' && (superModuleDesktop ? cajaDesktop : (<>{tituloTabSuper('Caja', 'Depósitos, premios y saldos por participante')}{cajaSection}</>))}
+                    {superModulo === 'clientes' && (superModuleDesktop ? clientesDesktop : (<>{tituloTabSuper('Clientes', 'Altas, notas y estado de cuentas', volverACuentaSuper)}{clientesSection}</>))}
+                    {superModulo === 'mis' && (superModuleDesktop ? misDesktop : misQuinielasSection)}
+                    {superModulo === 'otros' && (superModuleDesktop ? otrosDesktop : (<>{tituloTabSuper('Otros admins', 'Quinielas agrupadas por cliente', volverACuentaSuper)}{otrosSection}</>))}
                     {superModulo === 'anuncios' && (
                       <div style={{ maxWidth: 820, margin: '0 auto' }}>
-                        {superDesktop ? (
+                        {superModuleDesktop ? (
                           <div style={{ marginBottom: 20 }}>
-                            <button type="button" onClick={volverDesdeAnuncios} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: 0, marginBottom: 11, border: 0, background: 'transparent', color: 'var(--muted)', fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>
-                              <AdminIcon name="arrow-left" size={15} /> Mi cuenta
-                            </button>
                             <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 27, fontWeight: 700, color: 'var(--text-strong)', margin: 0, lineHeight: 1.1 }}>Anuncios para admins</h2>
                             <p style={{ fontSize: 12.5, color: 'var(--muted)', margin: '4px 0 0' }}>Crea, prueba y consulta los avisos del panel.</p>
                           </div>
@@ -4446,12 +4330,12 @@ export default function Admin() {
                         <AnnouncementComposer admins={clientes} />
                       </div>
                     )}
-                    {superModulo === 'estadisticas' && (superDesktop ? statsSection : (<>{tituloTabSuper('Estadísticas', 'Actividad de tus quinielas', undefined, (
+                    {superModulo === 'estadisticas' && (superModuleDesktop ? statsSection : (<>{tituloTabSuper('Estadísticas', 'Actividad de tus quinielas', undefined, (
                       <span style={{ display: 'inline-flex', alignItems: 'center', fontSize: 11, fontWeight: 700, color: 'var(--muted)', background: 'var(--neutral-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-full)', padding: '5px 12px', whiteSpace: 'nowrap', flexShrink: 0, marginTop: 2 }}>
                         Últimos 7 días
                       </span>
                     ))}{statsSection}</>))}
-                    {superModulo === 'cuenta' && superDesktop && (
+                    {superModulo === 'cuenta' && superModuleDesktop && (
                       <div style={{ maxWidth: 820, margin: '0 auto' }}>
                         <div style={{ marginBottom: 20 }}>
                           <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 27, fontWeight: 700, color: 'var(--text-strong)', margin: 0, lineHeight: 1.1 }}>Mi cuenta</h2>
@@ -4516,14 +4400,15 @@ export default function Admin() {
               const nombreCli = adminDoc?.nombre?.split(' ')[0] || 'admin'
               const tituloGrupo = { fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }
               const totalJugadores = quinielasMias.reduce((a, q) => a + (conteos[q.id] || 0), 0)
-              const headerCli = (titulo, sub, cta) => (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, marginBottom: 18 }}>
-                  <div>
+              const headerCli = (titulo, sub, cta, eyebrow) => (
+                <header className="admin-client-page-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, marginBottom: 18 }}>
+                  <div className="admin-client-page-heading">
+                    {eyebrow && <span className="admin-client-page-eyebrow">{eyebrow}</span>}
                     <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 700, color: 'var(--text-strong)', margin: 0, lineHeight: 1.1 }}>{titulo}</h2>
                     {sub && <p style={{ fontSize: 12.5, color: 'var(--muted)', margin: '4px 0 0' }}>{sub}</p>}
                   </div>
                   {cta}
-                </div>
+                </header>
               )
               const ctaNueva = clienteDesktop ? (
                 <button onClick={abrirNuevaQuiniela} style={{ ...greenCtaStyle(false), height: 38, display: 'inline-flex', alignItems: 'center', gap: 7, padding: '0 18px', flexShrink: 0 }}>
@@ -4538,15 +4423,22 @@ export default function Admin() {
                 const gridQuinielasStyle = { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12, alignItems: 'start' }
                 return (
                   <>
-                    <p style={{ ...tituloGrupo, marginTop }}>{titulo}</p>
+                    {clienteDesktop ? (
+                      <div className="admin-client-section-heading" style={{ marginTop }}>
+                        <p style={tituloGrupo}>{titulo}</p>
+                        <span>{items.length}</span>
+                      </div>
+                    ) : (
+                      <p style={{ ...tituloGrupo, marginTop }}>{titulo}</p>
+                    )}
                     {clienteDesktop ? (
                       <>
-                        <div style={gridQuinielasStyle}>
+                        <div className="admin-desktop-q-grid" style={gridQuinielasStyle}>
                           {visibles.map(q => <QuinielaCard key={q.id} q={q} conteos={conteos} onGestionar={gestionarQuiniela} superCompact softManage />)}
                         </div>
                         {extras.length > 0 && (
                           <SmoothCollapse open={!!abierto}>
-                            <div style={{ ...gridQuinielasStyle, marginTop: 12 }}>
+                            <div className="admin-desktop-q-grid" style={{ ...gridQuinielasStyle, marginTop: 12 }}>
                               {extras.map(q => <QuinielaCard key={q.id} q={q} conteos={conteos} onGestionar={gestionarQuiniela} superCompact softManage />)}
                             </div>
                           </SmoothCollapse>
@@ -4687,39 +4579,119 @@ export default function Admin() {
                   })()}
                 </>
               )
-              const proximamente = (icon, titulo, desc) => (
-                <div style={{ ...card, textAlign: 'center', padding: '3rem 2rem' }}>
-                  <div style={{ color: 'var(--muted)', marginBottom: 12, display: 'flex', justifyContent: 'center' }}><AdminIcon name={icon} size={40} /></div>
-                  <span style={{ display: 'inline-block', fontSize: 10.5, fontWeight: 800, letterSpacing: '0.06em', padding: '5px 10px', borderRadius: 'var(--radius-full)', background: 'var(--neutral-bg)', color: 'var(--muted)', marginBottom: 12 }}>PRÓXIMAMENTE</span>
-                  <p style={{ fontWeight: 700, fontSize: 16, color: 'var(--text)', marginBottom: 8 }}>{titulo}</p>
-                  <p style={{ fontSize: 13, color: 'var(--muted)', maxWidth: 380, margin: '0 auto', lineHeight: 1.5 }}>{desc}</p>
+              const proximamente = (icono, titulo, descripcion) => (
+                <div className="admin-coming-soon">
+                  <span className="admin-coming-soon-icon"><AdminIcon name={icono} size={clienteDesktop ? 28 : 40} /></span>
+                  <span className="admin-coming-soon-badge">PRÓXIMAMENTE</span>
+                  <h3>{titulo}</h3>
+                  <p>{descripcion}</p>
                 </div>
               )
 
               // Router
               if (clienteTab === 'quinielas') {
-                return (<>{headerCli('Quinielas', `${quinielasMias.length} en total · ${mias.activas.length} activa${mias.activas.length !== 1 ? 's' : ''}`, ctaNueva)}{listaQuinielas}</>)
+                return (<section className="admin-client-page admin-client-quinielas-page">{headerCli('Quinielas', `${quinielasMias.length} en total · ${mias.activas.length} activa${mias.activas.length !== 1 ? 's' : ''}`, ctaNueva, 'GESTIÓN')}{listaQuinielas}</section>)
               }
               if (clienteTab === 'caja') {
-                return (<>{headerCli('Caja', 'Depósitos, premios y saldos por participante')}{proximamente('wallet', 'Caja próximamente', 'Aquí podrás registrar depósitos, inscripciones, premios y retiros por participante, y ver el saldo de cada quiniela. Estamos afinando esta sección.')}</>)
+                return (<section className="admin-client-page">{headerCli('Caja', 'Depósitos, premios y saldos por participante', null, 'FINANZAS')}{proximamente('wallet', 'Caja próximamente', 'Aquí podrás registrar depósitos, inscripciones, premios y retiros por participante, y ver el saldo de cada quiniela. Estamos afinando esta sección.')}</section>)
               }
               if (clienteTab === 'stats') {
-                return (<>{headerCli('Estadísticas', 'Actividad de tus quinielas')}{proximamente('chart', 'Estadísticas próximamente', 'Aquí verás visitas, predicciones enviadas y participantes más activos de tus quinielas. Estamos afinando esta sección.')}</>)
+                return (<section className="admin-client-page">{headerCli('Estadísticas', 'Actividad de tus quinielas', null, 'RENDIMIENTO')}{proximamente('chart', 'Estadísticas próximamente', 'Aquí verás visitas, predicciones enviadas y participantes más activos de tus quinielas. Estamos afinando esta sección.')}</section>)
               }
               if (clienteTab === 'soporte') {
                 return (
-                  <>
-                    {headerCli('Soporte', '¿Necesitas ayuda con tu panel?')}
+                  <section className="admin-client-page admin-client-support-page">
+                    {headerCli('Soporte', '¿Necesitas ayuda con tu panel?', null, 'AYUDA')}
                     {soporteOpciones()}
-                  </>
+                  </section>
+                )
+              }
+              if (clienteTab === 'super' && soySuper) {
+                const modulosSuper = [
+                  ['clientes', 'users', 'Clientes', `${clientes.length} cuenta${clientes.length !== 1 ? 's' : ''}`],
+                  ['otros', 'user', 'Otros admins', `${quinielasOtras.length} quiniela${quinielasOtras.length !== 1 ? 's' : ''}`],
+                  ['caja', 'wallet', 'Caja global', 'Saldos y movimientos'],
+                  ['estadisticas', 'chart', 'Estadísticas', 'Actividad de plataforma'],
+                  ['anuncios', 'alert', 'Anuncios', 'Avisos para administradores'],
+                ]
+                return (
+                  <section className="admin-client-page">
+                    {headerCli('Super Admin', 'Herramientas exclusivas de plataforma', null, 'PLATAFORMA')}
+                    <div className="super-hub-grid">
+                      {modulosSuper.map(([modulo, icono, titulo, detalle]) => (
+                        <button
+                          key={modulo}
+                          type="button"
+                          className="super-hub-card"
+                          onClick={() => setSuperModulo(modulo)}
+                        >
+                          <span className="super-hub-icon"><AdminIcon name={icono} size={19} /></span>
+                          <span className="super-hub-copy">
+                            <strong>{titulo}</strong>
+                            <small>{detalle}</small>
+                          </span>
+                          <AdminIcon name="chevron-right" size={16} style={{ color: 'var(--muted)' }} />
+                        </button>
+                      ))}
+                    </div>
+                  </section>
                 )
               }
               // clienteTab === 'inicio' (default)
-              const abiertas = [...miasOrdenadas.activas, ...miasOrdenadas.enJuego].slice(0, 3)
+              const abiertas = [...miasOrdenadas.activas, ...miasOrdenadas.enJuego].slice(0, clienteDesktop ? 4 : 3)
               const quinielasInicio = abiertas.length > 0
                 ? abiertas
                 : (clienteMobile ? miasOrdenadas.finalizadas.slice(0, 1) : [])
               const tituloQuinielasInicio = abiertas.length > 0 ? 'Tus quinielas' : 'Última finalizada'
+              if (clienteDesktop) {
+                const abiertasInicio = miasOrdenadas.activas.slice(0, 3)
+                const enJuegoInicio = miasOrdenadas.enJuego.slice(0, 3)
+                const grupoInicio = (titulo, items, total) => items.length > 0 && (
+                  <section className="admin-desktop-home-q-group">
+                    <div className="admin-client-section-heading">
+                      <p style={tituloGrupo}>{titulo}</p>
+                      <span>{total}</span>
+                    </div>
+                    <div className="admin-desktop-home-q-grid">
+                      {items.map(q => <QuinielaCard key={q.id} q={q} conteos={conteos} onGestionar={gestionarQuiniela} superCompact softManage />)}
+                    </div>
+                  </section>
+                )
+                const indicadores = [
+                  { v: quinielasMias.length, l: 'Quinielas totales', icon: 'ball' },
+                  { v: mias.activas.length, l: 'Abiertas', icon: 'unlock', accent: true },
+                  { v: mias.enJuego.length, l: 'Jugándose', icon: 'chart', accent: true },
+                  { v: totalJugadores, l: 'Participantes', icon: 'users' },
+                ]
+                return (
+                  <section className="admin-client-page admin-desktop-home">
+                    {headerCli(`Hola, ${nombreCli}`, 'Este es el estado de tus quinielas hoy.', ctaNueva, 'RESUMEN')}
+                    <div className="admin-desktop-kpi-strip">
+                      {indicadores.map(s => (
+                        <div key={s.l} className="admin-desktop-kpi">
+                          <span className={`admin-desktop-kpi-icon${s.accent ? ' is-accent' : ''}`}><AdminIcon name={s.icon} size={18} /></span>
+                          <span className="admin-desktop-kpi-copy">
+                            <strong>{s.v}</strong>
+                            <small>{s.l}</small>
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                    <section className="admin-desktop-home-primary">
+                        <div className="admin-desktop-section-header">
+                          <div>
+                            <span>ACTIVIDAD RECIENTE</span>
+                            <h3>Tus quinielas</h3>
+                          </div>
+                          <button type="button" onClick={() => navCliente('quinielas')}>Ver todas <AdminIcon name="chevron-right" size={14} /></button>
+                        </div>
+                        {grupoInicio('Abiertas', abiertasInicio, miasOrdenadas.activas.length)}
+                        {grupoInicio('Jugándose', enJuegoInicio, miasOrdenadas.enJuego.length)}
+                        {abiertasInicio.length === 0 && enJuegoInicio.length === 0 && quinielasMias.length === 0 ? listaQuinielas : null}
+                    </section>
+                  </section>
+                )
+              }
               return (
                 <>
                   {headerCli(`Hola, ${nombreCli}`, 'Tu panel de quinielas', ctaNueva)}
@@ -4741,13 +4713,7 @@ export default function Admin() {
                         <p style={tituloGrupo}>{tituloQuinielasInicio}</p>
                         <button onClick={() => navCliente('quinielas')} style={{ background: 'transparent', border: 'none', color: 'var(--green)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Ver todas ›</button>
                       </div>
-                      {clienteDesktop ? (
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12, alignItems: 'start' }}>
-                          {quinielasInicio.map(q => <QuinielaCard key={q.id} q={q} conteos={conteos} onGestionar={gestionarQuiniela} superCompact softManage />)}
-                        </div>
-                      ) : (
-                        quinielasInicio.map(q => <QuinielaCard key={q.id} q={q} conteos={conteos} onGestionar={gestionarQuiniela} superCompact softManage />)
-                      )}
+                      {quinielasInicio.map(q => <QuinielaCard key={q.id} q={q} conteos={conteos} onGestionar={gestionarQuiniela} superCompact softManage />)}
                     </>
                   ) : quinielasMias.length === 0 ? listaQuinielas : null}
                 </>
@@ -4871,16 +4837,36 @@ export default function Admin() {
           return (
             <>
               <div className={`admin-account-page${correoCuentaSheetAbierto || eliminarCuentaAbierta ? ' is-sheet-open' : ''}`}>
+                <header className="admin-account-desktop-header">
+                  <div>
+                    <span>PERFIL Y SEGURIDAD</span>
+                    <h1>Mi cuenta</h1>
+                    <p>Administra tus datos personales, acceso y opciones de soporte.</p>
+                  </div>
+                </header>
+
                 <section className="admin-account-profile">
                   <span className="admin-account-avatar">
                     {iniciales(cuentaNombre || adminDoc?.nombre || adminDoc?.email || auth.currentUser?.email)}
                   </span>
-                  <h2 className="admin-account-name">{nombreCuenta}</h2>
-                  <span className="admin-account-role">{soySuper ? 'Super Admin' : 'Organizador'}</span>
+                  <div className="admin-account-profile-copy">
+                    <h2 className="admin-account-name">{nombreCuenta}</h2>
+                    <span className="admin-account-profile-email">{cuentaEmail}</span>
+                    <span className="admin-account-role">{soySuper ? 'Super Admin' : 'Organizador'}</span>
+                  </div>
+                  {!esEscritorio && (
+                    <span className="admin-account-profile-status">
+                      <span aria-hidden="true" />
+                      Cuenta activa
+                    </span>
+                  )}
                 </section>
 
-                <p className="admin-account-group-label">Datos</p>
-                <section className="admin-account-group" aria-label="Datos de cuenta">
+                <div className="admin-account-content">
+                  <div className="admin-account-main">
+                  <div className="admin-account-desktop-column">
+                  <p className="admin-account-group-label">Datos</p>
+                  <section className="admin-account-group" aria-label="Datos de cuenta">
                   {editandoCuentaCampo === 'nombre' ? (
                     <div className="admin-account-data-row is-editing">
                       <p className="admin-account-editing-label">Editando nombre</p>
@@ -4965,12 +4951,14 @@ export default function Admin() {
                       <AdminIcon name="lock" size={15} />
                     </button>
                   </div>
-                </section>
+                  </section>
 
-                {cuentaMsg && <p className={`admin-account-message is-${cuentaMsg.tipo}`}>{cuentaMsg.texto}</p>}
+                  {cuentaMsg && <p className={`admin-account-message is-${cuentaMsg.tipo}`}>{cuentaMsg.texto}</p>}
+                  </div>
 
-                <p className="admin-account-group-label">Ajustes</p>
-                <section className="admin-account-group" aria-label="Ajustes de cuenta">
+                  <div className="admin-account-desktop-column">
+                  <p className="admin-account-group-label">Ajustes</p>
+                  <section className="admin-account-group" aria-label="Ajustes de cuenta">
                   <button
                     type="button"
                     className="admin-account-setting-row"
@@ -5037,69 +5025,111 @@ export default function Admin() {
 
 	                </section>
 
-                {soySuper && (
-                  <>
-                    <p className="admin-account-group-label">Súper admin</p>
-                    <section className="admin-account-group" aria-label="Herramientas de super admin">
-                      <button type="button" className="admin-account-setting-row" onClick={() => { setSuperModulo('otros'); setVista('lista') }}>
-                        <span className="admin-account-setting-icon">
-                          <AdminIcon name="user" size={16} />
-                        </span>
-                        <span className="admin-account-setting-label">Otros admins</span>
-                        <AdminIcon name="chevron-right" size={16} style={{ color: 'var(--muted)' }} />
-                      </button>
-                      <button type="button" className="admin-account-setting-row" onClick={() => { setSuperModulo('clientes'); setVista('lista') }}>
-                        <span className="admin-account-setting-icon">
-                          <AdminIcon name="users" size={16} />
-                        </span>
-                        <span className="admin-account-setting-label">Clientes</span>
-                        <AdminIcon name="chevron-right" size={16} style={{ color: 'var(--muted)' }} />
-                      </button>
-                      <button type="button" className="admin-account-setting-row" onClick={() => { setSuperModulo('anuncios'); setVista('lista') }}>
-                        <span className="admin-account-setting-icon">
-                          <AdminIcon name="alert" size={16} />
-                        </span>
-                        <span className="admin-account-setting-label">Anuncios para admins</span>
-                        <AdminIcon name="chevron-right" size={16} style={{ color: 'var(--muted)' }} />
-                      </button>
-                    </section>
-                  </>
+                  {soySuper && !esEscritorio && (
+                    <>
+                      <p className="admin-account-group-label">Súper admin</p>
+                      <section className="admin-account-group" aria-label="Herramientas de super admin">
+                        <button type="button" className="admin-account-setting-row" onClick={() => { setSuperModulo('otros'); setVista('lista') }}>
+                          <span className="admin-account-setting-icon"><AdminIcon name="user" size={16} /></span>
+                          <span className="admin-account-setting-label">Otros admins</span>
+                          <AdminIcon name="chevron-right" size={16} style={{ color: 'var(--muted)' }} />
+                        </button>
+                        <button type="button" className="admin-account-setting-row" onClick={() => { setSuperModulo('clientes'); setVista('lista') }}>
+                          <span className="admin-account-setting-icon"><AdminIcon name="users" size={16} /></span>
+                          <span className="admin-account-setting-label">Clientes</span>
+                          <AdminIcon name="chevron-right" size={16} style={{ color: 'var(--muted)' }} />
+                        </button>
+                        <button type="button" className="admin-account-setting-row" onClick={() => { setSuperModulo('anuncios'); setVista('lista') }}>
+                          <span className="admin-account-setting-icon"><AdminIcon name="alert" size={16} /></span>
+                          <span className="admin-account-setting-label">Anuncios para admins</span>
+                          <AdminIcon name="chevron-right" size={16} style={{ color: 'var(--muted)' }} />
+                        </button>
+                      </section>
+                    </>
+                  )}
+                  </div>
+                  </div>
+
+                  <aside className="admin-account-side">
+                    <div className="admin-account-aside-actions">
+                      {esEscritorio ? (
+                        <>
+                      <div className="admin-account-session-copy">
+                        <span className="admin-account-session-icon"><AdminIcon name="key" size={17} /></span>
+                        <div>
+                          <strong>Sesión y cuenta</strong>
+                          <small>Cierra tu sesión en este dispositivo o elimina tu cuenta definitivamente.</small>
+                        </div>
+                      </div>
+                      <div className="admin-account-session-actions">
+                        <button type="button" className="admin-account-logout-btn" onClick={salir}>
+                          <AdminIcon name="logout" size={17} />
+                          Cerrar sesión
+                        </button>
+
+                        {(soySuper || adminDoc) && (
+                          <section className="admin-account-danger-zone" aria-label="Eliminar cuenta">
+                          <button
+                            type="button"
+                            className="admin-account-delete-link"
+                            onClick={soySuper ? () => setEliminarCuentaSoloUsuariosAbierta(true) : abrirEliminarCuenta}
+                          >
+                            Eliminar mi cuenta
+                          </button>
+                          </section>
+                        )}
+                      </div>
+                        </>
+                      ) : (
+                        <>
+                          <button type="button" className="admin-account-logout-btn" onClick={salir}>
+                            <AdminIcon name="logout" size={17} />
+                            Cerrar sesión
+                          </button>
+                          {(soySuper || adminDoc) && (
+                            <section className="admin-account-danger-zone" aria-label="Eliminar cuenta">
+                              <button
+                                type="button"
+                                className="admin-account-delete-link"
+                                onClick={soySuper ? () => setEliminarCuentaSoloUsuariosAbierta(true) : abrirEliminarCuenta}
+                              >
+                                Eliminar mi cuenta
+                              </button>
+                            </section>
+                          )}
+                        </>
+                      )}
+                    </div>
+
+                    {!esEscritorio && (
+                      <section className="admin-account-footer-group" aria-label="Apoyo y legal">
+                        <a href="/donar" className="admin-account-footer-link is-apoyar">
+                          <AdminIcon name="heart" size={16} />
+                          Apoyar el proyecto
+                        </a>
+                        <a href={soporteLink} target="_blank" rel="noreferrer" className="admin-account-footer-link">Contacto</a>
+                        <a href="/privacidad" className="admin-account-footer-link">Aviso de privacidad</a>
+                        <a href="/terminos" className="admin-account-footer-link">Términos y condiciones</a>
+                        <hr className="admin-account-footer-divider" />
+                        <p className="admin-account-footer-copy">© {new Date().getFullYear()} QuinielApp · v1.0</p>
+                      </section>
+                    )}
+                  </aside>
+                </div>
+                {esEscritorio && (
+                  <footer className="admin-account-desktop-footer" aria-label="Apoyo y legal">
+                    <a href="/donar" className="admin-account-desktop-support-link">
+                      <AdminIcon name="heart" size={16} />
+                      Apoyar el proyecto
+                    </a>
+                    <nav className="admin-account-desktop-legal" aria-label="Enlaces legales">
+                      <a href={soporteLink} target="_blank" rel="noreferrer">Contacto</a>
+                      <a href="/privacidad">Aviso de privacidad</a>
+                      <a href="/terminos">Términos y condiciones</a>
+                    </nav>
+                    <p>© {new Date().getFullYear()} QuinielApp</p>
+                  </footer>
                 )}
-
-                <button type="button" className="admin-account-logout-btn" onClick={salir}>
-                  <AdminIcon name="logout" size={17} />
-                  Cerrar sesión
-                </button>
-
-                {(soySuper || adminDoc) && (
-                  <section className="admin-account-danger-zone" aria-label="Eliminar cuenta">
-                    <button
-                      type="button"
-                      className="admin-account-delete-link"
-                      onClick={soySuper ? () => setEliminarCuentaSoloUsuariosAbierta(true) : abrirEliminarCuenta}
-                    >
-                      Eliminar mi cuenta
-                    </button>
-                  </section>
-                )}
-
-                <section className="admin-account-footer-group" aria-label="Apoyo y legal">
-                  <a href="/donar" className="admin-account-footer-link is-apoyar">
-                    <AdminIcon name="heart" size={16} />
-                    Apoyar el proyecto
-                  </a>
-                  <a href={soporteLink} target="_blank" rel="noreferrer" className="admin-account-footer-link">
-                    Contacto
-                  </a>
-                  <a href="/privacidad" className="admin-account-footer-link">
-                    Aviso de privacidad
-                  </a>
-                  <a href="/terminos" className="admin-account-footer-link">
-                    Términos y condiciones
-                  </a>
-                  <hr className="admin-account-footer-divider" />
-                  <p className="admin-account-footer-copy">© {new Date().getFullYear()} QuinielApp · v1.0</p>
-                </section>
               </div>
 
               {correoCuentaSheetAbierto && (
@@ -5307,29 +5337,65 @@ export default function Admin() {
               ? { label: 'Jugándose', bg: 'var(--green-bg)', color: 'var(--green-light)' }
               : { label: 'Abierta', bg: 'var(--green-bg)', color: 'var(--green)' }
           const volverAtras = () => volverVistaAdmin(() => { setVista('lista'); setQuinielaActual(null); setFixtures([]); setSeleccionados([]); setCajaNombre(null) })
+          const controlSyncResultados = (
+            <div className="admin-manage-results-sync" style={{ display: 'grid', justifyItems: 'center', gap: 6, marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--border)', textAlign: 'center' }}>
+              <p style={{ fontSize: 11.5, color: 'var(--muted)', margin: 0, lineHeight: 1.45 }}>
+                ¿Ya terminó un partido y no aparece el marcador?
+              </p>
+              <button
+                type="button"
+                onClick={actualizarMarcadoresAhora}
+                disabled={actualizarMarcadoresDisabled}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+                  padding: '7px 11px', borderRadius: 'var(--radius-sm)',
+                  border: '1px solid var(--border-strong)',
+                  background: actualizarMarcadoresDisabled ? 'var(--card-light)' : 'transparent',
+                  color: actualizarMarcadoresDisabled ? 'var(--muted)' : 'var(--green)',
+                  fontSize: 12, fontWeight: 800,
+                  cursor: actualizarMarcadoresDisabled ? 'not-allowed' : 'pointer',
+                }}
+              >
+                <AdminIcon name="refresh" size={13} style={sincronizandoResultados ? { animation: 'refresh-spin .75s linear infinite' } : undefined} />
+                {sincronizandoResultados ? 'Actualizando…' : 'Actualizar ahora'}
+              </button>
+              {syncResultadosMsg && (
+                <p style={{
+                  fontSize: 11.5,
+                  color: syncResultadosMsg.tipo === 'ok' ? 'var(--green)' : syncResultadosMsg.tipo === 'error' ? 'var(--red)' : 'var(--muted)',
+                  margin: 0,
+                  lineHeight: 1.45,
+                }}>
+                  {syncResultadosMsg.texto}
+                </p>
+              )}
+            </div>
+          )
           return (
-            <>
+            <section className="admin-manage-page">
               {/* Volver (escritorio super o cualquier vista del cliente: el hero con su back está oculto) */}
-              {(superDesktop || clienteShell) && (
-                <button onClick={volverAtras} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: 'transparent', border: 'none', color: 'var(--muted)', fontSize: 13, fontWeight: 700, cursor: 'pointer', padding: 0, marginBottom: 14 }}>
+              {clienteShell && (
+                <button className="admin-manage-back" onClick={volverAtras} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: 'transparent', border: 'none', color: 'var(--muted)', fontSize: 13, fontWeight: 700, cursor: 'pointer', padding: 0, marginBottom: 14 }}>
                   <AdminIcon name="arrow-left" size={15} /> {soySuper ? 'Mis quinielas' : 'Quinielas'}
                 </button>
               )}
               {/* Encabezado */}
-              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 14 }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontFamily: superDesktop ? 'var(--font-display)' : undefined, fontSize: superDesktop ? 24 : 15, fontWeight: 700, color: 'var(--text-strong)', marginBottom: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <header className="admin-manage-header" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 14 }}>
+                <div className="admin-manage-heading" style={{ flex: 1, minWidth: 0 }}>
+                  <span className="admin-manage-eyebrow">GESTIONAR QUINIELA</span>
+                  <p className="admin-manage-title" style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-strong)', marginBottom: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {quinielaActual.nombre}
                   </p>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: 10.5, fontWeight: 700, padding: '3px 9px', borderRadius: 'var(--radius-full)', background: estadoBadge.bg, color: estadoBadge.color }}>{estadoBadge.label}</span>
-                    <span style={{ fontSize: 12, color: 'var(--muted)' }}>
+                  <div className="admin-manage-meta" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <span className="admin-manage-status" style={{ fontSize: 10.5, fontWeight: 700, padding: '3px 9px', borderRadius: 'var(--radius-full)', background: estadoBadge.bg, color: estadoBadge.color }}>{estadoBadge.label}</span>
+                    <span className="admin-manage-created" style={{ fontSize: 12, color: 'var(--muted)' }}>
                       {quinielaActual.partidos?.length ?? 0} partidos · Creada {formatFecha(quinielaActual.creada)}
                     </span>
                   </div>
                 </div>
                 {(!estaCerrada || puedeReabrir) && (
                   <button
+                    className="admin-manage-state-action"
                     onClick={toggleCerrar}
                     disabled={toggling}
                     aria-label={toggling ? undefined : (estaCerrada ? 'Reabrir quiniela' : 'Cerrar quiniela')}
@@ -5349,17 +5415,18 @@ export default function Admin() {
                     )}
                   </button>
                 )}
-              </div>
+              </header>
 
               {/* Tabs */}
-              <div style={{ display: 'flex', gap: 4, background: 'var(--bg-soft)', borderRadius: 'var(--radius-sm)', padding: 4, marginBottom: 16, border: '1px solid var(--border)' }}>
+              <nav className="admin-manage-tabs" style={{ display: 'flex', gap: 4, background: 'var(--bg-soft)', borderRadius: 'var(--radius-sm)', padding: 4, marginBottom: 16, border: '1px solid var(--border)' }} aria-label="Secciones de la quiniela">
                 {[
                   { key: 'resultados',   icon: 'ball',   label: 'Resultados' },
-                  { key: 'participantes', icon: 'users',  label: `${conteos[quinielaActual.id] ?? 0}` },
+                  { key: 'participantes', icon: 'users',  label: clienteDesktop ? `Participantes (${conteos[quinielaActual.id] ?? 0})` : `${conteos[quinielaActual.id] ?? 0}` },
                   { key: 'editar',       icon: 'pencil', label: 'Editar' },
                   { key: 'compartir',    icon: 'link',   label: 'Compartir' },
                 ].map(t => (
                   <button
+                    className={`admin-manage-tab${tab === t.key ? ' is-active' : ''}`}
                     key={t.key} onClick={() => setTab(t.key)}
                     style={{
                       flex: 1, padding: '9px 8px', fontSize: 13, fontWeight: 700,
@@ -5374,12 +5441,14 @@ export default function Admin() {
                     {t.label}
                   </button>
                 ))}
-              </div>
+              </nav>
+
+              <div className={`admin-manage-tab-content is-${tab}${tab === 'editar' && conteoPredicciones === 0 ? ' has-fixture-search' : ''}`}>
 
               {/* Tab: Resultados */}
               {tab === 'resultados' && (
                 <>
-                  <div style={card}>
+                  <div className="admin-manage-results-card" style={card}>
                     <label style={{ ...lbl, marginBottom: 6 }}>Marcadores</label>
                     <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 14, lineHeight: 1.5 }}>
                       Se llenan <strong style={{ color: 'var(--green)' }}>automáticamente</strong> cuando termina cada partido.
@@ -5404,6 +5473,7 @@ export default function Admin() {
 
                       return (
                         <div
+                          className="admin-manage-result-row"
                           key={i}
                           style={{
                             padding: '12px 4px',
@@ -5411,7 +5481,7 @@ export default function Admin() {
                           }}
                         >
                           {/* Fila horizontal estilo ranking: local: marcador: visitante */}
-                          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) auto minmax(0,1fr)', gap: 10, alignItems: 'center' }}>
+                          <div className="admin-manage-result-match" style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) auto minmax(0,1fr)', gap: 10, alignItems: 'center' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0, justifyContent: 'flex-end' }}>
                               <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'right' }}>
                                 {p.local || `Local ${i + 1}`}
@@ -5443,42 +5513,12 @@ export default function Admin() {
 	                        </div>
 	                      )
 	                    })}
-	                    <div style={{ display: 'grid', justifyItems: 'center', gap: 6, marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--border)', textAlign: 'center' }}>
-	                      <p style={{ fontSize: 11.5, color: 'var(--muted)', margin: 0, lineHeight: 1.45 }}>
-	                        ¿Ya terminó un partido y no aparece el marcador?
-	                      </p>
-	                      <button
-	                        type="button"
-	                        onClick={actualizarMarcadoresAhora}
-	                        disabled={actualizarMarcadoresDisabled}
-	                        style={{
-	                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7,
-	                          padding: '7px 11px', borderRadius: 'var(--radius-sm)',
-	                          border: '1px solid var(--border-strong)',
-	                          background: actualizarMarcadoresDisabled ? 'var(--card-light)' : 'transparent',
-	                          color: actualizarMarcadoresDisabled ? 'var(--muted)' : 'var(--green)',
-	                          fontSize: 12, fontWeight: 800,
-	                          cursor: actualizarMarcadoresDisabled ? 'not-allowed' : 'pointer',
-	                        }}
-	                      >
-	                        <AdminIcon name="refresh" size={13} style={sincronizandoResultados ? { animation: 'refresh-spin .75s linear infinite' } : undefined} />
-	                        {sincronizandoResultados ? 'Actualizando…' : 'Actualizar ahora'}
-	                      </button>
-	                      {syncResultadosMsg && (
-	                        <p style={{
-	                          fontSize: 11.5,
-	                          color: syncResultadosMsg.tipo === 'ok' ? 'var(--green)' : syncResultadosMsg.tipo === 'error' ? 'var(--red)' : 'var(--muted)',
-	                          margin: 0,
-	                          lineHeight: 1.45,
-	                        }}>
-	                          {syncResultadosMsg.texto}
-	                        </p>
-	                      )}
-	                    </div>
-                  </div>
+	                    {clienteMobile && controlSyncResultados}
+	                </div>
+	                    {clienteDesktop && controlSyncResultados}
 
                   {tienePremio(quinielaActual) && esFinalizadaQ(quinielaActual) && (
-                    <div style={{
+                    <div className="admin-manage-prize-card" style={{
                       marginTop: 16, padding: '14px 16px',
                       background: 'linear-gradient(135deg, rgba(30,41,59,0.92), rgba(15,24,40,0.95))', borderRadius: 14,
                       border: '1px solid rgba(255,255,255,0.10)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 12px 26px rgba(0,0,0,0.32)',
@@ -5518,7 +5558,7 @@ export default function Admin() {
 
               {/* Tab: Participantes */}
               {tab === 'participantes' && (
-                <div style={card}>
+                <div className="admin-manage-participants-card" style={card}>
                   <label style={{ ...lbl, marginBottom: 14 }}>Predicciones registradas</label>
 
                   {loadingPredicciones ? (
@@ -5612,6 +5652,7 @@ export default function Admin() {
                         const togglingEste = togglingPago === pred.id
                         return (
                           <div
+                            className="admin-manage-participant-row"
                             key={pred.id}
                             style={{
                               display: 'flex',
@@ -5665,7 +5706,7 @@ export default function Admin() {
                                 {fecha}
                               </p>
                             </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, flexWrap: 'wrap' }}>
+                            <div className="admin-manage-participant-actions" style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, flexWrap: 'wrap' }}>
                               {esTipoBote && (
                                 <button
                                   onClick={() => togglePago(pred.id)}
@@ -5739,7 +5780,7 @@ export default function Admin() {
               {tab === 'editar' && (
                 <>
                   {/* 1. ¿Qué es? */}
-                  <div style={card}>
+                  <div className="admin-manage-edit-card admin-manage-edit-name" style={card}>
                     <label htmlFor="edit-nombre" style={lbl}>Nombre de la quiniela</label>
                     <div style={{ display: 'flex', gap: 8, alignItems: 'stretch', marginBottom: 6 }}>
                       <input id="edit-nombre" type="text" value={editNombre} maxLength={MAX_NOMBRE_QUINIELA} onChange={e => setEditNombre(limitarNombreQuiniela(e.target.value))} placeholder="Nombre de la quiniela" style={{ flex: 1, marginBottom: 0 }} />
@@ -5751,9 +5792,13 @@ export default function Admin() {
                   </div>
 
                   {/* 2. Partidos: el buscador solo aparece si aún no hay predicciones */}
-                  {conteoPredicciones === 0 && renderBuscadorFixtures(agregarSeleccionadosAEdicion)}
+                  {conteoPredicciones === 0 && (
+                    <div className="admin-manage-edit-fixtures">
+                      {renderBuscadorFixtures(agregarSeleccionadosAEdicion)}
+                    </div>
+                  )}
 
-                  <div style={card}>
+                  <div className="admin-manage-edit-card admin-manage-edit-matches" style={card}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
                       <label style={{ ...lbl, marginBottom: 0 }}>Partidos</label>
                       {conteoPredicciones > 0 && (
@@ -5807,7 +5852,7 @@ export default function Admin() {
                   </div>
 
                   {/* 3. Cierre: depende de los partidos */}
-                  <div style={card}>
+                  <div className="admin-manage-edit-card admin-manage-edit-close" style={card}>
                     <label htmlFor="edit-cierre" style={{ ...lbl, marginBottom: 4 }}>
                       Fecha y hora de cierre <span style={{ color: 'var(--red)' }}>*</span>
                     </label>
@@ -5828,7 +5873,7 @@ export default function Admin() {
                   </div>
 
                   {/* 4. Acceso: quién puede entrar */}
-                  <div style={card}>
+                  <div className="admin-manage-edit-card admin-manage-edit-code" style={card}>
                     <label htmlFor="edit-codigo" style={{ ...lbl, marginBottom: 4 }}>Código de acceso <span style={{ color: 'var(--red)' }}>*</span></label>
                     <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>
                       Solo quien lo tenga puede participar. Evita uno muy fácil. Máximo {MAX_CODIGO_ACCESO} caracteres.
@@ -5842,9 +5887,11 @@ export default function Admin() {
                   </div>
 
                   {/* 5. Premio */}
-                  {renderFormularioPremio(editPremioFijo, setEditPremioFijo, editCuota, setEditCuota)}
+                  <div className="admin-manage-edit-prize">
+                    {renderFormularioPremio(editPremioFijo, setEditPremioFijo, editCuota, setEditCuota)}
+                  </div>
 
-                  <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                  <div className="admin-manage-edit-actions" style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
                     <button onClick={() => { setTab('resultados'); setFixtures([]); setSeleccionados([]) }} style={{ padding: '10px 20px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-strong)', background: 'transparent', color: 'var(--muted)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
                       Cancelar
                     </button>
@@ -5854,7 +5901,7 @@ export default function Admin() {
                   </div>
 
                   {/* Zona de peligro */}
-                  <div style={{ marginTop: 24, border: '1.5px solid var(--red)', borderRadius: 'var(--radius-md)', padding: '1.1rem 1.25rem', background: 'var(--red-bg)' }}>
+                  <div className="admin-manage-danger" style={{ marginTop: 24, border: '1.5px solid var(--red)', borderRadius: 'var(--radius-md)', padding: '1.1rem 1.25rem', background: 'var(--red-bg)' }}>
                     <p style={{ fontSize: 13, fontWeight: 700, color: '#FCA5A5', marginBottom: 4 }}>Zona de peligro</p>
                     <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 14, lineHeight: 1.5 }}>
                       Eliminar la quiniela borrará también todas las predicciones registradas. Esta acción es permanente e irreversible.
@@ -5891,7 +5938,7 @@ export default function Admin() {
                     { key: 'jugadores', label: 'Link para jugadores', link: linkJugadores, desc: 'Comparte este enlace para que los jugadores ingresen sus predicciones.' },
                     { key: 'ranking',   label: 'Link del ranking',    link: linkRanking,   desc: 'Comparte este enlace para que todos vean el ranking en tiempo real.' },
                   ].map(({ key, label, link, desc }) => (
-                    <div key={key} style={card}>
+                    <div key={key} className="admin-manage-share-card" style={card}>
                       <p style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-strong)', marginBottom: 4 }}>{label}</p>
                       <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 12 }}>{desc}</p>
 
@@ -5969,7 +6016,7 @@ export default function Admin() {
                     lineas.push('¡Suerte! ⚽')
                     const mensaje = lineas.join('\n')
                     return (
-                      <div style={card}>
+                      <div className="admin-manage-share-message" style={card}>
                         <p style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-strong)', marginBottom: 4, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                           <AdminIcon name="megaphone" size={15} />
                           Mensaje listo para compartir
@@ -6006,7 +6053,8 @@ export default function Admin() {
                   })()}
                 </>
               )}
-            </>
+              </div>
+            </section>
           )
         })()}
       </div>
@@ -6082,6 +6130,18 @@ function QuinielaCard({ q, conteos, onGestionar, dueno, superCompact = false, so
       <div className="admin-q-card-main">
         <div className="admin-q-card-head">
           <p className="admin-q-card-title">{q.nombre}</p>
+          <div className="admin-q-desktop-badges">
+            <span className={`admin-q-status admin-q-status--${estado}`}>
+              <span className="admin-q-status-dot" />
+              {badge}
+            </span>
+            {pagosPendientes > 0 && (
+              <span className="admin-q-chip admin-q-chip--warning">
+                {pagosPendientes} pago{pagosPendientes !== 1 ? 's' : ''}
+              </span>
+            )}
+            {dueno && <span className="admin-q-chip admin-q-chip--owner">{dueno}</span>}
+          </div>
           <span className={`admin-q-status admin-q-status--${estado}`}>
             <span className="admin-q-status-dot" />
             {badge}

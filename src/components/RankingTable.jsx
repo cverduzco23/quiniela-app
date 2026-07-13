@@ -944,7 +944,7 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
           const esMiFila = !!miNombreRanking && j.nombre === miNombreRanking
           // Una quiniela cerrada pero todavía sin actividad no tiene posiciones
           // reales: todos conservan 0 puntos, pero no declaramos un empate en 1°.
-          const posicionVisible = hayResultados ? pos : '—'
+          const posicionVisible = hayResultados ? pos : 'N/D'
           const medalColor = hayResultados && pos <= 3 ? medalColors[pos - 1] : null
           const tienePremioFila = hayResultados && premioPorNombre[j.nombre] !== undefined
           const esInicioZonaPremio = tienePremioFila && !shown.slice(0, i).some(p => premioPorNombre[p.nombre] !== undefined)

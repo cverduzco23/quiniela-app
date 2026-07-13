@@ -121,6 +121,7 @@ export function NotificationBell({ uid, variant = 'sidebar' }) {
         title="Notificaciones"
       >
         <BellIcon size={variant === 'mobile' ? 21 : 18} />
+        {variant === 'sidebar-action' && <span className="notification-bell-label">Avisos</span>}
         {noLeidas.length > 0 && (
           <span className="notification-bell-badge">{noLeidas.length > 99 ? '99+' : noLeidas.length}</span>
         )}

@@ -105,7 +105,7 @@ async function main() {
       console.log(`  ${col}: ${docs.length} documento(s)`)
       total += docs.length
     } catch (err) {
-      console.error(`  ${col}: ERROR (${err.message}) — se omite`)
+      console.error(`  ${col}: ERROR (${err.message}). Se omite`)
     }
   }
   console.log(`\nRespaldo listo: ${carpeta} (${total} documentos en total)`)
