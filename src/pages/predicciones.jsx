@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, Fragment } from 'react'
-import { useSearchParams, useParams } from 'react-router-dom'
+import { useSearchParams, useParams, useNavigate } from 'react-router-dom'
 import { doc, getDoc, addDoc, collection, getDocs, query, where, getCountFromServer } from 'firebase/firestore'
 import { db, track } from '../firebase'
 import { registrarVisita, registrarVisitaQuiniela, registrarEnvio } from '../utils/analytics'
@@ -210,7 +210,14 @@ function PredIcon({ name, size = 16, style }) {
   )
 }
 
-function BackHomeButton() {
+function BackHomeButton({ onBack, label = 'Ir a inicio', title = 'Inicio' }) {
+  if (onBack) {
+    return (
+      <button type="button" onClick={onBack} className="app-back-button" aria-label={label} title={title}>
+        <PredIcon name="arrow-left" size={15} />
+      </button>
+    )
+  }
   return (
     <a href="/" className="app-back-button" aria-label="Ir a inicio" title="Inicio">
       <PredIcon name="arrow-left" size={15} />
@@ -220,6 +227,7 @@ function BackHomeButton() {
 
 export default function Predicciones() {
   const { alerta } = useDialog()
+  const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const { id: idDeRuta } = useParams()
   // Acepta /quiniela/<id> (ruta nueva) y /?q=<id> (links viejos ya compartidos).
@@ -257,6 +265,12 @@ export default function Predicciones() {
   const lsKey = quinielaId ? `quiniela-${quinielaId}-progreso` : null
   const lsAccesoKey = quinielaId ? `quiniela-${quinielaId}-acceso` : null
   const lsEnviadoKey = quinielaId ? `quiniela-${quinielaId}-enviada` : null
+
+  // Al pasar de un "paso" a otro dentro de esta misma pantalla (código → pago →
+  // formulario → resumen → enviado) subimos al inicio, como si fuera pantalla nueva.
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [accesoOk, confirmadoRegla, mostrarResumen, enviado])
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -536,7 +550,7 @@ export default function Predicciones() {
   )
 
   if (enviado) return (
-    <div style={{ background: '#070d18', position: 'relative', zIndex: 0, display: 'flex', flexDirection: 'column' }}>
+    <div style={{ minHeight: '100vh', background: '#070d18', position: 'relative', zIndex: 0, display: 'flex', flexDirection: 'column' }}>
       <div className="pred-gate-bg-fade" aria-hidden="true" />
       <div className="hero-pad pred-hero-pad" style={{ color: 'var(--text)' }}>
         <div className="pred-brand-row" style={{ maxWidth: 560, margin: '0 auto', display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -546,7 +560,7 @@ export default function Predicciones() {
           </a>
         </div>
       </div>
-      <div className="pred-content" style={{ width: '100%', maxWidth: 560, margin: '0 auto', padding: 'var(--pred-content-padding, 1.5rem 1rem 3rem)', flex: '1 0 auto', display: 'flex', flexDirection: 'column' }}>
+      <div className="pred-content" style={{ width: '100%', maxWidth: 560, margin: '0 auto', padding: 'var(--pred-content-padding, 1.5rem 1rem 6px)', flex: '1 0 auto', display: 'flex', flexDirection: 'column' }}>
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
           <div style={{
             width: 72, height: 72, borderRadius: '50%',
@@ -640,8 +654,17 @@ export default function Predicciones() {
   const pct = partidos.length > 0 ? (progreso / partidos.length) * 100 : 0
   const pantallaArmonia = !cerrada && !yaEnviadoAntes
 
+  // "Back" por pasos: en vez de salir siempre a Home, retrocede al paso previo
+  // dentro de esta pantalla (resumen → formulario → gate de premio/pago). Solo
+  // cuando ya no hay paso anterior salimos a la pantalla previa del historial.
+  const retroceder = () => {
+    if (mostrarResumen) { setMostrarResumen(false); return }
+    if (confirmadoRegla && tienePremio(quiniela)) { setConfirmadoRegla(false); return }
+    navigate(-1)
+  }
+
   return (
-    <div style={{ background: '#070d18', position: 'relative', zIndex: 0, overflow: celebrando ? 'hidden' : 'visible', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ minHeight: '100vh', background: '#070d18', position: 'relative', zIndex: 0, overflow: celebrando ? 'hidden' : 'visible', display: 'flex', flexDirection: 'column' }}>
       <div className="pred-gate-bg-fade" aria-hidden="true" />
       {celebrando && (
         <div aria-hidden="true" style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 9999, overflow: 'hidden' }}>
@@ -677,7 +700,7 @@ export default function Predicciones() {
       <div className="hero-pad pred-hero-pad" style={{ color: 'var(--text)', paddingBottom: pantallaArmonia ? '0.5rem' : undefined }}>
         <div style={{ maxWidth: 560, margin: '0 auto' }}>
           <div className="pred-brand-row" style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: (cerrada || pantallaArmonia) ? 'var(--ranking-brand-margin-bottom, 16px)' : 8 }}>
-            <BackHomeButton />
+            <BackHomeButton onBack={retroceder} label="Volver" title="Volver" />
             {cerrada ? (
               <a href="/" className="ranking-brand-link" aria-label="QuinielApp">
                 <BrandMark size={22} />
@@ -751,7 +774,7 @@ export default function Predicciones() {
         </div>
       </div>
 
-      <div className="pred-content" style={{ width: '100%', maxWidth: 560, margin: '0 auto', padding: pantallaArmonia ? 'var(--pred-content-padding-armonia, 0.5rem 1rem 3rem)' : 'var(--pred-content-padding, 1.25rem 1rem 3rem)', flex: '1 0 auto', display: 'flex', flexDirection: 'column' }}>
+      <div className="pred-content" style={{ width: '100%', maxWidth: 560, margin: '0 auto', padding: pantallaArmonia ? 'var(--pred-content-padding-armonia, 0.5rem 1rem 6px)' : 'var(--pred-content-padding, 1.25rem 1rem 6px)', flex: '1 0 auto', display: 'flex', flexDirection: 'column' }}>
 
         {/* Quiniela cerrada */}
         {cerrada ? (
@@ -1043,10 +1066,11 @@ export default function Predicciones() {
                 fontSize: 'var(--pred-body-size, 12px)', color: 'var(--yellow-soft)', lineHeight: 1.5,
                 background: 'var(--yellow-bg)', border: '1px solid rgba(250,204,21,0.35)',
                 borderRadius: 10, padding: 'var(--pred-warning-padding, 10px 12px)', marginBottom: 'var(--pred-card-gap, 12px)',
+                textAlign: 'center',
               }}>
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                   <PredIcon name="warning" size={14} />
-                  <span><strong>Realiza tu pago primero.</strong> Al continuar declaras que <strong>ya realizaste tu pago</strong> (transferencia o efectivo).</span>
+                  <span>Al continuar declaras que <strong>ya realizaste tu pago</strong>.</span>
                 </span>
               </p>
             )}
@@ -1160,8 +1184,8 @@ export default function Predicciones() {
               </span>
             </button>
             <p className="legal-note" style={{ margin: '0 0 12px' }}>
-              Al enviar aceptas los <a href="/terminos">Términos</a>. Tu nombre y predicciones
-              serán visibles públicamente en el ranking. <a href="/privacidad">Aviso de Privacidad</a>.
+              Al enviar aceptas los <a href="/terminos">Términos</a> y el <a href="/privacidad">Aviso de Privacidad</a>.
+              Tu nombre y predicciones serán públicos en el ranking.
             </p>
             <button
               onClick={() => setMostrarResumen(false)}

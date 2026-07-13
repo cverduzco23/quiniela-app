@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams, useNavigate } from 'react-router-dom'
 import { track } from '../firebase'
 import { Footer } from '../components/Footer'
 import { BrandWordmark } from '../components/Brand'
@@ -55,7 +55,13 @@ function DonarGracias() {
 
 export default function Donar() {
   const [searchParams] = useSearchParams()
+  const navigate = useNavigate()
   const yaPago = searchParams.has('session_id')
+  // Back = pantalla previa; si se llegó por link directo (sin historial), a Home.
+  const volver = () => {
+    if (window.history.length > 1) navigate(-1)
+    else navigate('/')
+  }
 
   const [monto, setMonto] = useState(100)
   const [montoCustom, setMontoCustom] = useState('')
@@ -86,13 +92,13 @@ export default function Donar() {
   }
 
   return (
-    <div style={{ background: '#070d18', position: 'relative', zIndex: 0, display: 'flex', flexDirection: 'column' }}>
+    <div style={{ minHeight: '100vh', background: '#070d18', position: 'relative', zIndex: 0, display: 'flex', flexDirection: 'column' }}>
       <div className="public-home-bg-fade" aria-hidden="true" />
       <div className="hero-pad donar-hero-pad" style={{ color: 'var(--text)' }}>
         <div className="donar-brand-row" style={{ maxWidth: 460, margin: '0 auto', display: 'flex', alignItems: 'center', gap: 12 }}>
-          <Link to="/" className="app-back-button" aria-label="Ir a inicio" title="Inicio">
+          <button type="button" onClick={volver} className="app-back-button" aria-label="Volver" title="Volver">
             <DonarIcon name="arrow-left" size={15} />
-          </Link>
+          </button>
           <Link to="/" style={{ textDecoration: 'none' }}>
             <BrandWordmark markSize={24} fontSize={20} />
           </Link>
@@ -149,8 +155,8 @@ export default function Donar() {
               {enviando ? 'Redirigiendo…' : montoValido ? `Donar $${montoFinal} MXN` : 'Donar MXN'}
             </button>
             <p className="legal-note">
-              Donativo voluntario, no reembolsable y no deducible. Procesado por Stripe.{' '}
-              <Link to="/terminos">Términos</Link> · <Link to="/privacidad">Privacidad</Link>.
+              Donativo voluntario, no reembolsable y no deducible.<br />
+              Procesado por Stripe.
             </p>
           </div>
         )}

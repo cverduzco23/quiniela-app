@@ -357,9 +357,11 @@ export default function Ranking() {
     finally { setActualizando(false) }
   }
   const backHref = vieneDeAdmin ? '/admin' : '/'
-  const backLabel = vieneDeAdmin ? 'Volver al panel admin' : 'Ir a inicio'
+  const backLabel = vieneDeAdmin ? 'Volver al panel admin' : 'Volver'
+  // Back = pantalla previa cuando hay historial; si se llegó por link directo,
+  // cae al destino fijo (panel admin si viene de ahí, si no Home).
   const handleBack = (e) => {
-    if (!vieneDeAdmin || window.history.length <= 1) return
+    if (window.history.length <= 1) return
     e.preventDefault()
     window.history.back()
   }
@@ -424,7 +426,7 @@ export default function Ranking() {
   const mostrarControlesActualizacion = hayPartidosActualizables && quinielaCerrada(quiniela) && !finalizada
 
   return (
-    <div style={{ background: 'var(--bg)', position: 'relative', zIndex: 0, display: 'flex', flexDirection: 'column' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--bg)', position: 'relative', zIndex: 0, display: 'flex', flexDirection: 'column' }}>
       <div className="ranking-bg-fade" aria-hidden="true" />
       {/* Hero */}
       <div className="hero-pad ranking-hero-pad" style={{ color: 'var(--text)' }}>
@@ -523,7 +525,7 @@ export default function Ranking() {
         </div>
       </div>
 
-      <div className="ranking-content" style={{ width: '100%', maxWidth: 'var(--ranking-max-width, 480px)', margin: '0 auto', padding: 'var(--ranking-content-padding, 1.25rem 1rem 3rem)', paddingTop: 'calc(var(--ranking-section-gap, 16px) + 8px)', flex: '1 0 auto', display: 'flex', flexDirection: 'column' }}>
+      <div className="ranking-content" style={{ width: '100%', maxWidth: 'var(--ranking-max-width, 480px)', margin: '0 auto', padding: 'var(--ranking-content-padding, 1.25rem 1rem 6px)', paddingTop: 'calc(var(--ranking-section-gap, 16px) + 8px)', flex: '1 0 auto', display: 'flex', flexDirection: 'column' }}>
         {/* CTA para registrar predicción: solo si la quiniela sigue abierta y este dispositivo aún no envió */}
         {!quinielaCerrada(quiniela) && !yaEnvió && (() => {
           const tr = tiempoRestante(quiniela.cierre)

@@ -1,5 +1,4 @@
 import { Link } from 'react-router-dom'
-import { BrandMark } from './Brand'
 import { waLink, MENSAJES_WA } from '../utils/whatsapp'
 
 function FooterIcon({ name, size = 15 }) {
@@ -31,7 +30,7 @@ function FooterIcon({ name, size = 15 }) {
 function RecaptchaNotice() {
   return (
     <p className="app-footer-recaptcha">
-      Este sitio está protegido por reCAPTCHA; aplican la{' '}
+      Este sitio está protegido por reCAPTCHA. Aplican la{' '}
       <a href="https://policies.google.com/privacy" target="_blank" rel="noreferrer">Política de Privacidad</a>
       {' '}y los{' '}
       <a href="https://policies.google.com/terms" target="_blank" rel="noreferrer">Términos</a>
@@ -54,7 +53,7 @@ export function Footer({ maxWidth = '100%', variant = 'full' }) {
           <a href={waLink(MENSAJES_WA.soporte)} target="_blank" rel="noreferrer" className="app-footer-textlink">Contacto</a>
         </div>
         <p className="app-footer-copy">
-          © {year} QuinielApp · <a href="https://quinielapp.fun" target="_blank" rel="noreferrer" className="app-footer-copy-link">quinielapp.fun</a>
+          © {year} QuinielApp
         </p>
         <RecaptchaNotice />
       </footer>
@@ -75,7 +74,7 @@ export function Footer({ maxWidth = '100%', variant = 'full' }) {
         Apoyar
       </Link>
       <p className="app-footer-copy">
-        © {year} <BrandMark size={14} /> QuinielApp
+        © {year} QuinielApp
       </p>
       <RecaptchaNotice />
     </footer>

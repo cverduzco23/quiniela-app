@@ -1535,17 +1535,25 @@ function PremioBanner({ quiniela, bote, ganadores, finalizada, hayResultados, ab
         : 'Aún no hay puntos para definir ganadores.'
     return (
       <div style={{
-        background: 'linear-gradient(135deg, rgba(34,197,94,0.10), rgba(34,197,94,0.04))',
-        border: '1px solid var(--green)', borderRadius: 'var(--radius-md)',
+        position: 'relative', overflow: 'hidden',
+        background: 'linear-gradient(120deg, rgba(250,204,21,0.12), rgba(30,41,59,0.92) 42%, rgba(15,23,42,0.96) 100%)',
+        border: '1px solid rgba(250,204,21,0.45)', borderRadius: 'var(--radius-md)',
+        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 12px 26px rgba(0,0,0,0.32), 0 0 0 3px rgba(250,204,21,0.05)',
         padding: '14px 16px', marginBottom: 16,
       }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, marginBottom: 4 }}>
-          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1 }}>Premio</span>
-          <span style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 800, color: 'var(--green)', letterSpacing: '-0.01em' }}>
-            {formatearMXN(bote)}
-          </span>
+        <span className="ranking-open-prize-shine" aria-hidden="true" />
+        <div style={{ position: 'relative' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, marginBottom: 4 }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 800, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1 }}>
+              <span style={{ display: 'inline-flex', color: 'var(--yellow)' }}><SvgIcon name="trophy" size={13} /></span>
+              Premio
+            </span>
+            <span style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 800, color: 'var(--yellow)', letterSpacing: '-0.01em' }}>
+              {formatearMXN(bote)}
+            </span>
+          </div>
+          <p style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.5, margin: 0 }}>{mensaje}</p>
         </div>
-        <p style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.5 }}>{mensaje}</p>
       </div>
     )
   }

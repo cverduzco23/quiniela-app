@@ -403,7 +403,7 @@ a:focus-visible {
 }
 .app-footer-full {
   text-align: center;
-  padding: 18px 0 16px;
+  padding: 18px 0 max(8px, env(safe-area-inset-bottom));
 }
 .app-footer-links {
   display: flex;
@@ -415,11 +415,11 @@ a:focus-visible {
 }
 .app-footer-dot {
   color: var(--muted-dim);
-  font-size: 11.5px;
+  font-size: 10.5px;
 }
 .app-footer-textlink {
   color: var(--muted);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
   text-decoration: none;
   white-space: nowrap;
@@ -434,7 +434,7 @@ a:focus-visible {
   gap: 5px;
   margin: 0 0 11px;
   color: var(--green-light);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 800;
   text-decoration: none;
   white-space: nowrap;
@@ -446,7 +446,7 @@ a:focus-visible {
   gap: 5px;
   margin: 0;
   color: var(--muted-soft);
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
 }
 .app-footer-copy-link {
@@ -460,7 +460,7 @@ a:focus-visible {
   margin: 8px auto 0;
   max-width: 460px;
   color: var(--muted-soft);
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 500;
   line-height: 1.5;
 }
@@ -696,7 +696,7 @@ a:focus-visible {
   max-width: 460px;
   width: 100%;
   margin: 0 auto;
-  padding: 28px 24px 40px;
+  padding: 28px 24px 6px;
 }
 .donar-card {
   width: 100%;
@@ -1615,6 +1615,13 @@ a:focus-visible {
 .ranking-hero-pad {
   padding-bottom: 0;
 }
+/* Footer pegado al fondo en pantallas cortas: el wrapper crece (flex) y el
+   footer se empuja abajo. En pantallas con scroll, el auto colapsa a 0. */
+.ranking-content > .app-footer,
+.pred-content > .app-footer,
+.donar-shell > .app-footer {
+  margin-top: auto;
+}
 @media (max-width: 480px) {
   .hero-pad {
     padding: 1.25rem 1rem 1rem;
@@ -1873,7 +1880,7 @@ a:focus-visible {
     padding: 0.95rem 1rem 0.85rem;
   }
   .pred-content {
-    --pred-content-padding: 1rem 0.95rem 1.65rem;
+    --pred-content-padding: 1rem 0.95rem 6px;
     --pred-card-padding: 0.95rem 1rem;
     --pred-card-gap: 9px;
     --pred-large-card-padding: 1.25rem 1rem;
@@ -1898,7 +1905,7 @@ a:focus-visible {
     padding: 0.85rem 0.95rem 0.75rem;
   }
   .pred-content {
-    --pred-content-padding: 0.85rem 0.9rem 2.2rem;
+    --pred-content-padding: 0.85rem 0.9rem 6px;
     --pred-card-padding: 0.82rem 0.95rem;
     --pred-card-gap: 8px;
     --pred-large-card-padding: 1.05rem 0.9rem;
@@ -2186,17 +2193,17 @@ a:focus-visible {
   justify-content: center;
   gap: 9px;
   padding: 14px 18px;
-  border: 1px solid rgba(34, 197, 94, 0.34);
+  border: 1px solid rgba(255, 255, 255, 0.10);
   border-radius: 13px;
-  background: linear-gradient(135deg, rgba(34,197,94,0.16), rgba(21,31,50,0.9) 62%, rgba(15,24,40,0.95));
+  background: linear-gradient(135deg, rgba(30,41,59,0.92), rgba(15,24,40,0.95));
   color: #F9FAFB;
   cursor: pointer;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), 0 10px 24px rgba(0,0,0,0.28), 0 0 20px rgba(34,197,94,0.06);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), 0 12px 26px rgba(0,0,0,0.32);
   transition: border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
 }
 .ranking-share-action:hover:not(:disabled) {
-  border-color: rgba(34, 197, 94, 0.6);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 12px 30px rgba(0,0,0,0.34), 0 0 26px rgba(34,197,94,0.16);
+  border-color: rgba(255, 255, 255, 0.20);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 14px 30px rgba(0,0,0,0.36);
 }
 .ranking-share-action:disabled {
   cursor: not-allowed;
@@ -2206,13 +2213,8 @@ a:focus-visible {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
   flex-shrink: 0;
-  border-radius: 50%;
-  background: rgba(34, 197, 94, 0.18);
-  border: 1px solid rgba(34, 197, 94, 0.4);
-  color: #86EFAC;
+  color: var(--green);
 }
 .ranking-share-action span {
   font-family: var(--font-sans);
@@ -5713,7 +5715,7 @@ button.admin-account-data-row {
     height: 32px;
   }
   .ranking-content {
-    --ranking-content-padding: 1rem 0.9rem 2.35rem;
+    --ranking-content-padding: 1rem 0.9rem 6px;
     --ranking-section-gap: 14px;
     --ranking-stats-gap: 8px;
     --ranking-rule-padding: 5px 8px;
@@ -6145,7 +6147,7 @@ button.admin-account-data-row {
     --ranking-max-width: 1180px;
   }
   .ranking-content {
-    --ranking-content-padding: 24px 32px 32px;
+    --ranking-content-padding: 24px 32px 6px;
     --ranking-grid-cols: 44px minmax(0, 1fr) 64px 64px 96px;
     --ranking-row-pad-x: 20px;
     --ranking-row-pad-y: 16px;
