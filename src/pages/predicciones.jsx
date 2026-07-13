@@ -646,7 +646,9 @@ export default function Predicciones() {
           </span>
         </a>
 
-        <Footer />
+        <div className="app-footer-slot">
+          <Footer />
+        </div>
       </div>
     </div>
   )
@@ -1372,7 +1374,9 @@ export default function Predicciones() {
             )}
           </>
         )}
-        <Footer />
+        <div className="app-footer-slot">
+          <Footer />
+        </div>
       </div>
     </div>
   )

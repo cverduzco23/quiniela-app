@@ -565,7 +565,9 @@ export default function Ranking() {
           )
         })()}
         <RankingTable quiniela={quiniela} predicciones={predicciones} liveScores={liveScores} liveStats={liveStats} liveEventos={liveEventos} livePenales={livePenales} />
-        <Footer maxWidth="var(--ranking-max-width, 480px)" />
+        <div className="app-footer-slot">
+          <Footer maxWidth="var(--ranking-max-width, 480px)" />
+        </div>
       </div>
       {mostrarReglas && <RankingRulesModal onClose={() => setMostrarReglas(false)} />}
     </div>

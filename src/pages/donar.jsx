@@ -160,7 +160,9 @@ export default function Donar() {
             </p>
           </div>
         )}
-        <Footer variant="simple" />
+        <div className="app-footer-slot">
+          <Footer variant="simple" />
+        </div>
       </div>
     </div>
   )

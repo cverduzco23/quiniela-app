@@ -1615,11 +1615,12 @@ a:focus-visible {
 .ranking-hero-pad {
   padding-bottom: 0;
 }
-/* Footer pegado al fondo en pantallas cortas: el wrapper crece (flex) y el
-   footer se empuja abajo. En pantallas con scroll, el auto colapsa a 0. */
-.ranking-content > .app-footer,
-.pred-content > .app-footer,
-.donar-shell > .app-footer {
+/* Footer pegado al fondo en pantallas cortas. El slot absorbe el espacio
+   disponible sin reemplazar el margen que separa contenido y footer. */
+.ranking-content > .app-footer-slot,
+.pred-content > .app-footer-slot,
+.donar-shell > .app-footer-slot {
+  width: 100%;
   margin-top: auto;
 }
 @media (max-width: 480px) {
