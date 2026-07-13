@@ -97,6 +97,11 @@ falta para lanzar es operación (checklist más abajo).
 - **App Check listo en código** (clave reCAPTCHA v3 en `src/firebase.js`); falta activarlo
   en consola (monitoreo → enforce).
 - Rediseño visual "Armonía" completo (home, admin, donar, predicciones, ranking).
+- **Campo `privada` congelado en rules** (2026-07-13, hallazgo S5 de la auditoría integral):
+  el dueño ya no puede editar `privada` ni `ownerUid` (aparecer en el home público es
+  decisión exclusiva del super admin) y el create exige nacer privada. El patch de edición
+  en admin.jsx ya no re-escribe `privada: true` (de paso, editar una quiniela pública ya
+  no la vuelve privada por accidente). Va en el mismo deploy de reglas del lanzamiento.
 
 ### CHECKLIST DÍA DE LANZAMIENTO (todo el mismo día, en este orden)
 
@@ -113,6 +118,13 @@ falta para lanzar es operación (checklist más abajo).
 
 ### Pendiente post-lanzamiento (sin prisa, ver también §4)
 
+- **Indexación (tras validar producción):** quitar `noindex` SOLO de la portada y las
+  páginas legales (index.html hoy es noindex global); quinielas y rankings siguen noindex.
+  Acordado 2026-07-13; hacerlo después de validar que todo funciona en producción.
+- **Ranking agregado en Cloud Function (semana del 20 jul, post-Mundial, antes de Liga MX):**
+  la función escribe el ranking calculado en un doc por quiniela; el front lee 1 doc en vez
+  de releer todas las predicciones cada 60s por espectador (hallazgo S2 de la auditoría
+  integral). De paso habilita cerrar la lectura pública de picks pre-cierre (#11).
 - #11 Cerrar lectura pública de picks pre-cierre (el pendiente de seguridad más profundo).
 - #12 Refactor de `admin.jsx` (~5,900 líneas) + cuentas vía Admin SDK (H4).
 - #13 Correo propio para restablecer contraseña (`noreply@quinielapp.fun`).

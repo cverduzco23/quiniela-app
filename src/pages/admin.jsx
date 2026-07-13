@@ -1927,7 +1927,6 @@ export default function Admin() {
         cierre:   cierreTs,
         codigoAcceso: codigoLimpio,
         codigoAccesoLower: codigoLimpio.toLowerCase(),
-        privada: true,
         ...premioFields,
       }
       await updateDoc(doc(db, 'quinielas', quinielaActual.id), patch)

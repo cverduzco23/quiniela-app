@@ -129,6 +129,10 @@ service cloud.firestore {
           isSuperAdmin() ||
           (
             request.resource.data.ownerUid == request.auth.uid &&
+            // Nace privada (o sin el campo, que el home trata como privada):
+            // aparecer en el home público es decisión del super admin, y sin
+            // esto se podría crear ya-pública desde la consola de Firebase.
+            request.resource.data.get('privada', true) == true &&
             adminActivo() &&
             get(/databases/$(database)/documents/admins/$(request.auth.uid))
               .data.get('quinielasCreadas', 0) < maxQuinielas() &&
@@ -142,8 +146,19 @@ service cloud.firestore {
           )
         );
 
-      // Editar/borrar: super admin o el dueño.
-      allow update, delete: if isSuperAdmin() ||
+      // Editar: el super admin puede todo. El dueño puede editar su quiniela
+      // EXCEPTO `privada` (aparecer en el home público es decisión exclusiva
+      // del super admin: sin esto, cualquier organizador podría autopublicarse
+      // en la portada) y `ownerUid` (la quiniela no se transfiere; congela el
+      // vínculo con la cuota del contador).
+      allow update: if isSuperAdmin() || (
+        isSignedIn() && resource.data.ownerUid == request.auth.uid &&
+        !request.resource.data.diff(resource.data).affectedKeys()
+          .hasAny(['privada', 'ownerUid'])
+      );
+
+      // Borrar: super admin o el dueño.
+      allow delete: if isSuperAdmin() ||
         (isSignedIn() && resource.data.ownerUid == request.auth.uid);
     }
 
