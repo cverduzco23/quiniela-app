@@ -434,9 +434,13 @@ function TusQuinielasSection({ quinielas, conteos, predicciones, onQuitar }) {
         ))}
       </div>
       {hayMas && (
-        <button type="button" className="tq-vermas" onClick={() => setExpandido(v => !v)}>
-          {expandido ? 'Ver menos' : 'Ver más'}
-          <HomeIcon name="chevron" size={12} style={{ transform: expandido ? 'rotate(180deg)' : 'none' }} />
+        <button
+          type="button"
+          className="tq-vermas"
+          onClick={() => setExpandido(v => !v)}
+          aria-label={expandido ? 'Ver menos quinielas' : 'Ver más quinielas'}
+        >
+          <HomeIcon name="chevron" size={16} style={{ transform: expandido ? 'rotate(180deg)' : 'none' }} />
         </button>
       )}
     </section>

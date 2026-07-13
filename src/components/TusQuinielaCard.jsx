@@ -112,7 +112,7 @@ function Banda({ d, miNombreVisible, onAlias }) {
           <p className="tq-banda-num tq-banda-num--lg" style={{ color: d.rankingIniciado ? '#FFFFFF' : '#9CA3AF' }}>
             {d.rankingIniciado ? (
               <>{d.posicion}<span className="tq-banda-num-suf" style={{ color: '#86EFAC' }}>º</span></>
-            ) : 'N/D'}
+            ) : '—'}
           </p>
           <p className="tq-banda-sub">DE {d.totalJugadores}</p>
         </div>

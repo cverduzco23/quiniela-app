@@ -2972,7 +2972,7 @@ export default function Admin() {
         style={{
           maxWidth: superModuleDesktop ? 1280 : clienteDesktop ? (vista === 'lista' ? 1320 : vista === 'cuenta' ? 1180 : vista === 'gestionar' ? 1280 : 1040) : 580,
           margin: '0 auto',
-          padding: clienteDesktop ? '34px 40px 56px' : (clienteMobile && vista === 'cuenta') ? '30px 20px 90px' : superMobileHome || superMobileModule ? '18px 16px 108px' : '1.25rem 1rem 3rem',
+          padding: clienteDesktop ? '34px 40px 56px' : (clienteMobile && vista === 'cuenta') ? '30px 20px 20px' : superMobileHome || superMobileModule ? '18px 16px 108px' : '1.25rem 1rem 3rem',
         }}
       >
 
@@ -4590,7 +4590,7 @@ export default function Admin() {
 
               // Router
               if (clienteTab === 'quinielas') {
-                return (<section className="admin-client-page admin-client-quinielas-page">{headerCli('Quinielas', `${quinielasMias.length} en total · ${mias.activas.length} activa${mias.activas.length !== 1 ? 's' : ''}`, ctaNueva, 'GESTIÓN')}{listaQuinielas}</section>)
+                return (<section className="admin-client-page admin-client-quinielas-page">{headerCli('Quinielas', `${quinielasMias.length} en total · ${mias.activas.length} activa${mias.activas.length !== 1 ? 's' : ''}`, ctaNueva)}{listaQuinielas}</section>)
               }
               if (clienteTab === 'caja') {
                 return (<section className="admin-client-page">{headerCli('Caja', 'Depósitos, premios y saldos por participante', null, 'FINANZAS')}{proximamente('wallet', 'Caja próximamente', 'Aquí podrás registrar depósitos, inscripciones, premios y retiros por participante, y ver el saldo de cada quiniela. Estamos afinando esta sección.')}</section>)
@@ -5786,7 +5786,7 @@ export default function Admin() {
                       <input id="edit-nombre" type="text" value={editNombre} maxLength={MAX_NOMBRE_QUINIELA} onChange={e => setEditNombre(limitarNombreQuiniela(e.target.value))} placeholder="Nombre de la quiniela" style={{ flex: 1, marginBottom: 0 }} />
                       <EmojiPicker inputId="edit-nombre" value={editNombre} onChange={value => setEditNombre(limitarNombreQuiniela(value))} />
                     </div>
-                    <p style={{ fontSize: 11, color: contarCaracteres(editNombre) > MAX_NOMBRE_QUINIELA ? 'var(--red)' : 'var(--muted)', textAlign: 'right', marginBottom: 14 }}>
+                    <p style={{ fontSize: 11, color: contarCaracteres(editNombre) > MAX_NOMBRE_QUINIELA ? 'var(--red)' : 'var(--muted)', textAlign: 'right', marginBottom: 0 }}>
                       {contarCaracteres(editNombre)}/{MAX_NOMBRE_QUINIELA} caracteres
                     </p>
                   </div>
