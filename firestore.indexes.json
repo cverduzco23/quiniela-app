@@ -1,0 +1,13 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "notificacionesAdmin",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "destinatarioUid", "order": "ASCENDING" },
+        { "fieldPath": "creada", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

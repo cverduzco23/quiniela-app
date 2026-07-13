@@ -271,6 +271,29 @@ service cloud.firestore {
       allow read, write: if isSuperAdmin();
     }
 
+    // avisosAdmin/ guarda el historial de anuncios creados por el super admin.
+    // Solo el backend escribe; el super admin puede consultar el historial.
+    match /avisosAdmin/{avisoId} {
+      allow read: if isSuperAdmin();
+      allow write: if false;
+    }
+
+    // notificacionesAdmin/ contiene una copia individual por destinatario.
+    // Un organizador solo puede leer las suyas y cambiar false -> true en el
+    // estado de lectura. La creación queda exclusivamente en Cloud Functions.
+    match /notificacionesAdmin/{notificacionId} {
+      allow read: if isSignedIn() && (
+        resource.data.destinatarioUid == request.auth.uid || isSuperAdmin()
+      );
+      allow create, delete: if false;
+      allow update: if isSignedIn() &&
+        resource.data.destinatarioUid == request.auth.uid &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['leida', 'leidaEn']) &&
+        resource.data.leida == false &&
+        request.resource.data.leida == true &&
+        request.resource.data.leidaEn == request.time;
+    }
+
     // donativos/  (registro de donativos vía Stripe)
     // Solo el webhook de Stripe (Admin SDK, bypassa estas reglas) escribe aquí.
     // Ningún cliente puede crear/editar/borrar donativos.

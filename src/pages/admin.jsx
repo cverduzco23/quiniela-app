@@ -17,6 +17,8 @@ import { detectarSimilares } from '../utils/duplicados'
 import { leerDias, leerQuiniela, leerGlobal, estaExcluido, marcarExcluido } from '../utils/analytics'
 import { findEventByTeamsAndDate } from '../utils/espn'
 import { EmojiPicker } from '../components/EmojiPicker'
+import { NotificationBell } from '../components/NotificationBell'
+import { AnnouncementComposer } from '../components/AnnouncementComposer'
 
 // UIDs con privilegios globales (ver/editar todas las quinielas).
 // Mantener sincronizado con `isSuperAdmin()` en firestore.rules.
@@ -363,7 +365,7 @@ function iniciales(str) {
 // Navega cambiando `superModulo`. Reusa AdminIcon y BrandMark. Refleja el prototipo
 // de escritorio (design_handoff_super_admin_panel): logo · sello SUPER ADMIN ·
 // nav agrupada (Gestión / Plataforma) · footer de usuario.
-function SidebarSuper({ activo, onNav, counts, email }) {
+function SidebarSuper({ activo, onNav, counts, email, uid }) {
   const item = (modulo, icon, label, badge) => {
     const on = activo === modulo
     return (
@@ -424,13 +426,14 @@ function SidebarSuper({ activo, onNav, counts, email }) {
           </p>
           <p style={{ fontSize: 10.5, color: 'var(--yellow-soft)', margin: '1px 0 0' }}>Dueño · super admin</p>
         </div>
+        <NotificationBell uid={uid} />
       </div>
     </aside>
   )
 }
 
 // Barra lateral del panel Cliente (escritorio ≥960px)
-function SidebarCliente({ activo, onNav, adminDoc, onSalir }) {
+function SidebarCliente({ activo, onNav, adminDoc, onSalir, uid }) {
   const item = (tab, icon, label) => {
     const on = activo === tab
     return (
@@ -474,6 +477,7 @@ function SidebarCliente({ activo, onNav, adminDoc, onSalir }) {
           <div style={{ minWidth: 0, flex: 1 }}>
             <p style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-strong)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{adminDoc?.nombre || 'Mi cuenta'}</p>
           </div>
+          <NotificationBell uid={uid} />
           <button onClick={onSalir} aria-label="Cerrar sesión" title="Cerrar sesión" style={{ background: 'transparent', border: 'none', color: 'var(--muted)', cursor: 'pointer', padding: 4, display: 'inline-flex' }}>
             <AdminIcon name="logout" size={16} />
           </button>
@@ -542,12 +546,13 @@ function TabBarCliente({ activo, onNav }) {
   )
 }
 
-function MobileAdminHeader() {
+function MobileAdminHeader({ uid, mostrarNotificaciones }) {
   return (
     <header className="admin-mobile-topbar">
       <a href="/" className="admin-mobile-brand" aria-label="Volver al Home de QuinielApp">
         <BrandWordmark markSize={26} fontSize={19} />
       </a>
+      {mostrarNotificaciones && <NotificationBell uid={uid} variant="mobile" />}
     </header>
   )
 }
@@ -3043,13 +3048,14 @@ export default function Admin() {
           onNav={navSuper}
           counts={{ clientes: clientes.length || null, otros: quinielasOtras.length || null, mis: quinielasMias.length || null }}
           email={auth.currentUser?.email}
+          uid={miUid}
         />
       )}
       {clienteDesktop && (
-        <SidebarCliente activo={clienteTab} onNav={navCliente} adminDoc={adminDoc} onSalir={salir} />
+        <SidebarCliente activo={clienteTab} onNav={navCliente} adminDoc={adminDoc} onSalir={salir} uid={miUid} />
       )}
       <div style={{ flex: (superDesktop || clienteDesktop) ? 1 : undefined, minWidth: 0, paddingBottom: clienteMobile ? 68 : undefined }}>
-        {clienteMobile && <MobileAdminHeader />}
+        {clienteMobile && <MobileAdminHeader uid={miUid} mostrarNotificaciones />}
 
       {ayudaAbierta && <ComoFunciona onClose={() => setAyudaAbierta(false)} />}
       {tourAbierto && <TourBienvenida onClose={cerrarTour} />}
@@ -4295,6 +4301,10 @@ export default function Admin() {
                 )
                 // Vuelve a la ficha de Mi cuenta desde las sub-vistas (Otros/Clientes).
                 const volverACuentaSuper = () => { setSuperModulo(null); setVista('cuenta') }
+                const volverDesdeAnuncios = () => {
+                  if (superDesktop) { setVista('lista'); setSuperModulo('cuenta') }
+                  else volverACuentaSuper()
+                }
                 return (
                   <>
                     {!superModulo && superDesktop && (() => {
@@ -4422,6 +4432,20 @@ export default function Admin() {
                     {superModulo === 'clientes' && (superDesktop ? clientesDesktop : (<>{tituloTabSuper('Clientes', 'Altas, notas y estado de cuentas', volverACuentaSuper)}{clientesSection}</>))}
                     {superModulo === 'mis' && (superDesktop ? misDesktop : misQuinielasSection)}
                     {superModulo === 'otros' && (superDesktop ? otrosDesktop : (<>{tituloTabSuper('Otros admins', 'Quinielas agrupadas por cliente', volverACuentaSuper)}{otrosSection}</>))}
+                    {superModulo === 'anuncios' && (
+                      <div style={{ maxWidth: 820, margin: '0 auto' }}>
+                        {superDesktop ? (
+                          <div style={{ marginBottom: 20 }}>
+                            <button type="button" onClick={volverDesdeAnuncios} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: 0, marginBottom: 11, border: 0, background: 'transparent', color: 'var(--muted)', fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>
+                              <AdminIcon name="arrow-left" size={15} /> Mi cuenta
+                            </button>
+                            <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 27, fontWeight: 700, color: 'var(--text-strong)', margin: 0, lineHeight: 1.1 }}>Anuncios para admins</h2>
+                            <p style={{ fontSize: 12.5, color: 'var(--muted)', margin: '4px 0 0' }}>Crea, prueba y consulta los avisos del panel.</p>
+                          </div>
+                        ) : tituloTabSuper('Anuncios para admins', 'Crea, prueba y consulta los avisos del panel', volverDesdeAnuncios)}
+                        <AnnouncementComposer admins={clientes} />
+                      </div>
+                    )}
                     {superModulo === 'estadisticas' && (superDesktop ? statsSection : (<>{tituloTabSuper('Estadísticas', 'Actividad de tus quinielas', undefined, (
                       <span style={{ display: 'inline-flex', alignItems: 'center', fontSize: 11, fontWeight: 700, color: 'var(--muted)', background: 'var(--neutral-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-full)', padding: '5px 12px', whiteSpace: 'nowrap', flexShrink: 0, marginTop: 2 }}>
                         Últimos 7 días
@@ -4454,6 +4478,15 @@ export default function Admin() {
                           {cuentaPassMsg && <p style={{ fontSize: 12, color: cuentaPassMsg.tipo === 'ok' ? 'var(--green)' : 'var(--red)', marginBottom: 10 }}>{cuentaPassMsg.texto}</p>}
                           <button onClick={cambiarMiPassword} disabled={cambiandoPass} style={{ ...greenCtaStyle(cambiandoPass), padding: '11px 20px' }}>
                             {cambiandoPass ? 'Guardando…' : 'Cambiar contraseña'}
+                          </button>
+                        </div>
+                        {/* Herramientas exclusivas del super admin */}
+                        <div style={{ background: 'linear-gradient(135deg, rgba(30,41,59,0.92), rgba(15,24,40,0.95))', border: '1px solid rgba(255,255,255,0.10)', borderRadius: 14, boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 12px 26px rgba(0,0,0,0.32)', padding: '8px 6px', marginBottom: 14 }}>
+                          <p style={{ padding: '7px 14px 5px', margin: 0, color: 'var(--muted-soft)', fontSize: 10, fontWeight: 850, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Súper admin</p>
+                          <button type="button" className="admin-account-setting-row" onClick={() => setSuperModulo('anuncios')}>
+                            <span className="admin-account-setting-icon"><AdminIcon name="alert" size={16} /></span>
+                            <span className="admin-account-setting-label">Anuncios para admins</span>
+                            <AdminIcon name="chevron-right" size={16} style={{ color: 'var(--muted)' }} />
                           </button>
                         </div>
                         {/* Herramientas */}
@@ -5020,6 +5053,13 @@ export default function Admin() {
                           <AdminIcon name="users" size={16} />
                         </span>
                         <span className="admin-account-setting-label">Clientes</span>
+                        <AdminIcon name="chevron-right" size={16} style={{ color: 'var(--muted)' }} />
+                      </button>
+                      <button type="button" className="admin-account-setting-row" onClick={() => { setSuperModulo('anuncios'); setVista('lista') }}>
+                        <span className="admin-account-setting-icon">
+                          <AdminIcon name="alert" size={16} />
+                        </span>
+                        <span className="admin-account-setting-label">Anuncios para admins</span>
                         <AdminIcon name="chevron-right" size={16} style={{ color: 'var(--muted)' }} />
                       </button>
                     </section>

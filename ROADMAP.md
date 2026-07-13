@@ -118,12 +118,14 @@ falta para lanzar es operación (checklist más abajo).
 
 ### Pendiente post-lanzamiento (sin prisa, ver también §4)
 
-- **Centro de notificaciones y alertas operativas para el super admin:** campana en el header
-  con contador de no leídas y bandeja enlazada a la quiniela relacionada. Definir umbrales
-  configurables para avisar, por ejemplo, cuando una quiniela supera 100 participantes, cuando
-  el premio rebasa una cantidad `X`, cuando incluye más de 15 partidos y ante otros patrones de
-  riesgo/costo que se acuerden. Generar alertas desde Cloud Functions (no desde el navegador),
-  deduplicarlas por quiniela + regla + umbral y permitir marcarlas como leídas o descartadas.
+- **Automatizaciones del centro de notificaciones:** ✅ la base de avisos manuales del super admin
+  hacia los organizadores quedó implementada el 2026-07-13 (campana, no leídas, bandeja, audiencia,
+  prioridad, vigencia, historial, copia de experiencia y envío de prueba solo al super admin). Pendiente:
+  generar avisos automáticos para admins —registro de
+  participantes, cierre próximo, resultados pendientes— y alertas operativas para el super admin,
+  por ejemplo cuando una quiniela supera 100 participantes, el premio rebasa una cantidad `X` o
+  incluye más de 15 partidos. Generarlas desde Cloud Functions, deduplicarlas por quiniela + regla
+  + umbral y permitir configurar qué tipos recibe cada cuenta.
 - **Cupo duro de 500 participantes por quiniela + registro seguro server-side (H2):**
   hoy las predicciones se crean directamente desde el navegador, sin límite real; un atacante
   puede omitir el código y el anti-duplicado client-side e inflar una quiniela. Mover el alta a
@@ -323,7 +325,7 @@ toca seguridad ni infraestructura; todo es client-side y sin lecturas nuevas a F
 | 12 | **App Check en enforce** + **refactor de admin.jsx** (3,506 líneas) + cuentas vía Admin SDK (H4) | Endurecimiento y mantenibilidad cuando ya no haya presión de torneo |
 | 13 | **Correo propio para restablecer contraseña** | Firebase Console dejó las plantillas de Auth como no editables. Cuando se quiera mejorar el correo y usar `noreply@quinielapp.fun`, crear un endpoint en Vercel (`/api/password-reset`) que use Firebase Admin SDK para generar el link de reset y Resend/SendGrid para mandar un HTML propio con botón/logo, apuntando a una pantalla custom de recuperación |
 | 14 | **Cupo de 500 participantes + alta server-side** (H2) | Cloud Function con contador atómico, validación de cierre/cupo/duplicado/picks, App Check y control de ráfagas; bloquear el `create` público directo en rules. Evita spam, costos y rankings inmanejables |
-| 15 | **Centro de notificaciones del super admin** | Campana + bandeja de avisos generados por Cloud Functions, con umbrales configurables, deduplicación y estado leído/descartado. Casos iniciales: >100 participantes, premio >X y >15 partidos |
+| 15 | ✅ **Centro de notificaciones base** (2026-07-13) | Avisos manuales super admin → admins, con campana, bandeja, selección de audiencia, prioridad, vigencia, historial y estado leído. Pendiente: eventos automáticos, preferencias y alertas dirigidas al super admin |
 
 ### Descartado / decidido NO hacer
 - Mover estilos inline a CSS/frameworks (preferencia deliberada del usuario).

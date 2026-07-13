@@ -3,6 +3,7 @@ import { initializeFirestore } from "firebase/firestore";
 import { getAuth, createUserWithEmailAndPassword, signOut } from "firebase/auth";
 import { getAnalytics, isSupported, logEvent } from "firebase/analytics";
 import { initializeAppCheck, ReCaptchaV3Provider } from "firebase/app-check";
+import { getFunctions } from "firebase/functions";
 
 const firebaseConfig = {
   apiKey: "AIzaSyCF6AEc1nXs_cu6rXUqoQILl-kkAg2ThBQ",
@@ -42,6 +43,7 @@ export const db = initializeFirestore(app, {
   experimentalForceLongPolling: true,
 });
 export const auth = getAuth(app);
+export const functions = getFunctions(app, "us-central1");
 
 // Analytics
 // Se inicializa de forma asíncrona solo si el entorno lo soporta
