@@ -7519,7 +7519,7 @@ button.admin-account-data-row {
   }
 
   .admin-manage-tab-content.is-resultados:not(:has(.admin-manage-prize-card)) {
-    grid-template-columns: minmax(0, 940px);
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .admin-manage-results-card {
