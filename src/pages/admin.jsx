@@ -405,9 +405,12 @@ function SidebarCliente({ activo, onNav, adminDoc, uid, esSuper = false }) {
   }
   return (
     <aside className="admin-desktop-sidebar">
-      <a href="/" className="admin-sidebar-brand">
-        <BrandWordmark markSize={26} fontSize={18} />
-      </a>
+      <div className="admin-sidebar-brand-row">
+        <a href="/" className="admin-sidebar-brand">
+          <BrandWordmark markSize={26} fontSize={18} />
+        </a>
+        <NotificationBell uid={uid} variant="header" />
+      </div>
       <nav className="admin-sidebar-nav" aria-label="Panel de administración">
         {item('inicio', 'home', 'Inicio')}
         {item('quinielas', 'ball', 'Quinielas')}
@@ -433,9 +436,6 @@ function SidebarCliente({ activo, onNav, adminDoc, uid, esSuper = false }) {
           </span>
           <AdminIcon name="chevron-right" size={15} style={{ color: 'var(--muted-soft)', flexShrink: 0 }} />
         </button>
-        <div className="admin-sidebar-account-actions">
-          <NotificationBell uid={uid} variant="sidebar-action" />
-        </div>
       </section>
     </aside>
   )
