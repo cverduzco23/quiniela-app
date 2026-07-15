@@ -181,6 +181,104 @@ service cloud.firestore {
       // Borrar: super admin o el dueño.
       allow delete: if isSuperAdmin() ||
         (isSignedIn() && resource.data.ownerUid == request.auth.uid);
+
+      // Reacciones por partido (⚽🔥😭😱 con claves ASCII): contadores
+      // anónimos, un doc por índice de partido (0-29). El peor abuso posible
+      // es inflar un contador: inofensivo y acotado por los topes de valor.
+      match /reacciones/{partidoIdx} {
+        allow read: if true;
+        allow create, update: if
+          partidoIdx.matches('^([0-9]|[12][0-9])$') &&
+          exists(/databases/$(database)/documents/quinielas/$(quinielaId)) &&
+          request.resource.data.keys().hasOnly(['gol', 'fuego', 'tristeza', 'sorpresa']) &&
+          (!('gol' in request.resource.data) ||
+            (request.resource.data.gol is int &&
+             request.resource.data.gol >= 0 && request.resource.data.gol <= 1000000)) &&
+          (!('fuego' in request.resource.data) ||
+            (request.resource.data.fuego is int &&
+             request.resource.data.fuego >= 0 && request.resource.data.fuego <= 1000000)) &&
+          (!('tristeza' in request.resource.data) ||
+            (request.resource.data.tristeza is int &&
+             request.resource.data.tristeza >= 0 && request.resource.data.tristeza <= 1000000)) &&
+          (!('sorpresa' in request.resource.data) ||
+            (request.resource.data.sorpresa is int &&
+             request.resource.data.sorpresa >= 0 && request.resource.data.sorpresa <= 1000000));
+      }
+
+      // Comentarios de la quiniela. Escritura anónima con validación estricta:
+      // solo texto corto, la fecha la pone el servidor, y respeta el switch
+      // chatHabilitado y los silencios temporales (chatMuted, escritos por la
+      // Cloud Function de moderación). El campo uid viaja null hoy y queda
+      // sembrado para el Auth normal. Los usuarios no editan ni borran: el
+      // único update permitido es reportar (+1 exacto a `reportes`).
+      match /comentarios/{comentarioId} {
+        allow read: if true;
+
+        allow create: if
+          exists(/databases/$(database)/documents/quinielas/$(quinielaId)) &&
+          get(/databases/$(database)/documents/quinielas/$(quinielaId))
+            .data.get('chatHabilitado', true) == true &&
+          (
+            !(request.resource.data.nombre in
+              get(/databases/$(database)/documents/quinielas/$(quinielaId))
+                .data.get('chatMuted', {})) ||
+            request.time > get(/databases/$(database)/documents/quinielas/$(quinielaId))
+              .data.get('chatMuted', {})[request.resource.data.nombre]
+          ) &&
+          request.resource.data.keys().hasOnly(['nombre', 'texto', 'fecha', 'uid']) &&
+          request.resource.data.nombre is string &&
+          request.resource.data.nombre.trim() == request.resource.data.nombre &&
+          request.resource.data.nombre.size() >= 2 &&
+          request.resource.data.nombre.size() <= 60 &&
+          request.resource.data.texto is string &&
+          request.resource.data.texto.trim().size() >= 1 &&
+          request.resource.data.texto.size() <= 300 &&
+          request.resource.data.fecha == request.time &&
+          (
+            !('uid' in request.resource.data) ||
+            request.resource.data.uid == null ||
+            (request.resource.data.uid is string && request.resource.data.uid.size() <= 128)
+          );
+
+        allow update: if
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reportes']) &&
+          request.resource.data.reportes is int &&
+          request.resource.data.reportes == resource.data.get('reportes', 0) + 1 &&
+          request.resource.data.reportes <= 9999;
+
+        allow delete: if isSuperAdmin() || (
+          isSignedIn() &&
+          get(/databases/$(database)/documents/quinielas/$(quinielaId))
+            .data.ownerUid == request.auth.uid
+        );
+      }
+    }
+
+    // temporadas/ (grupos de quinielas del mismo organizador con tabla
+    // acumulada). El cliente solo crea el doc y puede renombrarlo; la tabla
+    // y las jornadas las escribe la Cloud Function (Admin SDK, sin rules).
+    match /temporadas/{temporadaId} {
+      // Lectura pública: la tabla de temporada se ve desde el ranking sin login.
+      allow read: if true;
+
+      allow create: if isSignedIn() && (isSuperAdmin() || adminActivo()) &&
+        request.resource.data.ownerUid == request.auth.uid &&
+        request.resource.data.nombre is string &&
+        request.resource.data.nombre.trim() == request.resource.data.nombre &&
+        request.resource.data.nombre.size() >= 2 &&
+        request.resource.data.nombre.size() <= 60;
+
+      // Solo renombrar: el resto de los campos son de la Cloud Function.
+      allow update: if
+        (isSuperAdmin() || (isSignedIn() && resource.data.ownerUid == request.auth.uid)) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['nombre']) &&
+        request.resource.data.nombre is string &&
+        request.resource.data.nombre.trim() == request.resource.data.nombre &&
+        request.resource.data.nombre.size() >= 2 &&
+        request.resource.data.nombre.size() <= 60;
+
+      allow delete: if isSuperAdmin() ||
+        (isSignedIn() && resource.data.ownerUid == request.auth.uid);
     }
 
     // Un pick individual: mapa {local, visitante} con marcadores cortos (strings
@@ -256,8 +354,17 @@ service cloud.firestore {
           request.time < get(/databases/$(database)/documents/quinielas/$(request.resource.data.quinielaId)).data.cierre
         );
 
-      // Las predicciones no se editan una vez enviadas.
-      allow update: if false;
+      // Las predicciones no se editan una vez enviadas. Única excepción:
+      // el organizador dueño (o super admin) puede corregir el NOMBRE del
+      // participante ("Juanjo" -> "Juan José") para alinear ranking, chat y
+      // temporadas. Picks, fecha y quiniela quedan intocables.
+      allow update: if
+        (isSuperAdmin() || esDuenoDeQuiniela(resource.data.quinielaId)) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['nombre']) &&
+        request.resource.data.nombre is string &&
+        request.resource.data.nombre.trim() == request.resource.data.nombre &&
+        request.resource.data.nombre.size() >= 2 &&
+        request.resource.data.nombre.size() <= 60;
 
       // Borrar: super admin o dueño de la quiniela.
       allow delete: if isSuperAdmin() ||

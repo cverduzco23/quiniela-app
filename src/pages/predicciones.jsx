@@ -237,6 +237,12 @@ export default function Predicciones() {
   const [cargando, setCargando]           = useState(true)
   const [error, setError]                 = useState(null)
   const [nombre, setNombre]               = useState('')
+  // Roster de temporada: si la quiniela pertenece a una temporada, el jugador
+  // elige su nombre de la lista (evita variantes tipo "Juanjo"/"Juan José"
+  // que partirían su acumulado en la tabla general). "Soy nuevo" permite
+  // escribirlo libre, como siempre.
+  const [rosterTemporada, setRosterTemporada]     = useState([])
+  const [nombreModoNuevo, setNombreModoNuevo]     = useState(false)
   const [picks, setPicks]                 = useState({})
   const [enviado, setEnviado]             = useState(false)
   const [enviando, setEnviando]           = useState(false)
@@ -395,6 +401,23 @@ export default function Predicciones() {
       if (data?.confirmadoRegla === true && !tieneCuota(quiniela)) setConfirmadoRegla(true)
     } catch { /* corrupto, ignorar */ }
   }, [quiniela, cerrada, lsKey])
+
+  // Roster de temporada: nombres con puntos acumulados en la tabla general.
+  // Una sola lectura puntual; si falla o no hay temporada, el formulario
+  // funciona exactamente como siempre (input libre).
+  useEffect(() => {
+    const tid = quiniela?.temporadaId
+    if (!tid) return undefined
+    let vivo = true
+    getDoc(doc(db, 'temporadas', tid))
+      .then(snap => {
+        if (!vivo || !snap.exists()) return
+        const nombres = (snap.data().tabla ?? []).map(j => j?.nombre).filter(Boolean)
+        setRosterTemporada([...new Set(nombres)].sort((a, b) => a.localeCompare(b, 'es')))
+      })
+      .catch(() => {})
+    return () => { vivo = false }
+  }, [quiniela?.temporadaId])
 
   // Persistir progreso en localStorage en cada cambio
   // En quinielas tipo "bote" NO persistimos confirmadoRegla
@@ -1205,27 +1228,91 @@ export default function Predicciones() {
             /* Formulario principal */
             ) : (
           <>
-            {/* Nombre */}
+            {/* Nombre. Con temporada: selector del roster para que los puntos
+                se acumulen bajo el mismo nombre; "Soy nuevo" da el input libre. */}
+            {(() => {
+              const mostrarRoster = rosterTemporada.length > 0 && !nombreModoNuevo &&
+                (nombre === '' || rosterTemporada.includes(nombre))
+              const similarRoster = nombreModoNuevo && rosterTemporada.length > 0 && nombre.trim().length >= 3
+                ? rosterTemporada.find(n => {
+                    const tokN = n.toLocaleLowerCase('es-MX').split(' ')[0]
+                    const tokE = nombre.trim().toLocaleLowerCase('es-MX').split(' ')[0]
+                    return n.toLocaleLowerCase('es-MX') !== nombre.trim().toLocaleLowerCase('es-MX') && tokN === tokE
+                  })
+                : null
+              return (
             <div style={card}>
-              <label htmlFor="jugador-nombre" style={lbl}>
-                Tu nombre completo
-              </label>
-              <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>
-                Nombre y al menos un apellido (ej. María González).
-              </p>
-              <input
-                id="jugador-nombre"
-                type="text"
-                placeholder="Ej. María González"
-                value={nombre}
-                maxLength={40}
-                onChange={e => actualizarNombre(e.target.value)}
-                style={{ fontSize: 'var(--pred-input-size, 15px)', padding: 'var(--pred-input-padding, 10px 12px)', borderColor: nombreError ? 'var(--red)' : undefined }}
-              />
+              {mostrarRoster ? (
+                <>
+                  <label htmlFor="jugador-roster" style={lbl}>
+                    ¿Quién eres?
+                  </label>
+                  <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>
+                    Esta quiniela es parte de una temporada: elige tu nombre y tus puntos se suman a la tabla general.
+                  </p>
+                  <select
+                    id="jugador-roster"
+                    value={rosterTemporada.includes(nombre) ? nombre : ''}
+                    onChange={e => actualizarNombre(e.target.value)}
+                    style={{ fontSize: 'var(--pred-input-size, 15px)', padding: 'var(--pred-input-padding, 10px 12px)', marginBottom: 0 }}
+                  >
+                    <option value="" disabled>Selecciona tu nombre</option>
+                    {rosterTemporada.map(n => <option key={n} value={n}>{n}</option>)}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => { setNombreModoNuevo(true); actualizarNombre('') }}
+                    style={{ background: 'none', border: 'none', color: 'var(--green)', fontSize: 12, fontWeight: 700, cursor: 'pointer', textDecoration: 'underline', padding: 0, marginTop: 10 }}
+                  >
+                    Soy nuevo en la temporada
+                  </button>
+                </>
+              ) : (
+                <>
+                  <label htmlFor="jugador-nombre" style={lbl}>
+                    Tu nombre completo
+                  </label>
+                  <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>
+                    Nombre y al menos un apellido (ej. María González).
+                  </p>
+                  <input
+                    id="jugador-nombre"
+                    type="text"
+                    placeholder="Ej. María González"
+                    value={nombre}
+                    maxLength={40}
+                    onChange={e => actualizarNombre(e.target.value)}
+                    style={{ fontSize: 'var(--pred-input-size, 15px)', padding: 'var(--pred-input-padding, 10px 12px)', borderColor: nombreError ? 'var(--red)' : undefined }}
+                  />
+                  {similarRoster && (
+                    <p style={{ fontSize: 12, color: 'var(--yellow-soft, #FDE68A)', marginTop: 8, lineHeight: 1.5 }}>
+                      Ya existe <strong style={{ color: 'var(--text)' }}>{similarRoster}</strong> en esta temporada. ¿Eres tú?{' '}
+                      <button
+                        type="button"
+                        onClick={() => { setNombreModoNuevo(false); actualizarNombre(similarRoster) }}
+                        style={{ background: 'none', border: 'none', color: 'var(--green)', fontSize: 12, fontWeight: 700, cursor: 'pointer', textDecoration: 'underline', padding: 0 }}
+                      >
+                        Usar ese nombre
+                      </button>
+                    </p>
+                  )}
+                  {rosterTemporada.length > 0 && nombreModoNuevo && (
+                    <button
+                      type="button"
+                      onClick={() => { setNombreModoNuevo(false); actualizarNombre('') }}
+                      style={{ background: 'none', border: 'none', color: 'var(--muted)', fontSize: 12, fontWeight: 600, cursor: 'pointer', textDecoration: 'underline', padding: 0, marginTop: 10 }}
+                    >
+                      Mejor elegir mi nombre de la lista
+                    </button>
+                  )}
+                </>
+              )}
               {nombreError && (
                 <p style={{ fontSize: 12, color: 'var(--red)', marginTop: 8 }}>{nombreError}</p>
               )}
             </div>
+              )
+            })()}
 
             {/* Partidos */}
             {/* Reglas de puntos */}

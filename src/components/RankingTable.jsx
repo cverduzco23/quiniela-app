@@ -5,6 +5,8 @@ import { tienePremio, calcularGanadores, formatearMXN, descripcionRegla } from '
 import { simularUltimoPartido } from '../utils/escenarios'
 import { normalizarNombre } from '../utils/nombres'
 import { miIdentidadEnQuiniela } from '../utils/misQuinielas'
+import { ReaccionesPartido } from './ReaccionesPartido'
+import { ComentariosQuiniela } from './ComentariosQuiniela'
 import { registrarApertura } from '../utils/analytics'
 import { compartirOraculo, compartirRanking } from '../utils/shareRanking'
 import { useDialog } from './Dialogs'
@@ -257,7 +259,7 @@ function SvgIcon({ name, size = 14, style }) {
   )
 }
 
-export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStats = {}, liveEventos = {}, livePenales = {} }) {
+export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStats = {}, liveEventos = {}, livePenales = {}, reacciones = {} }) {
   const { alerta } = useDialog()
   const [expandido, setExpandido]               = useState(new Set())
   const [expandidoPartido, setExpandidoPartido] = useState(new Set())
@@ -368,6 +370,68 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
   const shown     = filtrados.slice(0, visibles)
   const restantes = filtrados.length - shown.length
   const mostrarBuscador = jugadores.length > UMBRAL_BUSQUEDA && !vistaParticipantesAbierta
+
+  // Badges de jornada (solo quinielas finalizadas, calculadas al vuelo):
+  // 🎯 Francotirador = más marcadores exactos (mínimo 2).
+  // 📈 Remontada = quien más posiciones escaló con el último partido jugado
+  // (se recalcula la tabla sin ese partido y se compara; cuenta desde 2+).
+  const badgesPorNombre = (() => {
+    if (!finalizada || jugadores.length < 3) return {}
+    const out = {}
+    const maxExactos = Math.max(...jugadores.map(j => j.exactos), 0)
+    if (maxExactos >= 2) {
+      jugadores.forEach(j => {
+        if (j.exactos === maxExactos) (out[j.nombre] ||= []).push('francotirador')
+      })
+    }
+    const jugados = partidos
+      .map((p, i) => ({ p, i }))
+      .filter(({ i }) => {
+        const r = resultados[i] ?? resultados[String(i)]
+        return !r?.cancelado && getResultado(r) !== null
+      })
+    if (jugados.length >= 2) {
+      const ultimo = jugados.reduce((a, b) => {
+        const ta = cierreToDate(a.p.hora)?.getTime() ?? a.i
+        const tb = cierreToDate(b.p.hora)?.getTime() ?? b.i
+        return tb >= ta ? b : a
+      })
+      const resAntes = {}
+      Object.entries(resultados).forEach(([k, v]) => {
+        if (Number(k) !== ultimo.i) resAntes[k] = v
+      })
+      const liveAntes = { ...liveScores }
+      if (ultimo.p.espnId) delete liveAntes[ultimo.p.espnId]
+      const antes = jugadores
+        .map(j => ({ nombre: j.nombre, puntos: calcularPuntos(j.picks, resAntes, liveAntes, partidos).puntos }))
+        .sort((a, b) => b.puntos - a.puntos)
+      const posAntes = {}
+      antes.forEach((j, i) => {
+        posAntes[j.nombre] = i === 0 ? 1 : (antes[i - 1].puntos === j.puntos ? posAntes[antes[i - 1].nombre] : i + 1)
+      })
+      let mejorDelta = 0
+      jugadoresConPos.forEach(j => {
+        const delta = (posAntes[j.nombre] ?? j._pos) - j._pos
+        if (delta > mejorDelta) mejorDelta = delta
+      })
+      if (mejorDelta >= 2) {
+        jugadoresConPos.forEach(j => {
+          const delta = (posAntes[j.nombre] ?? j._pos) - j._pos
+          if (delta === mejorDelta) (out[j.nombre] ||= []).push('remontada')
+        })
+      }
+    }
+    return out
+  })()
+
+  // Podio del primer lugar (solo escritorio, vía CSS): reconoce al líder (o al
+  // ganador si ya terminó) arriba de la tabla y oculta su fila para no
+  // duplicarlo. Con búsqueda activa el podio se retira y la fila reaparece,
+  // para que buscar al líder por nombre siga funcionando.
+  const lideres = hayResultados && (jugadores[0]?.puntos ?? 0) > 0
+    ? jugadoresConPos.filter(j => j._pos === 1)
+    : []
+  const mostrarPodio = lideres.length > 0 && !filtroBusqueda
 
   // Detectar goles nuevos entre un polling y el siguiente, para festejar en
   // pantalla. Solo cuenta mientras el partido está en vivo (evita festejar
@@ -503,15 +567,21 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
       )}
 
       <div className="ranking-desktop-grid">
+      {/* Ganador final: fuera de la columna izquierda para que en escritorio
+          pueda ocupar el ancho completo del grid (en móvil el orden visual
+          no cambia: sigue siendo lo primero). */}
+      {mostrarGanadorFinal && (
+        <div className="ranking-champion-slot">
+          <GanadorCard jugadores={jugadores} premioPorNombre={premioPorNombre} conPremio={conPremio} />
+        </div>
+      )}
       <div className="ranking-desktop-left">
       {/* Banner de premio */}
-      {mostrarGanadorFinal ? (
-        <GanadorCard jugadores={jugadores} premioPorNombre={premioPorNombre} conPremio={conPremio} />
-      ) : conPremio ? (
+      {!mostrarGanadorFinal && (conPremio ? (
         <PremioBanner quiniela={quiniela} bote={bote} ganadores={ganadores} finalizada={finalizada} hayResultados={hayResultados} abierta={vistaParticipantesAbierta} />
       ) : finalizada ? null : (
         <SinPremioBanner />
-      )}
+      ))}
 
       {/* Stats */}
       <div className="ranking-stats-grid" style={{ display: 'grid', gridTemplateColumns: `repeat(${resumenStats.length},1fr)` }}>
@@ -678,6 +748,11 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                   )}
                 </div>
 
+                {/* Reacciones: solo cuando la quiniela ya cerró y el partido cuenta */}
+                {cerrada && !cancelado && (
+                  <ReaccionesPartido quinielaId={quiniela.id} partidoIdx={i} conteos={reacciones[String(i)]} />
+                )}
+
                 {/* Panel de estadísticas */}
                 {tieneAlgo && montadoPartido.has(i) && (
                   <div
@@ -802,9 +877,13 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
         </div>
       )}
 
+      {/* Comentarios de la quiniela: en escritorio queda en la columna
+          izquierda bajo Partidos; en móvil entre Partidos y la tabla. */}
+      <ComentariosQuiniela quiniela={quiniela} nombres={jugadores.map(j => j.nombre)} />
+
       </div>
 
-      <div className="ranking-desktop-right">
+      <div className={`ranking-desktop-right${mostrarPodio ? ' has-podium' : ''}`}>
       {/* ¿Quién gana según el marcador del último partido?: en escritorio queda
           arriba de la tabla de ranking; en móvil el orden visual no cambia
           porque la columna izquierda ya terminó de renderizarse antes. */}
@@ -815,6 +894,14 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
           liveScores={liveScores}
           quiniela={quiniela}
           bote={bote}
+        />
+      )}
+      {mostrarPodio && (
+        <PodioPrimerLugar
+          lideres={lideres}
+          finalizada={finalizada}
+          premioPorNombre={premioPorNombre}
+          conPremio={conPremio}
         />
       )}
       {/* Tabla ranking */}
@@ -1021,6 +1108,16 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                         <span style={{ fontFamily: 'var(--font-display)', fontSize: 11, fontWeight: 800, color: 'var(--yellow)', marginLeft: 1 }}>{j.racha.correctas}</span>
                       </span>
                     ) : null}
+                    {(badgesPorNombre[j.nombre] ?? []).map(b => (
+                      <span
+                        key={b}
+                        className="ranking-jornada-badge"
+                        title={b === 'remontada' ? 'Remontada de la jornada: quien más posiciones escaló al final' : 'Francotirador: más marcadores exactos de la jornada'}
+                      >
+                        <span aria-hidden="true">{b === 'remontada' ? '\u{1F4C8}' : '\u{1F3AF}'}</span>
+                        <span className="ranking-jornada-badge-label">{b === 'remontada' ? 'Remontada' : 'Francotirador'}</span>
+                      </span>
+                    ))}
                     {cerrada && (
                       <span style={{ display: 'inline-flex', color: 'var(--muted)', flexShrink: 0 }} aria-hidden="true">
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: abierto ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s ease' }}>
@@ -1443,6 +1540,51 @@ function GanadorCard({ jugadores, premioPorNombre = {}, conPremio }) {
       <div className="ranking-champion-score" aria-label={`${puntosCampeon} puntos`}>
         <span className="ranking-champion-points">{puntosCampeon}</span>
         <span className="ranking-champion-points-label">PTS</span>
+      </div>
+    </div>
+  )
+}
+
+// Podio del primer lugar (solo escritorio: en móvil queda display:none).
+// Reconoce al líder mientras se juega y al ganador cuando finaliza; su fila
+// se oculta en la tabla para que el podio sea su lugar en el ranking.
+function PodioPrimerLugar({ lideres, finalizada, premioPorNombre, conPremio }) {
+  const principal = lideres[0]
+  const empate = lideres.length > 1
+  const premio = Number(premioPorNombre[principal.nombre]) || 0
+  const premioTxt = conPremio && premio > 0
+    ? `${finalizada ? 'gana' : 'va por'} ${formatearMXN(premio)}${empate ? ' c/u' : ''}`
+    : null
+  const detalle = empate
+    ? `Empate en puntos${premioTxt ? ` · ${premioTxt}` : ''}`
+    : [
+        `${principal.aciertos} acierto${principal.aciertos === 1 ? '' : 's'}`,
+        `${principal.exactos} exacto${principal.exactos === 1 ? '' : 's'}`,
+        ...(premioTxt ? [premioTxt] : []),
+      ].join(' · ')
+  return (
+    <div className={`ranking-podium${finalizada ? ' is-final' : ' is-live'}`}>
+      <span className="ranking-podium-shine" aria-hidden="true" />
+      <div className="ranking-podium-avatar" aria-hidden="true">
+        {empate ? <SvgIcon name="trophy" size={22} /> : inicialesPersona(principal.nombre)}
+        <span className="ranking-podium-crown">
+          <SvgIcon name="crown" size={14} />
+        </span>
+      </div>
+      <div className="ranking-podium-copy">
+        <p className="ranking-podium-kicker">
+          {finalizada ? (empate ? 'Ganadores' : 'Ganador') : (empate ? 'Líderes' : 'Líder')}
+        </p>
+        <div className={`ranking-podium-names${empate ? ' is-stacked' : ''}`}>
+          {lideres.map((j, idx) => (
+            <p key={`${j.nombre}-${idx}`} className="ranking-podium-name">{nombreCorto(j.nombre)}</p>
+          ))}
+        </div>
+        <p className="ranking-podium-detail">{detalle}</p>
+      </div>
+      <div className="ranking-podium-score" aria-label={`${principal.puntos} puntos`}>
+        <span className="ranking-podium-points">{principal.puntos}</span>
+        <span className="ranking-podium-points-label">PTS</span>
       </div>
     </div>
   )

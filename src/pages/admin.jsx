@@ -1405,6 +1405,53 @@ export default function Admin() {
   const [modeloPremio, setModeloPremio] = useState(MODELO_PREMIO.GANADOR_UNICO)
   const [codigoAcceso, setCodigoAcceso] = useState('')
 
+  // Temporadas del organizador (grupo de quinielas con tabla acumulada).
+  // `sel` puede ser '' (sin temporada), un id existente o '__nueva__'.
+  const [temporadas, setTemporadas] = useState([])
+  const [temporadaSel, setTemporadaSel] = useState('')
+  const [temporadaNueva, setTemporadaNueva] = useState('')
+  const [editTemporadaSel, setEditTemporadaSel] = useState('')
+  const [editTemporadaNueva, setEditTemporadaNueva] = useState('')
+
+  // Temporadas del organizador: se cargan una vez por sesión para el selector
+  // de crear/editar quiniela (lectura puntual, sin listener).
+  useEffect(() => {
+    if (!miUid) return undefined
+    let vivo = true
+    getDocs(query(collection(db, 'temporadas'), where('ownerUid', '==', miUid)))
+      .then(snap => {
+        if (!vivo) return
+        setTemporadas(snap.docs
+          .map(d => ({ id: d.id, ...d.data() }))
+          .sort((a, b) => String(a.nombre).localeCompare(String(b.nombre), 'es')))
+      })
+      .catch(() => {})
+    return () => { vivo = false }
+  }, [miUid])
+
+  // Resuelve el temporadaId a guardar en una quiniela: null (sin temporada),
+  // un id existente, o crea la temporada nueva y devuelve su id.
+  const resolverTemporada = async (sel, nombreNuevo) => {
+    if (!sel) return null
+    if (sel !== '__nueva__') return sel
+    const limpio = String(nombreNuevo ?? '').trim()
+    if (limpio.length < 2 || limpio.length > 60) {
+      throw Object.assign(new Error('nombre-temporada'), { code: 'app/temporada-nombre' })
+    }
+    const ref = await addDoc(collection(db, 'temporadas'), {
+      nombre: limpio,
+      ownerUid: auth.currentUser?.uid ?? null,
+      creada: new Date().toISOString(),
+      tabla: [],
+      jornadas: [],
+      jornadasJugadas: 0,
+      totalQuinielas: 0,
+    })
+    setTemporadas(prev => [...prev, { id: ref.id, nombre: limpio, ownerUid: auth.currentUser?.uid ?? null }]
+      .sort((a, b) => String(a.nombre).localeCompare(String(b.nombre), 'es')))
+    return ref.id
+  }
+
   // Resultados
   const [resultados, setResultados]       = useState({})
   const [sincronizandoResultados, setSincronizandoResultados] = useState(false)
@@ -1429,6 +1476,7 @@ export default function Admin() {
   const [editCuota, setEditCuota]               = useState('')
   const [editModeloPremio, setEditModeloPremio] = useState(MODELO_PREMIO.GANADOR_UNICO)
   const [editCodigoAcceso, setEditCodigoAcceso] = useState('')
+  const [editChatHabilitado, setEditChatHabilitado] = useState(true)
   const [conteoPredicciones, setConteoPredicciones] = useState(null)
   const [partidosFijosInfo, setPartidosFijosInfo] = useState(false)
   const [guardandoEdicion, setGuardandoEdicion] = useState(false)
@@ -1442,6 +1490,7 @@ export default function Admin() {
   const [listaPredicciones, setListaPredicciones]       = useState([])
   const [loadingPredicciones, setLoadingPredicciones]   = useState(false)
   const [eliminandoPred, setEliminandoPred]             = useState(null)
+  const [renombrandoPred, setRenombrandoPred]           = useState(null)
   const [togglingPago, setTogglingPago]                 = useState(null)
   const [togglingOculto, setTogglingOculto]             = useState(null)
   const [busquedaParticipante, setBusquedaParticipante] = useState('')
@@ -1713,6 +1762,9 @@ export default function Admin() {
     // Conservamos completo un código histórico fuera de límite para que el
     // administrador lo vea y lo corrija explícitamente al guardar.
     setEditCodigoAcceso(String(quinielaActual.codigoAcceso ?? '').toUpperCase())
+    setEditChatHabilitado(quinielaActual.chatHabilitado !== false)
+    setEditTemporadaSel(quinielaActual.temporadaId ?? '')
+    setEditTemporadaNueva('')
     setFixtures([]); setSeleccionados([])
     setConteoPredicciones(null)
     getDocs(query(collection(db, 'predicciones'), where('quinielaId', '==', quinielaActual.id)))
@@ -1975,12 +2027,22 @@ export default function Admin() {
           return
         }
       }
+      let editTemporadaIdFinal = null
+      try {
+        editTemporadaIdFinal = await resolverTemporada(editTemporadaSel, editTemporadaNueva)
+      } catch {
+        alerta('Ponle un nombre a la temporada nueva (entre 2 y 60 caracteres).')
+        setGuardandoEdicion(false)
+        return
+      }
       const patch = {
         nombre:   editNombre.trim(),
         partidos: editPartidos,
         cierre:   cierreTs,
         codigoAcceso: codigoLimpio,
         codigoAccesoLower: codigoLimpio.toLowerCase(),
+        chatHabilitado: editChatHabilitado,
+        temporadaId: editTemporadaIdFinal,
         ...premioFields,
       }
       await updateDoc(doc(db, 'quinielas', quinielaActual.id), patch)
@@ -2124,6 +2186,36 @@ export default function Admin() {
       alerta('Error al actualizar la visibilidad.')
     } finally {
       setTogglingOculto(null)
+    }
+  }
+
+  // Renombrar participante: corrige el nombre con el que un jugador quedó
+  // registrado ("Juanjo" -> "Juan José"). Es la vía oficial para arreglar
+  // identidades: los jugadores no pueden cambiar su nombre desde el chat ni
+  // el ranking, y el nombre corregido alinea ranking, chat y temporadas.
+  const renombrarParticipante = async (pred) => {
+    if (renombrandoPred) return
+    const nuevo = await pedirTexto(
+      `Nuevo nombre para "${pred.nombre}". Su posición y predicciones se conservan; solo cambia cómo aparece en el ranking y el chat.`,
+      pred.nombre,
+      { titulo: 'Renombrar participante', confirmar: 'Guardar' },
+    )
+    const limpio = String(nuevo ?? '').trim()
+    if (!limpio || limpio === pred.nombre) return
+    if (limpio.length < 2 || limpio.length > 60) {
+      return alerta('El nombre debe tener entre 2 y 60 caracteres.')
+    }
+    if (listaPredicciones.some(p => p.id !== pred.id && p.nombre.trim().toLowerCase() === limpio.toLowerCase())) {
+      return alerta(`Ya hay un participante llamado "${limpio}" en esta quiniela.`)
+    }
+    setRenombrandoPred(pred.id)
+    try {
+      await updateDoc(doc(db, 'predicciones', pred.id), { nombre: limpio })
+      setListaPredicciones(prev => prev.map(p => p.id === pred.id ? { ...p, nombre: limpio } : p))
+    } catch {
+      alerta('Error al renombrar. Intenta de nuevo.')
+    } finally {
+      setRenombrandoPred(null)
     }
   }
 
@@ -2286,6 +2378,14 @@ export default function Admin() {
           return
         }
       }
+      let temporadaIdFinal = null
+      try {
+        temporadaIdFinal = await resolverTemporada(temporadaSel, temporadaNueva)
+      } catch {
+        alerta('Ponle un nombre a la temporada nueva (entre 2 y 60 caracteres).')
+        setGuardando(false)
+        return
+      }
       const base = {
         nombre: nombre.trim(), cierre: cierreTs, partidos,
         resultados: {}, creada, cerrada: false,
@@ -2293,6 +2393,7 @@ export default function Admin() {
         codigoAcceso: codigoLimpio,
         codigoAccesoLower: codigoLimpio.toLowerCase(),
         privada: true,
+        temporadaId: temporadaIdFinal,
         ...premioFields,
       }
       const ref = soySuper
@@ -2309,6 +2410,7 @@ export default function Admin() {
       setNombre(''); setCierre(''); setPartidos([])
       setPremioFijo(''); setCuota(''); setModeloPremio(MODELO_PREMIO.GANADOR_UNICO)
       setCodigoAcceso('')
+      setTemporadaSel(''); setTemporadaNueva('')
       setFixtures([]); setSeleccionados([])
     } catch (e) {
       if (e?.code === 'app/cuota-agotada') {
@@ -5310,6 +5412,30 @@ export default function Admin() {
               <input id="quiniela-codigo" type="text" placeholder="Ej. ACME2026" value={codigoAcceso} maxLength={MAX_CODIGO_ACCESO} autoCapitalize="characters" onChange={e => setCodigoAcceso(normalizarCodigoAccesoInput(e.target.value))} />
             </div>
 
+            {/* 4.b Temporada (opcional): agrupa quinielas en una tabla general */}
+            <div style={card}>
+              <label htmlFor="quiniela-temporada" style={{ ...lbl, marginBottom: 4 }}>Temporada (opcional)</label>
+              <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>
+                Suma esta quiniela a una tabla general acumulada, como una liga entre amigos jornada tras jornada.
+              </p>
+              <select id="quiniela-temporada" value={temporadaSel} onChange={e => setTemporadaSel(e.target.value)} style={{ marginBottom: 0 }}>
+                <option value="">Sin temporada</option>
+                {temporadas.map(t => <option key={t.id} value={t.id}>{t.nombre}</option>)}
+                <option value="__nueva__">+ Crear temporada nueva</option>
+              </select>
+              {temporadaSel === '__nueva__' && (
+                <input
+                  type="text"
+                  placeholder="Ej. Clausura 2026 con los compas"
+                  value={temporadaNueva}
+                  maxLength={60}
+                  onChange={e => setTemporadaNueva(e.target.value)}
+                  aria-label="Nombre de la temporada nueva"
+                  style={{ marginTop: 8, marginBottom: 0 }}
+                />
+              )}
+            </div>
+
             {/* 5. Premio */}
             {renderFormularioPremio(premioFijo, setPremioFijo, cuota, setCuota)}
 
@@ -5707,6 +5833,21 @@ export default function Admin() {
                               </p>
                             </div>
                             <div className="admin-manage-participant-actions" style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, flexWrap: 'wrap' }}>
+                              <button
+                                onClick={() => renombrarParticipante(pred)}
+                                disabled={renombrandoPred === pred.id}
+                                title="Renombrar participante (su posición y predicciones se conservan)"
+                                aria-label={`Renombrar a ${pred.nombre}`}
+                                style={{
+                                  background: 'transparent', border: '1px solid var(--border-strong)', color: 'var(--muted)',
+                                  fontSize: 13, fontWeight: 700, padding: '5px 9px',
+                                  borderRadius: 'var(--radius-sm)', cursor: renombrandoPred === pred.id ? 'not-allowed' : 'pointer',
+                                  opacity: renombrandoPred === pred.id ? 0.5 : 1, lineHeight: 1,
+                                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                }}
+                              >
+                                {renombrandoPred === pred.id ? '…' : <AdminIcon name="pencil" size={15} />}
+                              </button>
                               {esTipoBote && (
                                 <button
                                   onClick={() => togglePago(pred.id)}
@@ -5884,6 +6025,54 @@ export default function Admin() {
                         Este código histórico excede el límite. Acórtalo antes de guardar.
                       </p>
                     )}
+                    <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+                      <label htmlFor="edit-temporada" style={{ ...lbl, marginBottom: 4 }}>Temporada</label>
+                      <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>
+                        Esta quiniela suma (o deja de sumar) a la tabla general de la temporada elegida.
+                      </p>
+                      <select id="edit-temporada" value={editTemporadaSel} onChange={e => setEditTemporadaSel(e.target.value)} style={{ marginBottom: 0 }}>
+                        <option value="">Sin temporada</option>
+                        {temporadas.map(t => <option key={t.id} value={t.id}>{t.nombre}</option>)}
+                        <option value="__nueva__">+ Crear temporada nueva</option>
+                      </select>
+                      {editTemporadaSel === '__nueva__' && (
+                        <input
+                          type="text"
+                          placeholder="Ej. Clausura 2026 con los compas"
+                          value={editTemporadaNueva}
+                          maxLength={60}
+                          onChange={e => setEditTemporadaNueva(e.target.value)}
+                          aria-label="Nombre de la temporada nueva"
+                          style={{ marginTop: 8, marginBottom: 0 }}
+                        />
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+                      <div style={{ minWidth: 0 }}>
+                        <p style={{ ...lbl, marginBottom: 2 }}>Comentarios de la quiniela</p>
+                        <p style={{ fontSize: 11, color: 'var(--muted)', margin: 0 }}>
+                          Tus jugadores pueden comentar en el ranking. Apágalo si se sale de control.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={editChatHabilitado}
+                        aria-label="Comentarios de la quiniela"
+                        onClick={() => setEditChatHabilitado(v => !v)}
+                        style={{
+                          flexShrink: 0, width: 42, height: 24, borderRadius: 999, border: 'none', cursor: 'pointer',
+                          background: editChatHabilitado ? 'var(--green)' : 'rgba(148,163,184,0.35)',
+                          position: 'relative', transition: 'background 0.18s ease', padding: 0,
+                        }}
+                      >
+                        <span style={{
+                          position: 'absolute', top: 3, left: editChatHabilitado ? 21 : 3,
+                          width: 18, height: 18, borderRadius: '50%', background: '#FFFFFF',
+                          transition: 'left 0.18s ease', boxShadow: '0 1px 3px rgba(0,0,0,0.35)',
+                        }} />
+                      </button>
+                    </div>
                   </div>
 
                   {/* 5. Premio */}

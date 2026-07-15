@@ -33,6 +33,8 @@ const db = getFirestore()
 
 export { crearSesionDonativo, webhookDonativos } from './stripe.js'
 export { enviarAvisoAdmins } from './notifications.js'
+export { moderarComentario, avisarComentarioReportado } from './chat.js'
+export { actualizarTemporada, temporadaAlEliminarQuiniela, temporadaAlRenombrar } from './temporadas.js'
 
 // Helpers copiados de src/utils (scoring.js, cierre.js, espn.js)
 // Las funciones de la app viven en src/utils pero el deploy de Cloud Functions

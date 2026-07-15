@@ -7,6 +7,14 @@
         { "fieldPath": "destinatarioUid", "order": "ASCENDING" },
         { "fieldPath": "creada", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "comentarios",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "nombre", "order": "ASCENDING" },
+        { "fieldPath": "fecha", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

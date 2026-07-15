@@ -2387,6 +2387,11 @@ a:focus-visible {
 .ranking-hero-pad {
   padding-bottom: 0;
 }
+/* Podio del primer lugar arriba de la tabla. Solo existe en escritorio;
+   en móvil el líder se queda como primera fila de la tabla. */
+.ranking-podium {
+  display: none;
+}
 /* Footer pegado al fondo en pantallas cortas. El slot absorbe el espacio
    disponible sin reemplazar el margen que separa contenido y footer. */
 .ranking-content > .app-footer-slot,
@@ -7954,6 +7959,272 @@ button.admin-account-data-row {
   cursor: default;
   transition: background 0.18s ease;
 }
+/* Reacciones por partido: pills uniformes, verde solo en la reacción propia */
+.ranking-reactions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 16px 12px;
+}
+.ranking-reaction-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 27px;
+  padding: 3px 11px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  background: rgba(15, 23, 42, 0.35);
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
+}
+.ranking-reaction-chip:active {
+  transform: scale(0.93);
+}
+.ranking-reaction-chip.is-active {
+  border-color: rgba(34, 197, 94, 0.6);
+  background: var(--green-bg);
+  color: var(--green-light);
+}
+.ranking-reaction-count {
+  font-family: var(--font-display);
+  font-size: 13.5px;
+  font-weight: 700;
+  line-height: 1;
+}
+/* Comentarios de la quiniela */
+.ranking-chat-panel {
+  border-radius: 15px;
+}
+.ranking-chat-header {
+  width: 100%;
+  min-height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 16px;
+  border: 0;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.035), rgba(255,255,255,0.01)),
+    rgba(15,23,42,0.26);
+  color: var(--text-strong);
+  cursor: pointer;
+  font: inherit;
+}
+.ranking-chat-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 1.1px;
+  text-transform: uppercase;
+  line-height: 1;
+}
+.ranking-chat-title-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  color: var(--green-light);
+}
+.ranking-chat-count {
+  min-width: 26px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(148,163,184,0.20);
+  background: rgba(148,163,184,0.14);
+  color: var(--muted);
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1;
+}
+.ranking-chat-header-side {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+}
+.ranking-chat-unread {
+  padding: 2px 9px;
+  border-radius: 999px;
+  border: 1px solid rgba(34,197,94,0.5);
+  background: var(--green-bg);
+  color: var(--green-light);
+  font-size: 10.5px;
+  font-weight: 800;
+  line-height: 1.4;
+}
+.ranking-chat-chevron {
+  display: inline-flex;
+  color: var(--muted);
+}
+.ranking-chat-body {
+  border-top: 1px solid var(--border);
+}
+.ranking-chat-empty {
+  padding: 18px 16px;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+.ranking-chat-list {
+  max-height: 320px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 16px;
+}
+.ranking-chat-msg-head {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+}
+.ranking-chat-msg-nombre {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--green-light);
+}
+.ranking-chat-msg.is-mine .ranking-chat-msg-nombre {
+  color: var(--text-strong);
+}
+.ranking-chat-msg-hora {
+  font-size: 10.5px;
+  color: var(--muted-soft);
+}
+.ranking-chat-msg-actions {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.ranking-chat-msg-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted-soft);
+  cursor: pointer;
+  opacity: 0.55;
+  transition: opacity 0.15s ease, color 0.15s ease;
+}
+.ranking-chat-msg-action:hover {
+  opacity: 1;
+  color: var(--text);
+}
+.ranking-chat-msg-reportado {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--muted-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+.ranking-chat-msg-texto {
+  margin: 3px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.ranking-chat-composer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px 14px;
+  border-top: 1px solid var(--border);
+}
+.ranking-chat-composer input {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
+.ranking-chat-send {
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 11px;
+  background: linear-gradient(135deg, var(--green), var(--green-light));
+  color: #07120A;
+  cursor: pointer;
+  box-shadow: var(--shadow-green);
+}
+.ranking-chat-send:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+.ranking-chat-identidad {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 16px 14px;
+  border-top: 1px solid var(--border);
+}
+.ranking-chat-identidad label {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--muted);
+}
+.ranking-chat-identidad select {
+  margin: 0;
+}
+.ranking-chat-nota {
+  padding: 12px 16px 14px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 12px;
+}
+.ranking-chat-aviso {
+  padding: 0 16px 12px;
+  color: var(--yellow-soft, #FDE68A);
+  font-size: 11.5px;
+}
+
+/* Badges de jornada (📈 remontada, 🎯 francotirador) en la fila del jugador */
+.ranking-jornada-badge {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 7px 2px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.30);
+  background: rgba(148, 163, 184, 0.10);
+  color: var(--text);
+  font-size: 11px;
+  line-height: 1.3;
+}
+.ranking-jornada-badge-label {
+  display: none;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  color: var(--muted-soft);
+}
+@media (min-width: 1024px) {
+  .ranking-jornada-badge-label {
+    display: inline;
+  }
+}
 .ranking-match-row::before {
   content: "";
   position: absolute;
@@ -9551,16 +9822,24 @@ button.admin-account-data-row {
   line-height: 1;
 }
 
-/* Ranking: escritorio (≥1024px): layout de dos columnas.
-   Reglas/premio/stats/partidos a la izquierda (540px fijos); tabla de
-   ranking + acciones a la derecha. El móvil/tablet no cambia. */
+/* Ranking: escritorio (≥1024px). El hero y la sección de partidos replican
+   el diseño de móvil (stepper a todo lo ancho, controles de actualización
+   arriba, filas de partido compactas con badge abajo). Lo propio de
+   escritorio: columna izquierda sticky (premio + stats + partidos), panel
+   derecho unificado (tabla + compartir) y podio del primer lugar arriba de
+   la tabla. El móvil/tablet no cambia. */
 @media (min-width: 1024px) {
   .ranking-hero-inner,
   .ranking-content {
-    --ranking-max-width: 1180px;
+    --ranking-max-width: 1240px;
+  }
+  .ranking-hero-pad {
+    --ranking-title-size: 31px;
+    --ranking-title-margin-bottom: 10px;
+    --ranking-brand-margin-bottom: 22px;
   }
   .ranking-content {
-    --ranking-content-padding: 24px 32px 6px;
+    --ranking-content-padding: 26px 32px 6px;
     --ranking-grid-cols: 44px minmax(0, 1fr) 64px 64px 96px;
     --ranking-row-pad-x: 20px;
     --ranking-row-pad-y: 16px;
@@ -9571,28 +9850,221 @@ button.admin-account-data-row {
     --ranking-points-size: 20px;
   }
 
-  .ranking-desktop-grid {
-    display: grid;
-    grid-template-columns: 540px minmax(0, 1fr);
-    gap: 22px;
-    align-items: start;
-  }
-  .ranking-desktop-right {
-    --ranking-section-gap: 10px;
+  /* Hero como en móvil: el stepper ocupa todo el ancho del contenido
+     (anula el max-width inline del componente). */
+  .ranking-hero-stepper > div {
+    max-width: none !important;
   }
 
-  .ranking-match-compact {
+  /* Grid principal: izquierda sticky, derecha tabla */
+  .ranking-desktop-grid {
+    display: grid;
+    grid-template-columns: 420px minmax(0, 1fr);
+    gap: 24px;
+    align-items: start;
+  }
+  .ranking-desktop-left {
+    position: sticky;
+    top: 16px;
+    max-height: calc(100vh - 32px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    min-width: 0;
+  }
+  .ranking-desktop-right {
+    --ranking-section-gap: 12px;
+    min-width: 0;
+  }
+
+  /* La card de campeón de móvil no se muestra en escritorio: el podio
+     arriba de la tabla toma su lugar. */
+  .ranking-champion-slot {
     display: none;
   }
-  .ranking-match-wide {
+
+  /* Podio del primer lugar: líder en juego (verde) o ganador final (dorado).
+     Su fila se oculta en la tabla para no duplicarlo. */
+  .ranking-podium {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
     display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    gap: 14px;
+    grid-template-columns: auto minmax(0, 1fr) auto;
     align-items: center;
-    padding: 12px 16px;
+    gap: 18px;
+    margin-bottom: var(--ranking-section-gap, 12px);
+    padding: 18px 24px;
+    border-radius: 15px;
   }
-  .ranking-match-wide.has-status {
-    grid-template-columns: minmax(0, 1fr) auto;
+  .ranking-podium.is-final {
+    border: 1.5px solid rgba(250, 204, 21, 0.82);
+    background:
+      radial-gradient(circle at 88% 18%, rgba(250,204,21,0.20), transparent 30%),
+      radial-gradient(circle at 6% 90%, rgba(250,204,21,0.08), transparent 34%),
+      linear-gradient(95deg, #172846 0%, #17243B 48%, #202C40 100%);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 0 0 1px rgba(250,204,21,0.12), 0 16px 34px rgba(0,0,0,0.30), 0 0 14px rgba(250,204,21,0.08);
+  }
+  .ranking-podium.is-live {
+    border: 1.5px solid rgba(34, 197, 94, 0.55);
+    background:
+      radial-gradient(circle at 88% 18%, rgba(34,197,94,0.16), transparent 30%),
+      radial-gradient(circle at 6% 90%, rgba(34,197,94,0.07), transparent 34%),
+      linear-gradient(95deg, #12283C 0%, #14263B 48%, #1B2C40 100%);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.07), 0 0 0 1px rgba(34,197,94,0.10), 0 16px 34px rgba(0,0,0,0.28);
+  }
+  .ranking-podium-shine {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background: linear-gradient(110deg, transparent 32%, rgba(255,255,255,0.07) 50%, transparent 68%);
+    animation: leader-row-shine 8s ease-in-out infinite;
+  }
+  .ranking-podium-avatar {
+    position: relative;
+    z-index: 1;
+    width: 54px;
+    height: 54px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    font-weight: 800;
+    letter-spacing: 0.3px;
+  }
+  .ranking-podium.is-final .ranking-podium-avatar {
+    border: 1.5px solid rgba(250,204,21,0.65);
+    background: rgba(250,204,21,0.13);
+    color: var(--yellow);
+  }
+  .ranking-podium.is-live .ranking-podium-avatar {
+    border: 1.5px solid rgba(34,197,94,0.60);
+    background: rgba(34,197,94,0.13);
+    color: var(--green-light);
+  }
+  .ranking-podium-crown {
+    position: absolute;
+    top: -12px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: inline-flex;
+    color: var(--yellow);
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.45));
+  }
+  .ranking-podium-copy {
+    position: relative;
+    z-index: 1;
+    min-width: 0;
+  }
+  .ranking-podium-kicker {
+    margin: 0 0 3px;
+    font-size: 10.5px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 1.3px;
+  }
+  .ranking-podium.is-final .ranking-podium-kicker {
+    color: var(--yellow);
+  }
+  .ranking-podium.is-live .ranking-podium-kicker {
+    color: var(--green-light);
+  }
+  .ranking-podium-names.is-stacked {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 14px;
+  }
+  .ranking-podium-name {
+    margin: 0;
+    color: #FFFFFF;
+    font-family: var(--font-display);
+    font-size: 25px;
+    font-weight: 700;
+    line-height: 1.08;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .ranking-podium-names.is-stacked .ranking-podium-name {
+    font-size: 20px;
+  }
+  .ranking-podium-detail {
+    margin: 4px 0 0;
+    font-size: 12.5px;
+    color: var(--muted);
+  }
+  .ranking-podium-score {
+    position: relative;
+    z-index: 1;
+    text-align: center;
+    min-width: 52px;
+  }
+  .ranking-podium-points {
+    display: block;
+    font-family: var(--font-display);
+    font-size: 42px;
+    font-weight: 800;
+    line-height: 0.9;
+  }
+  .ranking-podium.is-final .ranking-podium-points {
+    color: var(--yellow);
+  }
+  .ranking-podium.is-live .ranking-podium-points {
+    color: var(--green-light);
+  }
+  .ranking-podium-points-label {
+    display: block;
+    margin-top: 3px;
+    font-size: 9.5px;
+    font-weight: 900;
+    letter-spacing: 1.1px;
+    color: var(--muted);
+  }
+  .ranking-desktop-right.has-podium .ranking-player-shell.is-leader {
+    display: none;
+  }
+
+  /* Las stat cards de móvil se conservan en la columna izquierda */
+
+  /* Panel derecho unificado: tabla + botón compartir como una sola pieza */
+  .ranking-desktop-right .ranking-table-panel {
+    margin-bottom: 0;
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+  .ranking-desktop-right .ranking-share-action-wrap {
+    margin-top: 0;
+  }
+  .ranking-desktop-right .ranking-share-action {
+    border: 1px solid rgba(148, 163, 184, 0.16);
+    border-top: 0;
+    border-radius: 0 0 15px 15px;
+    background:
+      linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.008)),
+      rgba(15,23,42,0.5);
+    box-shadow: inset 0 -1px 0 rgba(255,255,255,0.03), 0 14px 34px rgba(0,0,0,0.28);
+  }
+  .ranking-search-bar {
+    padding: 12px 20px;
+  }
+
+  /* CTA de entrada (quiniela abierta) como banda horizontal */
+  .ranking-entry-card {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 28px;
+    padding: 18px 26px !important;
+  }
+  .ranking-entry-card > p {
+    margin: 0 !important;
+    font-size: 13px !important;
+  }
+  .ranking-entry-card > a {
+    width: auto !important;
+    padding: 13px 30px !important;
   }
 
   .ranking-player-avatar {

@@ -21,6 +21,7 @@ export default function Ranking() {
 
   const [quiniela, setQuiniela]         = useState(null)
   const [predicciones, setPredicciones] = useState([])
+  const [reacciones, setReacciones]     = useState({})
   const [cargando, setCargando]         = useState(true)
   const [error, setError]               = useState(null)
   const [liveScores, setLiveScores]     = useState({})
@@ -42,15 +43,21 @@ export default function Ranking() {
   // perdemos nada de "tiempo real"; los datos se refrescan en ese mismo ciclo.
   const cargarDatos = async () => {
     if (!quinielaId) return false
-    const [snapQ, snapP] = await Promise.all([
+    const [snapQ, snapP, snapR] = await Promise.all([
       getDoc(doc(db, 'quinielas', quinielaId)),
       getDocs(query(collection(db, 'predicciones'), where('quinielaId', '==', quinielaId))),
+      getDocs(collection(db, 'quinielas', quinielaId, 'reacciones')).catch(() => null),
     ])
     if (!snapQ.exists()) { setError('not-found'); setCargando(false); return false }
     const datosQ = snapQ.data()
     const ocultosIds = datosQ.ocultos ?? []
     setQuiniela({ id: snapQ.id, ...datosQ })
     setPredicciones(snapP.docs.map(d => ({ id: d.id, ...d.data() })).filter(p => !ocultosIds.includes(p.id)))
+    if (snapR) {
+      const porPartido = {}
+      snapR.docs.forEach(d => { porPartido[d.id] = d.data() })
+      setReacciones(porPartido)
+    }
     setError(null)
     setCargando(false)
     return true
@@ -448,7 +455,7 @@ export default function Ranking() {
             </a>
           </div>
           <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--ranking-title-size, 24px)', fontWeight: 700, lineHeight: 1.2, marginBottom: 'var(--ranking-title-margin-bottom, 10px)', letterSpacing: '-0.01em' }}>{quiniela.nombre}</h1>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <div className="ranking-hero-badges" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             {quiniela.empresa && (
               <span style={{
                 display: 'inline-flex', alignItems: 'center', gap: 4,
@@ -478,9 +485,27 @@ export default function Ranking() {
                 EN VIVO
               </span>
             )}
+            {quiniela.temporadaId && (
+              <a
+                href={`/temporada/${quiniela.temporadaId}?q=${quinielaId}`}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 5,
+                  fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 'var(--radius-full)',
+                  background: 'var(--neutral-bg)', color: 'var(--green-light)',
+                  border: '1px solid var(--green)', letterSpacing: 0.2, textDecoration: 'none',
+                }}
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M8 21h8" /><path d="M12 17v4" />
+                  <path d="M7 4h10v5a5 5 0 0 1-10 0V4Z" />
+                  <path d="M7 6H4v1a3 3 0 0 0 3 3" /><path d="M17 6h3v1a3 3 0 0 1-3 3" />
+                </svg>
+                Tabla de temporada →
+              </a>
+            )}
           </div>
           {mostrarControlesActualizacion && (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: 8, marginTop: 4 }}>
+            <div className="ranking-hero-controls" style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: 8, marginTop: 4 }}>
               {ultimaAct && (
                 <span style={{ fontSize: 11, color: 'var(--muted)' }}>
                   Actualizado {ultimaAct.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
@@ -521,7 +546,9 @@ export default function Ranking() {
               </button>
             </div>
           )}
-          <ProgresoPasos etapa={finalizada ? 'final' : quinielaCerrada(quiniela) ? 'enjuego' : 'abierta'} />
+          <div className="ranking-hero-stepper">
+            <ProgresoPasos etapa={finalizada ? 'final' : quinielaCerrada(quiniela) ? 'enjuego' : 'abierta'} />
+          </div>
         </div>
       </div>
 
@@ -564,7 +591,7 @@ export default function Ranking() {
             </div>
           )
         })()}
-        <RankingTable quiniela={quiniela} predicciones={predicciones} liveScores={liveScores} liveStats={liveStats} liveEventos={liveEventos} livePenales={livePenales} />
+        <RankingTable quiniela={quiniela} predicciones={predicciones} liveScores={liveScores} liveStats={liveStats} liveEventos={liveEventos} livePenales={livePenales} reacciones={reacciones} />
         <div className="app-footer-slot">
           <Footer maxWidth="var(--ranking-max-width, 480px)" />
         </div>
