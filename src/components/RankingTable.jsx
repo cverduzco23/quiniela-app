@@ -17,6 +17,12 @@ function formatFecha(value) {
   return d.toLocaleString('es-MX', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 }
 
+function formatFechaDestacada(value) {
+  const texto = formatFecha(value)
+  const ultimaComa = texto.lastIndexOf(',')
+  return ultimaComa >= 0 ? `${texto.slice(0, ultimaComa)} ·${texto.slice(ultimaComa + 1)}` : texto
+}
+
 function pickDisplay(pick) {
   if (!pick) return '-'
   if (typeof pick === 'object') {
@@ -273,6 +279,7 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
   const [feedbackShare, setFeedbackShare] = useState('')
   const [busqueda, setBusqueda]                 = useState('')
   const [mostrarInfoPicks, setMostrarInfoPicks] = useState(false)
+  const [mostrarTodosPartidos, setMostrarTodosPartidos] = useState(false)
 
   // Detección de goles nuevos (comparando contra el polling anterior) para
   // disparar un festejo en pantalla, igual al de "picks completos".
@@ -332,6 +339,17 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
   const hayResultados = terminados > 0 || enVivo
   const vistaParticipantesAbierta = !cerrada && !hayResultados
   const miNombreRanking = quiniela?.id ? miIdentidadEnQuiniela(quiniela.id) : null
+  const tiemposPartidos = partidos.map((partido, idx) => cierreToDate(partido.hora)?.getTime() ?? idx)
+  const ultimaHoraPartidos = tiemposPartidos.length ? Math.max(...tiemposPartidos) : null
+  const ultimosPartidosIdx = tiemposPartidos.reduce((idxs, tiempo, idx) => {
+    if (tiempo === ultimaHoraPartidos) idxs.push(idx)
+    return idxs
+  }, [])
+  const quinielaEnJuego = cerrada && !finalizada && partidos.length > 0
+  const finalesDestacables = quinielaEnJuego && ultimosPartidosIdx.length > 0 && ultimosPartidosIdx.length <= 2
+  const puedeEnfocarUltimo = finalesDestacables && partidos.length > ultimosPartidosIdx.length
+  const enfoqueUltimoPartido = finalesDestacables && (!puedeEnfocarUltimo || !mostrarTodosPartidos)
+  const finalesSimultaneas = enfoqueUltimoPartido && ultimosPartidosIdx.length === 2
 
   const jugadores = predicciones
     .map(p => ({
@@ -601,6 +619,9 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
       <div className="ranking-stats-grid" style={{ display: 'grid', gridTemplateColumns: `repeat(${resumenStats.length},1fr)` }}>
         {resumenStats.map(s => (
           <div key={s.label} className="ranking-stat-card ranking-glass-card">
+            <span className={`ranking-stat-watermark is-${s.label === 'Participantes' ? 'participants' : 'matches'}`} aria-hidden="true">
+              {s.label === 'Participantes' ? '👤' : '⚽'}
+            </span>
             <span style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--ranking-stat-value-size, 26px)', fontWeight: 700, display: 'block', color: 'var(--text-strong)', lineHeight: 0.98 }}>{s.val}</span>
             <span style={{ fontSize: 'var(--ranking-stat-label-size, 11px)', color: 'var(--muted)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: 'var(--ranking-stat-label-spacing, 0.5px)', marginTop: 8 }}>{s.label}</span>
           </div>
@@ -609,17 +630,31 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
 
       {/* Partidos */}
       {partidos.length > 0 && (
-        <div className="ranking-panel ranking-matches-panel">
+        <div className={`ranking-panel ranking-matches-panel${enfoqueUltimoPartido ? ' is-last-match-focus' : ''}${finalesSimultaneas ? ' has-simultaneous-finals' : ''}`}>
           <div className="ranking-panel-header ranking-matches-header">
               <span className="ranking-matches-title">
                 <span className="ranking-matches-title-icon" aria-hidden="true">
-                <SvgIcon name="calendar" size={13} />
+                  📅
+                </span>
+                {enfoqueUltimoPartido ? (finalesSimultaneas ? 'Últimos partidos' : 'Último partido') : 'Partidos'}
               </span>
-              Partidos
+            <span className="ranking-matches-header-actions">
+              {!enfoqueUltimoPartido && !puedeEnfocarUltimo && <span className="ranking-matches-count">{partidos.length}</span>}
+              {puedeEnfocarUltimo && (
+                <button
+                  type="button"
+                  className="ranking-matches-view-toggle"
+                  onClick={() => setMostrarTodosPartidos(v => !v)}
+                  aria-label={enfoqueUltimoPartido ? 'Ver todos los partidos' : 'Ver último partido'}
+                >
+                  <span className="is-long">{enfoqueUltimoPartido ? 'Ver todos' : 'Ver último partido'}</span>
+                  <span className="is-short">{enfoqueUltimoPartido ? 'Ver todos' : 'Ver último'}</span>
+                </button>
+              )}
             </span>
-            <span className="ranking-matches-count">{partidos.length}</span>
           </div>
           {partidos.map((p, i) => {
+            if (enfoqueUltimoPartido && !ultimosPartidosIdx.includes(i)) return null
             const live      = p.espnId ? liveScores?.[p.espnId] : null
             const stored    = resultados[i] ?? resultados[String(i)]
             const cancelado = !!stored?.cancelado
@@ -660,7 +695,8 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
             const hayPenales      = !cancelado && (!!live?.penales || penalesTanda.length > 0)
             const hayStats = !!st && st.state !== 'pre'
             const hayResumen = tieneStats && (esFinish || !!stored) && !cancelado
-            const tieneAlgo = hayStats || hayResumen
+            const hayDetallesVisibles = hayStats || eventosNormales.length > 0 || hayPenales
+            const tieneAlgo = hayDetallesVisibles || hayResumen
             const jugado = !cancelado && (esFinish || getResultado(stored) !== null)
             const matchScoreText = pendiente ? 'VS' : `${scoreLocal} - ${scoreVisitante}`
             const posH = hayStats ? parseFloat(st.home.posesion) || 50 : 50
@@ -684,35 +720,45 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
               <div
                 key={i}
                 onClick={tieneAlgo ? () => togglePartido(i) : undefined}
-                className={`ranking-match-row${esVivo ? ' is-live' : ''}${jugado ? ' is-played' : ''}${partidoAbierto ? ' is-open' : ''}${cancelado ? ' is-cancelled' : ''}${tieneAlgo ? ' is-clickable' : ''}`}
-                style={{ borderBottom: i < partidos.length - 1 ? '1px solid var(--border)' : 'none' }}
+                className={`ranking-match-row${enfoqueUltimoPartido ? ' is-featured' : ''}${finalesSimultaneas ? ' is-featured-pair' : ''}${esVivo ? ' is-live' : ''}${jugado ? ' is-played' : ''}${partidoAbierto ? ' is-open' : ''}${cancelado ? ' is-cancelled' : ''}${tieneAlgo ? ' is-clickable' : ''}`}
+                style={{ borderBottom: !enfoqueUltimoPartido && i < partidos.length - 1 ? '1px solid var(--border)' : 'none' }}
               >
+                {(p.escudoLocal || p.escudoVisitante) && (
+                  <div className="ranking-match-team-blobs" aria-hidden="true">
+                    {p.escudoLocal && <img className="is-home" src={p.escudoLocal} alt="" onError={e => { e.target.style.display = 'none' }} />}
+                    {p.escudoVisitante && <img className="is-away" src={p.escudoVisitante} alt="" onError={e => { e.target.style.display = 'none' }} />}
+                  </div>
+                )}
                 {/* Escritorio (≥1024px): equipos completos + fecha bajo el local */}
                 <div className={`ranking-match-wide${muestraEstadoPartido ? ' has-status' : ''}`}>
                   <div className="ranking-match-wide-teams">
                     <div className="ranking-match-wide-side is-home">
                       <div className="ranking-match-wide-side-row">
-                        <EscudoEquipo url={p.escudoLocal} nombre={p.local} size={22} />
+                        <EscudoEquipo url={p.escudoLocal} nombre={p.local} size={enfoqueUltimoPartido ? 30 : 22} />
                         <span className="ranking-match-wide-name">{p.local}</span>
                       </div>
-                      {p.hora && <span className="ranking-match-wide-fecha">{formatFecha(p.hora)}</span>}
+                      {p.hora && !enfoqueUltimoPartido && <span className="ranking-match-wide-fecha">{formatFecha(p.hora)}</span>}
                     </div>
-                    <span
-                      className={`ranking-match-wide-score${pendiente ? ' is-pending' : ''}`}
-                      style={{ color: cancelado ? 'var(--muted)' : 'var(--text-strong)', textDecoration: cancelado ? 'line-through' : 'none' }}
-                    >
-                      {matchScoreText}
-                    </span>
+                    <div className="ranking-match-score-stack">
+                      {enfoqueUltimoPartido && badgeNode && <span className="ranking-featured-match-status">{badgeNode}</span>}
+                      <span
+                        className={`ranking-match-wide-score${pendiente ? ' is-pending' : ''}`}
+                        style={{ color: cancelado ? 'var(--muted)' : 'var(--text-strong)', textDecoration: cancelado ? 'line-through' : 'none' }}
+                      >
+                        {matchScoreText}
+                      </span>
+                    </div>
                     <div className="ranking-match-wide-side is-away">
                       <div className="ranking-match-wide-side-row">
                         <span className="ranking-match-wide-name">{p.visitante}</span>
-                        <EscudoEquipo url={p.escudoVisitante} nombre={p.visitante} size={22} />
+                        <EscudoEquipo url={p.escudoVisitante} nombre={p.visitante} size={enfoqueUltimoPartido ? 30 : 22} />
                       </div>
                     </div>
                   </div>
+                  {enfoqueUltimoPartido && p.hora && <span className="ranking-featured-match-date is-wide">{formatFechaDestacada(p.hora)}</span>}
                   {muestraEstadoPartido && (
                     <div className="ranking-match-wide-status">
-                      {badgeNode}
+                      {!enfoqueUltimoPartido && badgeNode}
                       {tieneAlgo && (
                         <span className="ranking-match-toggle ranking-match-toggle-wide">
                           <span className="ranking-match-toggle-icon" aria-hidden="true">
@@ -729,8 +775,8 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                 <div className={`ranking-match-compact${(muestraEstadoPartido || p.hora) ? ' has-meta' : ''}`}>
                   {(muestraEstadoPartido || p.hora) && (
                     <div className={`ranking-match-status-row${esVivo ? ' is-live' : ''}${tieneAlgo ? ' has-toggle' : ''}`}>
-                      {p.hora && <span className="ranking-match-status-date">{formatFecha(p.hora)}</span>}
-                      {badgeNode}
+                      {p.hora && !enfoqueUltimoPartido && <span className="ranking-match-status-date">{formatFecha(p.hora)}</span>}
+                      {!enfoqueUltimoPartido && badgeNode}
                       {tieneAlgo && (
                         <span className="ranking-match-toggle ranking-match-toggle-status">
                           <span className="ranking-match-toggle-icon" aria-hidden="true">
@@ -748,17 +794,21 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                         {p.escudoLocal && <img className="ranking-match-crest" src={p.escudoLocal} alt="" onError={e => { e.target.style.display = 'none' }} />}
                         <span className="ranking-match-name">{p.local}</span>
                       </div>
-                      <span
-                        className={`ranking-match-score is-desktop${pendiente ? ' is-pending' : ''}`}
-                        style={{ color: cancelado ? 'var(--muted)' : 'var(--text-strong)', textDecoration: cancelado ? 'line-through' : 'none' }}
-                      >
-                        {matchScoreText}
-                      </span>
+                      <div className="ranking-match-score-stack">
+                        {enfoqueUltimoPartido && badgeNode && <span className="ranking-featured-match-status">{badgeNode}</span>}
+                        <span
+                          className={`ranking-match-score is-desktop${pendiente ? ' is-pending' : ''}`}
+                          style={{ color: cancelado ? 'var(--muted)' : 'var(--text-strong)', textDecoration: cancelado ? 'line-through' : 'none' }}
+                        >
+                          {matchScoreText}
+                        </span>
+                      </div>
                       <div className="ranking-match-side is-away">
                         <span className="ranking-match-name">{p.visitante}</span>
                         {p.escudoVisitante && <img className="ranking-match-crest" src={p.escudoVisitante} alt="" onError={e => { e.target.style.display = 'none' }} />}
                       </div>
                     </div>
+                    {enfoqueUltimoPartido && p.hora && <span className="ranking-featured-match-date">{formatFechaDestacada(p.hora)}</span>}
                   </div>
                 </div>
 
@@ -790,7 +840,21 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                     }}
                   >
                   <div style={{ overflow: 'hidden' }}>
-                  <div className="ranking-match-detail-panel" onClick={e => e.stopPropagation()}>
+                  <div className="ranking-match-detail-panel">
+                    {enfoqueUltimoPartido && (
+                      <div className="ranking-featured-detail-heading">
+                        <span className="ranking-featured-detail-title">
+                          <span aria-hidden="true">📊</span>
+                          Detalles del partido
+                        </span>
+                        {esVivo && (
+                          <span className="ranking-featured-detail-live">
+                            <span className="ranking-match-live-dot" />
+                            En vivo
+                          </span>
+                        )}
+                      </div>
+                    )}
                     <div className="ranking-match-detail-teams" aria-hidden="true">
                       <div className="ranking-match-detail-team is-home">
                         {p.escudoLocal && <img src={p.escudoLocal} alt="" onError={e => { e.target.style.display = 'none' }} />}
@@ -883,11 +947,12 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                         )}
                       </div>
                     )}
-                    {hayResumen && (
+                    {hayResumen && !hayDetallesVisibles && (
                       <a
                         href={`https://www.espn.com/soccer/match/_/gameId/${p.espnId}`}
                         target="_blank" rel="noreferrer"
                         className="ranking-match-summary-link"
+                        onClick={e => e.stopPropagation()}
                       >
                         Ver resumen del partido →
                       </a>
@@ -955,27 +1020,31 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
         )}
 
         {vistaParticipantesAbierta ? (
-          <div className="ranking-panel-header">
+          <div className="ranking-panel-header ranking-participants-header">
             <span style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.8, whiteSpace: 'nowrap' }}>
               Participantes
             </span>
-            <button
-              type="button"
-              onClick={() => setMostrarInfoPicks(v => !v)}
-              aria-expanded={mostrarInfoPicks}
-              style={{
-                display: 'inline-flex', alignItems: 'center', gap: 5,
-                fontSize: 10.5, color: mostrarInfoPicks ? 'var(--green)' : 'var(--muted)',
-                fontWeight: 700, whiteSpace: 'nowrap',
-                background: mostrarInfoPicks ? 'var(--green-bg)' : 'transparent',
-                border: `1px solid ${mostrarInfoPicks ? 'var(--green)' : 'transparent'}`,
-                borderRadius: 'var(--radius-full)', padding: '4px 8px',
-                cursor: 'pointer',
-              }}
-            >
-              <SvgIcon name="lock" size={12} />
-              Picks ocultos
-            </button>
+            <span className="ranking-participants-actions">
+              <button
+                type="button"
+                onClick={() => setMostrarInfoPicks(v => !v)}
+                aria-expanded={mostrarInfoPicks}
+                className={`ranking-picks-info${mostrarInfoPicks ? ' is-active' : ''}`}
+              >
+                <SvgIcon name="lock" size={12} />
+                Picks ocultos
+              </button>
+              <button
+                type="button"
+                className="ranking-participants-invite"
+                onClick={handleCompartirRanking}
+                disabled={compartiendo || !puedeCompartir}
+                aria-label={compartirLabel}
+              >
+                <SvgIcon name="users" size={13} />
+                {compartiendo ? 'Generando...' : 'Invitar'}
+              </button>
+            </span>
           </div>
         ) : (
           <div className="ranking-table-head" style={{ display: 'grid', gridTemplateColumns: 'var(--ranking-grid-cols, 30px 1fr 38px 38px 46px)' }}>
@@ -1270,7 +1339,7 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
         )}
       </div>
 
-      <div className="ranking-share-action-wrap">
+      {!vistaParticipantesAbierta && <div className="ranking-share-action-wrap">
         <button
           type="button"
           className="ranking-share-action"
@@ -1288,7 +1357,12 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
             {compartiendo ? 'Generando imagen para compartir...' : feedbackShare}
           </p>
         )}
-      </div>
+      </div>}
+      {vistaParticipantesAbierta && (compartiendo || feedbackShare) && (
+        <p className="ranking-share-status" role="status">
+          {compartiendo ? 'Generando imagen para compartir...' : feedbackShare}
+        </p>
+      )}
       </div>
       </div>
     </>

@@ -118,6 +118,12 @@ falta para lanzar es operación (checklist más abajo).
 
 ### Pendiente post-lanzamiento (sin prisa, ver también §4)
 
+- **Stickers predeterminados en comentarios:** paquete cerrado de 12 a 20 stickers de fútbol,
+  incluidos como assets WebP de la app y seleccionados desde una cuadrícula compacta en el chat.
+  Guardar solo `tipo: "sticker"` y un `stickerId` permitido en cada comentario. No aceptar URLs ni
+  archivos de usuarios, no usar Firebase Storage y conservar el mismo cooldown, reportes y borrado.
+  Los comentarios existentes sin `tipo` se interpretan como texto. Requiere actualizar las reglas
+  de Firestore antes de habilitar el envío en producción.
 - **Automatizaciones del centro de notificaciones:** ✅ la base de avisos manuales del super admin
   hacia los organizadores quedó implementada el 2026-07-13 (campana, no leídas, bandeja, audiencia,
   prioridad, vigencia, historial, copia de experiencia y envío de prueba solo al super admin). Pendiente:

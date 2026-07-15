@@ -547,7 +547,10 @@ export default function Ranking() {
             </div>
           )}
           <div className="ranking-hero-stepper">
-            <ProgresoPasos etapa={finalizada ? 'final' : quinielaCerrada(quiniela) ? 'enjuego' : 'abierta'} />
+            <ProgresoPasos
+              etapa={finalizada ? 'final' : quinielaCerrada(quiniela) ? 'enjuego' : 'abierta'}
+              animarActivo
+            />
           </div>
         </div>
       </div>

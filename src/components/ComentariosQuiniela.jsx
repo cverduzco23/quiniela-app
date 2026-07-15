@@ -207,7 +207,7 @@ export function ComentariosQuiniela({ quiniela, nombres = [] }) {
   if (!quinielaId) return null
 
   return (
-    <section className="ranking-panel ranking-chat-panel" aria-label="Comentarios de la quiniela">
+    <section className={`ranking-panel ranking-chat-panel${abierto ? ' is-open' : ''}`} aria-label="Comentarios de la quiniela">
       <button
         type="button"
         className="ranking-chat-header"
@@ -216,17 +216,17 @@ export function ComentariosQuiniela({ quiniela, nombres = [] }) {
       >
         <span className="ranking-chat-title">
           <span className="ranking-chat-title-icon" aria-hidden="true">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-            </svg>
+            💬
           </span>
           Comentarios
-          {cargado && comentarios.length > 0 && <span className="ranking-chat-count">{comentarios.length}</span>}
+          {cargado && comentarios.length > 0 && (
+            <span className="ranking-chat-count-wrap">
+              <span className="ranking-chat-count">{comentarios.length}</span>
+              {!abierto && noLeidos > 0 && <span className="ranking-chat-new-dot" aria-label="Hay comentarios nuevos" />}
+            </span>
+          )}
         </span>
         <span className="ranking-chat-header-side">
-          {!abierto && noLeidos > 0 && (
-            <span className="ranking-chat-unread">{noLeidos > 99 ? '99+' : noLeidos} nuevo{noLeidos !== 1 ? 's' : ''}</span>
-          )}
           <span className="ranking-chat-chevron" aria-hidden="true">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: abierto ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s ease' }}>
               <polyline points="6 9 12 15 18 9" />

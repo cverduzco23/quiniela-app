@@ -57,7 +57,7 @@ export function ReaccionesPartido({ quinielaId, partidoIdx, conteos }) {
   }
 
   return (
-    <div className="ranking-reactions" onClick={e => e.stopPropagation()}>
+    <div className="ranking-reactions">
       {REACCIONES.map(r => {
         const activa = miReaccion === r.key
         // La selección local puede persistir antes de que el conteo remoto se
@@ -69,7 +69,10 @@ export function ReaccionesPartido({ quinielaId, partidoIdx, conteos }) {
             key={r.key}
             type="button"
             className={`ranking-reaction-chip${activa ? ' is-active' : ''}`}
-            onClick={() => reaccionar(r.key)}
+            onClick={e => {
+              e.stopPropagation()
+              reaccionar(r.key)
+            }}
             aria-pressed={activa}
             aria-label={`Reaccionar: ${r.label}`}
             title={r.label}

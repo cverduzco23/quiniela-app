@@ -1,6 +1,6 @@
 // Stepper de progreso de la quiniela: Abierta -> En juego -> Final.
 // Es una linea de tiempo informativa, no navegable.
-export function ProgresoPasos({ etapa }) {
+export function ProgresoPasos({ etapa, animarActivo = false }) {
   const idx = etapa === 'final' ? 2 : etapa === 'enjuego' ? 1 : 0
   const pasos = ['Abierta', 'En juego', 'Final']
 
@@ -25,7 +25,11 @@ export function ProgresoPasos({ etapa }) {
     }
 
     if (activo) {
-      return <span aria-hidden="true" style={{ width: 20, height: 20, borderRadius: '50%', background: 'var(--green)', flexShrink: 0, boxShadow: '0 0 10px rgba(34,197,94,0.5)' }} />
+      return <span
+        aria-hidden="true"
+        className={animarActivo ? 'progreso-pasos-circulo-activo' : undefined}
+        style={{ width: 20, height: 20, borderRadius: '50%', background: 'var(--green)', flexShrink: 0, boxShadow: '0 0 10px rgba(34,197,94,0.5)' }}
+      />
     }
 
     return <span aria-hidden="true" style={{ width: 20, height: 20, borderRadius: '50%', border: '2px solid var(--border-strong)', background: 'transparent', flexShrink: 0 }} />

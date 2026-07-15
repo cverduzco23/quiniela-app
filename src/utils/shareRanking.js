@@ -267,27 +267,15 @@ function loadImageSafe(url, timeoutMs = 3500) {
   })
 }
 
-// Círculo con el escudo del equipo (recortado, "contain" para no deformar
-// logos rectangulares); si no hay imagen cargada, cae al avatar de iniciales.
+// Dibuja el escudo sin fondo y con "contain" para no deformar logos
+// rectangulares; si no hay imagen cargada, cae al avatar de iniciales.
 function drawCrestOrAvatar(ctx, x, y, size, img, name, color, bg = 'rgba(255,255,255,0.05)') {
   if (!img) { drawAvatar(ctx, x, y, size, name, color, bg); return }
-  ctx.save()
-  ctx.beginPath()
-  ctx.arc(x, y, size / 2, 0, Math.PI * 2)
-  ctx.fillStyle = bg
-  ctx.fill()
-  ctx.clip()
   const inner = size * 0.72
   const scale = Math.min(inner / img.width, inner / img.height)
   const w = img.width * scale
   const h = img.height * scale
   ctx.drawImage(img, x - w / 2, y - h / 2, w, h)
-  ctx.restore()
-  ctx.lineWidth = 2
-  ctx.strokeStyle = 'rgba(255,255,255,0.22)'
-  ctx.beginPath()
-  ctx.arc(x, y, size / 2, 0, Math.PI * 2)
-  ctx.stroke()
 }
 
 function drawFooter(ctx, quiniela, theme = 'green', height = H) {
