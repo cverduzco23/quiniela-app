@@ -507,11 +507,21 @@ function FaqSection() {
         {faq.map(([titulo, texto], i) => {
           const abierta = abiertas.has(i)
           return (
-            <div key={titulo} className={`public-faq-item${abierta ? ' public-faq-item--open' : ''}`} style={{ background: 'linear-gradient(135deg, rgba(30,41,59,0.92), rgba(15,24,40,0.95))', border: '1px solid rgba(255,255,255,0.10)', borderRadius: 12, padding: '15px 18px', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 12px 26px rgba(0,0,0,0.32)' }}>
+            <div
+              key={titulo}
+              className={`public-faq-item${abierta ? ' public-faq-item--open' : ''}`}
+              onClick={e => {
+                // Los enlaces dentro de una respuesta conservan su navegación;
+                // cualquier otro punto de la card abre o cierra el acordeón.
+                if (e.target.closest('a')) return
+                toggle(i)
+              }}
+              style={{ background: 'linear-gradient(135deg, rgba(30,41,59,0.92), rgba(15,24,40,0.95))', border: '1px solid rgba(255,255,255,0.10)', borderRadius: 12, padding: '15px 18px', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 12px 26px rgba(0,0,0,0.32)', cursor: 'pointer' }}
+            >
               <button
                 type="button"
                 className="public-faq-trigger"
-                onClick={() => toggle(i)}
+                onClick={e => { e.stopPropagation(); toggle(i) }}
                 aria-expanded={abierta}
                 style={{ all: 'unset', boxSizing: 'border-box', width: '100%', fontFamily: 'inherit', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, fontSize: 14.5, fontWeight: 850, color: 'var(--text-strong)' }}
               >

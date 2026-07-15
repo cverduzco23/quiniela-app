@@ -6,6 +6,7 @@ import {
 import { db, auth } from '../firebase'
 import { miIdentidadEnQuiniela, asignarAliasQuiniela } from '../utils/misQuinielas'
 import { contieneLenguajeVetado } from '../utils/moderacion'
+import { quinielaCerrada } from '../utils/cierre'
 
 // Comentarios por quiniela. Decisiones de diseño (2026-07-14):
 // - Lecturas puntuales con polling de 60s (sin onSnapshot, consistente con el
@@ -51,6 +52,7 @@ function guardarJSON(key, value) {
 export function ComentariosQuiniela({ quiniela, nombres = [] }) {
   const quinielaId = quiniela?.id
   const chatApagado = quiniela?.chatHabilitado === false
+  const quinielaAbierta = !quinielaCerrada(quiniela)
   const [abierto, setAbierto] = useState(false)
   const [comentarios, setComentarios] = useState([])
   const [cargado, setCargado] = useState(false)
@@ -233,13 +235,14 @@ export function ComentariosQuiniela({ quiniela, nombres = [] }) {
         </span>
       </button>
 
-      {abierto && (
+      <div className={`ranking-chat-collapse${abierto ? ' is-open' : ''}`} aria-hidden={!abierto}>
+        <div className="ranking-chat-collapse-inner">
         <div className="ranking-chat-body">
           {!cargado ? (
             <p className="ranking-chat-empty">Cargando comentarios…</p>
-          ) : comentarios.length === 0 ? (
+          ) : comentarios.length === 0 && miNombre ? (
             <p className="ranking-chat-empty">Nadie ha comentado todavía. Rompe el hielo.</p>
-          ) : (
+          ) : comentarios.length > 0 ? (
             <div className="ranking-chat-list" ref={listaRef}>
               {comentarios.map(c => (
                 <div key={c.id} className={`ranking-chat-msg${c.nombre === miNombre ? ' is-mine' : ''}`}>
@@ -271,7 +274,7 @@ export function ComentariosQuiniela({ quiniela, nombres = [] }) {
                 </div>
               ))}
             </div>
-          )}
+          ) : null}
 
           {chatApagado ? (
             <p className="ranking-chat-nota">El organizador desactivó los comentarios de esta quiniela.</p>
@@ -300,7 +303,15 @@ export function ComentariosQuiniela({ quiniela, nombres = [] }) {
             </div>
           ) : nombres.length > 0 ? (
             <div className="ranking-chat-identidad">
-              <label htmlFor="chat-quien-eres">¿Quién eres? Elige tu nombre para comentar</label>
+              <div className="ranking-chat-identidad-prompt">
+                <label htmlFor="chat-quien-eres">¿Quién eres? Elige tu nombre para comentar</label>
+                {quinielaAbierta && (
+                  <>
+                    <span> o </span>
+                    <a href={`/quiniela/${quinielaId}`}>regístrate en la quiniela</a>
+                  </>
+                )}
+              </div>
               <select id="chat-quien-eres" defaultValue="" onChange={e => elegirNombre(e.target.value)}>
                 <option value="" disabled>Selecciona tu nombre</option>
                 {[...nombres].sort((a, b) => a.localeCompare(b, 'es')).map(n => <option key={n} value={n}>{n}</option>)}
@@ -311,7 +322,8 @@ export function ComentariosQuiniela({ quiniela, nombres = [] }) {
           )}
           {aviso && <p className="ranking-chat-aviso" role="status">{aviso}</p>}
         </div>
-      )}
+        </div>
+      </div>
     </section>
   )
 }

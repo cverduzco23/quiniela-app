@@ -56,7 +56,8 @@ export function ComoFunciona({ onClose }) {
             <a href="#ayuda-puntos">Cómo se miden los puntos</a>
             <a href="#ayuda-resultados">Cierre y resultados</a>
             <a href="#ayuda-compartir">Compartir</a>
-            <a href="#ayuda-cambiar">Cambiar predicciones</a>
+            <a href="#ayuda-comunidad">Ranking y comunidad</a>
+            <a href="#ayuda-participantes">Gestionar participantes</a>
             <a href="#ayuda-soporte">Soporte</a>
           </nav>
         </aside>
@@ -104,9 +105,22 @@ export function ComoFunciona({ onClose }) {
           <p style={p}>Desde la pestaña <span style={strong}>Compartir</span> de cada quiniela copias el enlace y el código para mandarlos por WhatsApp a tus participantes.</p>
         </div>
 
-        <div id="ayuda-cambiar" className="como-funciona-section" style={seccion}>
-          <p style={h}>5. Cambiar predicciones</p>
-          <p style={p}>Si alguien quiere cambiar sus predicciones, ve a <span style={strong}>Participantes</span>, elimina su registro e indícale que vuelva a entrar y enviarlas de nuevo. En realidad no se editan: se elimina el registro y se sube de nuevo.</p>
+        <div id="ayuda-comunidad" className="como-funciona-section" style={seccion}>
+          <p style={h}>5. Ranking y comunidad</p>
+          <ul style={list}>
+            <li style={li}>En el ranking, los jugadores pueden <span style={strong}>reaccionar</span> a partidos en vivo o finalizados con un emoji. Cada dispositivo puede elegir una reacción por partido y cambiarla cuando quiera.</li>
+            <li style={li}>La sección <span style={strong}>Comentarios</span> permite conversar usando el nombre registrado en la quiniela. Quien aún no se identifica puede elegir su nombre; si la quiniela sigue abierta, también puede registrarse desde ahí.</li>
+            <li style={li}>Puedes activar o desactivar los comentarios desde <span style={strong}>Editar → Comentarios de la quiniela</span>. Como organizador también puedes borrar comentarios cuando sea necesario.</li>
+          </ul>
+        </div>
+
+        <div id="ayuda-participantes" className="como-funciona-section" style={seccion}>
+          <p style={h}>6. Gestionar participantes</p>
+          <ul style={list}>
+            <li style={li}>Usa el botón de <span style={strong}>lápiz</span> para corregir el nombre de un participante. Sus predicciones, puntos y posición se conservan, y el nombre se actualiza también en ranking, comentarios y temporadas.</li>
+            <li style={li}><span style={strong}>Ocultar</span> lo quita del ranking público sin borrar su registro. Puedes volver a mostrarlo después.</li>
+            <li style={li}>Si alguien quiere cambiar sus predicciones, <span style={strong}>elimina</span> su registro y pídele que se registre otra vez. Sólo podrá hacerlo mientras la quiniela siga abierta.</li>
+          </ul>
         </div>
 
         <div id="ayuda-soporte" className="como-funciona-section como-funciona-section--support" style={seccion}>

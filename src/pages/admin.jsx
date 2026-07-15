@@ -17,6 +17,7 @@ import { detectarSimilares } from '../utils/duplicados'
 import { leerDias, leerQuiniela, leerGlobal, estaExcluido, marcarExcluido } from '../utils/analytics'
 import { findEventByTeamsAndDate } from '../utils/espn'
 import { EmojiPicker } from '../components/EmojiPicker'
+import { FechaHoraPicker } from '../components/FechaHoraPicker'
 import { NotificationBell } from '../components/NotificationBell'
 import { AnnouncementComposer } from '../components/AnnouncementComposer'
 
@@ -228,30 +229,6 @@ async function prepararActualizacionMarcadores(q) {
 
 const esCerradaQ = quinielaCerrada
 const esFinalizadaQ = quinielaFinalizada
-
-// iOS (WebKit) deja los <input datetime-local> vacíos sin ningún texto visible
-// porque les aplicamos appearance:none (ver index.css). En Chrome de escritorio
-// (Blink) sí muestra el "dd/mm/aaaa". Detectamos iOS para superponer nosotros un
-// texto-guía solo cuando el campo está vacío, sin afectar al escritorio.
-const ES_IOS = typeof navigator !== 'undefined' &&
-  (/iP(hone|ad|od)/.test(navigator.userAgent) ||
-   (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1))
-
-// Envuelve un <input datetime-local> y, solo en iOS y solo cuando está vacío,
-// muestra un texto-guía superpuesto (el nativo se ve en blanco). pointerEvents:
-// none deja que el toque llegue al input.
-function DateTimeWrap({ vacio, texto = 'Elige fecha y hora', children }) {
-  return (
-    <div style={{ position: 'relative' }}>
-      {children}
-      {ES_IOS && vacio && (
-        <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', fontSize: 16, color: 'var(--muted-soft)', pointerEvents: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-          <AdminIcon name="calendar" size={15} />{texto}
-        </span>
-      )}
-    </div>
-  )
-}
 
 function SmoothCollapse({ open, children, className = '', style }) {
   return (
@@ -747,15 +724,6 @@ export default function Admin() {
   const [resetMsg, setResetMsg] = useState('')
   const [ayudaAbierta, setAyudaAbierta] = useState(false)
   const [tourAbierto, setTourAbierto] = useState(false)
-  // Tip contextual en "Nueva quiniela": se cierra y no vuelve a salir (localStorage).
-  const [tipNuevaCerrado, setTipNuevaCerrado] = useState(() => {
-    try { return localStorage.getItem('tipNuevaVisto') === '1' } catch { return false }
-  })
-  const cerrarTipNueva = () => {
-    try { localStorage.setItem('tipNuevaVisto', '1') } catch { /* noop */ }
-    setTipNuevaCerrado(true)
-  }
-
   // "Mi cuenta" (perfil del cliente)
   const [cuentaNombre, setCuentaNombre]   = useState('')
   const [cuentaTel, setCuentaTel]         = useState('')
@@ -1404,6 +1372,11 @@ export default function Admin() {
   const [cuota, setCuota]               = useState('')
   const [modeloPremio, setModeloPremio] = useState(MODELO_PREMIO.GANADOR_UNICO)
   const [codigoAcceso, setCodigoAcceso] = useState('')
+  const pasoNombreCompleto = nombre.trim().length > 0
+  const pasoPartidosCompleto = partidos.length > 0
+  const pasoReglasCompleto = Boolean(cierre && codigoAcceso.trim())
+  const pasoNuevaActual = !pasoNombreCompleto ? 1 : !pasoPartidosCompleto ? 2 : 3
+  const pasosNuevaCompletos = [pasoNombreCompleto, pasoPartidosCompleto, pasoReglasCompleto]
 
   // Temporadas del organizador (grupo de quinielas con tabla acumulada).
   // `sel` puede ser '' (sin temporada), un id existente o '__nueva__'.
@@ -1493,6 +1466,7 @@ export default function Admin() {
   const [renombrandoPred, setRenombrandoPred]           = useState(null)
   const [togglingPago, setTogglingPago]                 = useState(null)
   const [togglingOculto, setTogglingOculto]             = useState(null)
+  const [participantesInfoAbierta, setParticipantesInfoAbierta] = useState(false)
   const [busquedaParticipante, setBusquedaParticipante] = useState('')
 
   // Compartir
@@ -2431,6 +2405,7 @@ export default function Admin() {
     setResultados(resultadosParaUI(q.resultados ?? {}))
     setSyncResultadosMsg(null)
     setTab('resultados')
+    setParticipantesInfoAbierta(false)
     setVista('gestionar')
   }
 
@@ -2885,37 +2860,45 @@ export default function Admin() {
 
   // Formulario de premio (reutilizable)
   // Único modelo de premio: "Ganador único" (gana quien más puntos; empate = se reparte).
-  const renderFormularioPremio = (fijo, setFijo, cuotaVal, setCuotaVal) => {
+  const renderFormularioPremio = (fijo, setFijo, cuotaVal, setCuotaVal, { embedded = false } = {}) => {
     const tienePremioLocal = (Number(fijo) || 0) > 0 || (Number(cuotaVal) || 0) > 0
     return (
-      <div style={card}>
-        <label style={lbl}>Premio</label>
+      <div style={embedded ? undefined : card} className={embedded ? 'admin-new-prize-block' : undefined}>
+        {embedded ? (
+          <div className="admin-new-prize-heading">
+            <span className="admin-new-prize-icon"><AdminIcon name="trophy" size={18} /></span>
+            <div>
+              <h3>Premio</h3>
+              <p>Opcional</p>
+            </div>
+          </div>
+        ) : <label style={lbl}>Premio</label>}
         <div className="admin-prize-grid" style={{ marginBottom: tienePremioLocal ? 14 : 0 }}>
           <div className="admin-prize-field">
-            <label className="admin-prize-field-label" style={lbl}>Premio fijo<span>(MXN)</span></label>
+            <label className="admin-prize-field-label" style={embedded ? undefined : lbl}>{embedded ? 'Fijo' : 'Premio fijo'}<span>(MXN)</span></label>
             <input
               type="number" min="0" step="1" placeholder="Ej. 500"
               value={fijo}
               onChange={e => setFijo(e.target.value)}
             />
-            <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>Monto garantizado, independiente de participantes.</p>
+            {!embedded && <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>Monto garantizado, independiente de participantes.</p>}
           </div>
           <div className="admin-prize-field">
-            <label className="admin-prize-field-label" style={lbl}>Cuota por participante<span>(MXN)</span></label>
+            <label className="admin-prize-field-label" style={embedded ? undefined : lbl}>{embedded ? 'Cuota c/u' : 'Cuota por participante'}<span>(MXN)</span></label>
             <input
               type="number" min="0" step="1" placeholder="Ej. 50"
               value={cuotaVal}
               onChange={e => setCuotaVal(e.target.value)}
             />
-            <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>Se suma al bote por cada participante que pague.</p>
+            {!embedded && <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>Se suma al bote por cada participante que pague.</p>}
           </div>
         </div>
         {!tienePremioLocal && (
-          <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 14 }}>Deja ambos en 0 para una quiniela gratis sin premio, solo por diversión.</p>
+          <p className={embedded ? 'admin-new-prize-help' : undefined} style={embedded ? undefined : { fontSize: 11, color: 'var(--muted)', marginTop: 14 }}>Deja ambos en 0 para una quiniela gratis, solo por diversión.</p>
         )}
 
         {tienePremioLocal && (
-          <div style={{ marginTop: 4, padding: '10px 12px', borderRadius: 'var(--radius-sm)', background: 'var(--bg-soft)', border: '1px solid var(--border)' }}>
+          <div className={embedded ? 'admin-new-prize-result' : undefined} style={embedded ? undefined : { marginTop: 4, padding: '10px 12px', borderRadius: 'var(--radius-sm)', background: 'var(--bg-soft)', border: '1px solid var(--border)' }}>
             <p style={{ fontSize: 12, color: 'var(--text)', lineHeight: 1.55 }}>
               <AdminIcon name="trophy" size={13} style={{ verticalAlign: '-2px', marginRight: 4 }} /><strong>Gana quien acumule más puntos.</strong> Si dos o más quedan empatados en puntos,
               se reparten el premio en partes iguales.
@@ -2927,17 +2910,17 @@ export default function Admin() {
   }
 
   // Buscador de fixtures (reutilizable)
-  const renderBuscadorFixtures = (onAgregar) => (
-    <div style={card}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+  const renderBuscadorFixtures = (onAgregar, { embedded = false } = {}) => (
+    <div style={embedded ? undefined : card} className={embedded ? 'admin-new-fixture-search' : undefined}>
+      {!embedded && <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
         <label style={{ ...lbl, marginBottom: 0 }}>
           {onAgregar === agregarSeleccionados ? 'Buscar partidos' : 'Agregar partidos'}
         </label>
-      </div>
+      </div>}
 
-      <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 10, lineHeight: 1.5 }}>
+      {!embedded && <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 10, lineHeight: 1.5 }}>
         Elige la liga, toca <strong style={{ color: 'var(--text)' }}>Buscar</strong> y marca los partidos que quieras agregar.
-      </p>
+      </p>}
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, marginBottom: fixtures.length > 0 ? 12 : 0 }}>
         <select
@@ -5310,9 +5293,9 @@ export default function Admin() {
 
         {/* Vista: Nueva quiniela */}
         {vista === 'nueva' && (
-          <>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 14 }}>
-              <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)', margin: 0 }}>Nueva quiniela</p>
+          <section className="admin-new-page">
+            <div className="admin-new-header">
+              <h1>Nueva quiniela</h1>
               <button
                 type="button"
                 onClick={() => setAyudaAbierta(true)}
@@ -5330,124 +5313,136 @@ export default function Admin() {
               </button>
             </div>
 
-            {!tipNuevaCerrado && (
-              <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', background: 'var(--green-bg)', border: '1px solid var(--green)', borderRadius: 'var(--radius-md)', padding: '12px 14px', marginBottom: 14 }}>
-                <span aria-hidden="true" style={{ fontSize: 18, lineHeight: 1.3, flexShrink: 0 }}>👋</span>
-                <p style={{ flex: 1, fontSize: 12.5, color: 'var(--text)', lineHeight: 1.55, margin: 0 }}>
-                  <strong style={{ color: 'var(--text-strong)' }}>Tip:</strong> ponle un <strong style={{ color: 'var(--text-strong)' }}>nombre</strong> y agrega tus <strong style={{ color: 'var(--text-strong)' }}>partidos con el buscador</strong>. La <strong style={{ color: 'var(--text-strong)' }}>hora de cierre</strong> se ajusta sola al primer partido. Comparte el <strong style={{ color: 'var(--text-strong)' }}>código</strong>: los <strong style={{ color: 'var(--text-strong)' }}>resultados se llenan automáticamente</strong> cuando terminan los partidos.
-                </p>
-                <button onClick={cerrarTipNueva} aria-label="Cerrar tip" style={{ background: 'none', border: 'none', color: 'var(--muted)', fontSize: 14, fontWeight: 700, cursor: 'pointer', padding: '0 2px', flexShrink: 0, lineHeight: 1.3 }}>✕</button>
+            <div className="admin-new-progress" aria-label={`Paso ${pasoNuevaActual} de 3`}>
+              <div className="admin-new-progress-track" aria-hidden="true">
+                {pasosNuevaCompletos.map((completo, index) => (
+                  <span
+                    key={index}
+                    className={`${completo ? 'is-complete' : ''}${pasoNuevaActual === index + 1 ? ' is-active' : ''}`.trim()}
+                  />
+                ))}
               </div>
-            )}
+              <p><strong>Paso {pasoNuevaActual} de 3</strong><span>·</span> {['Nombre', 'Partidos', 'Reglas y premio'][pasoNuevaActual - 1]}</p>
+            </div>
 
-            {/* 1. ¿Qué es?: identidad de la quiniela */}
-            <div style={card}>
-              <label htmlFor="quiniela-nombre" style={lbl}>Nombre de la quiniela</label>
+            <section className="admin-new-step-card admin-new-name-card">
+              <header className="admin-new-step-heading">
+                <span className="admin-new-step-number">1</span>
+                <h2>Nombre</h2>
+              </header>
+              <label htmlFor="quiniela-nombre" className="admin-new-sr-only">Nombre de la quiniela</label>
               <div style={{ display: 'flex', gap: 8, alignItems: 'stretch', marginBottom: 6 }}>
                 <input id="quiniela-nombre" type="text" placeholder="Ej. Jornada 17: Liga MX" value={nombre} maxLength={MAX_NOMBRE_QUINIELA} onChange={e => setNombre(limitarNombreQuiniela(e.target.value))} style={{ flex: 1, marginBottom: 0 }} />
                 <EmojiPicker inputId="quiniela-nombre" value={nombre} onChange={value => setNombre(limitarNombreQuiniela(value))} />
               </div>
-              <p style={{ fontSize: 11, color: 'var(--muted)', textAlign: 'right', marginBottom: 14 }}>
+              <p className="admin-new-counter">
                 {contarCaracteres(nombre)}/{MAX_NOMBRE_QUINIELA} caracteres
               </p>
-            </div>
+            </section>
 
-            {/* 2. Partidos: buscador + lista (el corazón de la quiniela) */}
-            {renderBuscadorFixtures(agregarSeleccionados)}
-
-            <div style={card}>
-              <label style={lbl}>Partidos</label>
-              <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 12, lineHeight: 1.5 }}>
-                Agrégalos con el <strong style={{ color: 'var(--text)' }}>buscador de arriba</strong>.
-                Una vez que alguien predijo, <strong style={{ color: 'var(--text)' }}>ya no se pueden cambiar</strong>.
+            <section className="admin-new-step-card">
+              <header className="admin-new-step-heading">
+                <span className="admin-new-step-number">2</span>
+                <h2>Partidos</h2>
+              </header>
+              <p className="admin-new-step-help">
+                Elige la liga, busca y marca los partidos. Después de la primera predicción ya no podrás cambiarlos.
               </p>
+              {renderBuscadorFixtures(agregarSeleccionados, { embedded: true })}
               {partidos.length === 0 && (
-                <p style={{ fontSize: 13, color: 'var(--muted)', textAlign: 'center', padding: '1rem 0' }}>Aún no hay partidos. Búscalos arriba y agrégalos.</p>
-              )}
-              {partidos.map((p, i) => (
-                // Tarjeta solo lectura (los partidos vienen de ESPN, no se editan)
-                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: i < partidos.length - 1 ? '1px solid var(--border)' : 'none' }}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      {escudoMini(p.escudoLocal, p.local)}
-                      <span style={{ fontSize: 13, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: '1 1 0%', minWidth: 0 }}>{p.local}</span>
-                      <span style={{ fontSize: 11, color: 'var(--muted)', flexShrink: 0 }}>vs</span>
-                      <span style={{ fontSize: 13, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: '1 1 0%', minWidth: 0, textAlign: 'right' }}>{p.visitante}</span>
-                      {escudoMini(p.escudoVisitante, p.visitante)}
-                    </div>
-                    {p.hora && <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{formatFixtureDate(p.hora)}</div>}
-                  </div>
-                  <button type="button" onClick={() => quitarPartido(i)} aria-label="Quitar partido" title="Quitar" style={{ background: 'none', border: 'none', color: 'var(--red)', cursor: 'pointer', fontSize: 12, fontWeight: 700, padding: '2px 6px', flexShrink: 0 }}>Quitar ✕</button>
+                <div className="admin-new-empty-matches">
+                  <span><AdminIcon name="search" size={22} /></span>
+                  <strong>Aún no hay partidos</strong>
+                  <p>Busca una liga y agrega los que quieras incluir.</p>
                 </div>
-              ))}
-            </div>
+              )}
+              {partidos.length > 0 && (
+                <div className="admin-new-selected-matches">
+                  {partidos.map((p, i) => (
+                    <div key={i} className="admin-new-selected-match">
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          {escudoMini(p.escudoLocal, p.local)}
+                          <span className="admin-new-team-name">{p.local}</span>
+                          <span style={{ fontSize: 11, color: 'var(--muted)', flexShrink: 0 }}>vs</span>
+                          <span className="admin-new-team-name is-away">{p.visitante}</span>
+                          {escudoMini(p.escudoVisitante, p.visitante)}
+                        </div>
+                        {p.hora && <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{formatFixtureDate(p.hora)}</div>}
+                      </div>
+                      <button type="button" onClick={() => quitarPartido(i)} aria-label={`Quitar ${p.local} vs ${p.visitante}`} title="Quitar partido">
+                        <AdminIcon name="x" size={17} strokeWidth={2.4} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
 
-            {/* 3. Cierre: depende de los partidos, por eso va después de ellos */}
-            <div style={card}>
-              <label htmlFor="quiniela-cierre" style={{ ...lbl, marginBottom: 4 }}>
-                Fecha y hora de cierre <span style={{ color: 'var(--red)' }}>*</span>
-              </label>
-              <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>
-                Después de esta hora los jugadores ya no pueden registrar ni cambiar sus predicciones.
-              </p>
-              <DateTimeWrap vacio={!cierre}>
-                <input id="quiniela-cierre" type="datetime-local" value={cierre} onChange={e => setCierre(e.target.value)} style={{ borderColor: !cierre ? 'var(--red)' : undefined }} />
-              </DateTimeWrap>
-              {primeraHoraPartido(partidos) && (
-                <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 8, lineHeight: 1.5 }}>
-                  <AdminIcon name="calendar" size={13} style={{ verticalAlign: '-2px', marginRight: 4 }} />Tu primer partido empieza el <strong style={{ color: 'var(--text)' }}>{formatFixtureDate(primeraHoraPartido(partidos))}</strong>. El cierre debe ser antes.{' '}
-                  <button type="button" onClick={() => setCierre(cierreSugerido(partidos))} style={{ background: 'none', border: 'none', color: 'var(--green)', fontSize: 11, fontWeight: 700, cursor: 'pointer', textDecoration: 'underline', padding: 0 }}>
-                    Cerrar 5 min antes
+            <section className="admin-new-step-card">
+              <header className="admin-new-step-heading">
+                <span className="admin-new-step-number">3</span>
+                <h2>Reglas y premio</h2>
+              </header>
+
+              <div className="admin-new-rule-block">
+                <label htmlFor="quiniela-cierre" className="admin-new-field-label">
+                  Fecha y hora de cierre <span className="admin-new-required-dot" aria-label="Requerido" />
+                </label>
+                <p className="admin-new-field-help">Tras esta hora ya no se pueden registrar ni cambiar predicciones.</p>
+                <FechaHoraPicker id="quiniela-cierre" value={cierre} onChange={setCierre} required />
+                {primeraHoraPartido(partidos) && (
+                  <p className="admin-new-first-match">
+                    <AdminIcon name="calendar" size={13} />
+                    <span>Primer partido:</span>
+                    <strong>{formatFixtureDate(primeraHoraPartido(partidos))}</strong>
+                    <button type="button" onClick={() => setCierre(cierreSugerido(partidos))}>Cerrar 5 min antes</button>
+                  </p>
+                )}
+              </div>
+
+              <div className="admin-new-rule-block">
+                <label htmlFor="quiniela-codigo" className="admin-new-field-label">
+                  Código de acceso <span className="admin-new-required-dot" aria-label="Requerido" />
+                </label>
+                <p className="admin-new-field-help">Compártelo para que tus jugadores puedan entrar.</p>
+                <div className="admin-new-code-field">
+                  <input id="quiniela-codigo" type="text" placeholder="Ej. ACME2026" value={codigoAcceso} maxLength={MAX_CODIGO_ACCESO} autoCapitalize="characters" onChange={e => setCodigoAcceso(normalizarCodigoAccesoInput(e.target.value))} />
+                  <button type="button" onClick={() => setCodigoAcceso(generarCodigoAcceso())} aria-label="Generar otro código" title="Generar otro código">
+                    <AdminIcon name="refresh" size={17} />
                   </button>
-                </p>
-              )}
-            </div>
+                </div>
+              </div>
 
-            {/* 4. Acceso: quién puede entrar */}
-            <div style={card}>
-              <label htmlFor="quiniela-codigo" style={{ ...lbl, marginBottom: 4 }}>Código de acceso <span style={{ color: 'var(--red)' }}>*</span></label>
-              <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>
-                Generado automático. Puedes cambiarlo, pero evita un código muy fácil. Máximo {MAX_CODIGO_ACCESO} caracteres.
-              </p>
-              <input id="quiniela-codigo" type="text" placeholder="Ej. ACME2026" value={codigoAcceso} maxLength={MAX_CODIGO_ACCESO} autoCapitalize="characters" onChange={e => setCodigoAcceso(normalizarCodigoAccesoInput(e.target.value))} />
-            </div>
+              <div className="admin-new-rule-block">
+                <label htmlFor="quiniela-temporada" className="admin-new-field-label">Temporada <span className="admin-new-optional">· opcional</span></label>
+                <p className="admin-new-field-help">Suma sus puntos a una tabla general entre varias quinielas.</p>
+                <select id="quiniela-temporada" value={temporadaSel} onChange={e => setTemporadaSel(e.target.value)} style={{ marginBottom: 0 }}>
+                  <option value="">Sin temporada</option>
+                  {temporadas.map(t => <option key={t.id} value={t.id}>{t.nombre}</option>)}
+                  <option value="__nueva__">+ Crear temporada nueva</option>
+                </select>
+                {temporadaSel === '__nueva__' && (
+                  <input type="text" placeholder="Ej. Clausura 2026 con los compas" value={temporadaNueva} maxLength={60} onChange={e => setTemporadaNueva(e.target.value)} aria-label="Nombre de la temporada nueva" style={{ marginTop: 8, marginBottom: 0 }} />
+                )}
+              </div>
 
-            {/* 4.b Temporada (opcional): agrupa quinielas en una tabla general */}
-            <div style={card}>
-              <label htmlFor="quiniela-temporada" style={{ ...lbl, marginBottom: 4 }}>Temporada (opcional)</label>
-              <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>
-                Suma esta quiniela a una tabla general acumulada, como una liga entre amigos jornada tras jornada.
-              </p>
-              <select id="quiniela-temporada" value={temporadaSel} onChange={e => setTemporadaSel(e.target.value)} style={{ marginBottom: 0 }}>
-                <option value="">Sin temporada</option>
-                {temporadas.map(t => <option key={t.id} value={t.id}>{t.nombre}</option>)}
-                <option value="__nueva__">+ Crear temporada nueva</option>
-              </select>
-              {temporadaSel === '__nueva__' && (
-                <input
-                  type="text"
-                  placeholder="Ej. Clausura 2026 con los compas"
-                  value={temporadaNueva}
-                  maxLength={60}
-                  onChange={e => setTemporadaNueva(e.target.value)}
-                  aria-label="Nombre de la temporada nueva"
-                  style={{ marginTop: 8, marginBottom: 0 }}
-                />
-              )}
-            </div>
+              <div className="admin-new-rule-block is-prize">
+                {renderFormularioPremio(premioFijo, setPremioFijo, cuota, setCuota, { embedded: true })}
+              </div>
+            </section>
 
-            {/* 5. Premio */}
-            {renderFormularioPremio(premioFijo, setPremioFijo, cuota, setCuota)}
-
-            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-              <button onClick={() => volverVistaAdmin(() => { setVista('lista'); setFixtures([]); setSeleccionados([]) })} style={{ padding: '10px 20px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-strong)', background: 'transparent', color: 'var(--muted)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+            <div className="admin-new-action-bar">
+              <div className="admin-new-action-inner">
+                <button className="admin-new-cancel" onClick={() => volverVistaAdmin(() => { setVista('lista'); setFixtures([]); setSeleccionados([]) })}>
                 Cancelar
-              </button>
-              <button onClick={guardarNuevaQuiniela} disabled={guardando} style={greenCtaStyle(guardando)}>
-                {guardando ? 'Guardando…' : 'Guardar y continuar →'}
-              </button>
+                </button>
+                <button className="admin-new-save" onClick={guardarNuevaQuiniela} disabled={guardando}>
+                  {guardando ? 'Guardando…' : 'Guardar y continuar'} <span aria-hidden="true">→</span>
+                </button>
+              </div>
             </div>
-          </>
+          </section>
         )}
 
         {/* Vista: Gestionar quiniela */}
@@ -5685,7 +5680,52 @@ export default function Admin() {
               {/* Tab: Participantes */}
               {tab === 'participantes' && (
                 <div className="admin-manage-participants-card" style={card}>
-                  <label style={{ ...lbl, marginBottom: 14 }}>Predicciones registradas</label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 14 }}>
+                    <label style={{ ...lbl, marginBottom: 0 }}>Predicciones registradas</label>
+                    <button
+                      type="button"
+                      onClick={() => setParticipantesInfoAbierta(v => !v)}
+                      aria-label="Información sobre las acciones de participantes"
+                      aria-expanded={participantesInfoAbierta}
+                      title="Qué hace cada acción"
+                      style={{
+                        width: 24, height: 24, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                        padding: 0, borderRadius: '50%', cursor: 'pointer',
+                        border: `1px solid ${participantesInfoAbierta ? 'rgba(34,197,94,0.55)' : 'var(--border-strong)'}`,
+                        background: participantesInfoAbierta ? 'var(--green-bg)' : 'transparent',
+                        color: participantesInfoAbierta ? 'var(--green-light)' : 'var(--muted)',
+                      }}
+                    >
+                      <AdminIcon name="info" size={13} />
+                    </button>
+                  </div>
+
+                  <SmoothCollapse open={participantesInfoAbierta}>
+                    <div style={{ background: 'var(--neutral-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '10px 12px', marginBottom: 12, fontSize: 12, color: 'var(--muted)', lineHeight: 1.5, display: 'grid', gap: 7 }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'flex-start', gap: 6 }}>
+                        <AdminIcon name="pencil" size={13} style={{ flexShrink: 0, marginTop: 2 }} />
+                        <span><strong style={{ color: 'var(--text)' }}>Renombrar</strong>: corrige el nombre sin cambiar sus predicciones, puntos ni posición. También se actualiza en ranking, comentarios y temporadas.</span>
+                      </span>
+                      {((Number(quinielaActual.cuota) > 0) || quinielaActual.tipoPremio === TIPO_PREMIO.BOTE) && (
+                        <span style={{ display: 'inline-flex', alignItems: 'flex-start', gap: 6 }}>
+                          <AdminIcon name="clock" size={13} style={{ flexShrink: 0, marginTop: 2 }} />
+                          <span><strong style={{ color: 'var(--text)' }}>Pendiente/Pagado</strong>: pulsa el botón cuando confirmes el pago del jugador.</span>
+                        </span>
+                      )}
+                      <span style={{ display: 'inline-flex', alignItems: 'flex-start', gap: 6 }}>
+                        <AdminIcon name="eye" size={13} style={{ flexShrink: 0, marginTop: 2 }} />
+                        <span><strong style={{ color: 'var(--text)' }}>Ocultar</strong>: lo quita del ranking público sin borrarlo{((Number(quinielaActual.cuota) > 0) || quinielaActual.tipoPremio === TIPO_PREMIO.BOTE) ? ' (no cuenta para el bote)' : ''}. Es reversible.</span>
+                      </span>
+                      <span style={{ display: 'inline-flex', alignItems: 'flex-start', gap: 6 }}>
+                        <AdminIcon name="trash" size={13} style={{ flexShrink: 0, marginTop: 2 }} />
+                        <span><strong style={{ color: 'var(--text)' }}>Eliminar</strong>: lo saca de la quiniela; el jugador podrá registrarse de nuevo.</span>
+                      </span>
+                      <span style={{ display: 'inline-flex', alignItems: 'flex-start', gap: 6 }}>
+                        <AdminIcon name="info" size={13} style={{ flexShrink: 0, marginTop: 2, color: 'var(--green)' }} />
+                        <span><strong style={{ color: 'var(--text)' }}>¿Alguien quiere cambiar sus predicciones?</strong> Elimínalo aquí y pídele que se registre otra vez. En realidad no se editan: se capturan de nuevo. Solo mientras la quiniela esté abierta.</span>
+                      </span>
+                    </div>
+                  </SmoothCollapse>
 
                   {loadingPredicciones ? (
                     <p style={{ fontSize: 13, color: 'var(--muted)', textAlign: 'center', padding: '1.5rem 0' }}>Cargando…</p>
@@ -5729,26 +5769,6 @@ export default function Admin() {
                           Revisa los nombres marcados como <strong>Similar</strong> y elimina los que sean repetidos.
                         </div>
                       )}
-                      <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 12, lineHeight: 1.5, display: 'grid', gap: 5 }}>
-                        {esTipoBote && (
-                          <span style={{ display: 'inline-flex', alignItems: 'flex-start', gap: 6 }}>
-                            <AdminIcon name="clock" size={13} style={{ flexShrink: 0, marginTop: 1 }} />
-                            <span><strong style={{ color: 'var(--text)' }}>Pendiente/Pagado</strong>: pulsa el botón cuando confirmes el pago del jugador.</span>
-                          </span>
-                        )}
-                        <span style={{ display: 'inline-flex', alignItems: 'flex-start', gap: 6 }}>
-                          <AdminIcon name="eye" size={13} style={{ flexShrink: 0, marginTop: 1 }} />
-                          <span><strong style={{ color: 'var(--text)' }}>Ocultar</strong>: lo quita del ranking público sin borrarlo{esTipoBote ? ' (no cuenta para el bote)' : ''}. Es reversible.</span>
-                        </span>
-                        <span style={{ display: 'inline-flex', alignItems: 'flex-start', gap: 6 }}>
-                          <AdminIcon name="trash" size={13} style={{ flexShrink: 0, marginTop: 1 }} />
-                          <span><strong style={{ color: 'var(--text)' }}>Eliminar</strong>: lo saca de la quiniela; el jugador podrá registrarse de nuevo.</span>
-                        </span>
-                      </div>
-                      <div style={{ background: 'var(--neutral-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '8px 12px', marginBottom: 12, fontSize: 12, color: 'var(--muted)', lineHeight: 1.5, display: 'flex', alignItems: 'flex-start', gap: 6 }}>
-                        <AdminIcon name="info" size={13} style={{ flexShrink: 0, marginTop: 1, color: 'var(--green)' }} />
-                        <span><strong style={{ color: 'var(--text)' }}>¿Alguien quiere cambiar sus predicciones?</strong> Elimínalo aquí y pídele que se registre otra vez. En realidad no se editan: se capturan de nuevo. Solo mientras la quiniela esté abierta.</span>
-                      </div>
                       <input
                         type="text"
                         className="admin-participant-search"
@@ -5920,173 +5940,159 @@ export default function Admin() {
               {/* Tab: Editar */}
               {tab === 'editar' && (
                 <>
-                  {/* 1. ¿Qué es? */}
-                  <div className="admin-manage-edit-card admin-manage-edit-name" style={card}>
-                    <label htmlFor="edit-nombre" style={lbl}>Nombre de la quiniela</label>
-                    <div style={{ display: 'flex', gap: 8, alignItems: 'stretch', marginBottom: 6 }}>
-                      <input id="edit-nombre" type="text" value={editNombre} maxLength={MAX_NOMBRE_QUINIELA} onChange={e => setEditNombre(limitarNombreQuiniela(e.target.value))} placeholder="Nombre de la quiniela" style={{ flex: 1, marginBottom: 0 }} />
-                      <EmojiPicker inputId="edit-nombre" value={editNombre} onChange={value => setEditNombre(limitarNombreQuiniela(value))} />
-                    </div>
-                    <p style={{ fontSize: 11, color: contarCaracteres(editNombre) > MAX_NOMBRE_QUINIELA ? 'var(--red)' : 'var(--muted)', textAlign: 'right', marginBottom: 0 }}>
-                      {contarCaracteres(editNombre)}/{MAX_NOMBRE_QUINIELA} caracteres
-                    </p>
-                  </div>
+                  <div className="admin-manage-edit-layout">
+                    <section className="admin-new-step-card admin-new-name-card admin-edit-section-card">
+                      <header className="admin-new-step-heading admin-edit-section-heading">
+                        <h2>Nombre</h2>
+                      </header>
+                      <label htmlFor="edit-nombre" className="admin-new-sr-only">Nombre de la quiniela</label>
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'stretch', marginBottom: 6 }}>
+                        <input id="edit-nombre" type="text" value={editNombre} maxLength={MAX_NOMBRE_QUINIELA} onChange={e => setEditNombre(limitarNombreQuiniela(e.target.value))} placeholder="Nombre de la quiniela" style={{ flex: 1, marginBottom: 0 }} />
+                        <EmojiPicker inputId="edit-nombre" value={editNombre} onChange={value => setEditNombre(limitarNombreQuiniela(value))} />
+                      </div>
+                      <p className="admin-new-counter" style={{ color: contarCaracteres(editNombre) > MAX_NOMBRE_QUINIELA ? 'var(--red)' : undefined }}>
+                        {contarCaracteres(editNombre)}/{MAX_NOMBRE_QUINIELA} caracteres
+                      </p>
+                    </section>
 
-                  {/* 2. Partidos: el buscador solo aparece si aún no hay predicciones */}
-                  {conteoPredicciones === 0 && (
-                    <div className="admin-manage-edit-fixtures">
-                      {renderBuscadorFixtures(agregarSeleccionadosAEdicion)}
-                    </div>
-                  )}
-
-                  <div className="admin-manage-edit-card admin-manage-edit-matches" style={card}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-                      <label style={{ ...lbl, marginBottom: 0 }}>Partidos</label>
-                      {conteoPredicciones > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => setPartidosFijosInfo(v => !v)}
-                          aria-label="Por qué la lista de partidos está fija"
-                          aria-expanded={partidosFijosInfo}
-                          title="Lista fija"
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: partidosFijosInfo ? 'var(--text)' : 'var(--muted)', padding: 2, display: 'inline-flex', alignItems: 'center', lineHeight: 1 }}
-                        >
-                          <AdminIcon name="lock" size={14} />
-                        </button>
-                      )}
-                    </div>
-                    {conteoPredicciones > 0 && (
-                      <SmoothCollapse open={partidosFijosInfo}>
-                        <div style={{ background: 'var(--neutral-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '8px 12px', marginBottom: 12, fontSize: 12, color: 'var(--muted)', lineHeight: 1.5 }}>
-                          Ya hay {conteoPredicciones} predicción{conteoPredicciones !== 1 ? 'es' : ''} registrada{conteoPredicciones !== 1 ? 's' : ''}, así que la lista de partidos queda fija: no se puede agregar ni quitar. Si necesitas otros partidos, crea una quiniela nueva.
-                        </div>
-                      </SmoothCollapse>
-                    )}
-                    {editPartidos.map((p, i) => (
-                      // Tarjeta solo lectura (los partidos vienen de ESPN, no se editan)
-                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: i < editPartidos.length - 1 ? '1px solid var(--border)' : 'none' }}>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            {escudoMini(p.escudoLocal, p.local)}
-                            <span style={{ fontSize: 13, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: '1 1 0%', minWidth: 0 }}>{p.local}</span>
-                            <span style={{ fontSize: 11, color: 'var(--muted)', flexShrink: 0 }}>vs</span>
-                            <span style={{ fontSize: 13, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: '1 1 0%', minWidth: 0, textAlign: 'right' }}>{p.visitante}</span>
-                            {escudoMini(p.escudoVisitante, p.visitante)}
-                          </div>
-                          {p.hora && <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{formatFixtureDate(p.hora)}</div>}
-                        </div>
-                        {conteoPredicciones === 0 && (
+                    <section className="admin-new-step-card admin-edit-section-card">
+                      <header className="admin-new-step-heading admin-edit-section-heading">
+                        <h2>Partidos</h2>
+                        {conteoPredicciones > 0 && (
                           <button
-                            onClick={() => setEditPartidos(prev => prev.filter((_, idx) => idx !== i))}
-                            aria-label="Quitar partido"
-                            title="Quitar"
-                            style={{ background: 'none', border: 'none', color: 'var(--red)', fontSize: 12, fontWeight: 700, cursor: 'pointer', padding: '2px 6px', borderRadius: 6, flexShrink: 0 }}
+                            type="button"
+                            className="admin-edit-lock-info"
+                            onClick={() => setPartidosFijosInfo(v => !v)}
+                            aria-label="Por qué la lista de partidos está fija"
+                            aria-expanded={partidosFijosInfo}
+                            title="Lista fija"
                           >
-                            Quitar ✕
+                            <AdminIcon name="lock" size={14} />
                           </button>
                         )}
-                      </div>
-                    ))}
-                    {editPartidos.length === 0 && (
-                      <p style={{ fontSize: 13, color: 'var(--muted)', textAlign: 'center', padding: '1rem 0' }}>Sin partidos. Agrégalos desde el buscador de arriba.</p>
-                    )}
-                  </div>
-
-                  {/* 3. Cierre: depende de los partidos */}
-                  <div className="admin-manage-edit-card admin-manage-edit-close" style={card}>
-                    <label htmlFor="edit-cierre" style={{ ...lbl, marginBottom: 4 }}>
-                      Fecha y hora de cierre <span style={{ color: 'var(--red)' }}>*</span>
-                    </label>
-                    <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>
-                      Después de esta hora los jugadores ya no pueden registrar ni cambiar sus predicciones.
-                    </p>
-                    <DateTimeWrap vacio={!editCierre}>
-                      <input id="edit-cierre" type="datetime-local" value={editCierre} onChange={e => setEditCierre(e.target.value)} style={{ borderColor: !editCierre ? 'var(--red)' : undefined }} />
-                    </DateTimeWrap>
-                    {primeraHoraPartido(editPartidos) && (
-                      <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 8, lineHeight: 1.5 }}>
-                        <AdminIcon name="calendar" size={13} style={{ verticalAlign: '-2px', marginRight: 4 }} />Tu primer partido empieza el <strong style={{ color: 'var(--text)' }}>{formatFixtureDate(primeraHoraPartido(editPartidos))}</strong>. El cierre debe ser antes.{' '}
-                        <button type="button" onClick={() => setEditCierre(cierreSugerido(editPartidos))} style={{ background: 'none', border: 'none', color: 'var(--green)', fontSize: 11, fontWeight: 700, cursor: 'pointer', textDecoration: 'underline', padding: 0 }}>
-                          Cerrar 5 min antes
-                        </button>
+                      </header>
+                      <p className="admin-new-step-help">
+                        {conteoPredicciones === 0
+                          ? 'Busca y agrega partidos. Después de la primera predicción ya no podrás cambiarlos.'
+                          : 'La lista queda fija cuando ya existen predicciones registradas.'}
                       </p>
-                    )}
-                  </div>
-
-                  {/* 4. Acceso: quién puede entrar */}
-                  <div className="admin-manage-edit-card admin-manage-edit-code" style={card}>
-                    <label htmlFor="edit-codigo" style={{ ...lbl, marginBottom: 4 }}>Código de acceso <span style={{ color: 'var(--red)' }}>*</span></label>
-                    <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>
-                      Solo quien lo tenga puede participar. Evita uno muy fácil. Máximo {MAX_CODIGO_ACCESO} caracteres.
-                    </p>
-                    <input id="edit-codigo" type="text" placeholder="Ej. ACME2026" value={editCodigoAcceso} maxLength={MAX_CODIGO_ACCESO} autoCapitalize="characters" onChange={e => setEditCodigoAcceso(normalizarCodigoAccesoInput(e.target.value))} style={{ borderColor: contarCaracteres(editCodigoAcceso) > MAX_CODIGO_ACCESO ? 'var(--red)' : undefined }} />
-                    {contarCaracteres(editCodigoAcceso) > MAX_CODIGO_ACCESO && (
-                      <p style={{ fontSize: 11, color: 'var(--red)', marginTop: 6 }}>
-                        Este código histórico excede el límite. Acórtalo antes de guardar.
-                      </p>
-                    )}
-                    <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
-                      <label htmlFor="edit-temporada" style={{ ...lbl, marginBottom: 4 }}>Temporada</label>
-                      <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>
-                        Esta quiniela suma (o deja de sumar) a la tabla general de la temporada elegida.
-                      </p>
-                      <select id="edit-temporada" value={editTemporadaSel} onChange={e => setEditTemporadaSel(e.target.value)} style={{ marginBottom: 0 }}>
-                        <option value="">Sin temporada</option>
-                        {temporadas.map(t => <option key={t.id} value={t.id}>{t.nombre}</option>)}
-                        <option value="__nueva__">+ Crear temporada nueva</option>
-                      </select>
-                      {editTemporadaSel === '__nueva__' && (
-                        <input
-                          type="text"
-                          placeholder="Ej. Clausura 2026 con los compas"
-                          value={editTemporadaNueva}
-                          maxLength={60}
-                          onChange={e => setEditTemporadaNueva(e.target.value)}
-                          aria-label="Nombre de la temporada nueva"
-                          style={{ marginTop: 8, marginBottom: 0 }}
-                        />
+                      {conteoPredicciones > 0 && (
+                        <SmoothCollapse open={partidosFijosInfo}>
+                          <div className="admin-edit-locked-note">
+                            Ya hay {conteoPredicciones} predicción{conteoPredicciones !== 1 ? 'es' : ''} registrada{conteoPredicciones !== 1 ? 's' : ''}. Para usar otros partidos, crea una quiniela nueva.
+                          </div>
+                        </SmoothCollapse>
                       )}
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
-                      <div style={{ minWidth: 0 }}>
-                        <p style={{ ...lbl, marginBottom: 2 }}>Comentarios de la quiniela</p>
-                        <p style={{ fontSize: 11, color: 'var(--muted)', margin: 0 }}>
-                          Tus jugadores pueden comentar en el ranking. Apágalo si se sale de control.
-                        </p>
+                      {conteoPredicciones === 0 && renderBuscadorFixtures(agregarSeleccionadosAEdicion, { embedded: true })}
+                      {editPartidos.length === 0 ? (
+                        <div className="admin-new-empty-matches">
+                          <span><AdminIcon name="search" size={22} /></span>
+                          <strong>Aún no hay partidos</strong>
+                          <p>Busca una liga y agrega los que quieras incluir.</p>
+                        </div>
+                      ) : (
+                        <div className="admin-new-selected-matches">
+                          {editPartidos.map((p, i) => (
+                            <div key={i} className="admin-new-selected-match">
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                  {escudoMini(p.escudoLocal, p.local)}
+                                  <span className="admin-new-team-name">{p.local}</span>
+                                  <span style={{ fontSize: 11, color: 'var(--muted)', flexShrink: 0 }}>vs</span>
+                                  <span className="admin-new-team-name is-away">{p.visitante}</span>
+                                  {escudoMini(p.escudoVisitante, p.visitante)}
+                                </div>
+                                {p.hora && <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{formatFixtureDate(p.hora)}</div>}
+                              </div>
+                              {conteoPredicciones === 0 && (
+                                <button type="button" onClick={() => setEditPartidos(prev => prev.filter((_, idx) => idx !== i))} aria-label={`Quitar ${p.local} vs ${p.visitante}`} title="Quitar partido">
+                                  <AdminIcon name="x" size={17} strokeWidth={2.4} />
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </section>
+
+                    <section className="admin-new-step-card admin-edit-section-card">
+                      <header className="admin-new-step-heading admin-edit-section-heading">
+                        <h2>Reglas y premio</h2>
+                      </header>
+
+                      <div className="admin-new-rule-block">
+                        <label htmlFor="edit-cierre" className="admin-new-field-label">
+                          Fecha y hora de cierre <span className="admin-new-required-dot" aria-label="Requerido" />
+                        </label>
+                        <p className="admin-new-field-help">Tras esta hora ya no se pueden registrar ni cambiar predicciones.</p>
+                        <FechaHoraPicker id="edit-cierre" value={editCierre} onChange={setEditCierre} required />
+                        {primeraHoraPartido(editPartidos) && (
+                          <p className="admin-new-first-match">
+                            <AdminIcon name="calendar" size={13} />
+                            <span>Primer partido:</span>
+                            <strong>{formatFixtureDate(primeraHoraPartido(editPartidos))}</strong>
+                            <button type="button" onClick={() => setEditCierre(cierreSugerido(editPartidos))}>Cerrar 5 min antes</button>
+                          </p>
+                        )}
                       </div>
-                      <button
-                        type="button"
-                        role="switch"
-                        aria-checked={editChatHabilitado}
-                        aria-label="Comentarios de la quiniela"
-                        onClick={() => setEditChatHabilitado(v => !v)}
-                        style={{
-                          flexShrink: 0, width: 42, height: 24, borderRadius: 999, border: 'none', cursor: 'pointer',
-                          background: editChatHabilitado ? 'var(--green)' : 'rgba(148,163,184,0.35)',
-                          position: 'relative', transition: 'background 0.18s ease', padding: 0,
-                        }}
-                      >
-                        <span style={{
-                          position: 'absolute', top: 3, left: editChatHabilitado ? 21 : 3,
-                          width: 18, height: 18, borderRadius: '50%', background: '#FFFFFF',
-                          transition: 'left 0.18s ease', boxShadow: '0 1px 3px rgba(0,0,0,0.35)',
-                        }} />
-                      </button>
+
+                      <div className="admin-new-rule-block">
+                        <label htmlFor="edit-codigo" className="admin-new-field-label">
+                          Código de acceso <span className="admin-new-required-dot" aria-label="Requerido" />
+                        </label>
+                        <p className="admin-new-field-help">Compártelo para que tus jugadores puedan entrar.</p>
+                        <div className="admin-new-code-field">
+                          <input id="edit-codigo" type="text" placeholder="Ej. ACME2026" value={editCodigoAcceso} maxLength={MAX_CODIGO_ACCESO} autoCapitalize="characters" onChange={e => setEditCodigoAcceso(normalizarCodigoAccesoInput(e.target.value))} style={{ borderColor: contarCaracteres(editCodigoAcceso) > MAX_CODIGO_ACCESO ? 'var(--red)' : undefined }} />
+                          <button type="button" onClick={() => setEditCodigoAcceso(generarCodigoAcceso())} aria-label="Generar otro código" title="Generar otro código">
+                            <AdminIcon name="refresh" size={17} />
+                          </button>
+                        </div>
+                        {contarCaracteres(editCodigoAcceso) > MAX_CODIGO_ACCESO && <p className="admin-edit-field-error">Este código histórico excede el límite. Acórtalo antes de guardar.</p>}
+                      </div>
+
+                      <div className="admin-new-rule-block">
+                        <label htmlFor="edit-temporada" className="admin-new-field-label">Temporada <span className="admin-new-optional">· opcional</span></label>
+                        <p className="admin-new-field-help">Suma sus puntos a una tabla general entre varias quinielas.</p>
+                        <select id="edit-temporada" value={editTemporadaSel} onChange={e => setEditTemporadaSel(e.target.value)} style={{ marginBottom: 0 }}>
+                          <option value="">Sin temporada</option>
+                          {temporadas.map(t => <option key={t.id} value={t.id}>{t.nombre}</option>)}
+                          <option value="__nueva__">+ Crear temporada nueva</option>
+                        </select>
+                        {editTemporadaSel === '__nueva__' && (
+                          <input type="text" placeholder="Ej. Clausura 2026 con los compas" value={editTemporadaNueva} maxLength={60} onChange={e => setEditTemporadaNueva(e.target.value)} aria-label="Nombre de la temporada nueva" style={{ marginTop: 8, marginBottom: 0 }} />
+                        )}
+                      </div>
+
+                      <div className="admin-new-rule-block admin-edit-comments-block">
+                        <div>
+                          <p className="admin-new-field-label">Comentarios</p>
+                          <p className="admin-new-field-help">Permite que tus jugadores comenten en el ranking.</p>
+                        </div>
+                        <button
+                          type="button"
+                          className={`admin-edit-comments-toggle${editChatHabilitado ? ' is-on' : ''}`}
+                          role="switch"
+                          aria-checked={editChatHabilitado}
+                          aria-label="Comentarios de la quiniela"
+                          onClick={() => setEditChatHabilitado(v => !v)}
+                        >
+                          <span />
+                        </button>
+                      </div>
+
+                      <div className="admin-new-rule-block is-prize">
+                        {renderFormularioPremio(editPremioFijo, setEditPremioFijo, editCuota, setEditCuota, { embedded: true })}
+                      </div>
+                    </section>
+
+                    <div className="admin-new-action-bar admin-manage-edit-actions-card">
+                      <div className="admin-new-action-inner">
+                        <button className="admin-new-cancel" onClick={() => { setTab('resultados'); setFixtures([]); setSeleccionados([]) }}>Cancelar</button>
+                        <button className="admin-new-save" onClick={guardarEdicion} disabled={guardandoEdicion}>
+                          {guardandoEdicion ? 'Guardando…' : 'Guardar cambios'} <span aria-hidden="true">→</span>
+                        </button>
+                      </div>
                     </div>
-                  </div>
-
-                  {/* 5. Premio */}
-                  <div className="admin-manage-edit-prize">
-                    {renderFormularioPremio(editPremioFijo, setEditPremioFijo, editCuota, setEditCuota)}
-                  </div>
-
-                  <div className="admin-manage-edit-actions" style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-                    <button onClick={() => { setTab('resultados'); setFixtures([]); setSeleccionados([]) }} style={{ padding: '10px 20px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-strong)', background: 'transparent', color: 'var(--muted)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-                      Cancelar
-                    </button>
-                    <button onClick={guardarEdicion} disabled={guardandoEdicion} style={greenCtaStyle(guardandoEdicion)}>
-                      {guardandoEdicion ? 'Guardando…' : 'Guardar cambios →'}
-                    </button>
                   </div>
 
                   {/* Zona de peligro */}

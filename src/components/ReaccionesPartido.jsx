@@ -8,8 +8,8 @@ import { db } from '../firebase'
 // puntual del ranking (sin listeners, consistente con el fix de iOS).
 // Las claves son ASCII porque los emojis no son field paths seguros.
 const REACCIONES = [
-  { key: 'gol',      emoji: '⚽',     label: 'Golazo' },
-  { key: 'fuego',    emoji: '\u{1F525}',  label: 'Encendido' },
+  { key: 'gol',      emoji: '\u2764\uFE0F', label: 'Me encanta' },
+  { key: 'fuego',    emoji: '\u{1F621}',  label: 'Enojo' },
   { key: 'tristeza', emoji: '\u{1F62D}',  label: 'Dolor' },
   { key: 'sorpresa', emoji: '\u{1F631}',  label: 'Sorpresa' },
 ]
@@ -59,8 +59,11 @@ export function ReaccionesPartido({ quinielaId, partidoIdx, conteos }) {
   return (
     <div className="ranking-reactions" onClick={e => e.stopPropagation()}>
       {REACCIONES.map(r => {
-        const n = Math.max(0, (conteos?.[r.key] ?? 0) + (delta[r.key] ?? 0))
         const activa = miReaccion === r.key
+        // La selección local puede persistir antes de que el conteo remoto se
+        // actualice (o durante un polling atrasado). Si es la reacción propia,
+        // nunca debe verse activa sin contabilizar al menos ese voto.
+        const n = Math.max(activa ? 1 : 0, (conteos?.[r.key] ?? 0) + (delta[r.key] ?? 0))
         return (
           <button
             key={r.key}

@@ -583,6 +583,20 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
         <SinPremioBanner />
       ))}
 
+      {/* En móvil, el Oráculo continúa inmediatamente después de
+          "Si terminara ahora". En escritorio conserva su lugar sobre la tabla. */}
+      {simulacion && (
+        <div className="oracle-mobile-slot">
+          <EscenariosUltimoPartido
+            sim={simulacion}
+            conPremio={conPremio}
+            liveScores={liveScores}
+            quiniela={quiniela}
+            bote={bote}
+          />
+        </div>
+      )}
+
       {/* Stats */}
       <div className="ranking-stats-grid" style={{ display: 'grid', gridTemplateColumns: `repeat(${resumenStats.length},1fr)` }}>
         {resumenStats.map(s => (
@@ -712,7 +726,22 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                   )}
                 </div>
 
-                <div className="ranking-match-compact">
+                <div className={`ranking-match-compact${(muestraEstadoPartido || p.hora) ? ' has-meta' : ''}`}>
+                  {(muestraEstadoPartido || p.hora) && (
+                    <div className={`ranking-match-status-row${esVivo ? ' is-live' : ''}${tieneAlgo ? ' has-toggle' : ''}`}>
+                      {p.hora && <span className="ranking-match-status-date">{formatFecha(p.hora)}</span>}
+                      {badgeNode}
+                      {tieneAlgo && (
+                        <span className="ranking-match-toggle ranking-match-toggle-status">
+                          <span className="ranking-match-toggle-icon" aria-hidden="true">
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.75" strokeLinecap="round" strokeLinejoin="round" style={{ transform: partidoAbierto ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s ease' }}>
+                              <polyline points="6 9 12 15 18 9" />
+                            </svg>
+                          </span>
+                        </span>
+                      )}
+                    </div>
+                  )}
                   <div className="ranking-match-body">
                     <div className="ranking-match-desktop-teams">
                       <div className="ranking-match-side is-home">
@@ -731,27 +760,23 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                       </div>
                     </div>
                   </div>
-                  {muestraEstadoPartido && (
-                    <div className={`ranking-match-status-row${esVivo ? ' is-live' : ''}${tieneAlgo ? ' has-toggle' : ''}`}>
-                      {badgeNode}
-                      {!esVivo && p.hora && <span className="ranking-match-status-date">{formatFecha(p.hora)}</span>}
-                      {tieneAlgo && (
-                        <span className="ranking-match-toggle ranking-match-toggle-desktop">
-                          <span className="ranking-match-toggle-icon" aria-hidden="true">
-                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.75" strokeLinecap="round" strokeLinejoin="round" style={{ transform: partidoAbierto ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s ease' }}>
-                              <polyline points="6 9 12 15 18 9" />
-                            </svg>
-                          </span>
-                        </span>
-                      )}
-                    </div>
-                  )}
                 </div>
 
-                {/* Reacciones: solo cuando la quiniela ya cerró y el partido cuenta */}
-                {cerrada && !cancelado && (
-                  <ReaccionesPartido quinielaId={quiniela.id} partidoIdx={i} conteos={reacciones[String(i)]} />
-                )}
+                <div className="ranking-match-actions-row">
+                  {/* Reacciones: solo cuando la quiniela ya cerró y el partido cuenta */}
+                  {cerrada && !cancelado && (esVivo || jugado) && (
+                    <ReaccionesPartido quinielaId={quiniela.id} partidoIdx={i} conteos={reacciones[String(i)]} />
+                  )}
+                  {tieneAlgo && (
+                    <span className="ranking-match-toggle ranking-match-toggle-actions">
+                      <span className="ranking-match-toggle-icon" aria-hidden="true">
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.75" strokeLinecap="round" strokeLinejoin="round" style={{ transform: partidoAbierto ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s ease' }}>
+                          <polyline points="6 9 12 15 18 9" />
+                        </svg>
+                      </span>
+                    </span>
+                  )}
+                </div>
 
                 {/* Panel de estadísticas */}
                 {tieneAlgo && montadoPartido.has(i) && (
@@ -888,13 +913,15 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
           arriba de la tabla de ranking; en móvil el orden visual no cambia
           porque la columna izquierda ya terminó de renderizarse antes. */}
       {simulacion && (
-        <EscenariosUltimoPartido
-          sim={simulacion}
-          conPremio={conPremio}
-          liveScores={liveScores}
-          quiniela={quiniela}
-          bote={bote}
-        />
+        <div className="oracle-desktop-slot">
+          <EscenariosUltimoPartido
+            sim={simulacion}
+            conPremio={conPremio}
+            liveScores={liveScores}
+            quiniela={quiniela}
+            bote={bote}
+          />
+        </div>
       )}
       {mostrarPodio && (
         <PodioPrimerLugar

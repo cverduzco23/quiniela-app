@@ -38,7 +38,7 @@ export function ProgresoPasos({ etapa }) {
   }
 
   return (
-    <div role="group" aria-label={`Estado de la quiniela: ${pasos[idx]}`} style={{ marginTop: 16, maxWidth: 460 }}>
+    <div role="group" aria-label={`Estado de la quiniela: ${pasos[idx]}`} style={{ width: '100%', marginTop: 16 }}>
       <div style={{ display: 'flex', alignItems: 'center' }}>
         {circulo(0)}{linea(0)}{circulo(1)}{linea(1)}{circulo(2)}
       </div>

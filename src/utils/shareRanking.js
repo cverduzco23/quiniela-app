@@ -1074,7 +1074,50 @@ function isCurrentEscenario(esc, live) {
   return !hayExactaActual && esc.resultado === curRes
 }
 
-function drawScenarioRow(ctx, fila, y, rowH, partido, current) {
+const ORACLE_WINNER_X = PAD + 345
+const ORACLE_WINNER_RIGHT = W - PAD - 136
+
+// Distribuye ganadores sin partir nombres ni esconderlos con puntos
+// suspensivos. El ancho más conservador reserva siempre el espacio del badge
+// "Ahora", para que una fila no cambie de altura cuando el partido esté vivo.
+function oracleWinnerLayout(ctx, fila) {
+  const nombres = fila.lideres.map(n => shortName(n, 2))
+  let fontSize = nombres.length <= 3 ? 27 : nombres.length <= 6 ? 24 : 21
+  const maxWidth = ORACLE_WINNER_RIGHT - ORACLE_WINNER_X
+
+  // Un nombre particularmente largo también debe caber completo en su línea.
+  while (fontSize > 18) {
+    ctx.font = `600 ${fontSize}px Inter`
+    if (nombres.every(nombre => ctx.measureText(nombre).width <= maxWidth)) break
+    fontSize--
+  }
+
+  ctx.font = `600 ${fontSize}px Inter`
+  const lines = []
+  let line = ''
+  nombres.forEach(nombre => {
+    const candidate = line ? `${line} · ${nombre}` : nombre
+    if (line && ctx.measureText(candidate).width > maxWidth) {
+      lines.push(line)
+      line = nombre
+    } else {
+      line = candidate
+    }
+  })
+  if (line) lines.push(line)
+
+  const safeLines = lines.length > 0 ? lines : ['—']
+  const lineHeight = Math.round(fontSize * 1.28)
+  return {
+    fontSize,
+    lineHeight,
+    lines: safeLines,
+    height: Math.max(ORACLE_ROW_H, safeLines.length * lineHeight + 28),
+  }
+}
+
+function drawScenarioRow(ctx, fila, y, rowLayout, partido, current) {
+  const rowH = rowLayout.height
   if (current) {
     ctx.fillStyle = 'rgba(239,68,68,0.14)'
     ctx.fillRect(PAD, y, W - PAD * 2, rowH)
@@ -1088,15 +1131,13 @@ function drawScenarioRow(ctx, fila, y, rowH, partido, current) {
   ctx.textBaseline = 'middle'
   ctx.fillText(escenarioLabel(ctx, fila.esc, partido, 260), PAD + 180, midY)
   ctx.textAlign = 'left'
-  // Ancho disponible para "quién gana": hasta el borde derecho, dejando
-  // hueco para el badge "Ahora" en la fila resaltada.
-  const rightLimit = current ? (W - PAD - 126 - 10) : (W - PAD - 30)
-  const maxWinnerWidth = rightLimit - (PAD + 345)
-  ctx.font = '600 27px Inter'
+  ctx.font = `600 ${rowLayout.fontSize}px Inter`
   ctx.fillStyle = COLORS.purpleLight
-  const winnerText = fila.lideres.map(n => shortName(n, 2)).join(' + ')
-  const winnerDisplay = truncate(ctx, winnerText, Math.max(40, maxWinnerWidth))
-  ctx.fillText(winnerDisplay, PAD + 345, midY)
+  ctx.textBaseline = 'middle'
+  const firstLineY = midY - ((rowLayout.lines.length - 1) * rowLayout.lineHeight) / 2
+  rowLayout.lines.forEach((line, index) => {
+    ctx.fillText(line, ORACLE_WINNER_X, firstLineY + index * rowLayout.lineHeight)
+  })
   if (current) {
     fillRound(ctx, W - PAD - 126, midY - 18, 96, 36, 999, 'rgba(239,68,68,0.22)')
     ctx.font = '800 14px Inter'
@@ -1119,24 +1160,22 @@ const ORACLE_ROW_H = 78
 const ORACLE_FOOTER_GAP = 90
 const ORACLE_FOOTER_BLOCK_H = 150
 
-function oracleRowCounts(simulacion) {
+function computeOracleLayout(ctx, simulacion) {
   const filas = simulacion?.filas ?? []
-  return {
-    exactas: filas.filter(f => f.esc.tipo === 'exacto').length,
-    genericas: filas.filter(f => f.esc.tipo === 'generico').length,
-  }
-}
-
-function computeOracleCanvasHeight(simulacion) {
-  const { exactas, genericas } = oracleRowCounts(simulacion)
-  const tableH = ORACLE_HEADER_H + exactas * ORACLE_ROW_H + ORACLE_DIVIDER_H + genericas * ORACLE_ROW_H
+  const exactas = filas.filter(f => f.esc.tipo === 'exacto')
+  const genericas = filas.filter(f => f.esc.tipo === 'generico')
+  const exactRows = exactas.map(fila => oracleWinnerLayout(ctx, fila))
+  const genericRows = genericas.map(fila => oracleWinnerLayout(ctx, fila))
+  const rowsH = [...exactRows, ...genericRows].reduce((sum, row) => sum + row.height, 0)
+  const tableH = ORACLE_HEADER_H + rowsH + ORACLE_DIVIDER_H
   const noteY = ORACLE_TABLE_Y + tableH + 44
-  return Math.round(noteY + ORACLE_FOOTER_GAP + ORACLE_FOOTER_BLOCK_H)
+  const height = Math.round(noteY + ORACLE_FOOTER_GAP + ORACLE_FOOTER_BLOCK_H)
+  return { exactas, genericas, exactRows, genericRows, tableH, height }
 }
 
 function drawOracleImage(ctx, datos, assets = {}) {
   const { quiniela, simulacion, bote = 0, liveScores = {}, conPremio = true } = datos
-  const { escudoLocal = null, escudoVisitante = null, height = H } = assets
+  const { escudoLocal = null, escudoVisitante = null, height = H, layout } = assets
   const partido = simulacion?.partido ?? {}
 
   // Marcador real del partido en vivo (mismo criterio que la tarjeta en la
@@ -1147,7 +1186,7 @@ function drawOracleImage(ctx, datos, assets = {}) {
   const curL = enVivo ? Number(live.local) : null
   const curV = enVivo ? Number(live.visitante) : null
   const curRes = enVivo ? goalsToResultado(curL, curV) : null
-  const exactasAll = (simulacion?.filas ?? []).filter(f => f.esc.tipo === 'exacto')
+  const exactasAll = layout?.exactas ?? (simulacion?.filas ?? []).filter(f => f.esc.tipo === 'exacto')
   const hayExactaActual = enVivo && exactasAll.some(f => f.esc.local === curL && f.esc.visitante === curV)
 
   drawBackground(ctx, 'purple', height)
@@ -1222,7 +1261,7 @@ function drawOracleImage(ctx, datos, assets = {}) {
   // en la web. Antes se recortaba a las primeras 6 filas de la lista y, si
   // había 6+ marcadores exactos distintos entre los jugadores, los genéricos
   // se quedaban fuera de la imagen.
-  const genericas = (simulacion?.filas ?? []).filter(f => f.esc.tipo === 'generico')
+  const genericas = layout?.genericas ?? (simulacion?.filas ?? []).filter(f => f.esc.tipo === 'generico')
   const liveCtx = { enVivo, curL, curV, curRes, hayExactaActual }
 
   // Se muestran TODOS los marcadores, sin recortar: la imagen es un
@@ -1232,8 +1271,9 @@ function drawOracleImage(ctx, datos, assets = {}) {
   const tableY = ORACLE_TABLE_Y
   const headerH = ORACLE_HEADER_H
   const dividerH = ORACLE_DIVIDER_H
-  const rowH = ORACLE_ROW_H
-  const tableH = headerH + exactasAll.length * rowH + dividerH + genericas.length * rowH
+  const exactRows = layout?.exactRows ?? exactasAll.map(fila => oracleWinnerLayout(ctx, fila))
+  const genericRows = layout?.genericRows ?? genericas.map(fila => oracleWinnerLayout(ctx, fila))
+  const tableH = layout?.tableH ?? headerH + dividerH + [...exactRows, ...genericRows].reduce((sum, row) => sum + row.height, 0)
   fillRound(ctx, PAD, tableY, W - PAD * 2, tableH, 16, 'rgba(10,15,30,0.72)', COLORS.border2)
   ctx.fillStyle = 'rgba(255,255,255,0.03)'
   roundRect(ctx, PAD, tableY, W - PAD * 2, headerH, 16)
@@ -1244,9 +1284,10 @@ function drawOracleImage(ctx, datos, assets = {}) {
   ctx.fillText('QUIÉN GANA', PAD + 345, tableY + 37)
 
   let rowY = tableY + headerH
-  exactasAll.forEach(fila => {
-    drawScenarioRow(ctx, fila, rowY, rowH, partido, isCurrentEscenario(fila.esc, liveCtx))
-    rowY += rowH
+  exactasAll.forEach((fila, index) => {
+    const rowLayout = exactRows[index]
+    drawScenarioRow(ctx, fila, rowY, rowLayout, partido, isCurrentEscenario(fila.esc, liveCtx))
+    rowY += rowLayout.height
   })
 
   // Divisor "Cualquier otro marcador" (igual que el de la web) antes de los
@@ -1266,9 +1307,10 @@ function drawOracleImage(ctx, datos, assets = {}) {
   ctx.textBaseline = 'alphabetic'
   rowY += dividerH
 
-  genericas.forEach(fila => {
-    drawScenarioRow(ctx, fila, rowY, rowH, partido, isCurrentEscenario(fila.esc, liveCtx))
-    rowY += rowH
+  genericas.forEach((fila, index) => {
+    const rowLayout = genericRows[index]
+    drawScenarioRow(ctx, fila, rowY, rowLayout, partido, isCurrentEscenario(fila.esc, liveCtx))
+    rowY += rowLayout.height
   })
 
   // Mismo texto que ya usa la tarjeta en la web (sin mencionar el premio ni
@@ -1336,11 +1378,14 @@ export async function generarImagenOraculo(datos) {
     loadImageSafe(partido.escudoLocal),
     loadImageSafe(partido.escudoVisitante),
   ])
-  // El lienzo crece según cuántos marcadores haya que mostrar: sin esto se
-  // recortarían filas o quedaría un hueco vacío si son pocas.
-  const height = computeOracleCanvasHeight(datos.simulacion)
+  // Medimos antes de crear el lienzo definitivo: tanto el número de escenarios
+  // como las líneas de ganadores determinan ahora su altura.
+  const measureCanvas = document.createElement('canvas')
+  const measureCtx = measureCanvas.getContext('2d')
+  const layout = computeOracleLayout(measureCtx, datos.simulacion)
+  const height = layout.height
   const { canvas, ctx } = setupCanvas(height)
-  drawOracleImage(ctx, datos, { escudoLocal, escudoVisitante, height })
+  drawOracleImage(ctx, datos, { escudoLocal, escudoVisitante, height, layout })
   return blobFromCanvas(canvas)
 }
 
