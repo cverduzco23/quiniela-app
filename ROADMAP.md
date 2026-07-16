@@ -1,6 +1,6 @@
 # ROADMAP: QuinielApp
 
-> **Última actualización: 2026-07-13** (código LISTO PARA LANZAR: ver §0.bis).
+> **Última actualización: 2026-07-16** (🚀 LANZAMIENTO FÍSICO EJECUTADO: ver §0.bis).
 > Pivote de modelo de negocio (2026-07-04): §0. Mejoras de UX: 2026-06-15 (§4.bis).
 > Auditoría de código/seguridad/costos: 2026-06-11 (§3).
 > Este documento es la fuente de verdad para retomar el proyecto en cualquier momento:
@@ -59,10 +59,48 @@ Se eliminó toda la capa SaaS de planes/pagos, front y back:
 
 ---
 
-## 0.bis Estado al 2026-07-12: código LISTO PARA LANZAR (uso libre)
+## 0.bis Estado al 2026-07-16: 🚀 LANZADO A PRODUCCIÓN
 
-Todo lo de abajo ya está en `main` local. **No queda desarrollo bloqueante**; lo que
-falta para lanzar es operación (checklist más abajo).
+El **despliegue físico se ejecutó el 2026-07-16** (los 30 commits que estaban solo en
+`main` local desde el 2026-07-08 ya están en producción y verificados en vivo). Detalle
+completo del lanzamiento en la memoria de Claude: `project_lanzamiento_produccion.md`.
+
+### LANZAMIENTO EJECUTADO (2026-07-16) — qué se desplegó y verificó en vivo
+
+1. ✅ **Respaldo** previo: `respaldos/2026-07-16_0555` (24 quinielas + 217 predicciones).
+2. ✅ **9 Cloud Functions** (antes solo `sincronizarResultados`): donativos (crear+webhook),
+   avisos, moderación de chat (moderar+reportado) y temporadas (3). Responden en vivo;
+   los endpoints de Stripe dan 400 a input inválido (vivos, CORS + firma OK).
+   ⚠️ **Gotcha documentado**: las 5 funciones de EVENTOS de Firestore (gen2/Eventarc)
+   fallan en el PRIMER deploy con "Permission denied while using the Eventarc Service
+   Agent". Es normal la primera vez: esperar ~3 min y reintentar SOLO esas 5. Se resolvió así.
+3. ✅ **Reglas + índices**: `firebase deploy --only firestore` (NO `firestore:rules`: ese
+   comando NO sube los 2 índices de `notificacionesAdmin` y `comentarios`). Antes del deploy,
+   leer `temporadas`/`comentarios`/`reacciones` daba `permission-denied`; después: OK.
+4. ✅ **Stripe**: secrets `STRIPE_SECRET_KEY` y `STRIPE_WEBHOOK_SECRET` en Secret Manager
+   (clave **live estándar**). Webhook en Stripe → `.../webhookDonativos`, evento
+   `checkout.session.completed`.
+5. ✅ **Front** (Vercel): push `928ce24..55910f1`. Carga sin errores en https://quinielapp.fun.
+6. ✅ **Indexación/SEO** (nuevo 2026-07-16): la app SALE indexable. Portada/donar/legales =
+   `index,follow`+canonical; quiniela/ranking/temporada/admin = `noindex,nofollow` (llevan
+   nombres reales de participantes). Lógica en `src/utils/seo.js`(+test) vía `<Seo/>` en
+   App.jsx; `public/robots.txt` + `public/sitemap.xml`. Verificado ruta por ruta en el dominio real.
+
+### PENDIENTE del dueño — consola Firebase (no código) + prueba end-to-end
+
+1. **Habilitar alta de cuentas** (crítico): Authentication → Sign-in method → Email/Password +
+   "Enable create (sign-up)" + protección contra enumeración de emails. Sin esto nadie se registra.
+2. **App Check en MONITOREO** (nunca enforce el día 1): app web con reCAPTCHA v3; a ~1 semana → enforce.
+3. Plantillas de correo Auth en español (menos urgente).
+4. **Prueba end-to-end** con la UI: crear cuenta, comentario + reacción, y un donativo real de $10.
+   Riesgo conocido: la clave Stripe es **estándar**; si el donativo falla por permisos, la
+   función usa `price_data` inline y podría exigir Products/Prices Write (o clave restringida
+   con Checkout Sessions Write). Se sabrá en la prueba.
+
+### Contexto histórico (previo al lanzamiento)
+
+Todo lo de abajo ya estaba en `main` desde antes; se conserva como referencia de qué se
+completó en desarrollo.
 
 ### Completado desde el pivote (§0)
 
@@ -103,18 +141,23 @@ falta para lanzar es operación (checklist más abajo).
   en admin.jsx ya no re-escribe `privada: true` (de paso, editar una quiniela pública ya
   no la vuelve privada por accidente). Va en el mismo deploy de reglas del lanzamiento.
 
-### CHECKLIST DÍA DE LANZAMIENTO (todo el mismo día, en este orden)
+### CHECKLIST DÍA DE LANZAMIENTO — ✅ EJECUTADO 2026-07-16 (ver arriba)
 
-1. **Respaldo**: `node scripts/respaldo.mjs`.
-2. **`git push`** (Vercel despliega el front solo).
-3. **`npx firebase deploy --only firestore:rules`**. Obligatorio el mismo día: las reglas
-   de cuota del auto-registro y la validación de picks van en sync con el front nuevo.
-4. **`npx firebase deploy --only functions`**. Sube el estado "en vivo" y las funciones de
-   Stripe. En el dashboard de Stripe: configurar webhook + clave live.
-5. **Consola Firebase → Authentication**: habilitar sign-up Email/Password, plantillas de
-   correo en español, protección contra enumeración de emails.
-6. **Consola Firebase → App Check**: registrar la app en modo MONITOREO; tras ~1 semana sin
-   falsos positivos, pasar a ENFORCE (cierra H2/spam y protege la cuota).
+Se ejecutó el 2026-07-16. **Correcciones aprendidas vs. el plan original** (dejadas aquí
+por si se re-despliega o para futuros lanzamientos):
+- El **orden correcto es backend PRIMERO, front al final** (no push→rules→functions). Las
+  reglas nuevas congelan `privada`, y el front viejo aún lo escribía al editar: hacer el
+  push primero deja una ventana en que editar una quiniela falla. Orden real usado:
+  respaldo → secrets Stripe → functions → reglas+índices → verificar lecturas → `git push`.
+- Fue **`--only firestore`** (rules + índices), NO `--only firestore:rules`: ese no sube
+  los 2 índices que necesitan la campana de avisos y el throttle del chat.
+- El deploy de functions **exige los secrets de Stripe existan antes** (falla si no, aunque
+  no despliegues las de Stripe: el CLI valida todos los secrets del codebase).
+- Las 5 funciones de eventos de Firestore fallan el primer intento (Eventarc gen2): reintentar.
+
+Pendiente del dueño (consola Firebase, aún no hecho al cierre del 2026-07-16): habilitar
+sign-up Email/Password + protección de enumeración, App Check en MONITOREO, plantillas de
+correo en español, y la prueba end-to-end (cuenta + comentario/reacción + donativo real).
 
 ### Pendiente post-lanzamiento (sin prisa, ver también §4)
 
@@ -140,9 +183,11 @@ falta para lanzar es operación (checklist más abajo).
   `create` directo en `predicciones` desde Firestore Rules, añadir protección contra ráfagas e
   inicializar el contador de las quinielas existentes. En UI: `X de 500 participantes` y mensaje
   claro al llenarse. Con este tope, el ranking actual puede seguir calculándose en cliente.
-- **Indexación (tras validar producción):** quitar `noindex` SOLO de la portada y las
-  páginas legales (index.html hoy es noindex global); quinielas y rankings siguen noindex.
-  Acordado 2026-07-13; hacerlo después de validar que todo funciona en producción.
+- **Indexación:** ✅ HECHO 2026-07-16. La app sale indexable: portada, `/donar` y legales con
+  `index,follow`+canonical; quinielas, rankings, temporadas y admin en `noindex,nofollow`
+  (llevan nombres reales de participantes). `src/utils/seo.js`(+test) vía `<Seo/>` en App.jsx,
+  `public/robots.txt` + `public/sitemap.xml`. Verificado en el dominio real. Siguiente paso
+  opcional de SEO: dar de alta el sitio en Google Search Console y enviar el sitemap.
 - **Ranking agregado en Cloud Function (semana del 20 jul, post-Mundial, antes de Liga MX):**
   la función escribe el ranking calculado en un doc por quiniela; el front lee 1 doc en vez
   de releer todas las predicciones cada 60s por espectador (hallazgo S2 de la auditoría
