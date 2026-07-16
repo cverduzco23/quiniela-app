@@ -339,17 +339,30 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
   const hayResultados = terminados > 0 || enVivo
   const vistaParticipantesAbierta = !cerrada && !hayResultados
   const miNombreRanking = quiniela?.id ? miIdentidadEnQuiniela(quiniela.id) : null
-  const tiemposPartidos = partidos.map((partido, idx) => cierreToDate(partido.hora)?.getTime() ?? idx)
-  const ultimaHoraPartidos = tiemposPartidos.length ? Math.max(...tiemposPartidos) : null
-  const ultimosPartidosIdx = tiemposPartidos.reduce((idxs, tiempo, idx) => {
-    if (tiempo === ultimaHoraPartidos) idxs.push(idx)
+  // El modo destacado es para el cierre real de la quiniela, no simplemente
+  // para los partidos con la última hora del calendario. Un partido deja de
+  // estar pendiente cuando fue cancelado o ya tiene resultado, ya sea guardado
+  // por el organizador o recibido en vivo desde ESPN.
+  const partidosRestantesIdx = partidos.reduce((idxs, partido, idx) => {
+    const stored = resultados[idx] ?? resultados[String(idx)]
+    const live = partido.espnId ? liveScores?.[partido.espnId] : null
+    const terminado = stored?.cancelado || getResultado(stored) !== null || live?.state === 'post'
+    if (!terminado) idxs.push(idx)
     return idxs
   }, [])
+  const dosRestantesSimultaneos = partidosRestantesIdx.length === 2 && (() => {
+    const [primeroIdx, segundoIdx] = partidosRestantesIdx
+    const primeraHora = cierreToDate(partidos[primeroIdx]?.hora)?.getTime()
+    const segundaHora = cierreToDate(partidos[segundoIdx]?.hora)?.getTime()
+    return primeraHora != null && primeraHora === segundaHora
+  })()
   const quinielaEnJuego = cerrada && !finalizada && partidos.length > 0
-  const finalesDestacables = quinielaEnJuego && ultimosPartidosIdx.length > 0 && ultimosPartidosIdx.length <= 2
-  const puedeEnfocarUltimo = finalesDestacables && partidos.length > ultimosPartidosIdx.length
+  const finalesDestacables = quinielaEnJuego && (
+    partidosRestantesIdx.length === 1 || dosRestantesSimultaneos
+  )
+  const puedeEnfocarUltimo = finalesDestacables && partidos.length > partidosRestantesIdx.length
   const enfoqueUltimoPartido = finalesDestacables && (!puedeEnfocarUltimo || !mostrarTodosPartidos)
-  const finalesSimultaneas = enfoqueUltimoPartido && ultimosPartidosIdx.length === 2
+  const finalesSimultaneas = enfoqueUltimoPartido && dosRestantesSimultaneos
 
   const jugadores = predicciones
     .map(p => ({
@@ -654,7 +667,7 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
             </span>
           </div>
           {partidos.map((p, i) => {
-            if (enfoqueUltimoPartido && !ultimosPartidosIdx.includes(i)) return null
+            if (enfoqueUltimoPartido && !partidosRestantesIdx.includes(i)) return null
             const live      = p.espnId ? liveScores?.[p.espnId] : null
             const stored    = resultados[i] ?? resultados[String(i)]
             const cancelado = !!stored?.cancelado
@@ -969,7 +982,7 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
 
       {/* Comentarios de la quiniela: en escritorio queda en la columna
           izquierda bajo Partidos; en móvil entre Partidos y la tabla. */}
-      <ComentariosQuiniela quiniela={quiniela} nombres={jugadores.map(j => j.nombre)} />
+      <ComentariosQuiniela quiniela={quiniela} />
 
       </div>
 

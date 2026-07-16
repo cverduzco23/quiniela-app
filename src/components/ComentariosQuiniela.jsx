@@ -4,16 +4,17 @@ import {
   updateDoc, doc, serverTimestamp, increment, Timestamp,
 } from 'firebase/firestore'
 import { db, auth } from '../firebase'
-import { miIdentidadEnQuiniela, asignarAliasQuiniela } from '../utils/misQuinielas'
+import { miIdentidadEnQuiniela } from '../utils/misQuinielas'
 import { contieneLenguajeVetado } from '../utils/moderacion'
 import { quinielaCerrada } from '../utils/cierre'
+import { useDialog } from './Dialogs'
 
 // Comentarios por quiniela. Decisiones de diseño (2026-07-14):
 // - Lecturas puntuales con polling de 60s (sin onSnapshot, consistente con el
 //   fix de conexiones de iOS del ranking). El refresco incremental pide solo
 //   comentarios nuevos, así que cada tick cuesta 1 lectura si no hay nada.
-// - La identidad es el nombre guardado en este dispositivo (envío de
-//   predicción o alias elegido); no se puede cambiar desde el chat.
+// - La identidad es el nombre guardado en este dispositivo al enviar la
+//   predicción; no se puede elegir ni cambiar desde el chat.
 // - Los usuarios no editan ni borran; el organizador (y super admin) borra.
 // - `uid` viaja null hoy: queda sembrado para el Auth normal (fase 2).
 const SUPER_ADMIN_UID = 'w6uc7cHowgM4Pmsya4bUHt1G3Pu2'
@@ -49,7 +50,8 @@ function guardarJSON(key, value) {
   try { localStorage.setItem(key, JSON.stringify(value)) } catch { /* sin storage */ }
 }
 
-export function ComentariosQuiniela({ quiniela, nombres = [] }) {
+export function ComentariosQuiniela({ quiniela }) {
+  const { confirmar } = useDialog()
   const quinielaId = quiniela?.id
   const chatApagado = quiniela?.chatHabilitado === false
   const quinielaAbierta = !quinielaCerrada(quiniela)
@@ -59,11 +61,13 @@ export function ComentariosQuiniela({ quiniela, nombres = [] }) {
   const [texto, setTexto] = useState('')
   const [enviando, setEnviando] = useState(false)
   const [aviso, setAviso] = useState(null)
-  const [miNombre, setMiNombre] = useState(() => (quinielaId ? miIdentidadEnQuiniela(quinielaId) : null))
+  const miNombre = quinielaId ? miIdentidadEnQuiniela(quinielaId) : null
   const [vistoMs, setVistoMs] = useState(() => Number(leerJSON(`quiniela-${quinielaId}-chat-visto`, 0)) || 0)
   const [reportados, setReportados] = useState(() => leerJSON(`quiniela-${quinielaId}-chat-reportados`, []))
   const ultimoMsRef = useRef(0)
   const listaRef = useRef(null)
+  const reportandoRef = useRef(new Set())
+  const borrandoRef = useRef(new Set())
 
   const user = auth.currentUser
   const esModerador = !!user && (user.uid === quiniela?.ownerUid || user.uid === SUPER_ADMIN_UID)
@@ -133,12 +137,6 @@ export function ComentariosQuiniela({ quiniela, nombres = [] }) {
     if (abierto && listaRef.current) listaRef.current.scrollTop = listaRef.current.scrollHeight
   }, [abierto, comentarios.length])
 
-  const elegirNombre = (nombre) => {
-    if (!nombre) return
-    asignarAliasQuiniela(quinielaId, nombre)
-    setMiNombre(miIdentidadEnQuiniela(quinielaId))
-  }
-
   const enviar = async () => {
     const limpio = texto.trim()
     if (!limpio || enviando || !miNombre) return
@@ -188,20 +186,41 @@ export function ComentariosQuiniela({ quiniela, nombres = [] }) {
   }
 
   const borrar = async (c) => {
+    if (borrandoRef.current.has(c.id)) return
+    borrandoRef.current.add(c.id)
     try {
+      const confirmado = await confirmar(
+        '¿Quieres eliminar este comentario? Esta acción no se puede deshacer.',
+        { titulo: 'Eliminar comentario', confirmar: 'Eliminar', cancelar: 'Cancelar', peligro: true },
+      )
+      if (!confirmado) return
+
       await deleteDoc(doc(db, 'quinielas', quinielaId, 'comentarios', c.id))
       setComentarios(prev => prev.filter(x => x.id !== c.id))
     } catch { /* sin permiso o sin red */ }
+    finally {
+      borrandoRef.current.delete(c.id)
+    }
   }
 
   const reportar = async (c) => {
-    if (reportados.includes(c.id)) return
-    const siguientes = [...reportados, c.id].slice(-100)
-    setReportados(siguientes)
-    guardarJSON(`quiniela-${quinielaId}-chat-reportados`, siguientes)
+    if (reportados.includes(c.id) || reportandoRef.current.has(c.id)) return
+    reportandoRef.current.add(c.id)
     try {
+      const confirmado = await confirmar(
+        '¿Quieres reportar este comentario? El organizador podrá revisarlo y tomar las medidas necesarias.',
+        { titulo: 'Reportar comentario', confirmar: 'Reportar', cancelar: 'Cancelar', peligro: true },
+      )
+      if (!confirmado) return
+
+      const siguientes = [...reportados, c.id].slice(-100)
+      setReportados(siguientes)
+      guardarJSON(`quiniela-${quinielaId}-chat-reportados`, siguientes)
       await updateDoc(doc(db, 'quinielas', quinielaId, 'comentarios', c.id), { reportes: increment(1) })
     } catch { /* silencioso */ }
+    finally {
+      reportandoRef.current.delete(c.id)
+    }
   }
 
   if (!quinielaId) return null
@@ -301,24 +320,14 @@ export function ComentariosQuiniela({ quiniela, nombres = [] }) {
                 </svg>
               </button>
             </div>
-          ) : nombres.length > 0 ? (
-            <div className="ranking-chat-identidad">
-              <div className="ranking-chat-identidad-prompt">
-                <label htmlFor="chat-quien-eres">¿Quién eres? Elige tu nombre para comentar</label>
-                {quinielaAbierta && (
-                  <>
-                    <span> o </span>
-                    <a href={`/quiniela/${quinielaId}`}>regístrate en la quiniela</a>
-                  </>
-                )}
-              </div>
-              <select id="chat-quien-eres" defaultValue="" onChange={e => elegirNombre(e.target.value)}>
-                <option value="" disabled>Selecciona tu nombre</option>
-                {[...nombres].sort((a, b) => a.localeCompare(b, 'es')).map(n => <option key={n} value={n}>{n}</option>)}
-              </select>
-            </div>
           ) : (
-            <p className="ranking-chat-nota">Envía tu predicción para poder comentar.</p>
+            <p className="ranking-chat-nota">
+              {quinielaAbierta ? (
+                <>Debes <a href={`/quiniela/${quinielaId}`}>enviar tu predicción</a> para poder comentar.</>
+              ) : (
+                'Necesitas haber enviado tu predicción desde este dispositivo para comentar.'
+              )}
+            </p>
           )}
           {aviso && <p className="ranking-chat-aviso" role="status">{aviso}</p>}
         </div>

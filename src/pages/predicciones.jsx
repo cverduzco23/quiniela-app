@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, Fragment } from 'react'
 import { useSearchParams, useParams, useNavigate } from 'react-router-dom'
-import { doc, getDoc, addDoc, collection, getDocs, query, where, getCountFromServer } from 'firebase/firestore'
+import { doc, getDoc, addDoc, collection, getDocs, query, where, limit, getCountFromServer } from 'firebase/firestore'
 import { db, track } from '../firebase'
 import { registrarVisita, registrarVisitaQuiniela, registrarEnvio } from '../utils/analytics'
 import { cierreToDate, quinielaCerrada, quinielaFinalizada, tiempoRestante } from '../utils/cierre'
@@ -33,6 +33,14 @@ function getPickResultado(pick) {
   if (!pickValido(pick)) return null
   const l = Number(pick.local), v = Number(pick.visitante)
   return l > v ? 'home' : l === v ? 'draw' : 'away'
+}
+
+function inicialesPersona(nombre) {
+  const partes = normalizarNombre(nombre).split(/\s+/).filter(Boolean)
+  if (!partes.length) return '?'
+  const primera = Array.from(partes[0])[0] ?? ''
+  const ultima = partes.length > 1 ? (Array.from(partes[partes.length - 1])[0] ?? '') : ''
+  return `${primera}${ultima}`.toUpperCase()
 }
 
 const resultadoInfo = (res, local, visitante) => ({
@@ -251,6 +259,7 @@ export default function Predicciones() {
   const [celebrando, setCelebrando]       = useState(false)
   const [confirmadoRegla, setConfirmadoRegla] = useState(false)
   const [totalPredicciones, setTotalPredicciones] = useState(0)
+  const [participantesPreview, setParticipantesPreview] = useState([])
   // Igual que en el panel: total por agregación menos los ocultos por el admin.
   const ocultosIds = quiniela?.ocultos ?? []
   const conteoParticipantes = Math.max(0, totalPredicciones - ocultosIds.length)
@@ -297,6 +306,31 @@ export default function Predicciones() {
     registrarVisita()
     registrarVisitaQuiniela(quinielaId)
   }, [quinielaId])
+
+  // El contador sigue usando la agregación económica. Para los avatares del
+  // gate de premio pedimos sólo una muestra pequeña de nombres públicos, sin
+  // volver a descargar todas las predicciones de la quiniela.
+  useEffect(() => {
+    if (!quinielaId || !quiniela) return undefined
+    let vivo = true
+    const ocultos = new Set(quiniela.ocultos ?? [])
+    getDocs(query(
+      collection(db, 'predicciones'),
+      where('quinielaId', '==', quinielaId),
+      limit(8),
+    ))
+      .then(snap => {
+        if (!vivo) return
+        const nombres = snap.docs
+          .filter(d => !ocultos.has(d.id))
+          .map(d => normalizarNombre(d.data().nombre))
+          .filter(Boolean)
+          .slice(0, 3)
+        setParticipantesPreview(nombres)
+      })
+      .catch(() => {})
+    return () => { vivo = false }
+  }, [quinielaId, quiniela])
 
   const partidos   = quiniela?.partidos ?? []
   const cerrada    = quinielaCerrada(quiniela)
@@ -991,13 +1025,21 @@ export default function Predicciones() {
                     background: 'rgba(6,12,24,0.6)', borderRadius: 'var(--radius-full)',
                     padding: '6px 18px 6px 6px', margin: '2px 0 12px',
                   }}>
-                    <span style={{ display: 'inline-flex' }}>
-                      {AVATAR_TONOS.map((bg, idx) => (
-                        <span key={idx} aria-hidden="true" style={{
+                    <span
+                      aria-label={`Participantes: ${participantesPreview.join(', ')}`}
+                      style={{ display: 'inline-flex' }}
+                    >
+                      {participantesPreview.map((participante, idx) => (
+                        <span key={`${participante}-${idx}`} title={participante} style={{
                           width: 28, height: 28, borderRadius: '50%',
-                          background: bg, border: '2px solid #151F32',
+                          background: AVATAR_TONOS[idx % AVATAR_TONOS.length], border: '2px solid #151F32',
                           marginLeft: idx === 0 ? 0 : -10, flexShrink: 0,
-                        }} />
+                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                          color: '#F8FAFC', fontSize: 9.5, fontWeight: 850, lineHeight: 1,
+                          letterSpacing: '-0.1px',
+                        }}>
+                          {inicialesPersona(participante)}
+                        </span>
                       ))}
                     </span>
                     <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-strong)' }}>
