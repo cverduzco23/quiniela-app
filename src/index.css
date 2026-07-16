@@ -3000,6 +3000,442 @@ a:focus-visible {
   --ranking-picks-gap: 5px;
   border-radius: 15px;
 }
+.temporada-page { background: #070d18 !important; }
+.temporada-page .ranking-bg-fade {
+  background:
+    radial-gradient(circle at 8% 0%, rgba(34,197,94,0.14), transparent 38%),
+    radial-gradient(circle at 92% 0%, rgba(250,204,21,0.075), transparent 34%),
+    linear-gradient(180deg, #070d18 0%, #070d18 72%, #0a1220 100%);
+}
+.temporada-page .ranking-table-panel {
+  border: 1px solid rgba(255,255,255,0.10);
+  background: linear-gradient(135deg, rgba(30,41,59,0.92), rgba(15,24,40,0.95));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), 0 12px 26px rgba(0,0,0,0.32);
+}
+.temporada-section-title { margin: 0 2px 10px; }
+.temporada-section-title h2 {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 750;
+}
+.temporada-section-title h2 > span { color: var(--green-light); font-size: 12px; }
+.temporada-section-title p { margin-top: 3px; color: var(--muted-soft); font-size: 9.5px; line-height: 1.45; }
+.temporada-highlights-wrap { margin-bottom: 16px; }
+.temporada-highlights {
+  display: flex;
+  gap: 11px;
+  width: 100%;
+  margin: 0;
+  padding: 1px 0 8px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+}
+.temporada-highlights::-webkit-scrollbar { display: none; }
+.temporada-highlight-card {
+  flex: 0 0 100%;
+  height: 146px;
+  padding: 0;
+  border: 0;
+  border-radius: 15px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  perspective: 900px;
+  scroll-snap-align: start;
+}
+.temporada-highlight-card:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+.temporada-highlight-inner {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  transition: transform 520ms cubic-bezier(.2,.75,.2,1);
+}
+.temporada-highlight-card.is-flipped .temporada-highlight-inner { transform: rotateY(180deg); }
+.temporada-highlight-face {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 14px 16px;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 14px;
+  background: linear-gradient(140deg, rgba(30,41,59,0.97), rgba(15,24,40,0.99));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 11px 25px rgba(0,0,0,0.27);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+.temporada-highlight-card.is-active-card .temporada-highlight-face {
+  border-color: rgba(134,239,172,0.30);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.06),
+    0 14px 30px rgba(0,0,0,0.34),
+    0 0 24px rgba(34,197,94,0.08);
+}
+.temporada-highlight-card.is-active-card.is-dinero .temporada-highlight-face {
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.06),
+    0 14px 30px rgba(0,0,0,0.34),
+    0 0 22px rgba(34,197,94,0.07),
+    0 0 30px rgba(250,204,21,0.055);
+}
+.temporada-highlight-front { justify-content: flex-end; }
+.temporada-highlight-back {
+  justify-content: center;
+  transform: rotateY(180deg);
+  color: var(--text);
+  font-size: 12.5px;
+  line-height: 1.52;
+}
+.temporada-highlight-icon {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  color: var(--muted);
+  opacity: 0.11;
+}
+.temporada-highlight-card.is-acierto .temporada-highlight-icon { color: var(--green-light); opacity: 0.16; }
+.temporada-highlight-card.is-dinero .temporada-highlight-icon { color: var(--yellow); opacity: 0.17; }
+.temporada-highlight-crests {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  display: flex;
+  align-items: center;
+  padding-left: 10px;
+}
+.temporada-highlight-crests img {
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
+  filter: drop-shadow(0 4px 8px rgba(0,0,0,0.34));
+}
+.temporada-highlight-crests img + img { margin-left: -8px; }
+.temporada-card-sparkles {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  color: rgba(255,255,255,0.72);
+  pointer-events: none;
+}
+.temporada-highlight-card.is-acierto .temporada-card-sparkles { color: var(--green-light); }
+.temporada-highlight-card.is-dinero .temporada-card-sparkles { color: var(--yellow); }
+.temporada-card-sparkles i {
+  position: absolute;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0;
+  animation: temporada-sparkle 6.8s ease-in-out infinite;
+}
+.temporada-card-sparkles i:nth-child(1) { left: 7%; top: 19%; animation-delay: -1.2s; }
+.temporada-card-sparkles i:nth-child(2) { left: 19%; top: 9%; animation-delay: -4.4s; transform: rotate(45deg); }
+.temporada-card-sparkles i:nth-child(3) { left: 36%; top: 31%; animation-delay: -2.8s; }
+.temporada-card-sparkles i:nth-child(4) { left: 54%; top: 12%; animation-delay: -5.7s; transform: rotate(45deg); }
+.temporada-card-sparkles i:nth-child(5) { left: 69%; top: 38%; animation-delay: -0.5s; }
+.temporada-card-sparkles i:nth-child(6) { left: 83%; top: 18%; animation-delay: -3.5s; }
+.temporada-card-sparkles i:nth-child(7) { left: 91%; top: 61%; animation-delay: -6.2s; transform: rotate(45deg); }
+.temporada-card-sparkles i:nth-child(8) { left: 43%; top: 76%; animation-delay: -2.1s; }
+@keyframes temporada-sparkle {
+  0%, 72%, 100% { opacity: 0; transform: translateY(3px) scale(0.45) rotate(0deg); }
+  80% { opacity: 0.22; }
+  88% { opacity: 0.06; transform: translateY(-5px) scale(1.25) rotate(45deg); }
+}
+.temporada-highlight-title {
+  margin-bottom: 6px;
+  color: var(--muted);
+  font-size: 9.5px;
+  font-weight: 850;
+  letter-spacing: 0.65px;
+  text-transform: uppercase;
+}
+.temporada-highlight-front strong {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 18px;
+  line-height: 1.2;
+  text-transform: uppercase;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.temporada-highlight-value {
+  margin-top: 5px;
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 800;
+}
+.temporada-highlight-card.is-acierto .temporada-highlight-value { color: var(--green-light); }
+.temporada-highlight-card.is-dinero .temporada-highlight-value { color: var(--yellow); }
+.temporada-highlight-face small {
+  margin-top: 8px;
+  color: var(--muted-soft);
+  font-size: 8.5px;
+}
+.temporada-highlight-back .temporada-highlight-title { color: var(--muted); }
+.temporada-highlight-card.is-acierto .temporada-highlight-back .temporada-highlight-title { color: var(--green-light); }
+.temporada-highlight-card.is-dinero .temporada-highlight-back .temporada-highlight-title { color: var(--yellow); }
+.temporada-highlight-dots {
+  display: flex;
+  justify-content: center;
+  gap: 5px;
+  height: 5px;
+  margin-top: 5px;
+}
+.temporada-highlight-dots span {
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(148,163,184,0.30);
+  transition: width 200ms ease, background 200ms ease;
+}
+.temporada-highlight-dots span.is-active { width: 16px; background: var(--green); }
+.temporada-highlights-loading {
+  margin-bottom: 16px;
+  padding: 16px;
+  border: 1px solid rgba(148,163,184,0.14);
+  border-radius: 14px;
+  color: var(--muted);
+  background: rgba(15,23,42,0.52);
+  font-size: 12px;
+  text-align: center;
+}
+.temporada-player-row {
+  display: block;
+  width: 100%;
+  padding: 14px 16px 13px;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 160ms ease;
+}
+.temporada-table-head {
+  display: grid !important;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  align-items: center;
+}
+.temporada-player-main {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto 20px;
+  align-items: center;
+  gap: 0;
+}
+.temporada-player-position { font-size: 15px; font-weight: 800; }
+.temporada-player-position { font-family: var(--font-display); }
+.temporada-player-name {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding-right: 10px;
+  color: var(--text);
+  font-size: 15.5px;
+  line-height: 1.28;
+}
+.temporada-player-name > span:first-child { white-space: normal; overflow-wrap: anywhere; }
+.temporada-player-points {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 800;
+}
+.temporada-player-points small { color: var(--muted-soft); font-size: 8px; font-weight: 750; text-transform: uppercase; }
+.temporada-player-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px 12px;
+  margin: 8px 20px 0 34px;
+  color: var(--muted-soft);
+  font-size: 10px;
+  line-height: 1.35;
+}
+.temporada-player-meta .is-hits { color: var(--green-light); }
+.temporada-player-meta .is-exacts { color: var(--green-light); }
+.temporada-player-meta .is-prize { color: var(--yellow); font-weight: 750; }
+.temporada-player-meta b { font-family: var(--font-display); font-size: 11px; font-weight: 700; }
+.temporada-player-meta > span { display: inline-flex; align-items: center; gap: 4px; }
+.temporada-player-row:hover { background-color: rgba(148,163,184,0.055) !important; }
+.temporada-player-row:focus-visible {
+  position: relative;
+  z-index: 1;
+  outline: 2px solid var(--green);
+  outline-offset: -2px;
+}
+.temporada-player-chevron {
+  justify-self: end;
+  color: var(--muted-soft);
+  font-size: 14px;
+  line-height: 1;
+  transform: translateY(-2px);
+  transition: transform 180ms ease, color 180ms ease;
+}
+.temporada-player.is-open .temporada-player-chevron {
+  color: var(--green-light);
+  transform: rotate(180deg) translateY(1px);
+}
+.temporada-player.is-leader { position: relative; }
+.temporada-player.is-leader .temporada-player-row { position: relative; overflow: hidden; }
+.temporada-player.is-leader .temporada-player-row::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(110deg, transparent 30%, rgba(250,204,21,0.065) 48%, transparent 66%);
+  transform: translateX(-115%);
+  animation: temporada-leader-shine 9s ease-in-out infinite;
+}
+@keyframes temporada-leader-shine {
+  0%, 62% { transform: translateX(-115%); opacity: 0; }
+  72% { opacity: 1; }
+  88%, 100% { transform: translateX(115%); opacity: 0; }
+}
+.temporada-player-collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition: grid-template-rows 340ms cubic-bezier(.22,.75,.25,1), opacity 240ms ease;
+}
+.temporada-player-collapse > div { min-height: 0; overflow: hidden; }
+.temporada-player.is-open .temporada-player-collapse { grid-template-rows: 1fr; opacity: 1; }
+.temporada-player-detail,
+.temporada-player-loading {
+  padding: 8px 16px 18px;
+  background: rgba(6,12,24,0.55);
+}
+.temporada-player-loading {
+  padding-top: 15px;
+  color: var(--muted);
+  font-size: 11.5px;
+}
+.temporada-player-stats {
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 12px;
+  background: rgba(6,12,24,0.55);
+}
+.temporada-player-stat-row {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 60px;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(148,163,184,0.10);
+}
+.temporada-player-stat-row:last-child { border-bottom: 0; }
+.temporada-player-stat-icon { display: inline-flex; justify-content: center; color: var(--muted); opacity: 0.72; }
+.temporada-player-stat-row.is-dinero .temporada-player-stat-icon,
+.temporada-player-stat-row.is-primero .temporada-player-stat-icon { color: var(--yellow); opacity: 0.92; }
+.temporada-player-stat-copy { min-width: 0; }
+.temporada-player-stat-copy > span,
+.temporada-player-stat-copy small {
+  display: block;
+  line-height: 1.4;
+}
+.temporada-player-stat-copy > span {
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 700;
+}
+.temporada-player-stat-copy small {
+  margin-top: 2px;
+  color: var(--muted-soft);
+  font-size: 10px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.temporada-player-stat-row > strong {
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: 15px;
+  text-align: right;
+  white-space: nowrap;
+}
+.temporada-player-stat-row.is-dinero > strong,
+.temporada-player-stat-row.is-primero > strong { color: var(--yellow); }
+.temporada-exactos { margin-top: 17px; }
+.temporada-exactos-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 7px;
+}
+.temporada-exactos-title strong { color: var(--text); font-size: 13px; }
+.temporada-exactos-title strong { display: inline-flex; align-items: center; gap: 6px; }
+.temporada-exactos-title strong svg { color: var(--green-light); }
+.temporada-exactos-title span { color: var(--green-light); font-size: 10.5px; font-weight: 650; }
+.temporada-exactos-title span b { font-family: var(--font-display); font-size: 12px; }
+.temporada-exactos > p,
+.temporada-exactos-list > p {
+  margin: 7px 0 0;
+  color: var(--muted-soft);
+  font-size: 10.5px;
+}
+.temporada-exactos-list {
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 10px;
+}
+.temporada-exactos-list > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 58px;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(148,163,184,0.09);
+}
+.temporada-exactos-list > div:last-of-type { border-bottom: 0; }
+.temporada-exactos-list > div > span { min-width: 0; }
+.temporada-exactos-list strong,
+.temporada-exactos-list small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.temporada-exactos-list strong { color: var(--text); font-size: 11.5px; font-weight: 650; }
+.temporada-exactos-list small { margin-top: 3px; color: var(--muted-soft); font-size: 9px; }
+.temporada-exactos-list b {
+  flex-shrink: 0;
+  padding: 6px 8px;
+  border-radius: 7px;
+  color: #07120A;
+  background: var(--green);
+  font-family: var(--font-display);
+  font-size: 11.5px;
+}
+.temporada-exactos-list > .temporada-exactos-more {
+  margin: 0;
+  padding: 10px 12px;
+  border-top: 1px solid rgba(148,163,184,0.09);
+  color: var(--muted);
+  font-size: 10.5px;
+  line-height: 1.4;
+  text-align: center;
+}
+@media (max-width: 430px) {
+  .temporada-player-meta { gap: 5px 9px; }
+  .temporada-player-stat-row { grid-template-columns: 28px minmax(0, 1fr) auto; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .temporada-highlight-inner,
+  .temporada-player-collapse,
+  .temporada-player-chevron { transition: none; }
+  .temporada-player.is-leader .temporada-player-row::after { animation: none; }
+  .temporada-card-sparkles i { animation: none; }
+}
 .ranking-prize-zone-shine-wrap {
   position: relative;
   overflow: hidden;

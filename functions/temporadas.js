@@ -15,6 +15,7 @@
 import { onDocumentUpdated, onDocumentDeleted } from 'firebase-functions/v2/firestore'
 import { logger } from 'firebase-functions'
 import { getFirestore, FieldValue } from 'firebase-admin/firestore'
+import { calcularBoteDeJornada, calcularPremiosDeJornada } from './premiosTemporada.js'
 
 // Scoring mínimo (copia de src/utils/scoring.js: 1 pt resultado, +2 exacto;
 // cancelados no cuentan). Solo se usa sobre resultados guardados, sin live.
@@ -62,6 +63,14 @@ function claveNombre(nombre) {
   return String(nombre ?? '').trim().replace(/\s+/g, ' ').toLocaleLowerCase('es-MX')
 }
 
+function marcadorExacto(pick, resultado) {
+  return typeof pick === 'object' && pick !== null && resultado && !resultado.cancelado &&
+    String(resultado.local ?? '').trim() !== '' && String(resultado.visitante ?? '').trim() !== '' &&
+    String(pick.local ?? '').trim() !== '' && String(pick.visitante ?? '').trim() !== '' &&
+    Number(resultado.local) === Number(pick.local) &&
+    Number(resultado.visitante) === Number(pick.visitante)
+}
+
 async function recalcularTemporada(db, temporadaId) {
   if (!temporadaId) return
   const temporadaRef = db.collection('temporadas').doc(temporadaId)
@@ -75,33 +84,118 @@ async function recalcularTemporada(db, temporadaId) {
   const acumulado = new Map()
   let jornadasJugadas = 0
   const jornadas = []
+  const destacados = {
+    masParticipantes: null,
+    mayorBote: null,
+    masExactos: null,
+    mayorPremioIndividual: null,
+    partidosTotales: { valor: 0 },
+    dineroRepartido: { valor: 0 },
+  }
 
   for (const qDoc of quinielasSnap.docs) {
     const q = qDoc.data()
     jornadas.push({ id: qDoc.id, nombre: q.nombre ?? '', finalizada: q.finalizada === true })
     if (q.finalizada !== true) continue
     jornadasJugadas++
+    destacados.partidosTotales.valor += (q.partidos ?? []).length
 
     const predsSnap = await db.collection('predicciones')
       .where('quinielaId', '==', qDoc.id)
       .get()
     const ocultos = q.ocultos ?? []
+    const jugadoresJornada = []
     predsSnap.docs.forEach(pDoc => {
       if (ocultos.includes(pDoc.id)) return
       const pred = pDoc.data()
       const clave = claveNombre(pred.nombre)
       if (!clave) return
       const pts = calcularPuntos(pred.picks, q.resultados ?? {}, q.partidos ?? [])
-      const previo = acumulado.get(clave) ?? { nombre: String(pred.nombre ?? '').trim(), puntos: 0, aciertos: 0, exactos: 0, jornadas: 0 }
-      previo.puntos += pts.puntos
-      previo.aciertos += pts.aciertos
-      previo.exactos += pts.exactos
+      jugadoresJornada.push({
+        clave,
+        nombre: String(pred.nombre ?? '').trim(),
+        fecha: pred.fecha?.toMillis?.() ?? Number.MAX_SAFE_INTEGER,
+        picks: pred.picks ?? {},
+        ...pts,
+      })
+    })
+
+    jugadoresJornada.sort((a, b) =>
+      b.puntos - a.puntos || b.exactos - a.exactos || b.aciertos - a.aciertos || a.fecha - b.fecha)
+    const premios = calcularPremiosDeJornada(jugadoresJornada, q)
+    destacados.dineroRepartido.valor += premios.reduce((total, premio) => total + (Number(premio) || 0), 0)
+    const bote = calcularBoteDeJornada(q, jugadoresJornada.length)
+    if (!destacados.masParticipantes || jugadoresJornada.length > destacados.masParticipantes.valor) {
+      destacados.masParticipantes = { valor: jugadoresJornada.length, quiniela: q.nombre ?? '' }
+    }
+    if (!destacados.mayorBote || bote > destacados.mayorBote.valor) {
+      destacados.mayorBote = { valor: bote, quiniela: q.nombre ?? '' }
+    }
+
+    const exactosPorPartido = (q.partidos ?? []).map(() => 0)
+    jugadoresJornada.forEach(jugador => {
+      ;(q.partidos ?? []).forEach((partido, partidoIdx) => {
+        const resultado = q.resultados?.[partidoIdx] ?? q.resultados?.[String(partidoIdx)]
+        const pick = jugador.picks?.[partidoIdx] ?? jugador.picks?.[String(partidoIdx)]
+        if (marcadorExacto(pick, resultado)) exactosPorPartido[partidoIdx]++
+      })
+    })
+    exactosPorPartido.forEach((cantidad, partidoIdx) => {
+      if (cantidad <= 0 || (destacados.masExactos && cantidad <= destacados.masExactos.valor)) return
+      const partido = q.partidos?.[partidoIdx] ?? {}
+      destacados.masExactos = {
+        valor: cantidad,
+        partido: `${partido.local ?? 'Local'} vs ${partido.visitante ?? 'Visitante'}`,
+        quiniela: q.nombre ?? '',
+        escudoLocal: partido.escudoLocal ?? '',
+        escudoVisitante: partido.escudoVisitante ?? '',
+      }
+    })
+
+    jugadoresJornada.forEach((jugador, indice) => {
+      const previo = acumulado.get(jugador.clave) ?? {
+        nombre: jugador.nombre, puntos: 0, aciertos: 0, exactos: 0, jornadas: 0, ganado: 0,
+        victorias: 0, podios: 0, jornadasConPremio: 0, mejorJornadaPuntos: 0,
+        mejorJornada: '', mayorPremio: 0, quinielaMayorPremio: '', exactosDetalle: [],
+      }
+      previo.puntos += jugador.puntos
+      previo.aciertos += jugador.aciertos
+      previo.exactos += jugador.exactos
       previo.jornadas += 1
-      acumulado.set(clave, previo)
+      previo.ganado = (previo.ganado ?? 0) + premios[indice]
+      const nivel = jugadoresJornada
+        .slice(0, indice + 1)
+        .filter((otro, otroIdx, lista) => otroIdx === 0 || otro.puntos !== lista[otroIdx - 1].puntos)
+        .length
+      if (jugador.puntos > 0 && nivel === 1) previo.victorias++
+      if (jugador.puntos > 0 && nivel <= 3) previo.podios++
+      if (premios[indice] > 0) previo.jornadasConPremio++
+      if (jugador.puntos > previo.mejorJornadaPuntos) {
+        previo.mejorJornadaPuntos = jugador.puntos
+        previo.mejorJornada = q.nombre ?? ''
+      }
+      if (premios[indice] > previo.mayorPremio) {
+        previo.mayorPremio = premios[indice]
+        previo.quinielaMayorPremio = q.nombre ?? ''
+      }
+      ;(q.partidos ?? []).forEach((partido, partidoIdx) => {
+        const resultado = q.resultados?.[partidoIdx] ?? q.resultados?.[String(partidoIdx)]
+        const pick = jugador.picks?.[partidoIdx] ?? jugador.picks?.[String(partidoIdx)]
+        if (!marcadorExacto(pick, resultado)) return
+        previo.exactosDetalle.push({
+          quiniela: q.nombre ?? '',
+          partido: `${partido.local ?? 'Local'} vs ${partido.visitante ?? 'Visitante'}`,
+          marcador: `${resultado.local}-${resultado.visitante}`,
+        })
+      })
+      if (premios[indice] > (destacados.mayorPremioIndividual?.valor ?? 0)) {
+        destacados.mayorPremioIndividual = { valor: premios[indice], jugador: jugador.nombre, quiniela: q.nombre ?? '' }
+      }
+      acumulado.set(jugador.clave, previo)
     })
   }
 
-  const tabla = [...acumulado.values()].sort((a, b) =>
+  const tabla = [...acumulado.values()].map(j => ({ ...j, exactosDetalle: j.exactosDetalle.slice(0, 6) })).sort((a, b) =>
     b.puntos - a.puntos || b.exactos - a.exactos || b.aciertos - a.aciertos || a.nombre.localeCompare(b.nombre, 'es'))
 
   await temporadaRef.update({
@@ -109,6 +203,8 @@ async function recalcularTemporada(db, temporadaId) {
     jornadas,
     jornadasJugadas,
     totalQuinielas: quinielasSnap.size,
+    destacados,
+    versionTabla: 4,
     actualizada: FieldValue.serverTimestamp(),
   })
   logger.info(`Temporada ${temporadaId} recalculada: ${tabla.length} jugadores, ${jornadasJugadas} jornadas`)
@@ -126,8 +222,14 @@ export const actualizarTemporada = onDocumentUpdated('quinielas/{quinielaId}', a
   const relevante =
     tAntes !== tDespues ||
     antes.finalizada !== despues.finalizada ||
+    JSON.stringify(antes.partidos ?? []) !== JSON.stringify(despues.partidos ?? []) ||
     JSON.stringify(antes.resultados ?? {}) !== JSON.stringify(despues.resultados ?? {}) ||
     JSON.stringify(antes.ocultos ?? []) !== JSON.stringify(despues.ocultos ?? []) ||
+    antes.tipoPremio !== despues.tipoPremio ||
+    antes.premioFijo !== despues.premioFijo ||
+    antes.cuota !== despues.cuota ||
+    antes.modeloPremio !== despues.modeloPremio ||
+    antes.boteDevuelto !== despues.boteDevuelto ||
     antes.nombre !== despues.nombre
   if (!relevante) return
 

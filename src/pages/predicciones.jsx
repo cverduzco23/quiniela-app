@@ -6,7 +6,7 @@ import { registrarVisita, registrarVisitaQuiniela, registrarEnvio } from '../uti
 import { cierreToDate, quinielaCerrada, quinielaFinalizada, tiempoRestante } from '../utils/cierre'
 import { tienePremio, tieneCuota, descripcionRegla, calcularBote, desglosePremio, TIPO_PREMIO, formatearMXN } from '../utils/premios'
 import { contieneEmoji, normalizarNombre, quitarEmojis, tieneNombreYApellido } from '../utils/nombres'
-import { recordarMiQuiniela } from '../utils/misQuinielas'
+import { nombrePreferidoEnDispositivo, recordarMiQuiniela } from '../utils/misQuinielas'
 import { CuentaRegresiva } from '../components/CuentaRegresiva'
 import { Footer } from '../components/Footer'
 import { useDialog } from '../components/Dialogs'
@@ -251,6 +251,7 @@ export default function Predicciones() {
   // escribirlo libre, como siempre.
   const [rosterTemporada, setRosterTemporada]     = useState([])
   const [nombreModoNuevo, setNombreModoNuevo]     = useState(false)
+  const [nombreSugeridoDispositivo, setNombreSugeridoDispositivo] = useState('')
   const [picks, setPicks]                 = useState({})
   const [enviado, setEnviado]             = useState(false)
   const [enviando, setEnviando]           = useState(false)
@@ -446,8 +447,20 @@ export default function Predicciones() {
     getDoc(doc(db, 'temporadas', tid))
       .then(snap => {
         if (!vivo || !snap.exists()) return
-        const nombres = (snap.data().tabla ?? []).map(j => j?.nombre).filter(Boolean)
-        setRosterTemporada([...new Set(nombres)].sort((a, b) => a.localeCompare(b, 'es')))
+        const datosTemporada = snap.data()
+        const nombres = [...new Set((datosTemporada.tabla ?? []).map(j => j?.nombre).filter(Boolean))]
+          .sort((a, b) => a.localeCompare(b, 'es'))
+        const idsJornadas = (datosTemporada.jornadas ?? []).map(j => j?.id).filter(Boolean)
+        const preferido = nombrePreferidoEnDispositivo(idsJornadas)
+        const nombreRoster = preferido
+          ? nombres.find(n => normalizarNombre(n) === normalizarNombre(preferido))
+          : null
+        const sugerido = nombreRoster ?? preferido ?? ''
+        setRosterTemporada(nombres)
+        if (sugerido) {
+          setNombreSugeridoDispositivo(sugerido)
+          setNombre(actual => actual.trim() ? actual : sugerido)
+        }
       })
       .catch(() => {})
     return () => { vivo = false }
@@ -566,6 +579,11 @@ export default function Predicciones() {
           fecha: new Date().toISOString(),
         }))
       } catch { /* noop */ }
+      recordarMiQuiniela({
+        id: quinielaId,
+        codigoAcceso: codigoReq,
+        nombre: quiniela?.nombre ?? '',
+      })
       track('prediccion_enviada', { quinielaId })
       registrarEnvio()
       setEnviado(true)
@@ -1275,6 +1293,8 @@ export default function Predicciones() {
             {(() => {
               const mostrarRoster = rosterTemporada.length > 0 && !nombreModoNuevo &&
                 (nombre === '' || rosterTemporada.includes(nombre))
+              const nombreRecordadoActivo = !!nombreSugeridoDispositivo && !nombreModoNuevo &&
+                normalizarNombre(nombre) === normalizarNombre(nombreSugeridoDispositivo)
               const similarRoster = nombreModoNuevo && rosterTemporada.length > 0 && nombre.trim().length >= 3
                 ? rosterTemporada.find(n => {
                     const tokN = n.toLocaleLowerCase('es-MX').split(' ')[0]
@@ -1290,7 +1310,9 @@ export default function Predicciones() {
                     ¿Quién eres?
                   </label>
                   <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>
-                    Esta quiniela es parte de una temporada: elige tu nombre y tus puntos se suman a la tabla general.
+                    {nombreRecordadoActivo
+                      ? 'Recordamos tu nombre en este dispositivo. Confírmalo para que tus puntos sigan sumándose juntos.'
+                      : 'Esta quiniela es parte de una temporada: elige tu nombre y tus puntos se suman a la tabla general.'}
                   </p>
                   <select
                     id="jugador-roster"
@@ -1312,20 +1334,37 @@ export default function Predicciones() {
               ) : (
                 <>
                   <label htmlFor="jugador-nombre" style={lbl}>
-                    Tu nombre completo
+                    {nombreRecordadoActivo ? 'Tu nombre para la temporada' : 'Tu nombre completo'}
                   </label>
                   <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>
-                    Nombre y al menos un apellido (ej. María González).
+                    {nombreRecordadoActivo
+                      ? 'Usaremos el mismo nombre con el que has participado desde este dispositivo.'
+                      : 'Nombre y al menos un apellido (ej. María González).'}
                   </p>
                   <input
                     id="jugador-nombre"
                     type="text"
                     placeholder="Ej. María González"
                     value={nombre}
+                    readOnly={nombreRecordadoActivo}
                     maxLength={40}
+                    autoComplete="name"
                     onChange={e => actualizarNombre(e.target.value)}
-                    style={{ fontSize: 'var(--pred-input-size, 15px)', padding: 'var(--pred-input-padding, 10px 12px)', borderColor: nombreError ? 'var(--red)' : undefined }}
+                    style={{
+                      fontSize: 'var(--pred-input-size, 15px)',
+                      padding: 'var(--pred-input-padding, 10px 12px)',
+                      borderColor: nombreError ? 'var(--red)' : nombreRecordadoActivo ? 'rgba(134,239,172,0.36)' : undefined,
+                    }}
                   />
+                  {nombreRecordadoActivo && (
+                    <button
+                      type="button"
+                      onClick={() => { setNombreModoNuevo(true); actualizarNombre('') }}
+                      style={{ background: 'none', border: 'none', color: 'var(--muted)', fontSize: 11.5, fontWeight: 600, cursor: 'pointer', textDecoration: 'underline', padding: 0, marginTop: 10 }}
+                    >
+                      No soy {nombreSugeridoDispositivo}. Usar otro nombre
+                    </button>
+                  )}
                   {similarRoster && (
                     <p style={{ fontSize: 12, color: 'var(--yellow-soft, #FDE68A)', marginTop: 8, lineHeight: 1.5 }}>
                       Ya existe <strong style={{ color: 'var(--text)' }}>{similarRoster}</strong> en esta temporada. ¿Eres tú?{' '}

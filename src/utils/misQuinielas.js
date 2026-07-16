@@ -70,6 +70,50 @@ export function miIdentidadEnQuiniela(id) {
   }
 }
 
+function elegirNombreMasUsado(ids) {
+  const conteo = new Map()
+  ids.forEach(id => {
+    try {
+      const raw = localStorage.getItem(`quiniela-${id}-enviada`)
+      const data = raw ? JSON.parse(raw) : null
+      const nombre = normalizarNombre(data?.nombre)
+      if (!nombre) return
+      const fecha = new Date(data?.fecha ?? 0).getTime() || 0
+      const clave = nombre.toLocaleLowerCase('es-MX')
+      const previo = conteo.get(clave) ?? { nombre, usos: 0, ultimaFecha: 0 }
+      previo.usos++
+      previo.ultimaFecha = Math.max(previo.ultimaFecha, fecha)
+      conteo.set(clave, previo)
+    } catch { /* envío local corrupto, ignorar */ }
+  })
+  return [...conteo.values()]
+    .sort((a, b) => b.usos - a.usos || b.ultimaFecha - a.ultimaFecha)[0]?.nombre ?? null
+}
+
+// Nombre sugerido para una nueva quiniela. Primero considera envíos reales de
+// otras jornadas de la misma temporada. Si el dispositivo aún no participó en
+// ella, usa el nombre más frecuente y reciente entre sus quinielas guardadas.
+// No usa alias: solo identidades que realmente enviaron predicciones.
+export function nombrePreferidoEnDispositivo(quinielaIdsTemporada = []) {
+  try {
+    const idsTemporada = [...new Set(quinielaIdsTemporada.filter(Boolean))]
+    const deTemporada = elegirNombreMasUsado(idsTemporada)
+    if (deTemporada) return deTemporada
+    const idsConEnvio = []
+    if (typeof localStorage.key === 'function') {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i)
+        const match = key?.match(/^quiniela-(.+)-enviada$/)
+        if (match?.[1]) idsConEnvio.push(match[1])
+      }
+    }
+    const idsRecientes = leerMisQuinielasGuardadas().map(q => q.id)
+    return elegirNombreMasUsado([...new Set([...idsConEnvio, ...idsRecientes])])
+  } catch {
+    return null
+  }
+}
+
 // Deja que el usuario, en un dispositivo donde nunca envió predicciones, se
 // identifique eligiendo su nombre de la lista de participantes para ver su
 // posición. Es solo una preferencia de visualización local (guardada aparte

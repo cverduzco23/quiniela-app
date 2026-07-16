@@ -57,7 +57,7 @@ const PAGE_SIZE = 50
 // Por debajo de este umbral, scrollear es más rápido.
 const UMBRAL_BUSQUEDA = 20
 
-function SvgIcon({ name, size = 14, style }) {
+export function SvgIcon({ name, size = 14, style }) {
   const common = {
     width: size,
     height: size,
