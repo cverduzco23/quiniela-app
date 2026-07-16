@@ -4731,6 +4731,9 @@ export default function Admin() {
               if (clienteDesktop) {
                 const abiertasInicio = miasOrdenadas.activas.slice(0, 3)
                 const enJuegoInicio = miasOrdenadas.enJuego.slice(0, 3)
+                const finalizadasInicio = abiertasInicio.length === 0 && enJuegoInicio.length === 0
+                  ? miasOrdenadas.finalizadas.slice(0, 1)
+                  : []
                 const grupoInicio = (titulo, items, total) => items.length > 0 && (
                   <section className="admin-desktop-home-q-group">
                     <div className="admin-client-section-heading">
@@ -4772,6 +4775,7 @@ export default function Admin() {
                         </div>
                         {grupoInicio('Abiertas', abiertasInicio, miasOrdenadas.activas.length)}
                         {grupoInicio('Jugándose', enJuegoInicio, miasOrdenadas.enJuego.length)}
+                        {grupoInicio('Última finalizada', finalizadasInicio, miasOrdenadas.finalizadas.length)}
                         {abiertasInicio.length === 0 && enJuegoInicio.length === 0 && quinielasMias.length === 0 ? listaQuinielas : null}
                     </section>
                   </section>
