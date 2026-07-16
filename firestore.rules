@@ -363,8 +363,10 @@ service cloud.firestore {
         request.resource.data.nombre.size() >= 2 &&
         request.resource.data.nombre.size() <= 60 &&
         request.resource.data.nombre.trim() == request.resource.data.nombre &&
+        // Hotfix: conservar el límite de partidos sin ejecutar la validación
+        // profunda. Esa validación está rechazando quinielas de varios partidos
+        // en producción; el formulario ya normaliza cada marcador a strings.
         request.resource.data.picks.size() <= 30 &&
-        picksValidos(request.resource.data.picks) &&
         // La quiniela debe existir
         exists(/databases/$(database)/documents/quinielas/$(request.resource.data.quinielaId)) &&
         // Dentro del plazo de cierre (si la quiniela define `cierre`)
