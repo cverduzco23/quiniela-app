@@ -132,6 +132,21 @@ service cloud.firestore {
           );
       }
 
+      // Un organizador normal solo puede vincular una quiniela a una temporada
+      // propia. `null` o ausencia del campo significa "sin temporada". El super
+      // admin omite esta validación en los allow de abajo para poder organizar
+      // quinielas de terceros sin transferirles la propiedad.
+      function temporadaPropiaOSinTemporada() {
+        return !('temporadaId' in request.resource.data) ||
+          request.resource.data.temporadaId == null ||
+          (
+            request.resource.data.temporadaId is string &&
+            exists(/databases/$(database)/documents/temporadas/$(request.resource.data.temporadaId)) &&
+            get(/databases/$(database)/documents/temporadas/$(request.resource.data.temporadaId))
+              .data.ownerUid == request.auth.uid
+          );
+      }
+
       // Lectura pública: necesaria para que el home, predicciones y ranking
       // funcionen sin login para participantes.
       allow read: if true;
@@ -148,6 +163,7 @@ service cloud.firestore {
           isSuperAdmin() ||
           (
             request.resource.data.ownerUid == request.auth.uid &&
+            temporadaPropiaOSinTemporada() &&
             // Nace privada (o sin el campo, que el home trata como privada):
             // aparecer en el home público es decisión del super admin, y sin
             // esto se podría crear ya-pública desde la consola de Firebase.
@@ -174,7 +190,11 @@ service cloud.firestore {
         isSuperAdmin() || (
           isSignedIn() && resource.data.ownerUid == request.auth.uid &&
           !request.resource.data.diff(resource.data).affectedKeys()
-            .hasAny(['privada', 'ownerUid'])
+            .hasAny(['privada', 'ownerUid']) &&
+          (
+            !request.resource.data.diff(resource.data).affectedKeys().hasAny(['temporadaId']) ||
+            temporadaPropiaOSinTemporada()
+          )
         )
       );
 
