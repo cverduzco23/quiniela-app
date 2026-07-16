@@ -1,2 +1,14 @@
+# La portada, /donar y las páginas legales son públicas para buscadores.
+# Las quinielas, rankings y temporadas NO: muestran nombres reales de
+# participantes de pools privados y no deben quedar buscables en Google.
+
 User-agent: *
-Disallow: /
+Allow: /$
+Disallow: /quiniela/
+Disallow: /ranking
+Disallow: /temporada/
+Disallow: /admin
+# Links viejos: la portada con ?q=<id> en realidad muestra una quiniela.
+Disallow: /*?q=
+
+Sitemap: https://quinielapp.fun/sitemap.xml

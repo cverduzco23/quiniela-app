@@ -7,23 +7,45 @@
     <link rel="manifest" href="/manifest.json" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#0B1220" />
-    <meta name="robots" content="noindex, nofollow" />
-    <meta name="googlebot" content="noindex, nofollow" />
-    <meta name="description" content="Crea quinielas privadas para tu equipo o empresa. Predice los partidos, registra a tus participantes y sigue el ranking en vivo." />
-    <title>QuinielApp</title>
+    <!-- Indexable por defecto: es lo que necesita la portada. Las páginas con
+         nombres de participantes (quiniela, ranking, temporada) y el panel se
+         marcan noindex ruta por ruta desde src/utils/seo.js, y el robots.txt
+         además les impide el rastreo. -->
+    <meta name="robots" content="index, follow" />
+    <meta name="googlebot" content="index, follow" />
+    <meta name="description" content="Crea quinielas gratis para tu equipo, empresa o grupo de amigos. Predice los marcadores, registra participantes y sigue el ranking en vivo. Sin cuenta para jugar." />
+    <link rel="canonical" href="https://quinielapp.fun/" />
+    <title>QuinielApp · Crea tu quiniela gratis y sigue el ranking en vivo</title>
 
     <!-- Open Graph -->
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="QuinielApp · Quinielas privadas para tu equipo" />
-    <meta property="og:description" content="Crea quinielas privadas para tu equipo o empresa. Predice los partidos y sigue el ranking en vivo." />
+    <meta property="og:site_name" content="QuinielApp" />
+    <meta property="og:url" content="https://quinielapp.fun/" />
+    <meta property="og:title" content="QuinielApp · Crea tu quiniela gratis y sigue el ranking en vivo" />
+    <meta property="og:description" content="Crea quinielas gratis para tu equipo, empresa o grupo de amigos. Predice los marcadores y sigue el ranking en vivo. Sin cuenta para jugar." />
     <meta property="og:image" content="/og-image.svg" />
     <meta property="og:locale" content="es_MX" />
 
     <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="QuinielApp · Quinielas privadas para tu equipo" />
-    <meta name="twitter:description" content="Crea quinielas privadas para tu equipo o empresa. Predice los partidos y sigue el ranking en vivo." />
+    <meta name="twitter:title" content="QuinielApp · Crea tu quiniela gratis y sigue el ranking en vivo" />
+    <meta name="twitter:description" content="Crea quinielas gratis para tu equipo, empresa o grupo de amigos. Predice los marcadores y sigue el ranking en vivo. Sin cuenta para jugar." />
     <meta name="twitter:image" content="/og-image.svg" />
+
+    <!-- Datos estructurados: cómo Google entiende qué es esto. -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "QuinielApp",
+        "url": "https://quinielapp.fun/",
+        "applicationCategory": "SportsApplication",
+        "operatingSystem": "Web",
+        "inLanguage": "es-MX",
+        "description": "Crea quinielas gratis para tu equipo, empresa o grupo de amigos. Predice los marcadores, registra participantes y sigue el ranking en vivo.",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "MXN" }
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>
