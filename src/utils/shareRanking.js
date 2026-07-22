@@ -810,7 +810,7 @@ function drawPlayingTable(ctx, datos, y, maxHeight) {
     ctx.textBaseline = 'middle'
     ctx.font = '700 28px Rajdhani'
     ctx.fillStyle = row._leader ? COLORS.green : COLORS.dim
-    ctx.fillText(rankingStarted ? String(row._pos) : 'N/D', x + 58, cy)
+    ctx.fillText(hasMeaningfulLeader ? String(row._pos) : '—', x + 58, cy)
 
     const nameX = x + 104
     const badgeW = 72
@@ -873,7 +873,8 @@ function drawPlayingImage(ctx, datos) {
   ctx.fillText(shownTitle, PAD, 226)
   ctx.font = '500 22px Inter'
   ctx.fillStyle = COLORS.muted
-  ctx.fillText(`${terminados} de ${totalPartidos} partidos definidos · resultados parciales`, PAD, 272)
+  const numParticipantes = jugadores.length
+  ctx.fillText(`${terminados} de ${totalPartidos} partidos definidos · ${numParticipantes} participante${numParticipantes === 1 ? '' : 's'}`, PAD, 272)
 
   const showPrize = conPremio && Number(bote) > 0
   const prizeY = 306

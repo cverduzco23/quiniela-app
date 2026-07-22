@@ -392,6 +392,9 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
 
   // Atamos la posición al jugador para que el filtro preserve la posición real
   const jugadoresConPos = jugadores.map((j, i) => ({ ...j, _pos: posiciones[i] }))
+  // Mientras nadie tenga puntos (todos en cero) no hay posiciones reales: se
+  // muestra una línea en vez de "1°" y no se declara líder ni medallas.
+  const rankingConPuntos = hayResultados && jugadores.length > 0 && jugadores[0].puntos > 0
   // Nombres abreviados (2 tokens, o más si hay empate) para la fila colapsada.
   const nombresCortos = abreviarNombres(jugadores.map(j => j.nombre))
   const filtroBusqueda  = busqueda.trim().toLowerCase()
@@ -1136,12 +1139,12 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
           const renderRow = (j, i) => {
           const abierto = expandido.has(j.nombre)
           const pos = j._pos
-          const esLider = pos === 1 && hayResultados
+          const esLider = pos === 1 && rankingConPuntos
           const esMiFila = !!miNombreRanking && j.nombre === miNombreRanking
-          // Una quiniela cerrada pero todavía sin actividad no tiene posiciones
-          // reales: todos conservan 0 puntos, pero no declaramos un empate en 1°.
-          const posicionVisible = hayResultados ? pos : '—'
-          const medalColor = hayResultados && pos <= 3 ? medalColors[pos - 1] : null
+          // Una quiniela sin puntos todavía (todos en cero) no tiene posiciones
+          // reales: mostramos una línea en vez de declarar un empate en 1°.
+          const posicionVisible = rankingConPuntos ? pos : '—'
+          const medalColor = rankingConPuntos && pos <= 3 ? medalColors[pos - 1] : null
           const tienePremioFila = hayResultados && premioPorNombre[j.nombre] !== undefined
           const esInicioZonaPremio = tienePremioFila && !shown.slice(0, i).some(p => premioPorNombre[p.nombre] !== undefined)
           const nombreDetalle = String(j.nombre || '').trim().split(/\s+/)[0] || nombreCorto(j.nombre)
