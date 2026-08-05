@@ -21,7 +21,6 @@ export default function Ranking() {
 
   const [quiniela, setQuiniela]         = useState(null)
   const [predicciones, setPredicciones] = useState([])
-  const [reacciones, setReacciones]     = useState({})
   const [cargando, setCargando]         = useState(true)
   const [error, setError]               = useState(null)
   const [liveScores, setLiveScores]     = useState({})
@@ -43,21 +42,15 @@ export default function Ranking() {
   // perdemos nada de "tiempo real"; los datos se refrescan en ese mismo ciclo.
   const cargarDatos = async () => {
     if (!quinielaId) return false
-    const [snapQ, snapP, snapR] = await Promise.all([
+    const [snapQ, snapP] = await Promise.all([
       getDoc(doc(db, 'quinielas', quinielaId)),
       getDocs(query(collection(db, 'predicciones'), where('quinielaId', '==', quinielaId))),
-      getDocs(collection(db, 'quinielas', quinielaId, 'reacciones')).catch(() => null),
     ])
     if (!snapQ.exists()) { setError('not-found'); setCargando(false); return false }
     const datosQ = snapQ.data()
     const ocultosIds = datosQ.ocultos ?? []
     setQuiniela({ id: snapQ.id, ...datosQ })
     setPredicciones(snapP.docs.map(d => ({ id: d.id, ...d.data() })).filter(p => !ocultosIds.includes(p.id)))
-    if (snapR) {
-      const porPartido = {}
-      snapR.docs.forEach(d => { porPartido[d.id] = d.data() })
-      setReacciones(porPartido)
-    }
     setError(null)
     setCargando(false)
     return true
@@ -594,7 +587,7 @@ export default function Ranking() {
             </div>
           )
         })()}
-        <RankingTable quiniela={quiniela} predicciones={predicciones} liveScores={liveScores} liveStats={liveStats} liveEventos={liveEventos} livePenales={livePenales} reacciones={reacciones} />
+        <RankingTable quiniela={quiniela} predicciones={predicciones} liveScores={liveScores} liveStats={liveStats} liveEventos={liveEventos} livePenales={livePenales} />
         <div className="app-footer-slot">
           <Footer maxWidth="var(--ranking-max-width, 480px)" />
         </div>

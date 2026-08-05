@@ -225,6 +225,24 @@ service cloud.firestore {
              request.resource.data.sorpresa >= 0 && request.resource.data.sorpresa <= 1000000));
       }
 
+      // Presencia efímera del reproductor. Un documento estable por dispositivo
+      // y partido se renueva cada 2 min; el contador solo consulta los activos de
+      // los últimos 250 s. No guarda nombres, enlaces ni otros datos personales.
+      match /streamViewers/{partidoIdx}/streamActivos/{viewerId} {
+        allow read: if true;
+        allow create, update: if
+          partidoIdx.matches('^([0-9]|[12][0-9])$') &&
+          viewerId.matches('^[A-Za-z0-9_-]{10,120}$') &&
+          request.resource.data.keys().hasOnly(['ultimaActividad', 'expira', 'opcion']) &&
+          request.resource.data.ultimaActividad == request.time &&
+          request.resource.data.expira is timestamp &&
+          request.resource.data.expira > request.time &&
+          request.resource.data.opcion is int &&
+          request.resource.data.opcion >= 1 &&
+          request.resource.data.opcion <= 3;
+        allow delete: if false;
+      }
+
       // Comentarios de la quiniela. Escritura anónima con validación estricta:
       // solo texto corto, la fecha la pone el servidor, y respeta el switch
       // chatHabilitado y los silencios temporales (chatMuted, escritos por la

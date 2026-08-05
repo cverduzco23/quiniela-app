@@ -5,7 +5,6 @@ import { tienePremio, calcularGanadores, formatearMXN, descripcionRegla } from '
 import { simularUltimoPartido } from '../utils/escenarios'
 import { normalizarNombre } from '../utils/nombres'
 import { miIdentidadEnQuiniela } from '../utils/misQuinielas'
-import { ReaccionesPartido } from './ReaccionesPartido'
 import { ComentariosQuiniela } from './ComentariosQuiniela'
 import { registrarApertura } from '../utils/analytics'
 import { compartirOraculo, compartirRanking } from '../utils/shareRanking'
@@ -21,6 +20,19 @@ function formatFechaDestacada(value) {
   const texto = formatFecha(value)
   const ultimaComa = texto.lastIndexOf(',')
   return ultimaComa >= 0 ? `${texto.slice(0, ultimaComa)} ·${texto.slice(ultimaComa + 1)}` : texto
+}
+
+function textoAntesDelPartido(value, ahora = Date.now()) {
+  const fecha = cierreToDate(value)
+  if (!fecha) return 'Horario por confirmar'
+  const minutos = Math.ceil((fecha.getTime() - ahora) / 60000)
+  if (minutos <= 0) return 'El partido está por comenzar'
+  const dias = Math.floor(minutos / (24 * 60))
+  const horas = Math.floor((minutos % (24 * 60)) / 60)
+  const mins = minutos % 60
+  if (dias > 0) return `Comienza en ${dias} d${horas > 0 ? ` ${horas} h` : ''}`
+  if (horas > 0) return `Comienza en ${horas} h${mins > 0 ? ` ${mins} min` : ''}`
+  return `Comienza en ${mins} min`
 }
 
 function pickDisplay(pick) {
@@ -265,7 +277,7 @@ export function SvgIcon({ name, size = 14, style }) {
   )
 }
 
-export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStats = {}, liveEventos = {}, livePenales = {}, reacciones = {} }) {
+export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStats = {}, liveEventos = {}, livePenales = {}, modoStream = false }) {
   const { alerta } = useDialog()
   const [expandido, setExpandido]               = useState(new Set())
   const [expandidoPartido, setExpandidoPartido] = useState(new Set())
@@ -280,6 +292,12 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
   const [busqueda, setBusqueda]                 = useState('')
   const [mostrarInfoPicks, setMostrarInfoPicks] = useState(false)
   const [mostrarTodosPartidos, setMostrarTodosPartidos] = useState(false)
+  const [ahora, setAhora] = useState(() => Date.now())
+
+  useEffect(() => {
+    const interval = setInterval(() => setAhora(Date.now()), 30 * 1000)
+    return () => clearInterval(interval)
+  }, [])
 
   // Detección de goles nuevos (comparando contra el polling anterior) para
   // disparar un festejo en pantalla, igual al de "picks completos".
@@ -600,11 +618,11 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
         </div>
       )}
 
-      <div className="ranking-desktop-grid">
+      <div className={`ranking-desktop-grid${modoStream ? ' is-stream-embed' : ''}`}>
       {/* Ganador final: fuera de la columna izquierda para que en escritorio
           pueda ocupar el ancho completo del grid (en móvil el orden visual
           no cambia: sigue siendo lo primero). */}
-      {mostrarGanadorFinal && (
+      {!modoStream && mostrarGanadorFinal && (
         <div className="ranking-champion-slot">
           <GanadorCard jugadores={jugadores} premioPorNombre={premioPorNombre} conPremio={conPremio} />
         </div>
@@ -619,7 +637,7 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
 
       {/* En móvil, el Oráculo continúa inmediatamente después de
           "Si terminara ahora". En escritorio conserva su lugar sobre la tabla. */}
-      {simulacion && (
+      {!modoStream && simulacion && (
         <div className="oracle-mobile-slot">
           <EscenariosUltimoPartido
             sim={simulacion}
@@ -632,7 +650,7 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
       )}
 
       {/* Stats */}
-      <div className="ranking-stats-grid" style={{ display: 'grid', gridTemplateColumns: `repeat(${resumenStats.length},1fr)` }}>
+      {!modoStream && <div className="ranking-stats-grid" style={{ display: 'grid', gridTemplateColumns: `repeat(${resumenStats.length},1fr)` }}>
         {resumenStats.map(s => (
           <div key={s.label} className="ranking-stat-card ranking-glass-card">
             <span className={`ranking-stat-watermark is-${s.label === 'Participantes' ? 'participants' : 'matches'}`} aria-hidden="true">
@@ -642,10 +660,10 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
             <span style={{ fontSize: 'var(--ranking-stat-label-size, 11px)', color: 'var(--muted)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: 'var(--ranking-stat-label-spacing, 0.5px)', marginTop: 8 }}>{s.label}</span>
           </div>
         ))}
-      </div>
+      </div>}
 
       {/* Partidos */}
-      {partidos.length > 0 && (
+      {!modoStream && partidos.length > 0 && (
         <div className={`ranking-panel ranking-matches-panel${enfoqueUltimoPartido ? ' is-last-match-focus' : ''}${finalesSimultaneas ? ' has-simultaneous-finals' : ''}`}>
           <div className="ranking-panel-header ranking-matches-header">
               <span className="ranking-matches-title">
@@ -687,6 +705,7 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
             const pendiente = !cancelado && !resDisplay && !esVivo && !esFinish
             const pendienteEnQuinielaAbierta = !cerrada && pendiente
             const tieneStats = !!p.espnId
+            const horaInicio = cierreToDate(p.hora)?.getTime()
             const partidoAbierto = expandidoPartido.has(i)
             const st = liveStats[p.espnId]
             const eventos = liveEventos[p.espnId] ?? []
@@ -712,8 +731,14 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
             const hayStats = !!st && st.state !== 'pre'
             const hayResumen = tieneStats && (esFinish || !!stored) && !cancelado
             const hayDetallesVisibles = hayStats || eventosNormales.length > 0 || hayPenales
-            const tieneAlgo = hayDetallesVisibles || hayResumen
+            const tienePrevio = pendiente && !!p.hora
+            const tieneAlgo = hayDetallesVisibles || hayResumen || tienePrevio
             const jugado = !cancelado && (esFinish || getResultado(stored) !== null)
+            // En desarrollo lo conservamos tras el resultado para facilitar las
+            // pruebas. La compilación de producción lo oculta al terminar.
+            const disponiblePorEstado = import.meta.env.PROD ? !jugado : true
+            const mostrarStream = quinielaEnJuego && !cancelado && disponiblePorEstado &&
+              Number.isFinite(horaInicio) && ahora >= horaInicio
             const matchScoreText = pendiente ? 'VS' : `${scoreLocal} - ${scoreVisitante}`
             const posH = hayStats ? parseFloat(st.home.posesion) || 50 : 50
             const badgeNode = cancelado ? (
@@ -829,10 +854,19 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                 </div>
 
                 <div className="ranking-match-actions-row">
-                  {/* Reacciones: solo cuando la quiniela ya cerró y el partido cuenta */}
-                  {cerrada && !cancelado && (esVivo || jugado) && (
-                    <ReaccionesPartido quinielaId={quiniela.id} partidoIdx={i} conteos={reacciones[String(i)]} />
+                  {mostrarStream && (
+                    <a
+                      href={`/stream/${quiniela.id}/${i}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="ranking-stream-button"
+                      onClick={e => e.stopPropagation()}
+                    >
+                      <SvgIcon name="broadcast" size={14} />
+                      Ver en vivo
+                    </a>
                   )}
+                  {!mostrarStream && <span className="ranking-stream-placeholder" aria-hidden="true" />}
                   {tieneAlgo && (
                     <span className="ranking-match-toggle ranking-match-toggle-actions">
                       <span className="ranking-match-toggle-icon" aria-hidden="true">
@@ -882,6 +916,22 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                         {p.escudoVisitante && <img src={p.escudoVisitante} alt="" onError={e => { e.target.style.display = 'none' }} />}
                       </div>
                     </div>
+                    {tienePrevio && !hayDetallesVisibles && (
+                      <div className="ranking-match-preview">
+                        <span className="ranking-match-preview-icon" aria-hidden="true">
+                          <SvgIcon name="calendar" size={17} />
+                        </span>
+                        <div>
+                          <span className="ranking-match-preview-kicker">Próximamente</span>
+                          <strong>{textoAntesDelPartido(p.hora, ahora)}</strong>
+                          <p>
+                            El marcador y las estadísticas aparecerán aquí cuando comience el partido.
+                            {(p.streamUrl || p.streamUrl2 || p.streamUrl3) &&
+                              ' La transmisión se habilitará desde la hora de inicio.'}
+                          </p>
+                        </div>
+                      </div>
+                    )}
                     {hayStats && (
                       <div className="ranking-match-stats">
                         <div className="ranking-match-possession">
@@ -985,7 +1035,7 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
 
       {/* Comentarios de la quiniela: en escritorio queda en la columna
           izquierda bajo Partidos; en móvil entre Partidos y la tabla. */}
-      <ComentariosQuiniela quiniela={quiniela} />
+      {!modoStream && <ComentariosQuiniela quiniela={quiniela} />}
 
       </div>
 
@@ -993,7 +1043,7 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
       {/* ¿Quién gana según el marcador del último partido?: en escritorio queda
           arriba de la tabla de ranking; en móvil el orden visual no cambia
           porque la columna izquierda ya terminó de renderizarse antes. */}
-      {simulacion && (
+      {!modoStream && simulacion && (
         <div className="oracle-desktop-slot">
           <EscenariosUltimoPartido
             sim={simulacion}
@@ -1004,7 +1054,7 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
           />
         </div>
       )}
-      {mostrarPodio && (
+      {!modoStream && mostrarPodio && (
         <PodioPrimerLugar
           lideres={lideres}
           finalizada={finalizada}
@@ -1355,7 +1405,7 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
         )}
       </div>
 
-      {!vistaParticipantesAbierta && <div className="ranking-share-action-wrap">
+      {!modoStream && !vistaParticipantesAbierta && <div className="ranking-share-action-wrap">
         <button
           type="button"
           className="ranking-share-action"
@@ -1374,7 +1424,7 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
           </p>
         )}
       </div>}
-      {vistaParticipantesAbierta && (compartiendo || feedbackShare) && (
+      {!modoStream && vistaParticipantesAbierta && (compartiendo || feedbackShare) && (
         <p className="ranking-share-status" role="status">
           {compartiendo ? 'Generando imagen para compartir...' : feedbackShare}
         </p>

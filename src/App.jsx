@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'
 import Index from './pages/index'
 import Predicciones from './pages/predicciones'
 import Ranking from './pages/ranking'
+import Stream from './pages/stream'
 import Temporada from './pages/temporada'
 import Admin from './pages/admin'
 import Donar from './pages/donar'
@@ -72,6 +73,7 @@ function App() {
             se mantiene abajo para los links ya compartidos. */}
           <Route path="/ranking/:id" element={<Ranking />} />
           <Route path="/ranking" element={<Ranking />} />
+          <Route path="/stream/:quinielaId/:partidoIdx" element={<Stream />} />
           {/* Tabla general de una temporada (grupo de quinielas). */}
           <Route path="/temporada/:id" element={<Temporada />} />
           <Route path="/admin" element={<Admin />} />

@@ -1956,6 +1956,21 @@ export default function Admin() {
     if (!quinielaActual || guardandoEdicion) return
     if (editPartidos.length === 0) return alerta('La quiniela debe tener al menos un partido.')
     if (editPartidos.length > MAX_PARTIDOS) return alerta(`Una quiniela puede tener máximo ${MAX_PARTIDOS} partidos. Quita ${editPartidos.length - MAX_PARTIDOS} para poder guardar.`)
+    const streamInvalido = editPartidos.find(p => {
+      return ['streamUrl', 'streamUrl2', 'streamUrl3'].some(campo => {
+        const raw = String(p[campo] ?? '').trim()
+        if (!raw) return false
+        try {
+          const url = new URL(raw)
+          return url.protocol !== 'https:'
+        } catch {
+          return true
+        }
+      })
+    })
+    if (streamInvalido) {
+      return alerta(`El enlace de transmisión de ${streamInvalido.local} vs ${streamInvalido.visitante} debe ser una URL HTTPS válida.`)
+    }
     if (!editNombre.trim()) return alerta('El nombre no puede estar vacío.')
     if (contarCaracteres(editNombre.trim()) > MAX_NOMBRE_QUINIELA) return alerta(`El nombre puede tener máximo ${MAX_NOMBRE_QUINIELA} caracteres.`)
     if (!editCierre) return alerta('La fecha y hora de cierre es obligatoria.')
@@ -2011,7 +2026,13 @@ export default function Admin() {
       }
       const patch = {
         nombre:   editNombre.trim(),
-        partidos: editPartidos,
+        partidos: editPartidos.map(p => {
+          const limpio = { ...p }
+          ;['streamUrl', 'streamUrl2', 'streamUrl3'].forEach(campo => {
+            limpio[campo] = String(p[campo] ?? '').trim()
+          })
+          return limpio
+        }),
         cierre:   cierreTs,
         codigoAcceso: codigoLimpio,
         codigoAccesoLower: codigoLimpio.toLowerCase(),
@@ -6007,6 +6028,31 @@ export default function Admin() {
                                   {escudoMini(p.escudoVisitante, p.visitante)}
                                 </div>
                                 {p.hora && <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{formatFixtureDate(p.hora)}</div>}
+                                <div className="admin-stream-options">
+                                  <span className="admin-stream-options-title">Transmisiones <small>· opcional</small></span>
+                                  {[
+                                    ['streamUrl', 'Opción 1'],
+                                    ['streamUrl2', 'Opción 2'],
+                                    ['streamUrl3', 'Opción 3'],
+                                  ].map(([campo, etiqueta]) => (
+                                    <label className="admin-stream-field" key={campo}>
+                                      <span>{etiqueta}</span>
+                                      <input
+                                        type="url"
+                                        inputMode="url"
+                                        placeholder="https://proveedor.com/embed/partido"
+                                        value={p[campo] ?? ''}
+                                        onChange={e => {
+                                          const value = e.target.value
+                                          setEditPartidos(prev => prev.map((partido, idx) => (
+                                            idx === i ? { ...partido, [campo]: value } : partido
+                                          )))
+                                        }}
+                                      />
+                                    </label>
+                                  ))}
+                                  <p>Las opciones 2 y 3 solo aparecerán al espectador cuando tengan un enlace.</p>
+                                </div>
                               </div>
                               {conteoPredicciones === 0 && (
                                 <button type="button" onClick={() => setEditPartidos(prev => prev.filter((_, idx) => idx !== i))} aria-label={`Quitar ${p.local} vs ${p.visitante}`} title="Quitar partido">
