@@ -1458,6 +1458,7 @@ export default function Admin() {
   const [guardandoEdicion, setGuardandoEdicion] = useState(false)
   const [buscandoStreams, setBuscandoStreams]     = useState(false)
   const [streamSyncMsg, setStreamSyncMsg]         = useState(null)
+  const [streamsManualesAbiertos, setStreamsManualesAbiertos] = useState(() => new Set())
   const [deleteConfirm, setDeleteConfirm]       = useState('')
   const [eliminando, setEliminando]             = useState(false)
 
@@ -1774,6 +1775,7 @@ export default function Admin() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setEditNombre(quinielaActual.nombre ?? '')
     setStreamSyncMsg(null)
+    setStreamsManualesAbiertos(new Set())
     setEditPartidos([...(quinielaActual.partidos ?? [])])
     setEditPartidosOriginales((quinielaActual.partidos ?? []).length)
     setEditCierre(cierreToInputValue(quinielaActual.cierre))
@@ -6135,7 +6137,11 @@ export default function Admin() {
                         </div>
                       ) : (
                         <div className="admin-new-selected-matches">
-                          {editPartidos.map((p, i) => (
+                          {editPartidos.map((p, i) => {
+                            const streamsAbiertos = streamsManualesAbiertos.has(i)
+                            const totalStreams = ['streamUrl', 'streamUrl2', 'streamUrl3']
+                              .filter(campo => String(p[campo] ?? '').trim()).length
+                            return (
                             <div key={i} className="admin-new-selected-match">
                               <div style={{ flex: 1, minWidth: 0 }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -6146,39 +6152,67 @@ export default function Admin() {
                                   {escudoMini(p.escudoVisitante, p.visitante)}
                                 </div>
                                 {p.hora && <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{formatFixtureDate(p.hora)}</div>}
-                                <div className="admin-stream-options">
-                                  <span className="admin-stream-options-title">Transmisiones <small>· opcional</small></span>
-                                  {[
-                                    ['streamUrl', 'Opción 1'],
-                                    ['streamUrl2', 'Opción 2'],
-                                    ['streamUrl3', 'Opción 3'],
-                                  ].map(([campo, etiqueta]) => (
-                                    <label className="admin-stream-field" key={campo}>
-                                      <span>{etiqueta}</span>
-                                      <input
-                                        type="url"
-                                        inputMode="url"
-                                        placeholder="https://proveedor.com/embed/partido"
-                                        value={p[campo] ?? ''}
-                                        onChange={e => {
-                                          const value = e.target.value
-                                          const sufijo = campo === 'streamUrl' ? '' : campo.replace('streamUrl', '')
-                                          setEditPartidos(prev => prev.map((partido, idx) => (
-                                            idx === i
-                                              ? {
-                                                  ...partido,
-                                                  [campo]: value,
-                                                  [`streamKey${sufijo}`]: '',
-                                                  [`streamNombre${sufijo}`]: '',
-                                                  streamAuto: null,
-                                                }
-                                              : partido
-                                          )))
-                                        }}
-                                      />
-                                    </label>
-                                  ))}
-                                  <p>Las opciones 2 y 3 solo aparecerán al espectador cuando tengan un enlace.</p>
+                                <div className={`admin-stream-options${streamsAbiertos ? ' is-open' : ''}`}>
+                                  <button
+                                    type="button"
+                                    className="admin-stream-options-toggle"
+                                    aria-expanded={streamsAbiertos}
+                                    aria-controls={`stream-options-${i}`}
+                                    onClick={() => setStreamsManualesAbiertos(prev => {
+                                      const next = new Set(prev)
+                                      if (next.has(i)) next.delete(i)
+                                      else next.add(i)
+                                      return next
+                                    })}
+                                  >
+                                    <span>
+                                      <strong><AdminIcon name="link" size={12} /> Transmisión</strong>
+                                      <small>
+                                        {totalStreams > 0
+                                          ? `${totalStreams} ${totalStreams === 1 ? 'opción lista' : 'opciones listas'}${p.streamAuto?.proveedor === 'streamx' ? ' · automática' : ''}`
+                                          : 'Asignación automática'}
+                                      </small>
+                                    </span>
+                                    <span className="admin-stream-options-edit">
+                                      Editar manualmente
+                                      <AdminIcon name="chevron-down" size={13} />
+                                    </span>
+                                  </button>
+                                  <SmoothCollapse open={streamsAbiertos}>
+                                    <div id={`stream-options-${i}`} className="admin-stream-options-body">
+                                      {[
+                                        ['streamUrl', 'Opción 1'],
+                                        ['streamUrl2', 'Opción 2'],
+                                        ['streamUrl3', 'Opción 3'],
+                                      ].map(([campo, etiqueta]) => (
+                                        <label className="admin-stream-field" key={campo}>
+                                          <span>{etiqueta}</span>
+                                          <input
+                                            type="url"
+                                            inputMode="url"
+                                            placeholder="https://proveedor.com/embed/partido"
+                                            value={p[campo] ?? ''}
+                                            onChange={e => {
+                                              const value = e.target.value
+                                              const sufijo = campo === 'streamUrl' ? '' : campo.replace('streamUrl', '')
+                                              setEditPartidos(prev => prev.map((partido, idx) => (
+                                                idx === i
+                                                  ? {
+                                                      ...partido,
+                                                      [campo]: value,
+                                                      [`streamKey${sufijo}`]: '',
+                                                      [`streamNombre${sufijo}`]: '',
+                                                      streamAuto: null,
+                                                    }
+                                                  : partido
+                                              )))
+                                            }}
+                                          />
+                                        </label>
+                                      ))}
+                                      <p>Las opciones 2 y 3 solo aparecerán al espectador cuando tengan un enlace.</p>
+                                    </div>
+                                  </SmoothCollapse>
                                 </div>
                               </div>
                               {conteoPredicciones === 0 && (
@@ -6187,7 +6221,8 @@ export default function Admin() {
                                 </button>
                               )}
                             </div>
-                          ))}
+                            )
+                          })}
                         </div>
                       )}
                     </section>

@@ -243,6 +243,20 @@ service cloud.firestore {
         allow delete: if false;
       }
 
+      // Presencia efímera del ranking. Un documento estable por dispositivo se
+      // renueva cada 2 min y el cliente solo cuenta actividad reciente. No
+      // guarda nombres, predicciones ni identificadores de cuenta.
+      match /rankingActivos/{viewerId} {
+        allow read: if true;
+        allow create, update: if
+          viewerId.matches('^[A-Za-z0-9_-]{10,120}$') &&
+          request.resource.data.keys().hasOnly(['ultimaActividad', 'expira']) &&
+          request.resource.data.ultimaActividad == request.time &&
+          request.resource.data.expira is timestamp &&
+          request.resource.data.expira > request.time;
+        allow delete: if false;
+      }
+
       // Comentarios de la quiniela. Escritura anónima con validación estricta:
       // solo texto corto, la fecha la pone el servidor, y respeta el switch
       // chatHabilitado y los silencios temporales (chatMuted, escritos por la

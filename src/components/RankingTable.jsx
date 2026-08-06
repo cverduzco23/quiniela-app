@@ -776,7 +776,7 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
               <span className="ranking-match-badge" style={{ background: 'var(--neutral-bg)', color: 'var(--muted)', borderColor: 'var(--border-strong)' }}>En revisión</span>
             ) : esVivo ? (
               <span className="ranking-match-badge is-live-badge" style={{ background: 'var(--red-bg-strong)', color: '#FCA5A5', borderColor: 'rgba(239,68,68,0.4)' }}>
-                <span className="ranking-match-live-dot" />{live.penalesEnVivo ? 'Penales' : live.halftime ? 'Descanso' : live.clock || 'EN VIVO'}
+                <span className="ranking-match-live-dot" />{live.penalesEnVivo ? 'Penales' : live.halftime ? 'Descanso' : live.clock || 'En vivo'}
               </span>
             ) : resDisplay ? (
               <span className="ranking-match-badge" style={{ background: resultColor[resDisplay].bg, color: resultColor[resDisplay].color, borderColor: resultBorder[resDisplay] }}>
@@ -1016,11 +1016,18 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                       </div>
                     )}
                     {hayPenales && (
-                      <div style={{ marginTop: (hayStats || eventosNormales.length > 0) ? 12 : 0, paddingTop: (hayStats || eventosNormales.length > 0) ? 10 : 0, borderTop: (hayStats || eventosNormales.length > 0) ? '1px solid var(--border)' : 'none' }}>
+                      <div
+                        className="ranking-match-shootout"
+                        style={{
+                          marginTop: (hayStats || eventosNormales.length > 0) ? 12 : 0,
+                          paddingTop: (hayStats || eventosNormales.length > 0) ? 10 : 0,
+                          borderTop: (hayStats || eventosNormales.length > 0) ? '1px solid var(--border)' : 'none',
+                        }}
+                      >
                         <p style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6, textAlign: 'center' }}>
                           Tanda de penales{tienePenalScore ? ` · ${penalLocal}-${penalVisitante}` : ''}
                         </p>
-                        {penalesRondas.length > 0 ? penalesRondas.map((r, j) => {
+                        {penalesRondas.map((r, j) => {
                           const tiro = (k, alinear) => (
                             <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', justifyContent: alinear, gap: 5 }}>
                               {k ? (
@@ -1044,8 +1051,9 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                               {tiro(r.away, 'flex-end')}
                             </div>
                           )
-                        }) : (
-                          <p style={{ fontSize: 11, color: 'var(--muted)', textAlign: 'center', fontStyle: 'italic' }}>
+                        })}
+                        {!live?.penalesEnVivo && (esFinish || jugado) && (
+                          <p className="ranking-match-shootout-final">
                             Se definió en penales.
                           </p>
                         )}

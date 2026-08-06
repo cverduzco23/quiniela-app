@@ -1,6 +1,18 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams, useParams } from 'react-router-dom'
-import { doc, getDoc, getDocs, collection, query, where, updateDoc } from 'firebase/firestore'
+import {
+  collection,
+  doc,
+  getCountFromServer,
+  getDoc,
+  getDocs,
+  query,
+  serverTimestamp,
+  setDoc,
+  Timestamp,
+  updateDoc,
+  where,
+} from 'firebase/firestore'
 import { db, track } from '../firebase'
 import { registrarVisita, registrarVisitaQuiniela, registrarEnVivo } from '../utils/analytics'
 import { getResultado } from '../utils/scoring'
@@ -31,6 +43,7 @@ export default function Ranking() {
   const [ultimaAct, setUltimaAct]       = useState(null)
   const [actualizando, setActualizando] = useState(false)
   const [mostrarReglas, setMostrarReglas] = useState(false)
+  const espectadoresRanking = useRankingPresence(quinielaId)
 
   // Carga de datos (lectura puntual, no escucha permanente)
   // Usamos getDoc/getDocs (una sola lectura) en vez de onSnapshot. Una escucha
@@ -489,6 +502,17 @@ export default function Ranking() {
           </div>
           <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--ranking-title-size, 24px)', fontWeight: 700, lineHeight: 1.2, marginBottom: 'var(--ranking-title-margin-bottom, 10px)', letterSpacing: '-0.01em' }}>{quiniela.nombre}</h1>
           <div className="ranking-hero-badges" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <span
+              className="ranking-viewers-badge"
+              aria-label={`${espectadoresRanking} ${espectadoresRanking === 1 ? 'persona viendo el ranking' : 'personas viendo el ranking'}`}
+              title={`${espectadoresRanking} ${espectadoresRanking === 1 ? 'persona viendo el ranking' : 'personas viendo el ranking'}`}
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
+              {espectadoresRanking}
+            </span>
             {quiniela.empresa && (
               <span style={{
                 display: 'inline-flex', alignItems: 'center', gap: 4,
@@ -635,6 +659,69 @@ export default function Ranking() {
       {mostrarReglas && <RankingRulesModal onClose={() => setMostrarReglas(false)} />}
     </div>
   )
+}
+
+function rankingViewerId() {
+  const key = 'quinielapp-ranking-viewer-id'
+  try {
+    const existente = localStorage.getItem(key)
+    if (existente) return existente
+    const nuevo = globalThis.crypto?.randomUUID?.() ??
+      `${Date.now()}-${Math.random().toString(36).slice(2)}`
+    localStorage.setItem(key, nuevo)
+    return nuevo
+  } catch {
+    return `${Date.now()}-${Math.random().toString(36).slice(2)}`
+  }
+}
+
+function useRankingPresence(quinielaId) {
+  const [conteo, setConteo] = useState(0)
+
+  useEffect(() => {
+    if (!quinielaId) return
+    let activo = true
+    let interval = null
+    const viewerId = rankingViewerId()
+    const activosRef = collection(db, 'quinielas', quinielaId, 'rankingActivos')
+    const miRef = doc(activosRef, viewerId)
+
+    const tick = async () => {
+      try {
+        const ahora = Date.now()
+        await setDoc(miRef, {
+          ultimaActividad: serverTimestamp(),
+          expira: Timestamp.fromMillis(ahora + 5 * 60 * 1000),
+        })
+        const desde = Timestamp.fromMillis(ahora - 250 * 1000)
+        const snap = await getCountFromServer(query(activosRef, where('ultimaActividad', '>=', desde)))
+        if (activo) setConteo(snap.data().count)
+      } catch {
+        // El ranking sigue disponible aunque el contador no responda.
+      }
+    }
+    const iniciar = () => {
+      if (interval || document.hidden) return
+      tick()
+      interval = setInterval(tick, 2 * 60 * 1000)
+    }
+    const detener = () => {
+      if (!interval) return
+      clearInterval(interval)
+      interval = null
+    }
+    const alCambiarVisibilidad = () => document.hidden ? detener() : iniciar()
+
+    iniciar()
+    document.addEventListener('visibilitychange', alCambiarVisibilidad)
+    return () => {
+      activo = false
+      detener()
+      document.removeEventListener('visibilitychange', alCambiarVisibilidad)
+    }
+  }, [quinielaId])
+
+  return conteo
 }
 
 function RankingRulesModal({ onClose }) {
