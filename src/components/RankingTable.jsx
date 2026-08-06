@@ -365,7 +365,8 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
   const partidosRestantesIdx = partidos.reduce((idxs, partido, idx) => {
     const stored = resultados[idx] ?? resultados[String(idx)]
     const live = partido.espnId ? liveScores?.[partido.espnId] : null
-    const terminado = stored?.cancelado || getResultado(stored) !== null || live?.state === 'post'
+    const terminado = stored?.cancelado || live?.cancelado || getResultado(stored) !== null ||
+      (live?.state === 'post' && !live?.noFinal)
     if (!terminado) idxs.push(idx)
     return idxs
   }, [])
@@ -692,18 +693,23 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
             if (enfoqueUltimoPartido && !partidosRestantesIdx.includes(i)) return null
             const live      = p.espnId ? liveScores?.[p.espnId] : null
             const stored    = resultados[i] ?? resultados[String(i)]
-            const cancelado = !!stored?.cancelado
+            const cancelado = !!stored?.cancelado || !!live?.cancelado
+            const noFinal   = !cancelado && !!live?.noFinal
+            const suspendido = noFinal && !!live?.suspendido
             const esVivo    = !cancelado && live?.state === 'in'
-            const esFinish  = !cancelado && live?.state === 'post'
+            const esFinish  = !cancelado && !noFinal && live?.state === 'post'
             let scoreLocal = '-', scoreVisitante = '-', resDisplay = null
             if (!cancelado && live && (esVivo || esFinish) && live.local !== '') {
               scoreLocal = live.local; scoreVisitante = live.visitante
               resDisplay = goalsToResultado(live.local, live.visitante)
+            } else if (noFinal && live?.local !== '' && live?.visitante !== '') {
+              scoreLocal = live.local; scoreVisitante = live.visitante
             } else if (!cancelado && stored) {
               scoreLocal = stored.local ?? '-'; scoreVisitante = stored.visitante ?? '-'
               resDisplay = getResultado(stored)
             }
-            const pendiente = !cancelado && !resDisplay && !esVivo && !esFinish
+            const marcadorNoFinalVisible = noFinal && scoreLocal !== '-' && scoreVisitante !== '-'
+            const pendiente = !cancelado && !resDisplay && !esVivo && !esFinish && !noFinal
             const pendienteEnQuinielaAbierta = !cerrada && pendiente
             const tieneStats = !!p.espnId
             const horaInicio = cierreToDate(p.hora)?.getTime()
@@ -738,10 +744,14 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
             const mostrarStream = quinielaEnJuego && !cancelado && !jugado &&
               Number.isFinite(horaInicio) && ahora >= horaInicio
             const mostrarReacciones = cerrada && !cancelado && jugado
-            const matchScoreText = pendiente ? 'VS' : `${scoreLocal} - ${scoreVisitante}`
+            const matchScoreText = (resDisplay || marcadorNoFinalVisible) ? `${scoreLocal} - ${scoreVisitante}` : 'VS'
             const posH = hayStats ? parseFloat(st.home.posesion) || 50 : 50
             const badgeNode = cancelado ? (
               <span className="ranking-match-badge" style={{ background: 'var(--neutral-bg)', color: 'var(--muted)', borderColor: 'var(--border-strong)' }}>Cancelado</span>
+            ) : suspendido ? (
+              <span className="ranking-match-badge" style={{ background: 'rgba(245,158,11,0.12)', color: '#FBBF24', borderColor: 'rgba(245,158,11,0.38)' }}>Suspendido</span>
+            ) : noFinal ? (
+              <span className="ranking-match-badge" style={{ background: 'var(--neutral-bg)', color: 'var(--muted)', borderColor: 'var(--border-strong)' }}>En revisión</span>
             ) : esVivo ? (
               <span className="ranking-match-badge is-live-badge" style={{ background: 'var(--red-bg-strong)', color: '#FCA5A5', borderColor: 'rgba(239,68,68,0.4)' }}>
                 <span className="ranking-match-live-dot" />{live.penalesEnVivo ? 'Penales' : live.halftime ? 'Descanso' : live.clock || 'EN VIVO'}

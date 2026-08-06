@@ -27,6 +27,9 @@ export function getEfectivo(partido, idx, resultados, liveScores) {
   // ESPN puede reportar partidos cancelados / pospuestos con state="post" y score 0-0.
   // Si el polling lo marcó como cancelado, propagamos esa señal para que el scoring lo skip.
   if (live?.cancelado) return { cancelado: true }
+  // Un marcador suspendido se conserva para mostrarlo como referencia, pero
+  // todavía no es oficial y no debe modificar puntos, aciertos ni rachas.
+  if (live?.noFinal) return stored
   if (live && (live.state === 'in' || live.state === 'post') &&
       live.local !== '' && live.visitante !== '') {
     return { local: live.local, visitante: live.visitante, resultado: goalsToResultado(live.local, live.visitante) }
@@ -68,7 +71,7 @@ export function calcularRacha(picks, resultados, liveScores, partidos) {
   for (let i = partidos.length - 1; i >= 0; i--) {
     const p = partidos[i]
     const live = p?.espnId ? liveScores?.[p.espnId] : null
-    if (live?.state === 'in' && !live?.cancelado) continue // en vivo: aún no cuenta
+    if ((live?.state === 'in' || live?.noFinal) && !live?.cancelado) continue
     const res = getEfectivo(p, i, resultados, liveScores)
     if (!res) continue
     if (res.cancelado) continue

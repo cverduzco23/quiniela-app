@@ -88,6 +88,10 @@ describe('getEfectivo', () => {
     const live = { 123: { state: 'post', cancelado: true, local: '', visitante: '' } }
     expect(getEfectivo(partido, 0, {}, live)).toEqual({ cancelado: true })
   })
+  it('no toma como oficial el marcador de un partido suspendido', () => {
+    const live = { 123: { state: 'post', noFinal: true, suspendido: true, local: '4', visitante: '2' } }
+    expect(getEfectivo(partido, 0, {}, live)).toBeNull()
+  })
 })
 
 describe('calcularPuntos', () => {
@@ -159,6 +163,15 @@ describe('calcularPuntos', () => {
     // como cancelado para que NO se cuente como empate 0-0 contra los picks.
     const picks = { 0: { local: '0', visitante: '0' } } // habría sido empate exacto
     const liveScores = { a: { state: 'post', cancelado: true, local: '', visitante: '' } }
+    const r = calcularPuntos(picks, {}, liveScores, partidos)
+    expect(r).toEqual({ puntos: 0, aciertos: 0, exactos: 0 })
+  })
+
+  it('no otorga puntos por el marcador provisional de un partido suspendido', () => {
+    const picks = { 0: { local: '4', visitante: '2' } }
+    const liveScores = {
+      a: { state: 'post', noFinal: true, suspendido: true, local: '4', visitante: '2' },
+    }
     const r = calcularPuntos(picks, {}, liveScores, partidos)
     expect(r).toEqual({ puntos: 0, aciertos: 0, exactos: 0 })
   })

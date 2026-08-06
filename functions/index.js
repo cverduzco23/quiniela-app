@@ -102,6 +102,15 @@ function findEventByTeamsAndDate(events, partidoLocal, partidoVisitante, partido
   return matches.length === 1 ? matches[0] : null
 }
 
+function clasificarEstadoNoFinalESPN(evento) {
+  const tipo = evento?.status?.type
+  if (tipo?.state !== 'post' || tipo?.completed !== false) return null
+  const nombre = String(tipo.name ?? '').toUpperCase()
+  if (nombre === 'STATUS_SUSPENDED') return 'suspendido'
+  if (/(CANCEL|POSTPON|ABANDON|FORFEIT)/.test(nombre)) return 'cancelado'
+  return 'pendiente'
+}
+
 // Selección de quinielas a sincronizar
 
 // Cuántos días después del último partido seguimos intentando sincronizar.
@@ -178,9 +187,11 @@ async function fetchScoreboard(cache, ligaId, partidos) {
 function resultadoDeEvento(ev) {
   const state = ev.status?.type?.state
   if (state !== 'post') return null
-  // ESPN reporta cancelados/pospuestos/forfeits con state="post" y
-  // completed=false, típicamente con score 0-0. NO se guarda como empate.
-  if (ev.status?.type?.completed === false) return { cancelado: true }
+  // Una suspensión también llega como `post + completed=false`, pero puede
+  // reanudarse y nunca debe persistirse como cancelación.
+  const estadoNoFinal = clasificarEstadoNoFinalESPN(ev)
+  if (estadoNoFinal === 'cancelado') return { cancelado: true }
+  if (estadoNoFinal) return null
   const comps = ev.competitions?.[0]?.competitors ?? []
   const home  = comps.find(c => c.homeAway === 'home')
   const away  = comps.find(c => c.homeAway === 'away')

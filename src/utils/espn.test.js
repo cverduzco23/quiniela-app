@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { normalizarEquipo, mismoDiaLocal, findEventByTeamsAndDate } from './espn'
+import { normalizarEquipo, mismoDiaLocal, findEventByTeamsAndDate, clasificarEstadoNoFinalESPN } from './espn'
 
 describe('normalizarEquipo', () => {
   it('quita acentos y baja mayúsculas', () => {
@@ -93,5 +93,34 @@ describe('findEventByTeamsAndDate', () => {
     const events = [makeEv('1', 'A', 'B', '2026-06-03T11:30Z')]
     expect(findEventByTeamsAndDate(events, '', 'B', '2026-06-03')).toBeNull()
     expect(findEventByTeamsAndDate(events, 'A', null, '2026-06-03')).toBeNull()
+  })
+})
+
+describe('clasificarEstadoNoFinalESPN', () => {
+  const evento = (name, state = 'post', completed = false) => ({
+    status: { type: { name, state, completed } },
+  })
+
+  it('distingue una suspensión de una cancelación', () => {
+    expect(clasificarEstadoNoFinalESPN(evento('STATUS_SUSPENDED'))).toBe('suspendido')
+  })
+
+  it.each([
+    'STATUS_CANCELED',
+    'STATUS_CANCELLED',
+    'STATUS_POSTPONED',
+    'STATUS_ABANDONED',
+    'STATUS_FORFEIT',
+  ])('clasifica %s como cancelado', name => {
+    expect(clasificarEstadoNoFinalESPN(evento(name))).toBe('cancelado')
+  })
+
+  it('mantiene como pendiente un estado post no reconocido', () => {
+    expect(clasificarEstadoNoFinalESPN(evento('STATUS_DELAYED'))).toBe('pendiente')
+  })
+
+  it('no clasifica partidos en vivo ni finales reales', () => {
+    expect(clasificarEstadoNoFinalESPN(evento('STATUS_IN_PROGRESS', 'in', false))).toBeNull()
+    expect(clasificarEstadoNoFinalESPN(evento('STATUS_FULL_TIME', 'post', true))).toBeNull()
   })
 })

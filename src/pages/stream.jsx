@@ -7,6 +7,7 @@ import { RankingTable, SvgIcon } from '../components/RankingTable'
 import { Footer } from '../components/Footer'
 import { miIdentidadEnQuiniela } from '../utils/misQuinielas'
 import { dispositivoPuedeVerStream, obtenerStreamOpciones, streamDisponibleAhora } from '../utils/streaming'
+import { clasificarEstadoNoFinalESPN } from '../utils/espn'
 
 export default function Stream() {
   const { quinielaId, partidoIdx } = useParams()
@@ -381,11 +382,15 @@ async function obtenerMarcadoresEnVivo(quiniela) {
         const competidores = evento.competitions?.[0]?.competitors ?? []
         const local = competidores.find(c => c.homeAway === 'home')
         const visitante = competidores.find(c => c.homeAway === 'away')
+        const estadoNoFinal = clasificarEstadoNoFinalESPN(evento)
         scores[partido.espnId] = {
           state: evento.status?.type?.state,
           clock: evento.status?.displayClock ?? '',
           local: local?.score ?? '',
           visitante: visitante?.score ?? '',
+          noFinal: estadoNoFinal !== null,
+          suspendido: estadoNoFinal === 'suspendido',
+          cancelado: estadoNoFinal === 'cancelado',
         }
       })
     } catch {

@@ -62,3 +62,17 @@ export function findEventByTeamsAndDate(events, partidoLocal, partidoVisitante, 
   })
   return matches.length === 1 ? matches[0] : null
 }
+
+/**
+ * Clasifica los estados `post` que ESPN todavía no considera completados.
+ * Una suspensión conserva el partido pendiente de reanudación; únicamente
+ * estados explícitos de cancelación/abandono se pueden omitir del scoring.
+ */
+export function clasificarEstadoNoFinalESPN(evento) {
+  const tipo = evento?.status?.type
+  if (tipo?.state !== 'post' || tipo?.completed !== false) return null
+  const nombre = String(tipo.name ?? '').toUpperCase()
+  if (nombre === 'STATUS_SUSPENDED') return 'suspendido'
+  if (/(CANCEL|POSTPON|ABANDON|FORFEIT)/.test(nombre)) return 'cancelado'
+  return 'pendiente'
+}

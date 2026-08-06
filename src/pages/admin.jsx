@@ -15,7 +15,7 @@ import { TIPO_PREMIO, MODELO_PREMIO, calcularBote, tienePremio, formatearMXN } f
 import { normalizarNombre } from '../utils/nombres'
 import { detectarSimilares } from '../utils/duplicados'
 import { leerDias, leerQuiniela, leerGlobal, estaExcluido, marcarExcluido } from '../utils/analytics'
-import { findEventByTeamsAndDate } from '../utils/espn'
+import { clasificarEstadoNoFinalESPN, findEventByTeamsAndDate } from '../utils/espn'
 import { EmojiPicker } from '../components/EmojiPicker'
 import { FechaHoraPicker } from '../components/FechaHoraPicker'
 import { NotificationBell } from '../components/NotificationBell'
@@ -160,7 +160,9 @@ async function fetchScoreboardResultados(cache, ligaId, partidos) {
 function resultadoDeEventoESPN(ev) {
   const state = ev?.status?.type?.state
   if (state !== 'post') return null
-  if (ev.status?.type?.completed === false) return { cancelado: true }
+  const estadoNoFinal = clasificarEstadoNoFinalESPN(ev)
+  if (estadoNoFinal === 'cancelado') return { cancelado: true }
+  if (estadoNoFinal) return null
   const comps = ev.competitions?.[0]?.competitors ?? []
   const home = comps.find(c => c.homeAway === 'home')
   const away = comps.find(c => c.homeAway === 'away')

@@ -4,7 +4,7 @@ import { doc, getDoc, getDocs, collection, query, where, updateDoc } from 'fireb
 import { db, track } from '../firebase'
 import { registrarVisita, registrarVisitaQuiniela, registrarEnVivo } from '../utils/analytics'
 import { getResultado } from '../utils/scoring'
-import { findEventByTeamsAndDate } from '../utils/espn'
+import { clasificarEstadoNoFinalESPN, findEventByTeamsAndDate } from '../utils/espn'
 import { quinielaCerrada, quinielaFinalizada, cierreToDate, tiempoRestante } from '../utils/cierre'
 import { RankingTable } from '../components/RankingTable'
 import { CuentaRegresiva } from '../components/CuentaRegresiva'
@@ -137,16 +137,15 @@ export default function Ranking() {
             idsCorregidos.push({ idx: partidos.indexOf(p), nuevoId: ev.id })
           }
           const state = ev.status?.type?.state
-          const completed = ev.status?.type?.completed
           const comps = ev.competitions?.[0]?.competitors ?? []
           const home  = comps.find(c => c.homeAway === 'home')
           const away  = comps.find(c => c.homeAway === 'away')
           const statusName = ev.status?.type?.name ?? ''
           const esHalftime = statusName === 'STATUS_HALFTIME'
-          // ESPN reporta cancelados/pospuestos/forfeits con state="post" pero completed=false.
-          // No los tratamos como resultado válido: marcamos cancelado para que el scoring los skip.
-          const esCancelado = state === 'post' && completed === false
-          if (esCancelado) {
+          // `post + completed=false` no siempre significa cancelado. ESPN usa
+          // esa combinación también para partidos suspendidos que reanudarán.
+          const estadoNoFinal = clasificarEstadoNoFinalESPN(ev)
+          if (estadoNoFinal === 'cancelado') {
             nuevos[p.espnId] = { state, cancelado: true, halftime: false, local: '', visitante: '' }
             return
           }
@@ -166,6 +165,8 @@ export default function Ranking() {
           nuevos[p.espnId] = {
             state, clock: ev.status?.displayClock ?? '', halftime: esHalftime,
             local: home?.score ?? '', visitante: away?.score ?? '',
+            noFinal: estadoNoFinal !== null,
+            suspendido: estadoNoFinal === 'suspendido',
             penales: tienePenales, penalesEnVivo,
             localPen: homePen ?? null, visitantePen: awayPen ?? null,
           }
@@ -268,7 +269,10 @@ export default function Ranking() {
     if (
       conEspn.length > 0 &&
       !quinielaData.finalizada &&
-      conEspn.every(p => nuevos[p.espnId]?.state === 'post')
+      conEspn.every(p => {
+        const live = nuevos[p.espnId]
+        return live?.cancelado || (live?.state === 'post' && !live?.noFinal)
+      })
     ) {
       try { await updateDoc(doc(db, 'quinielas', quinielaData.id), { finalizada: true }) }
       catch { /* silencioso */ }
