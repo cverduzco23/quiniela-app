@@ -12296,6 +12296,82 @@ button.admin-account-data-row {
   background: rgba(15,23,42,0.28);
 }
 
+.admin-stream-auto {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 12px 0;
+  padding: 10px 11px;
+  border: 1px solid rgba(34,197,94,0.24);
+  border-radius: var(--radius-sm);
+  background: rgba(34,197,94,0.07);
+}
+
+.admin-stream-auto > div {
+  min-width: 0;
+}
+
+.admin-stream-auto strong {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--green-light);
+  font-size: 11px;
+}
+
+.admin-stream-auto p {
+  max-width: 580px;
+  margin: 3px 0 0;
+  color: var(--muted);
+  font-size: 9.5px;
+  line-height: 1.4;
+}
+
+.admin-stream-auto > button {
+  min-height: 31px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex-shrink: 0;
+  padding: 6px 10px;
+  border: 1px solid rgba(34,197,94,0.34);
+  border-radius: var(--radius-md);
+  background: rgba(34,197,94,0.12);
+  color: var(--green-light);
+  font: inherit;
+  font-size: 9.5px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.admin-stream-auto > button:disabled {
+  cursor: wait;
+  opacity: 0.62;
+}
+
+.admin-stream-sync-msg {
+  margin: -5px 0 11px;
+  padding: 7px 9px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--neutral-bg);
+  color: var(--muted);
+  font-size: 9.5px;
+  line-height: 1.4;
+}
+
+.admin-stream-sync-msg.is-ok {
+  border-color: rgba(34,197,94,0.28);
+  color: var(--green-light);
+}
+
+.admin-stream-sync-msg.is-error {
+  border-color: rgba(239,68,68,0.28);
+  color: #fca5a5;
+}
+
 .admin-stream-options-title {
   display: block;
   margin-bottom: 7px;
@@ -12347,6 +12423,17 @@ button.admin-account-data-row {
 .admin-stream-field input::placeholder {
   font-size: 9px;
   opacity: 0.72;
+}
+
+@media (max-width: 620px) {
+  .admin-stream-auto {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .admin-stream-auto > button {
+    align-self: stretch;
+  }
 }
 
 .stream-page {
@@ -12601,6 +12688,63 @@ button.admin-account-data-row {
   background: #000;
 }
 
+.stream-start-overlay {
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  padding: 20px;
+  background:
+    radial-gradient(circle at 50% 42%, rgba(239,68,68,0.13), transparent 36%),
+    #070b12;
+  color: var(--text);
+  text-align: center;
+}
+
+.stream-start-overlay > strong {
+  font-family: var(--font-display);
+  font-size: clamp(17px, 2vw, 22px);
+}
+
+.stream-start-overlay > p {
+  max-width: 410px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.stream-start-icon {
+  width: 54px;
+  height: 54px;
+  display: grid;
+  place-items: center;
+  padding-left: 3px;
+  border: 1px solid rgba(248,113,113,0.48);
+  border-radius: 50%;
+  background: rgba(239,68,68,0.16);
+  color: #fca5a5;
+  box-shadow: 0 0 0 8px rgba(239,68,68,0.055);
+}
+
+.stream-start-overlay > button {
+  min-height: 38px;
+  margin-top: 5px;
+  padding: 8px 16px;
+  border: 1px solid rgba(248,113,113,0.55);
+  border-radius: var(--radius-full);
+  background: rgba(239,68,68,0.20);
+  color: #fecaca;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 850;
+  cursor: pointer;
+}
+
 .stream-loading-overlay {
   position: absolute;
   z-index: 2;
@@ -12640,6 +12784,59 @@ button.admin-account-data-row {
   font-size: 11px;
   font-weight: 800;
   cursor: pointer;
+}
+
+.stream-player-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 11px;
+}
+
+.stream-mode-options,
+.stream-utility-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.stream-mode-options > span {
+  margin-right: 2px;
+  color: var(--muted);
+  font-size: 9.5px;
+  font-weight: 700;
+}
+
+.stream-mode-options button,
+.stream-utility-actions button {
+  min-height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-full);
+  background: var(--neutral-bg);
+  color: var(--muted);
+  font: inherit;
+  font-size: 9.5px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.stream-mode-options button.is-active {
+  border-color: rgba(34,197,94,0.42);
+  background: rgba(34,197,94,0.13);
+  color: var(--green-light);
+}
+
+.stream-utility-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 .stream-source-options {
@@ -12948,6 +13145,16 @@ button.admin-account-data-row {
 
   .stream-source-options {
     justify-content: center;
+  }
+
+  .stream-player-actions,
+  .stream-mode-options,
+  .stream-utility-actions {
+    justify-content: center;
+  }
+
+  .stream-player-actions {
+    flex-direction: column;
   }
 
   .stream-source-options > span {

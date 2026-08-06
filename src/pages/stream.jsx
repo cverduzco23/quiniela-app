@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { collection, doc, getCountFromServer, getDoc, getDocs, query, serverTimestamp, setDoc, Timestamp, where } from 'firebase/firestore'
 import { db } from '../firebase'
@@ -6,7 +6,13 @@ import { BrandMark } from '../components/Brand'
 import { RankingTable, SvgIcon } from '../components/RankingTable'
 import { Footer } from '../components/Footer'
 import { miIdentidadEnQuiniela } from '../utils/misQuinielas'
-import { dispositivoPuedeVerStream, obtenerStreamOpciones, streamDisponibleAhora } from '../utils/streaming'
+import {
+  dispositivoPuedeVerStream,
+  esIOS,
+  obtenerStreamFuentes,
+  resolverStreamFuente,
+  streamDisponibleAhora,
+} from '../utils/streaming'
 import { clasificarEstadoNoFinalESPN } from '../utils/espn'
 
 export default function Stream() {
@@ -17,6 +23,8 @@ export default function Stream() {
   const [iframeKey, setIframeKey] = useState(0)
   const [iframeCargado, setIframeCargado] = useState(false)
   const [streamTardando, setStreamTardando] = useState(false)
+  const [reproduccionIniciada, setReproduccionIniciada] = useState(false)
+  const playerRef = useRef(null)
 
   useEffect(() => {
     let activo = true
@@ -55,12 +63,12 @@ export default function Stream() {
           if (activo) setEstado({ tipo: 'no-disponible', quiniela, partido })
           return
         }
-        const opciones = obtenerStreamOpciones(partido)
-        if (!partido || opciones.length === 0) {
+        const fuentes = obtenerStreamFuentes(partido)
+        if (!partido || fuentes.length === 0) {
           if (activo) setEstado({ tipo: 'sin-stream', quiniela, partido })
           return
         }
-        if (activo) setEstado({ tipo: 'listo', quiniela, partido, opciones, nombreLocal, predicciones })
+        if (activo) setEstado({ tipo: 'listo', quiniela, partido, fuentes, nombreLocal, predicciones })
       } catch {
         if (activo) setEstado({ tipo: 'error' })
       }
@@ -108,26 +116,33 @@ export default function Stream() {
 
   const opcionPedida = Math.max(1, Number(searchParams.get('opcion')) || 1)
   const opcionIdx = estado.tipo === 'listo'
-    ? Math.min(opcionPedida - 1, estado.opciones.length - 1)
+    ? Math.min(opcionPedida - 1, estado.fuentes.length - 1)
     : 0
-  const streamUrl = estado.tipo === 'listo' ? estado.opciones[opcionIdx] : ''
+  const fuente = estado.tipo === 'listo' ? estado.fuentes[opcionIdx] : null
+  const modoPedido = searchParams.get('modo')
+  const modo = fuente?.esStreamX
+    ? (modoPedido === 'live1' || modoPedido === 'live2'
+        ? modoPedido
+        : (esIOS() ? 'live2' : 'live1'))
+    : 'directo'
+  const streamUrl = resolverStreamFuente(fuente, modo)
 
   useEffect(() => {
-    if (estado.tipo !== 'listo' || !streamUrl) return
+    if (estado.tipo !== 'listo' || !streamUrl || !reproduccionIniciada) return
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setIframeCargado(false)
     setStreamTardando(false)
     const timer = setTimeout(() => setStreamTardando(true), 12 * 1000)
     return () => clearTimeout(timer)
-  }, [estado.tipo, streamUrl, iframeKey])
+  }, [estado.tipo, streamUrl, iframeKey, reproduccionIniciada])
 
   const espectadores = useStreamPresence(
-    estado.tipo === 'listo' ? quinielaId : null,
-    estado.tipo === 'listo' ? Number(partidoIdx) : null,
+    estado.tipo === 'listo' && reproduccionIniciada ? quinielaId : null,
+    estado.tipo === 'listo' && reproduccionIniciada ? Number(partidoIdx) : null,
     opcionIdx + 1,
   )
 
-  useScreenWakeLock(estado.tipo === 'listo')
+  useScreenWakeLock(estado.tipo === 'listo' && reproduccionIniciada)
 
   if (estado.tipo === 'cargando') {
     return <StreamMessage texto="Preparando transmisión…" />
@@ -189,20 +204,36 @@ export default function Stream() {
               Ranking completo
             </a>
           </div>
-          <div className="stream-player-shell">
-            <iframe
-              key={`${streamUrl}-${iframeKey}`}
-              src={streamUrl}
-              title={`Transmisión de ${partido.local} vs ${partido.visitante}`}
-              allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
-              allowFullScreen
-              referrerPolicy="no-referrer"
-              onLoad={() => {
-                setIframeCargado(true)
-                setStreamTardando(false)
-              }}
-            />
-            {!iframeCargado && (
+          <div className="stream-player-shell" ref={playerRef}>
+            {reproduccionIniciada && (
+              <iframe
+                key={`${streamUrl}-${iframeKey}`}
+                src={streamUrl}
+                title={`Transmisión de ${partido.local} vs ${partido.visitante}`}
+                allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
+                allowFullScreen
+                referrerPolicy="no-referrer"
+                onLoad={() => {
+                  setIframeCargado(true)
+                  setStreamTardando(false)
+                }}
+              />
+            )}
+            {!reproduccionIniciada && (
+              <div className="stream-start-overlay">
+                <span className="stream-start-icon" aria-hidden="true">
+                  <svg width="30" height="30" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="m8 5 11 7-11 7V5Z" />
+                  </svg>
+                </span>
+                <strong>La señal está lista</strong>
+                <p>Iníciala con un toque para mejorar la compatibilidad en tu dispositivo.</p>
+                <button type="button" onClick={() => setReproduccionIniciada(true)}>
+                  Reproducir transmisión
+                </button>
+              </div>
+            )}
+            {reproduccionIniciada && !iframeCargado && (
               <div className="stream-loading-overlay">
                 <span />
                 <strong>{streamTardando ? 'La señal está tardando…' : 'Cargando transmisión…'}</strong>
@@ -212,17 +243,70 @@ export default function Stream() {
               </div>
             )}
           </div>
-          {estado.opciones.length > 1 && (
+          <div className="stream-player-actions" aria-label="Controles de transmisión">
+            {fuente?.esStreamX && (
+              <div className="stream-mode-options">
+                <span>Reproductor</span>
+                {[
+                  ['live2', 'Automático'],
+                  ['live1', 'Manual'],
+                ].map(([valor, etiqueta]) => (
+                  <button
+                    type="button"
+                    key={valor}
+                    className={modo === valor ? 'is-active' : ''}
+                    onClick={() => {
+                      const next = new URLSearchParams(searchParams)
+                      next.set('modo', valor)
+                      setSearchParams(next, { replace: true })
+                    }}
+                  >
+                    {etiqueta}
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="stream-utility-actions">
+              <button
+                type="button"
+                disabled={!reproduccionIniciada}
+                onClick={() => setIframeKey(k => k + 1)}
+              >
+                <SvgIcon name="refresh" size={13} />
+                Recargar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const elemento = playerRef.current
+                  const solicitar = elemento?.requestFullscreen ?? elemento?.webkitRequestFullscreen
+                  if (solicitar) {
+                    const promesa = solicitar.call(elemento)
+                    promesa?.catch?.(() => {})
+                  }
+                }}
+              >
+                <SvgIcon name="maximize" size={13} />
+                Pantalla completa
+              </button>
+            </div>
+          </div>
+          {estado.fuentes.length > 1 && (
             <div className="stream-source-options" aria-label="Opciones de transmisión">
               <span>¿Problemas con la señal?</span>
-              {estado.opciones.map((_, idx) => (
+              {estado.fuentes.map((item, idx) => (
                 <button
                   type="button"
                   key={idx}
                   className={idx === opcionIdx ? 'is-active' : ''}
-                  onClick={() => setSearchParams({ opcion: String(idx + 1) }, { replace: true })}
+                  onClick={() => {
+                    const next = new URLSearchParams(searchParams)
+                    next.set('opcion', String(idx + 1))
+                    if (!item.esStreamX) next.delete('modo')
+                    setSearchParams(next, { replace: true })
+                  }}
                 >
-                  Opción {idx + 1}
+                  {item.nombre || `Opción ${idx + 1}`}
                 </button>
               ))}
             </div>

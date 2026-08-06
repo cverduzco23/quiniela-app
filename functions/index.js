@@ -24,12 +24,15 @@
 process.env.TZ = 'America/Mexico_City'
 
 import { onSchedule } from 'firebase-functions/v2/scheduler'
+import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import { logger } from 'firebase-functions'
 import { initializeApp } from 'firebase-admin/app'
 import { getFirestore } from 'firebase-admin/firestore'
 
 initializeApp()
 const db = getFirestore()
+const SUPER_ADMIN_UIDS = new Set(['w6uc7cHowgM4Pmsya4bUHt1G3Pu2'])
+const STREAMX_AGENDA_URL = 'https://streamx-hd.com/eventos.json'
 
 export { crearSesionDonativo, webhookDonativos } from './stripe.js'
 export { enviarAvisoAdmins } from './notifications.js'
@@ -274,6 +277,256 @@ async function sincronizarQuiniela(q, cache) {
   return { actualizados, idsCorregidos, enVivo: enVivoIds.length, finalizada: !!patch.finalizada }
 }
 
+// Autoasignación de transmisiones StreamX
+
+function normalizarEquipoStream(nombre) {
+  return normalizarEquipo(nombre)
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .split(/\s+/)
+    .filter(Boolean)
+    .filter(token => !new Set([
+      'fc', 'cf', 'sc', 'ac', 'club', 'de', 'del', 'futbol', 'football',
+      'soccer', 'united', 'cd', 'ca', 'afc',
+    ]).has(token))
+    .join(' ')
+}
+
+function similaridadTexto(a, b) {
+  const uno = normalizarEquipoStream(a)
+  const dos = normalizarEquipoStream(b)
+  if (!uno || !dos) return 0
+  if (uno === dos) return 1
+  if (uno.length >= 5 && dos.length >= 5 && (uno.includes(dos) || dos.includes(uno))) return 0.94
+  const tokensA = new Set(uno.split(' '))
+  const tokensB = new Set(dos.split(' '))
+  let comunes = 0
+  tokensA.forEach(token => {
+    if (tokensB.has(token)) comunes++
+  })
+  return (2 * comunes) / (tokensA.size + tokensB.size)
+}
+
+function partesFechaEnZona(fecha, timeZone) {
+  const partes = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(fecha)
+  return Object.fromEntries(partes.map(p => [p.type, p.value]))
+}
+
+export function fechaEventoStreamX(evento) {
+  const raw = String(evento?.time ?? evento?.datetime ?? evento?.date ?? '').trim()
+  const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?$/)
+  if (!match) {
+    const directa = new Date(raw)
+    return isNaN(directa.getTime()) ? null : directa
+  }
+  const [, y, m, d, h, min, s = '0'] = match
+  const objetivoUTC = Date.UTC(+y, +m - 1, +d, +h, +min, +s)
+  const zona = String(evento?.timezone ?? evento?.tz ?? 'America/Lima')
+  try {
+    const observada = partesFechaEnZona(new Date(objetivoUTC), zona)
+    const observadaUTC = Date.UTC(
+      +observada.year, +observada.month - 1, +observada.day,
+      +observada.hour, +observada.minute, +observada.second,
+    )
+    return new Date(objetivoUTC - (observadaUTC - objetivoUTC))
+  } catch {
+    return new Date(objetivoUTC)
+  }
+}
+
+function eventosStreamX(data) {
+  const eventos = []
+  for (const deporte of data?.sports ?? []) {
+    if (String(deporte?.id ?? '').toLowerCase() !== 'football') continue
+    for (const liga of deporte?.leagues ?? []) {
+      for (const evento of liga?.events ?? []) {
+        eventos.push({ ...evento, league: evento.league || liga.name || '' })
+      }
+    }
+  }
+  return eventos
+}
+
+function servidoresActivosStreamX(evento) {
+  return (evento?.servers ?? [])
+    .filter(server => server?.active !== false)
+    .map(server => {
+      const raw = String(server?.url ?? '').trim()
+      try {
+        const url = new URL(raw)
+        if (url.protocol !== 'https:') return null
+        const path = url.pathname.match(/^\/live[12]\.php$/i)
+        const key = path ? String(url.searchParams.get('stream') ?? '').trim() : ''
+        return {
+          nombre: String(server?.name ?? '').trim(),
+          url: url.href,
+          key: /^[a-z0-9_-]{1,80}$/i.test(key) ? key : '',
+        }
+      } catch {
+        return null
+      }
+    })
+    .filter(Boolean)
+    .slice(0, 3)
+}
+
+function candidatoStreamX(partido, evento) {
+  const horaPartido = new Date(partido?.hora)
+  const horaEvento = fechaEventoStreamX(evento)
+  if (isNaN(horaPartido.getTime()) || !horaEvento) return null
+  const diferenciaMin = Math.abs(horaPartido.getTime() - horaEvento.getTime()) / 60000
+  if (diferenciaMin > 180) return null
+
+  const directoLocal = similaridadTexto(partido.local, evento.homeTeam)
+  const directoVisita = similaridadTexto(partido.visitante, evento.awayTeam)
+  const invertidoLocal = similaridadTexto(partido.local, evento.awayTeam)
+  const invertidoVisita = similaridadTexto(partido.visitante, evento.homeTeam)
+  const directo = (directoLocal + directoVisita) / 2
+  const invertido = ((invertidoLocal + invertidoVisita) / 2) - 0.02
+  const nombres = Math.max(directo, invertido)
+  const minimoEquipo = directo >= invertido
+    ? Math.min(directoLocal, directoVisita)
+    : Math.min(invertidoLocal, invertidoVisita)
+  if (minimoEquipo < 0.86) return null
+
+  const tiempo = diferenciaMin <= 45 ? 1 : diferenciaMin <= 90 ? 0.96 : 0.88
+  const confianza = nombres * 0.9 + tiempo * 0.1
+  const servidores = servidoresActivosStreamX(evento)
+  if (confianza < 0.91 || servidores.length === 0) return null
+  return { evento, servidores, confianza, diferenciaMin }
+}
+
+export function buscarEventoStreamX(partido, eventos) {
+  const candidatos = eventos
+    .map(evento => candidatoStreamX(partido, evento))
+    .filter(Boolean)
+    .sort((a, b) => b.confianza - a.confianza || a.diferenciaMin - b.diferenciaMin)
+  if (candidatos.length === 0) return null
+  if (candidatos[1] && candidatos[0].confianza - candidatos[1].confianza < 0.04) return null
+  return candidatos[0]
+}
+
+function tieneStreamConfigurado(partido) {
+  return ['streamUrl', 'streamUrl2', 'streamUrl3', 'streamKey', 'streamKey2', 'streamKey3']
+    .some(campo => String(partido?.[campo] ?? '').trim())
+}
+
+function esStreamAutoconfigurado(partido) {
+  return partido?.streamAuto?.proveedor === 'streamx'
+}
+
+function partidoBuscaStream(partido, resultado, ahora = new Date()) {
+  if (!partido || tieneMarcadorFinal(resultado)) return false
+  if (tieneStreamConfigurado(partido) && !esStreamAutoconfigurado(partido)) return false
+  const inicio = new Date(partido.hora).getTime()
+  if (!Number.isFinite(inicio)) return false
+  const diferencia = inicio - ahora.getTime()
+  return diferencia <= 24 * 60 * 60 * 1000 && diferencia >= -4 * 60 * 60 * 1000
+}
+
+export function necesitaSyncStreams(q, ahora = new Date()) {
+  if (!q || q.finalizada) return false
+  const resultados = q.resultados ?? {}
+  return (q.partidos ?? []).some((partido, idx) => partidoBuscaStream(partido, resultados[idx], ahora))
+}
+
+async function obtenerAgendaStreamX() {
+  const response = await fetch(STREAMX_AGENDA_URL, {
+    headers: { accept: 'application/json' },
+    signal: AbortSignal.timeout(9000),
+  })
+  if (!response.ok) throw new Error(`StreamX ${response.status}`)
+  return eventosStreamX(await response.json())
+}
+
+async function sincronizarStreamsQuiniela(q, eventos, { forzar = false } = {}) {
+  const ahora = new Date()
+  const resultados = q.resultados ?? {}
+  const partidos = (q.partidos ?? []).map(p => ({ ...p }))
+  let asignados = 0
+  const detalles = []
+
+  partidos.forEach((partido, idx) => {
+    if (tieneMarcadorFinal(resultados[idx])) return
+    if (tieneStreamConfigurado(partido) && !esStreamAutoconfigurado(partido)) return
+    if (!forzar && !partidoBuscaStream(partido, resultados[idx], ahora)) return
+    const candidato = buscarEventoStreamX(partido, eventos)
+    if (!candidato) return
+
+    const camposComparados = [
+      'streamUrl', 'streamUrl2', 'streamUrl3',
+      'streamKey', 'streamKey2', 'streamKey3',
+      'streamNombre', 'streamNombre2', 'streamNombre3',
+    ]
+    const antes = JSON.stringify(camposComparados.map(campo => partido[campo] ?? ''))
+    camposComparados.forEach(campo => { delete partido[campo] })
+    candidato.servidores.forEach((server, serverIdx) => {
+      const sufijo = serverIdx === 0 ? '' : String(serverIdx + 1)
+      partido[`streamUrl${sufijo}`] = server.url
+      partido[`streamNombre${sufijo}`] = server.nombre || `Opción ${serverIdx + 1}`
+      if (server.key) partido[`streamKey${sufijo}`] = server.key
+    })
+    const despues = JSON.stringify(camposComparados.map(campo => partido[campo] ?? ''))
+    if (antes === despues) return
+    partido.streamAuto = {
+      proveedor: 'streamx',
+      evento: String(candidato.evento.title ?? '').slice(0, 160),
+      confianza: Number(candidato.confianza.toFixed(3)),
+      actualizado: new Date().toISOString(),
+    }
+    asignados++
+    detalles.push({
+      idx,
+      partido: `${partido.local} vs ${partido.visitante}`,
+      evento: String(candidato.evento.title ?? ''),
+      opciones: candidato.servidores.length,
+      confianza: Number(candidato.confianza.toFixed(3)),
+    })
+  })
+
+  if (asignados > 0) {
+    await db.collection('quinielas').doc(q.id).update({ partidos })
+  }
+  return { asignados, detalles, partidos }
+}
+
+export const buscarTransmisionesStreamX = onCall({
+  region: 'us-central1',
+  memory: '256MiB',
+  timeoutSeconds: 30,
+}, async request => {
+  if (!request.auth) throw new HttpsError('unauthenticated', 'Debes iniciar sesión.')
+  const quinielaId = String(request.data?.quinielaId ?? '').trim()
+  if (!quinielaId) throw new HttpsError('invalid-argument', 'Falta la quiniela.')
+  const ref = db.collection('quinielas').doc(quinielaId)
+  const snap = await ref.get()
+  if (!snap.exists) throw new HttpsError('not-found', 'No encontramos la quiniela.')
+  const q = { id: snap.id, ...snap.data() }
+  if (q.ownerUid !== request.auth.uid && !SUPER_ADMIN_UIDS.has(request.auth.uid)) {
+    throw new HttpsError('permission-denied', 'No puedes editar esta quiniela.')
+  }
+  try {
+    const eventos = await obtenerAgendaStreamX()
+    const resultado = await sincronizarStreamsQuiniela(q, eventos, { forzar: true })
+    return {
+      asignados: resultado.asignados,
+      detalles: resultado.detalles,
+      partidos: resultado.partidos,
+    }
+  } catch (error) {
+    logger.warn(`No se pudo consultar StreamX manualmente: ${error.message}`)
+    throw new HttpsError('unavailable', 'La agenda de transmisiones no está disponible en este momento.')
+  }
+})
+
 // La función programada
 
 export const sincronizarResultados = onSchedule({
@@ -287,12 +540,32 @@ export const sincronizarResultados = onSchedule({
 }, async () => {
   const snap = await db.collection('quinielas').get()
   const ahora = new Date()
-  const activas = snap.docs
-    .map(d => ({ id: d.id, ...d.data() }))
-    .filter(q => necesitaSync(q, ahora))
+  const todas = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+
+  const buscandoStream = todas.filter(q => necesitaSyncStreams(q, ahora))
+  if (buscandoStream.length > 0) {
+    try {
+      const eventos = await obtenerAgendaStreamX()
+      for (const q of buscandoStream) {
+        try {
+          const resultado = await sincronizarStreamsQuiniela(q, eventos)
+          if (resultado.asignados > 0) {
+            q.partidos = resultado.partidos
+            logger.info(`Quiniela ${q.id}: ${resultado.asignados} transmisión(es) StreamX asignada(s).`)
+          }
+        } catch (error) {
+          logger.warn(`No se pudieron asignar streams a ${q.id}: ${error.message}`)
+        }
+      }
+    } catch (error) {
+      logger.warn(`Agenda StreamX no disponible: ${error.message}`)
+    }
+  }
+
+  const activas = todas.filter(q => necesitaSync(q, ahora))
 
   if (activas.length === 0) {
-    logger.info(`Sin quinielas en juego (${snap.size} en total). Nada que hacer.`)
+    logger.info(`Sin marcadores pendientes (${snap.size} quinielas en total).`)
     return
   }
 

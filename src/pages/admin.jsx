@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { collection, addDoc, doc, updateDoc, getDoc, getDocs, deleteDoc, query, orderBy, where, setDoc, serverTimestamp, writeBatch, increment, getCountFromServer } from 'firebase/firestore'
 import { signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, updatePassword, createUserWithEmailAndPassword, sendEmailVerification, reload, updateProfile, deleteUser } from 'firebase/auth'
-import { db, auth, crearUsuarioAislado, generarPasswordTemporal } from '../firebase'
+import { httpsCallable } from 'firebase/functions'
+import { db, auth, functions, crearUsuarioAislado, generarPasswordTemporal } from '../firebase'
 import { CambioPassword } from '../components/CambioPassword'
 import { useDialog } from '../components/Dialogs'
 import { ComoFunciona } from '../components/ComoFunciona'
@@ -1455,6 +1456,8 @@ export default function Admin() {
   const [conteoPredicciones, setConteoPredicciones] = useState(null)
   const [partidosFijosInfo, setPartidosFijosInfo] = useState(false)
   const [guardandoEdicion, setGuardandoEdicion] = useState(false)
+  const [buscandoStreams, setBuscandoStreams]     = useState(false)
+  const [streamSyncMsg, setStreamSyncMsg]         = useState(null)
   const [deleteConfirm, setDeleteConfirm]       = useState('')
   const [eliminando, setEliminando]             = useState(false)
 
@@ -1729,6 +1732,7 @@ export default function Admin() {
     if (tab !== 'editar' || !quinielaActual) return
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setEditNombre(quinielaActual.nombre ?? '')
+    setStreamSyncMsg(null)
     setEditPartidos([...(quinielaActual.partidos ?? [])])
     setEditPartidosOriginales((quinielaActual.partidos ?? []).length)
     setEditCierre(cierreToInputValue(quinielaActual.cierre))
@@ -2063,6 +2067,52 @@ export default function Admin() {
       alerta('Error al guardar cambios.')
     } finally {
       setGuardandoEdicion(false)
+    }
+  }
+
+  const buscarTransmisionesAhora = async () => {
+    if (!quinielaActual || buscandoStreams) return
+    setBuscandoStreams(true)
+    setStreamSyncMsg(null)
+    try {
+      const buscar = httpsCallable(functions, 'buscarTransmisionesStreamX')
+      const respuesta = await buscar({ quinielaId: quinielaActual.id })
+      const data = respuesta.data ?? {}
+      const partidosServidor = Array.isArray(data.partidos) ? data.partidos : []
+      const camposStream = [
+        'streamUrl', 'streamUrl2', 'streamUrl3',
+        'streamKey', 'streamKey2', 'streamKey3',
+        'streamNombre', 'streamNombre2', 'streamNombre3',
+        'streamAuto',
+      ]
+      if (partidosServidor.length > 0) {
+        setEditPartidos(prev => prev.map((partido, idx) => {
+          const remoto = partidosServidor[idx]
+          if (!remoto) return partido
+          const actualizado = { ...partido }
+          camposStream.forEach(campo => {
+            if (remoto[campo] !== undefined) actualizado[campo] = remoto[campo]
+          })
+          return actualizado
+        }))
+        const actualizado = { ...quinielaActual, partidos: partidosServidor }
+        setQuinielaActual(actualizado)
+        setQuinielas(prev => prev.map(q => q.id === actualizado.id ? actualizado : q))
+      }
+      const asignados = Number(data.asignados ?? 0)
+      setStreamSyncMsg({
+        tipo: asignados > 0 ? 'ok' : 'info',
+        texto: asignados > 0
+          ? `${asignados} ${asignados === 1 ? 'partido quedó vinculado' : 'partidos quedaron vinculados'} automáticamente.`
+          : 'No encontramos coincidencias suficientemente seguras en la agenda de hoy.',
+      })
+    } catch {
+      setStreamSyncMsg({
+        tipo: 'error',
+        texto: 'StreamX no respondió. La sincronización automática volverá a intentarlo.',
+      })
+    } finally {
+      setBuscandoStreams(false)
     }
   }
 
@@ -6020,6 +6070,21 @@ export default function Admin() {
                           </div>
                         </SmoothCollapse>
                       )}
+                      <div className="admin-stream-auto">
+                        <div>
+                          <strong><AdminIcon name="link" size={14} /> Transmisiones automáticas</strong>
+                          <p>QuinielApp revisa la agenda de StreamX cerca de cada partido y vincula hasta tres señales cuando la coincidencia es segura.</p>
+                        </div>
+                        <button type="button" onClick={buscarTransmisionesAhora} disabled={buscandoStreams}>
+                          <AdminIcon name={buscandoStreams ? 'refresh' : 'search'} size={14} />
+                          {buscandoStreams ? 'Buscando…' : 'Buscar ahora'}
+                        </button>
+                      </div>
+                      {streamSyncMsg && (
+                        <div className={`admin-stream-sync-msg is-${streamSyncMsg.tipo}`}>
+                          {streamSyncMsg.texto}
+                        </div>
+                      )}
                       {conteoPredicciones === 0 && renderBuscadorFixtures(agregarSeleccionadosAEdicion, { embedded: true })}
                       {editPartidos.length === 0 ? (
                         <div className="admin-new-empty-matches">
@@ -6056,8 +6121,17 @@ export default function Admin() {
                                         value={p[campo] ?? ''}
                                         onChange={e => {
                                           const value = e.target.value
+                                          const sufijo = campo === 'streamUrl' ? '' : campo.replace('streamUrl', '')
                                           setEditPartidos(prev => prev.map((partido, idx) => (
-                                            idx === i ? { ...partido, [campo]: value } : partido
+                                            idx === i
+                                              ? {
+                                                  ...partido,
+                                                  [campo]: value,
+                                                  [`streamKey${sufijo}`]: '',
+                                                  [`streamNombre${sufijo}`]: '',
+                                                  streamAuto: null,
+                                                }
+                                              : partido
                                           )))
                                         }}
                                       />

@@ -245,6 +245,28 @@ export function SvgIcon({ name, size = 14, style }) {
       </svg>
     )
   }
+  if (name === 'refresh') {
+    return (
+      <svg {...common}>
+        <path d="M20 11a8 8 0 1 0 2 5.5" />
+        <path d="M20 4v7h-7" />
+      </svg>
+    )
+  }
+  if (name === 'maximize') {
+    return (
+      <svg {...common}>
+        <path d="M8 3H3v5" />
+        <path d="m3 3 6 6" />
+        <path d="M16 3h5v5" />
+        <path d="m21 3-6 6" />
+        <path d="M8 21H3v-5" />
+        <path d="m3 21 6-6" />
+        <path d="M16 21h5v-5" />
+        <path d="m21 21-6-6" />
+      </svg>
+    )
+  }
   if (name === 'handshake') {
     return (
       <svg {...common}>

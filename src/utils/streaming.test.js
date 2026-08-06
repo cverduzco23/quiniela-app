@@ -1,9 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  analizarStreamXUrl,
+  construirStreamXUrl,
   dispositivoPuedeVerStream,
+  esIOS,
   miEnvioEnQuiniela,
   normalizarStreamUrl,
+  obtenerStreamFuentes,
   obtenerStreamOpciones,
+  resolverStreamFuente,
   streamDisponibleAhora,
 } from './streaming'
 
@@ -47,6 +52,40 @@ describe('streaming', () => {
       'https://uno.example/embed',
       'https://tres.example/embed',
     ])
+  })
+
+  it('reconoce una señal StreamX y puede alternar live1/live2 conservando la clave', () => {
+    expect(analizarStreamXUrl('https://streamx-hd.com/live1.php?stream=appletv9')).toEqual({
+      clave: 'appletv9',
+      modo: 'live1',
+      origen: 'https://streamx-hd.com',
+    })
+    expect(construirStreamXUrl('appletv9', 'live2'))
+      .toBe('https://streamx-hd.com/live2.php?stream=appletv9')
+
+    const fuente = obtenerStreamFuentes({
+      streamUrl: 'https://streamx-hd.com/live1.php?stream=appletv9',
+      streamNombre: 'Apple TV',
+    })[0]
+    expect(fuente.nombre).toBe('Apple TV')
+    expect(resolverStreamFuente(fuente, 'live2'))
+      .toBe('https://streamx-hd.com/live2.php?stream=appletv9')
+  })
+
+  it('acepta claves StreamX autoconfiguradas aun sin duplicar el enlace', () => {
+    expect(obtenerStreamOpciones({
+      streamKey: 'claro1',
+      streamNombre: 'Claro Sports',
+      streamKey2: 'fox_deportes_usa',
+    }, 'live2')).toEqual([
+      'https://streamx-hd.com/live2.php?stream=claro1',
+      'https://streamx-hd.com/live2.php?stream=fox_deportes_usa',
+    ])
+  })
+
+  it('detecta iPhone y iPadOS sin afectar otros dispositivos', () => {
+    expect(esIOS('Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)')).toBe(true)
+    expect(esIOS('Mozilla/5.0 (Linux; Android 15)')).toBe(false)
   })
 
   it('solo habilita una transmisión cuando la quiniela cerró y el partido comenzó', () => {
