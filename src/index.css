@@ -2408,6 +2408,13 @@ a:focus-visible {
 .ranking-hero-pad {
   padding-bottom: 0;
 }
+.ranking-hero-controls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  margin-top: 4px;
+}
 /* Podio del primer lugar arriba de la tabla. Solo existe en escritorio;
    en móvil el líder se queda como primera fila de la tabla. */
 .ranking-podium {
@@ -13368,5 +13375,898 @@ button.admin-account-data-row {
 
   .stream-ranking-person > i {
     display: none;
+  }
+}
+
+/* ==========================================================================
+   RANKING — ESCRITORIO (≥1024px)
+   Layout de dos columnas para /ranking/:id: carrusel de partidos bajo el
+   header, tabla de participantes a la izquierda y el partido (transmisión,
+   marcador, estadísticas y eventos) a la derecha.
+   Todo vive detrás del media query: abajo de 1024px la pantalla queda igual
+   que antes. El marcado nuevo tampoco se monta en móvil (useEscritorio).
+   ========================================================================== */
+@media (min-width: 1024px) {
+
+  /* --- 1. Ancho de trabajo ------------------------------------------------ */
+  .ranking-hero-pad,
+  .ranking-content {
+    --ranking-max-width: 1320px;
+  }
+  .ranking-hero-pad {
+    padding: 22px 28px 0;
+    --ranking-title-size: 34px;
+    --ranking-title-margin-bottom: 12px;
+  }
+  .ranking-content {
+    --ranking-content-padding: 20px 28px 28px;
+    --ranking-section-gap: 20px;
+  }
+
+  /* --- 2. Header: título y controles en un renglón, estado a todo lo ancho - */
+  .ranking-hero-inner {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 28px;
+    align-items: end;
+  }
+  .ranking-brand-row {
+    grid-column: 1 / -1;
+  }
+  .ranking-hero-inner > h1 {
+    grid-column: 1;
+    grid-row: 2;
+  }
+  .ranking-hero-badges {
+    grid-column: 1;
+    grid-row: 3;
+  }
+  .ranking-hero-controls {
+    grid-column: 2;
+    grid-row: 2 / span 2;
+    align-self: center;
+    justify-content: flex-end;
+    margin-top: 0;
+  }
+  .ranking-hero-stepper {
+    grid-column: 1 / -1;
+    grid-row: 4;
+  }
+  /* Vence al marginTop inline de ProgresoPasos. */
+  .ranking-hero-stepper > div {
+    margin-top: 20px !important;
+  }
+
+  /* --- 3. Ganador y carrusel de partidos ----------------------------------- */
+  /* La tarjeta del ganador encabeza la pantalla a todo el ancho. */
+  .ranking-champion-slot {
+    margin-bottom: var(--ranking-section-gap, 20px);
+  }
+  .rk-carousel {
+    margin-bottom: var(--ranking-section-gap, 20px);
+  }
+  .rk-carousel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    /* Menor que los 12px del diseño: el padding del track suma los otros 6. */
+    margin-bottom: 6px;
+  }
+  .rk-carousel-title {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+  }
+  .rk-carousel-title h2 {
+    font-family: var(--font-display);
+    font-size: 19px;
+    font-weight: 700;
+    color: var(--text-strong);
+    letter-spacing: -0.01em;
+  }
+  .rk-carousel-title small {
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .rk-carousel-nav {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .rk-carousel-arrow {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--border-strong);
+    background: var(--card-light);
+    color: var(--muted);
+    cursor: pointer;
+    transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+  }
+  .rk-carousel-arrow:hover:not(:disabled) {
+    color: var(--green-light);
+    border-color: rgba(134,239,172,0.45);
+    background: rgba(34,197,94,0.1);
+  }
+  .rk-carousel-arrow:disabled {
+    opacity: 0.35;
+    cursor: default;
+  }
+  /* El carrusel se mueve solo con las flechas: sin barra de desplazamiento.
+     El padding vertical le deja aire al levantón de la tarjeta en hover: con
+     `overflow-x: hidden` el track también recorta arriba y abajo. */
+  .rk-carousel-track {
+    display: flex;
+    gap: 14px;
+    overflow-x: hidden;
+    scroll-behavior: smooth;
+    scroll-snap-type: x mandatory;
+    padding: 6px 0 12px;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .rk-carousel-track::-webkit-scrollbar {
+    display: none;
+  }
+
+  .rk-match-card {
+    position: relative;
+    overflow: hidden;
+    flex: 0 0 236px;
+    scroll-snap-align: start;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 16px 16px 14px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border);
+    background: linear-gradient(180deg, rgba(21,31,50,0.96), rgba(15,23,42,0.92));
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 10px 22px rgba(0,0,0,0.28);
+    cursor: pointer;
+    text-align: left;
+    font: inherit;
+    color: inherit;
+    transition: border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .rk-match-card:hover {
+    transform: translateY(-2px);
+    border-color: var(--border-strong);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), 0 16px 30px rgba(0,0,0,0.34);
+  }
+  .rk-match-card.is-live {
+    border-color: rgba(239,68,68,0.42);
+    background: linear-gradient(180deg, rgba(239,68,68,0.11), rgba(21,31,50,0.95) 44%, rgba(15,23,42,0.94) 100%);
+  }
+  .rk-match-card.is-selected {
+    border-color: rgba(134,239,172,0.5);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), 0 0 0 1px rgba(34,197,94,0.28), 0 16px 30px rgba(0,0,0,0.34);
+  }
+  .rk-match-card-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .rk-match-card-date {
+    font-size: 10.5px;
+    font-weight: 700;
+    color: var(--muted-soft);
+    letter-spacing: 0.2px;
+  }
+  .rk-match-card-teams {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: start;
+    gap: 8px;
+  }
+  .rk-match-card-side {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 7px;
+    min-width: 0;
+  }
+  .rk-match-card-crest {
+    position: relative;
+    width: 40px;
+    height: 40px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .rk-match-card-team {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text);
+    text-align: center;
+  }
+  .rk-match-card-vs {
+    padding-top: 12px;
+    font-family: var(--font-display);
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--muted);
+    letter-spacing: 0.6px;
+  }
+  .rk-match-card-score {
+    padding-top: 8px;
+    font-family: var(--font-display);
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text-strong);
+    line-height: 1;
+    white-space: nowrap;
+  }
+  .rk-match-card-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding-top: 12px;
+    margin-top: auto;
+    border-top: 1px solid var(--border);
+  }
+  .rk-match-card-mine {
+    font-size: 10.5px;
+    color: var(--muted);
+  }
+  .rk-match-card-mine strong {
+    color: var(--text);
+    font-weight: 700;
+  }
+  .rk-match-card-cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    font-weight: 800;
+    color: var(--green-light);
+    flex-shrink: 0;
+  }
+
+  /* Escudo suelto: la imagen que trae el partido sobre el badge de iniciales,
+     que queda debajo y solo se ve cuando la URL falta o la imagen truena. */
+  .rk-crest-img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+  .rk-crest-fallback {
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: 0.4px;
+    color: var(--muted);
+  }
+  .rk-live-scoreboard-crest .rk-crest-fallback {
+    font-size: 12px;
+  }
+
+  /* --- 4. Cuerpo: tabla de participantes | partido ------------------------- */
+  .rk-body {
+    display: grid;
+    grid-template-columns: 424px minmax(0, 1fr);
+    gap: 20px;
+    align-items: start;
+  }
+  .rk-body-table {
+    grid-column: 1;
+    min-width: 0;
+  }
+  .rk-body .ranking-table-panel {
+    margin-bottom: 12px;
+  }
+  .rk-body-live {
+    grid-column: 2;
+    min-width: 0;
+  }
+  .ranking-live-column {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    min-width: 0;
+  }
+
+  /* Encabezado del partido */
+  .rk-live-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  .rk-live-head-copy {
+    min-width: 0;
+  }
+  .rk-live-head-copy h2 {
+    font-family: var(--font-display);
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--text-strong);
+    letter-spacing: -0.01em;
+    line-height: 1.15;
+  }
+  .rk-live-head-copy p {
+    margin-top: 4px;
+    font-size: 12.5px;
+    color: var(--muted);
+  }
+  .rk-live-head-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+    padding: 5px 12px;
+    border-radius: var(--radius-full);
+    background: var(--red-bg-strong);
+    border: 1px solid var(--red);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.6px;
+    color: #FCA5A5;
+  }
+  .rk-live-head-tag .rk-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #FCA5A5;
+    animation: pulse-dot 1.2s ease-in-out infinite;
+  }
+
+  /* Reproductor */
+  .ranking-live-player {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    border-radius: 14px;
+    overflow: hidden;
+    background: linear-gradient(150deg, #101B2E 0%, #0A1120 60%, #070D18 100%);
+    border: 1px solid rgba(148,163,184,0.18);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 20px 44px rgba(0,0,0,0.42);
+  }
+  .ranking-live-player iframe {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border: 0;
+  }
+  .ranking-live-player-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    text-align: center;
+    width: 100%;
+    border: 0;
+    background: transparent;
+    font: inherit;
+    cursor: pointer;
+  }
+  .ranking-live-play {
+    width: 66px;
+    height: 66px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, var(--green), var(--green-light));
+    color: #07120A;
+    box-shadow: var(--shadow-green);
+  }
+  .ranking-live-player-overlay strong {
+    font-size: 14.5px;
+    font-weight: 700;
+    color: var(--text);
+  }
+  .ranking-live-player-overlay .rk-hint {
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .ranking-live-player-loading {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    text-align: center;
+    background: rgba(7,13,24,0.82);
+    color: var(--text);
+    font-size: 13.5px;
+    font-weight: 700;
+  }
+  .ranking-live-player-loading button {
+    padding: 7px 16px;
+    border-radius: var(--radius-full);
+    border: 1px solid var(--border-strong);
+    background: var(--card-light);
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .ranking-live-player-bar {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 14px;
+    background: linear-gradient(to top, rgba(7,13,24,0.92), transparent);
+  }
+  .ranking-live-player-bar .rk-src,
+  .ranking-live-player-bar .rk-live-player-tools {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .ranking-live-source {
+    min-height: 26px;
+    padding: 4px 11px;
+    border-radius: var(--radius-full);
+    border: 1px solid rgba(148,163,184,0.3);
+    background: rgba(255,255,255,0.05);
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .ranking-live-source.is-active {
+    border-color: rgba(134,239,172,0.5);
+    background: rgba(34,197,94,0.14);
+    color: var(--green-light);
+  }
+  .ranking-live-player-icon {
+    width: 26px;
+    height: 26px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    border: 1px solid rgba(148,163,184,0.3);
+    background: rgba(255,255,255,0.05);
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .ranking-live-player-icon:hover {
+    color: var(--green-light);
+    border-color: rgba(134,239,172,0.45);
+  }
+
+  /* Resumen en video del partido terminado: usa el mismo marco 16/9 de la
+     transmisión, con el titular de ESPN al pie. */
+  .rk-live-recap {
+    margin: 0;
+  }
+  .rk-live-recap .ranking-live-player {
+    background: #05080F;
+  }
+  .rk-live-recap video {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    background: #05080F;
+  }
+  .rk-live-recap-pie {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    margin-top: 10px;
+  }
+  .rk-live-recap-kicker {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 10.5px;
+    font-weight: 900;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .rk-live-recap-fuente {
+    padding: 2px 7px;
+    border-radius: var(--radius-full);
+    border: 1px solid var(--border-strong);
+    background: var(--neutral-bg);
+    font-size: 9.5px;
+    letter-spacing: 0.6px;
+    color: var(--muted-soft);
+  }
+  .rk-live-recap-titulo {
+    font-size: 12.5px;
+    color: var(--text);
+    line-height: 1.45;
+  }
+  .rk-live-recap-buscando {
+    padding: 14px 0;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  /* Sustituto del reproductor cuando no hay transmisión que mostrar */
+  .rk-live-standby {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    text-align: center;
+    padding: 30px 22px;
+    border-radius: 14px;
+    border: 1px solid var(--border);
+    background: linear-gradient(150deg, #101B2E 0%, #0A1120 60%, #070D18 100%);
+  }
+  .rk-live-standby-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--neutral-bg);
+    border: 1px solid var(--border-strong);
+    color: var(--green-light);
+    margin-bottom: 2px;
+  }
+  .rk-live-standby strong {
+    font-size: 14.5px;
+    font-weight: 700;
+    color: var(--text);
+  }
+  .rk-live-standby p {
+    font-size: 12px;
+    color: var(--muted);
+    max-width: 420px;
+    line-height: 1.5;
+  }
+
+  /* Detalles del partido bajo el video */
+  .rk-live-details {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .rk-live-panel {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: linear-gradient(180deg, rgba(21,31,50,0.96), rgba(15,23,42,0.92));
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
+  }
+  .rk-live-panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 18px;
+    border-bottom: 1px solid var(--border);
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: 1.1px;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .rk-live-panel-head .is-live {
+    color: #FCA5A5;
+  }
+  .rk-live-panel-body {
+    padding: 14px 18px 16px;
+  }
+  .rk-live-scoreboard-stats {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+    gap: 28px;
+    align-items: start;
+  }
+  /* Sin reproductor arriba (partido terminado o por comenzar) el panel tiene
+     el ancho completo de la columna: marcador arriba, estadísticas debajo. */
+  .rk-live-scoreboard-stats.is-stacked {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 18px;
+  }
+  .rk-live-scoreboard-stats.is-stacked .rk-live-scoreboard {
+    padding-bottom: 2px;
+  }
+  .rk-live-scoreboard {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: center;
+    gap: 14px;
+    padding: 10px 0 6px;
+  }
+  .rk-live-scoreboard-side {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+  }
+  .rk-live-scoreboard-crest {
+    position: relative;
+    width: 54px;
+    height: 54px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .rk-live-scoreboard-team {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .rk-live-scoreboard-score {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+  }
+  .rk-live-scoreboard-score strong {
+    font-family: var(--font-display);
+    font-size: 44px;
+    font-weight: 700;
+    line-height: 1;
+    color: var(--text-strong);
+    white-space: nowrap;
+  }
+  .rk-live-scoreboard-score span {
+    font-size: 11px;
+    font-weight: 800;
+    color: #FCA5A5;
+    letter-spacing: 0.6px;
+  }
+  .ranking-live-stats .ranking-match-stat-line {
+    display: grid;
+    grid-template-columns: 52px minmax(0, 1fr) 52px;
+    align-items: center;
+    min-height: 38px;
+  }
+  .ranking-live-stats .ranking-match-stat-label {
+    text-align: center;
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+  }
+  .ranking-live-stats .ranking-match-stat-value {
+    font-family: var(--font-display);
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--text);
+  }
+  .ranking-live-stats .ranking-match-stat-value.is-away {
+    text-align: right;
+  }
+  .ranking-live-stats .ranking-match-possession-bar {
+    position: relative;
+    height: 7px;
+    border-radius: 4px;
+    overflow: hidden;
+    background: rgba(148,163,184,0.3);
+    margin: 0 0 12px;
+  }
+  .ranking-live-stats .ranking-match-possession-bar > span {
+    display: block;
+    height: 100%;
+    background: linear-gradient(90deg, var(--green), var(--green-light));
+  }
+  .rk-live-stats-empty {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.5;
+    align-self: center;
+  }
+
+  /* Tu pronóstico contra el marcador actual */
+  .rk-live-mine {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    /* Aire respecto al marcador: pegada se leía como parte de él. */
+    margin-top: 18px;
+    padding: 10px 14px;
+    border-radius: var(--radius-sm);
+    border: 1px solid rgba(250,204,21,0.34);
+    background: rgba(250,204,21,0.08);
+  }
+  .rk-live-mine-label {
+    font-size: 10.5px;
+    font-weight: 900;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--yellow);
+  }
+  .rk-live-mine-value {
+    font-family: var(--font-display);
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--text-strong);
+  }
+  .rk-live-mine-note {
+    font-size: 11.5px;
+    color: var(--muted);
+    margin-left: auto;
+    text-align: right;
+  }
+  .rk-live-actions {
+    display: flex;
+    align-items: center;
+    /* Centradas cuando van solas; el enlace al resumen, si aparece, se va a
+       la derecha con su propio margin-left: auto. */
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+  }
+  /* En móvil este enlace es una banda a todo el ancho al pie del acordeón;
+     aquí comparte renglón con las reacciones, así que va como botón. */
+  .rk-live-actions .ranking-match-summary-link {
+    display: inline-flex;
+    align-items: center;
+    margin: 0 0 0 auto;
+    padding: 8px 15px;
+    border: 1px solid rgba(34,197,94,0.28);
+    border-radius: var(--radius-full);
+    font-size: 12.5px;
+    font-weight: 800;
+  }
+
+  /* Eventos del partido */
+  .rk-live-events {
+    display: flex;
+    flex-direction: column;
+  }
+  .rk-live-event {
+    display: grid;
+    grid-template-columns: 46px 26px minmax(0, 1fr);
+    align-items: center;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .rk-live-event:last-child {
+    border-bottom: none;
+  }
+  .rk-live-event-min {
+    font-family: var(--font-display);
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--muted);
+  }
+  .rk-live-event-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .rk-live-event-copy {
+    min-width: 0;
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+  }
+  .rk-live-event-copy > strong {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    white-space: nowrap;
+  }
+  .rk-live-event-copy > span {
+    font-size: 12px;
+    color: var(--muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  /* El equipo del evento se identifica con su escudo, no con las iniciales:
+     a este tamaño el logo se reconoce más rápido que un "GUA" o un "LAF". */
+  .rk-live-event-team {
+    position: relative;
+    width: 20px;
+    height: 20px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: auto;
+    flex-shrink: 0;
+  }
+  .rk-live-event-team .rk-crest-fallback {
+    font-size: 8.5px;
+    letter-spacing: 0;
+    color: var(--muted-soft);
+  }
+  .rk-live-shootout {
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
+  }
+  .rk-live-shootout > p {
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 6px;
+    text-align: center;
+  }
+  .rk-live-shootout-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 3px 0;
+    font-size: 12px;
+    color: var(--text);
+  }
+  .rk-live-shootout-row > span {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+  .rk-live-shootout-row > span.is-away {
+    justify-content: flex-end;
+  }
+
+  /* --- 5. Comentarios, al pie de la columna del ranking -------------------- */
+  .rk-body .ranking-chat-panel {
+    margin-top: 18px;
+    margin-bottom: 0;
+  }
+  .rk-body .ranking-chat-list {
+    max-height: 420px;
+  }
+}
+
+/* Pantallas de 1024 a 1279px: la columna del partido queda en ~430px CSS
+   (por el zoom 1.1 de #root), muy angosta para poner marcador y estadísticas
+   lado a lado. Ahí se apilan; el resto del layout de escritorio no cambia. */
+@media (min-width: 1024px) and (max-width: 1279px) {
+  .rk-live-scoreboard-stats {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 18px;
+  }
+  .rk-live-mine {
+    flex-wrap: wrap;
+    gap: 6px 14px;
+  }
+  .rk-live-mine-note {
+    flex-basis: 100%;
+    margin-left: 0;
+    text-align: left;
+  }
+  .rk-live-stats-empty {
+    align-self: start;
+  }
+}
+
+/* El resumen de YouTube usa el mismo marco 16/9 que el clip de ESPN. */
+@media (min-width: 1024px) {
+  .rk-live-recap .ranking-live-player iframe {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border: 0;
   }
 }

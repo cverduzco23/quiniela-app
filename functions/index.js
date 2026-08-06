@@ -25,12 +25,17 @@ process.env.TZ = 'America/Mexico_City'
 
 import { onSchedule } from 'firebase-functions/v2/scheduler'
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
+import { defineSecret } from 'firebase-functions/params'
 import { logger } from 'firebase-functions'
 import { initializeApp } from 'firebase-admin/app'
 import { getFirestore } from 'firebase-admin/firestore'
+import { buscarResumenYoutube, extraerDetalles } from './detalles.js'
 
 initializeApp()
 const db = getFirestore()
+// Opcional: mientras no exista, el archivo de estadísticas y eventos funciona
+// igual y solo se queda sin el resumen en video.
+const YOUTUBE_API_KEY = defineSecret('YOUTUBE_API_KEY')
 const SUPER_ADMIN_UIDS = new Set(['w6uc7cHowgM4Pmsya4bUHt1G3Pu2'])
 const STREAMX_AGENDA_URL = 'https://streamx-hd.com/eventos.json'
 
@@ -210,6 +215,79 @@ function resultadoDeEvento(ev) {
   return { local: home.score, visitante: away.score, resultado: goalsToResultado(home.score, away.score) }
 }
 
+// Archivo de detalles y resumen en video
+//
+// ESPN solo devuelve estadísticas y eventos mientras el partido está dentro de
+// la ventana del scoreboard. Los guardamos en `quinielas/{id}/detalles/{idx}`
+// en el mismo tick en que se persiste el marcador final, que es el último
+// momento en que están disponibles.
+
+const MAX_INTENTOS_RESUMEN = 2
+const ESPERA_PRIMER_INTENTO_MS = 45 * 60 * 1000   // el video no está al pitazo final
+const ESPERA_ENTRE_INTENTOS_MS = 3 * 60 * 60 * 1000
+const VENTANA_RESUMEN_MS = 72 * 60 * 60 * 1000    // pasados 3 días, se deja de buscar
+
+export function tocaBuscarResumen(pendiente, horaPartido, ahora = new Date()) {
+  const jugado = new Date(horaPartido).getTime()
+  if (isNaN(jugado)) return false
+  const t = ahora.getTime()
+  if (t - jugado < ESPERA_PRIMER_INTENTO_MS) return false
+  if (t - jugado > VENTANA_RESUMEN_MS) return false
+  const intentos = Number(pendiente?.intentos) || 0
+  if (intentos >= MAX_INTENTOS_RESUMEN) return false
+  const ultimo = pendiente?.ultimo ? new Date(pendiente.ultimo).getTime() : 0
+  if (ultimo && t - ultimo < ESPERA_ENTRE_INTENTOS_MS) return false
+  return true
+}
+
+// ¿Vale la pena visitar esta quiniela solo por el resumen? (ya no entra por
+// `necesitaSync` porque todos sus marcadores están guardados)
+export function necesitaResumen(q, ahora = new Date()) {
+  const pendientes = q?.resumenPendiente
+  if (!pendientes || typeof pendientes !== 'object') return false
+  return Object.entries(pendientes).some(([idx, p]) =>
+    tocaBuscarResumen(p, q.partidos?.[Number(idx)]?.hora, ahora))
+}
+
+async function buscarResumenesPendientes(q, apiKey, ahora = new Date()) {
+  const pendientes = { ...(q.resumenPendiente ?? {}) }
+  let encontrados = 0
+  let cambio = false
+
+  for (const [clave, estado] of Object.entries(q.resumenPendiente ?? {})) {
+    const idx = Number(clave)
+    const partido = q.partidos?.[idx]
+    const jugado = new Date(partido?.hora ?? '').getTime()
+    // Fuera de ventana o sin intentos disponibles: se suelta y ya.
+    if (!partido || isNaN(jugado) ||
+        ahora.getTime() - jugado > VENTANA_RESUMEN_MS ||
+        (Number(estado?.intentos) || 0) >= MAX_INTENTOS_RESUMEN) {
+      delete pendientes[clave]
+      cambio = true
+      continue
+    }
+    if (!tocaBuscarResumen(estado, partido.hora, ahora)) continue
+
+    const resumen = await buscarResumenYoutube(partido, apiKey)
+    cambio = true
+    if (resumen?.videoId) {
+      await db.collection('quinielas').doc(q.id).collection('detalles').doc(String(idx))
+        .set({ resumenYoutube: resumen, resumenGuardadoEn: ahora.toISOString() }, { merge: true })
+      delete pendientes[clave]
+      encontrados++
+      logger.info(`Quiniela ${q.id} partido ${idx}: resumen encontrado en ${resumen.canal}.`)
+    } else {
+      pendientes[clave] = {
+        intentos: (Number(estado?.intentos) || 0) + 1,
+        ultimo: ahora.toISOString(),
+      }
+    }
+  }
+
+  if (cambio) await db.collection('quinielas').doc(q.id).update({ resumenPendiente: pendientes })
+  return encontrados
+}
+
 // Sincronizar una quiniela
 
 async function sincronizarQuiniela(q, cache) {
@@ -233,6 +311,10 @@ async function sincronizarQuiniela(q, cache) {
   // campo, para no apagar el badge por un error transitorio de ESPN.
   const enVivoIds = []
   let huboErrorESPN = false
+  // Detalles a archivar en esta pasada. `detallesGuardados` evita repetir el
+  // trabajo sin tener que leer la subcolección en cada tick.
+  const yaArchivados = Array.isArray(q.detallesGuardados) ? q.detallesGuardados : []
+  const porArchivar = []
 
   for (const [liga, ps] of Object.entries(porLiga)) {
     let events
@@ -259,6 +341,12 @@ async function sincronizarQuiniela(q, cache) {
       if (!res) return
       resultados[p.idx] = res
       actualizados++
+      // Este es el último momento en que ESPN todavía tiene las estadísticas y
+      // los eventos de este partido: los archivamos ahora o se pierden.
+      if (!res.cancelado && !yaArchivados.includes(p.idx)) {
+        const detalles = extraerDetalles(ev, p)
+        if (detalles) porArchivar.push({ idx: p.idx, detalles })
+      }
     })
   }
 
@@ -269,9 +357,26 @@ async function sincronizarQuiniela(q, cache) {
   // señal de frescura del front); sin cambios ni resultados, no hay escritura.
   const escribirEnVivo = !huboErrorESPN && (enVivoIds.length > 0 || enVivoCambio)
 
-  if (actualizados === 0 && idsCorregidos === 0 && !escribirEnVivo) return null
+  if (actualizados === 0 && idsCorregidos === 0 && !escribirEnVivo && porArchivar.length === 0) return null
+
+  // Los detalles van a su propio documento antes de tocar la quiniela: si algo
+  // falla aquí, `detallesGuardados` no se actualiza y el siguiente tick
+  // reintenta en vez de dar por archivado algo que no se guardó.
+  if (porArchivar.length > 0) {
+    const ahoraIso = new Date().toISOString()
+    await Promise.all(porArchivar.map(({ idx, detalles }) =>
+      db.collection('quinielas').doc(q.id).collection('detalles').doc(String(idx))
+        .set({ ...detalles, guardadoEn: ahoraIso }, { merge: true })))
+  }
 
   const patch = { resultados }
+  if (porArchivar.length > 0) {
+    patch.detallesGuardados = [...yaArchivados, ...porArchivar.map(d => d.idx)]
+    // Cola para el resumen en video: al pitazo final todavía no está subido.
+    const pendientes = { ...(q.resumenPendiente ?? {}) }
+    porArchivar.forEach(({ idx }) => { pendientes[String(idx)] = { intentos: 0, ultimo: null } })
+    patch.resumenPendiente = pendientes
+  }
   if (!huboErrorESPN) {
     patch.enVivoEspnIds = enVivoIds
     patch.enVivoActualizado = new Date().toISOString()
@@ -282,7 +387,10 @@ async function sincronizarQuiniela(q, cache) {
     patch.finalizadaEn = new Date().toISOString()
   }
   await db.collection('quinielas').doc(q.id).update(patch)
-  return { actualizados, idsCorregidos, enVivo: enVivoIds.length, finalizada: !!patch.finalizada }
+  return {
+    actualizados, idsCorregidos, enVivo: enVivoIds.length,
+    finalizada: !!patch.finalizada, archivados: porArchivar.length,
+  }
 }
 
 // Autoasignación de transmisiones StreamX
@@ -676,10 +784,58 @@ export const sincronizarResultados = onSchedule({
         logger.info(`Quiniela ${q.id} ("${q.nombre ?? ''}"): ${r.actualizados} resultado(s) guardado(s)` +
           (r.idsCorregidos ? `, ${r.idsCorregidos} ID(s) de ESPN corregido(s)` : '') +
           (r.enVivo ? `, ${r.enVivo} partido(s) EN VIVO` : '') +
+          (r.archivados ? `, ${r.archivados} detalle(s) archivado(s)` : '') +
           (r.finalizada ? ' (FINALIZADA 🏆)' : ''))
       }
     } catch (err) {
       logger.error(`Error sincronizando quiniela ${q.id}: ${err.message}`)
     }
   }
+})
+
+// Resúmenes en video, aparte de la sincronización de resultados
+//
+// Va en su propia función a propósito. `sincronizarResultados` es la que
+// sostiene los marcadores de toda la app y no debe depender de un secreto
+// opcional: si YOUTUBE_API_KEY faltara o se borrara, esa función ni siquiera
+// se podría desplegar. Aquí el peor caso es quedarse sin resumen en video.
+//
+// Cada 30 min basta: el throttle de `tocaBuscarResumen` ya limita a 2 intentos
+// por partido, el primero 45 min después del pitazo final.
+
+export const buscarResumenesEnVideo = onSchedule({
+  schedule: 'every 30 minutes',
+  timeZone: 'America/Mexico_City',
+  region: 'us-central1',
+  memory: '256MiB',
+  timeoutSeconds: 120,
+  maxInstances: 1,
+  retryCount: 0,
+  secrets: [YOUTUBE_API_KEY],
+}, async () => {
+  const clave = YOUTUBE_API_KEY.value()
+  if (!clave) {
+    logger.info('Sin YOUTUBE_API_KEY: no se buscan resúmenes en video.')
+    return
+  }
+  const ahora = new Date()
+  const snap = await db.collection('quinielas').get()
+  const pendientes = snap.docs
+    .map(d => ({ id: d.id, ...d.data() }))
+    .filter(q => necesitaResumen(q, ahora))
+
+  if (pendientes.length === 0) {
+    logger.info('Sin resúmenes en video pendientes.')
+    return
+  }
+
+  let total = 0
+  for (const q of pendientes) {
+    try {
+      total += await buscarResumenesPendientes(q, clave, ahora)
+    } catch (error) {
+      logger.warn(`No se pudieron buscar resúmenes de ${q.id}: ${error.message}`)
+    }
+  }
+  logger.info(`${pendientes.length} quiniela(s) revisada(s), ${total} resumen(es) encontrado(s).`)
 })

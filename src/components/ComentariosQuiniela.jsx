@@ -50,12 +50,14 @@ function guardarJSON(key, value) {
   try { localStorage.setItem(key, JSON.stringify(value)) } catch { /* sin storage */ }
 }
 
-export function ComentariosQuiniela({ quiniela }) {
+// `abiertoPorDefecto` es para el ranking de escritorio, donde el panel vive al
+// pie de su columna y cabe abierto: ahí el acordeón solo estorbaría.
+export function ComentariosQuiniela({ quiniela, abiertoPorDefecto = false }) {
   const { confirmar } = useDialog()
   const quinielaId = quiniela?.id
   const chatApagado = quiniela?.chatHabilitado === false
   const quinielaAbierta = !quinielaCerrada(quiniela)
-  const [abierto, setAbierto] = useState(false)
+  const [abierto, setAbierto] = useState(abiertoPorDefecto)
   const [comentarios, setComentarios] = useState([])
   const [cargado, setCargado] = useState(false)
   const [texto, setTexto] = useState('')

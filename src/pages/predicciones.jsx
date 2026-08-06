@@ -106,19 +106,6 @@ function PredIcon({ name, size = 16, style }) {
       </svg>
     )
   }
-  if (name === 'building') {
-    return (
-      <svg {...common}>
-        <path d="M4 21V5a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v16" />
-        <path d="M9 21v-5h3v5" />
-        <path d="M8 7h1" />
-        <path d="M12 7h1" />
-        <path d="M8 11h1" />
-        <path d="M12 11h1" />
-        <path d="M3 21h18" />
-      </svg>
-    )
-  }
   if (name === 'clock') {
     return (
       <svg {...common}>
@@ -793,17 +780,6 @@ export default function Predicciones() {
           </div>
           <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--pred-title-size, 24px)', fontWeight: 700, lineHeight: 1.2, marginBottom: 'var(--pred-title-gap, 10px)', letterSpacing: '-0.01em' }}>{quiniela.nombre}</h1>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
-            {quiniela.empresa && (
-              <span style={{
-                display: 'inline-flex', alignItems: 'center', gap: 4,
-                fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 'var(--radius-full)',
-                background: 'var(--neutral-bg)', color: 'var(--green-light)',
-                border: '1px solid var(--green)', letterSpacing: 0.2,
-              }}>
-                <PredIcon name="building" size={12} />
-                {quiniela.empresa}
-              </span>
-            )}
             {!pantallaArmonia && quiniela.cierre && (() => {
               // Si ya cerro, el estado se muestra solo en la barra de progreso.
               // Mientras sigue abierta, usamos el timer en vivo.

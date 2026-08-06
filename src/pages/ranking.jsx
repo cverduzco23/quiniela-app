@@ -513,25 +513,6 @@ export default function Ranking() {
               </svg>
               {espectadoresRanking}
             </span>
-            {quiniela.empresa && (
-              <span style={{
-                display: 'inline-flex', alignItems: 'center', gap: 4,
-                fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 'var(--radius-full)',
-                background: 'var(--neutral-bg)', color: 'var(--green-light)',
-                border: '1px solid var(--green)', letterSpacing: 0.2,
-              }}>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="M4 21V5a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v16" />
-                  <path d="M9 21v-5h3v5" />
-                  <path d="M8 7h1" />
-                  <path d="M12 7h1" />
-                  <path d="M8 11h1" />
-                  <path d="M12 11h1" />
-                  <path d="M3 21h18" />
-                </svg>
-                {quiniela.empresa}
-              </span>
-            )}
             {enVivo && (
               <span style={{
                 display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 10.5, fontWeight: 600,
@@ -562,7 +543,7 @@ export default function Ranking() {
             )}
           </div>
           {mostrarControlesActualizacion && (
-            <div className="ranking-hero-controls" style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: 8, marginTop: 4 }}>
+            <div className="ranking-hero-controls">
               {ultimaAct && (
                 <span style={{ fontSize: 11, color: 'var(--muted)' }}>
                   Actualizado {ultimaAct.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}

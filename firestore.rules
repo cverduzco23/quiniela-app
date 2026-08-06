@@ -243,6 +243,17 @@ service cloud.firestore {
         allow delete: if false;
       }
 
+      // Archivo de los detalles de un partido terminado: estadísticas, eventos
+      // y el resumen en video que se haya encontrado. ESPN solo devuelve esos
+      // datos durante un par de días, así que la Cloud Function los guarda una
+      // vez al terminar el partido y el ranking los lee desde aquí para
+      // siempre. Solo escribe el servidor (Admin SDK se salta estas reglas):
+      // desde el cliente son de lectura pública, igual que el ranking.
+      match /detalles/{partidoIdx} {
+        allow read: if true;
+        allow write: if false;
+      }
+
       // Presencia efímera del ranking. Un documento estable por dispositivo se
       // renueva cada 2 min y el cliente solo cuenta actividad reciente. No
       // guarda nombres, predicciones ni identificadores de cuenta.

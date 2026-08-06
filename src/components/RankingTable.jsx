@@ -5,8 +5,15 @@ import { tienePremio, calcularGanadores, formatearMXN, descripcionRegla } from '
 import { simularUltimoPartido } from '../utils/escenarios'
 import { normalizarNombre } from '../utils/nombres'
 import { miIdentidadEnQuiniela } from '../utils/misQuinielas'
+import { dispositivoPuedeVerStream, obtenerStreamFuentes, streamDisponibleAhora } from '../utils/streaming'
+import { useEscritorio } from '../hooks/useEscritorio'
+import { useResumenPartido } from '../hooks/useResumenPartido'
+import { useDetallePartido } from '../hooks/useDetallePartido'
+import { ResumenPartido, ResumenYoutube } from './ResumenPartido'
 import { ReaccionesPartido } from './ReaccionesPartido'
 import { ComentariosQuiniela } from './ComentariosQuiniela'
+import { CuentaRegresiva } from './CuentaRegresiva'
+import { RankingLivePlayer } from './RankingLivePlayer'
 import { registrarApertura } from '../utils/analytics'
 import { compartirOraculo, compartirRanking } from '../utils/shareRanking'
 import { useDialog } from './Dialogs'
@@ -65,6 +72,58 @@ const resultBorder = {
   away: 'rgba(250,204,21,0.4)',
 }
 const resultLabel = { home: 'Local', draw: 'Empate', away: 'Visitante' }
+// Estado de un partido a partir de lo guardado por el organizador y de lo que
+// reporta ESPN en vivo. Lo comparten el panel "Partidos" (móvil), el carrusel
+// y la columna del partido (escritorio) para que los tres digan lo mismo.
+function calcularEstadoPartido(partido, idx, resultados, liveScores) {
+  const live      = partido.espnId ? liveScores?.[partido.espnId] : null
+  const stored    = resultados[idx] ?? resultados[String(idx)]
+  const cancelado = !!stored?.cancelado || !!live?.cancelado
+  const noFinal   = !cancelado && !!live?.noFinal
+  const suspendido = noFinal && !!live?.suspendido
+  const esVivo    = !cancelado && live?.state === 'in'
+  const esFinish  = !cancelado && !noFinal && live?.state === 'post'
+  let scoreLocal = '-', scoreVisitante = '-', resDisplay = null
+  if (!cancelado && live && (esVivo || esFinish) && live.local !== '') {
+    scoreLocal = live.local; scoreVisitante = live.visitante
+    resDisplay = goalsToResultado(live.local, live.visitante)
+  } else if (noFinal && live?.local !== '' && live?.visitante !== '') {
+    scoreLocal = live.local; scoreVisitante = live.visitante
+  } else if (!cancelado && stored) {
+    scoreLocal = stored.local ?? '-'; scoreVisitante = stored.visitante ?? '-'
+    resDisplay = getResultado(stored)
+  }
+  const marcadorNoFinalVisible = noFinal && scoreLocal !== '-' && scoreVisitante !== '-'
+  const pendiente = !cancelado && !resDisplay && !esVivo && !esFinish && !noFinal
+  const jugado    = !cancelado && (esFinish || getResultado(stored) !== null)
+  return {
+    live, stored, cancelado, noFinal, suspendido, esVivo, esFinish,
+    scoreLocal, scoreVisitante, resDisplay, marcadorNoFinalVisible, pendiente, jugado,
+    marcadorVisible: !!resDisplay || marcadorNoFinalVisible,
+  }
+}
+
+// Badge de estado del partido (Local / Empate / Visitante / En vivo / Pendiente…).
+// `ocultarPendiente` es para la quiniela todavía abierta, donde marcar
+// "Pendiente" en todos los partidos no aporta nada.
+function badgePartido(e, ocultarPendiente = false) {
+  if (e.cancelado) return <span className="ranking-match-badge" style={{ background: 'var(--neutral-bg)', color: 'var(--muted)', borderColor: 'var(--border-strong)' }}>Cancelado</span>
+  if (e.suspendido) return <span className="ranking-match-badge" style={{ background: 'rgba(245,158,11,0.12)', color: '#FBBF24', borderColor: 'rgba(245,158,11,0.38)' }}>Suspendido</span>
+  if (e.noFinal) return <span className="ranking-match-badge" style={{ background: 'var(--neutral-bg)', color: 'var(--muted)', borderColor: 'var(--border-strong)' }}>En revisión</span>
+  if (e.esVivo) return (
+    <span className="ranking-match-badge is-live-badge" style={{ background: 'var(--red-bg-strong)', color: '#FCA5A5', borderColor: 'rgba(239,68,68,0.4)' }}>
+      <span className="ranking-match-live-dot" />{e.live.penalesEnVivo ? 'Penales' : e.live.halftime ? 'Descanso' : e.live.clock || 'En vivo'}
+    </span>
+  )
+  if (e.resDisplay) return (
+    <span className="ranking-match-badge" style={{ background: resultColor[e.resDisplay].bg, color: resultColor[e.resDisplay].color, borderColor: resultBorder[e.resDisplay] }}>
+      {resultLabel[e.resDisplay]}
+    </span>
+  )
+  if (ocultarPendiente) return null
+  return <span className="ranking-match-badge is-pending-badge" style={{ background: 'var(--neutral-bg)', color: 'var(--muted)', borderColor: 'rgba(148,163,184,0.24)' }}>Pendiente</span>
+}
+
 const PAGE_SIZE = 50
 // Mostrar el buscador solo cuando hay suficientes participantes para que valga la pena.
 // Por debajo de este umbral, scrollear es más rápido.
@@ -316,6 +375,12 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
   const [mostrarInfoPicks, setMostrarInfoPicks] = useState(false)
   const [mostrarTodosPartidos, setMostrarTodosPartidos] = useState(false)
   const [ahora, setAhora] = useState(() => Date.now())
+  // Layout de escritorio (≥1024px): carrusel de partidos arriba y columna del
+  // partido a la derecha. El marcado nuevo no se monta en móvil ni en el
+  // ranking embebido de /stream, así que esas vistas quedan igual que antes.
+  const esEscritorio = useEscritorio()
+  const layoutEscritorio = esEscritorio && !modoStream
+  const [partidoSeleccionado, setPartidoSeleccionado] = useState(null)
 
   useEffect(() => {
     const interval = setInterval(() => setAhora(Date.now()), 30 * 1000)
@@ -607,6 +672,41 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
   // cerró (los picks son públicos) y queda exactamente un partido por definir.
   const simulacion = cerrada ? simularUltimoPartido(quiniela, predicciones, liveScores) : null
 
+  // --- Escritorio: qué partido se ve en la columna derecha -------------------
+  // Por defecto el que esté en vivo; si no hay ninguno, el siguiente por
+  // jugarse; y si ya se jugaron todos, el último. El usuario puede cambiarlo
+  // haciendo clic en cualquier tarjeta del carrusel.
+  const estadosPartidos = partidos.map((p, i) => calcularEstadoPartido(p, i, resultados, liveScores))
+  const partidoDestacadoIdx = (() => {
+    if (partidos.length === 0) return null
+    const vivo = estadosPartidos.findIndex(e => e.esVivo)
+    if (vivo !== -1) return vivo
+    const porJugar = partidos
+      .map((p, i) => ({ i, t: cierreToDate(p.hora)?.getTime() ?? Infinity }))
+      .filter(({ i }) => !estadosPartidos[i].jugado && !estadosPartidos[i].cancelado)
+      .sort((a, b) => a.t - b.t)
+    if (porJugar.length > 0) return porJugar[0].i
+    return partidos
+      .map((p, i) => ({ i, t: cierreToDate(p.hora)?.getTime() ?? -Infinity }))
+      .sort((a, b) => b.t - a.t)[0].i
+  })()
+  const idxColumna = partidoSeleccionado != null && partidos[partidoSeleccionado]
+    ? partidoSeleccionado
+    : partidoDestacadoIdx
+  // Picks propios: los usa el carrusel ("Tu pronóstico") y la columna del
+  // partido. Es la predicción de este dispositivo, así que se puede mostrar
+  // aunque la quiniela siga abierta y el resto de los picks estén ocultos.
+  const misPicks = miNombreRanking
+    ? jugadores.find(j => j.nombre === miNombreRanking)?.picks ?? null
+    : null
+  const puedeVerStream = layoutEscritorio && dispositivoPuedeVerStream(quiniela?.id, predicciones)
+
+  const tarjetaGanador = !modoStream && mostrarGanadorFinal ? (
+    <div className="ranking-champion-slot">
+      <GanadorCard jugadores={jugadores} premioPorNombre={premioPorNombre} conPremio={conPremio} />
+    </div>
+  ) : null
+
   return (
     <>
       <style>{`@keyframes pulse-dot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.3;transform:scale(.65)}}
@@ -642,15 +742,27 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
         </div>
       )}
 
-      <div className={`ranking-desktop-grid${modoStream ? ' is-stream-embed' : ''}`}>
-      {/* Ganador final: fuera de la columna izquierda para que en escritorio
-          pueda ocupar el ancho completo del grid (en móvil el orden visual
-          no cambia: sigue siendo lo primero). */}
-      {!modoStream && mostrarGanadorFinal && (
-        <div className="ranking-champion-slot">
-          <GanadorCard jugadores={jugadores} premioPorNombre={premioPorNombre} conPremio={conPremio} />
-        </div>
+      {/* Ganador final: en escritorio encabeza la pantalla a todo el ancho,
+          arriba del carrusel; en móvil sigue siendo lo primero de la columna. */}
+      {layoutEscritorio && tarjetaGanador}
+
+      {/* Escritorio: carrusel de partidos bajo el header. Sustituye al panel
+          "Partidos" (que en escritorio no se monta) y elige qué partido se ve
+          en la columna de la derecha. */}
+      {layoutEscritorio && partidos.length > 0 && (
+        <CarruselPartidos
+          partidos={partidos}
+          estados={estadosPartidos}
+          cerrada={cerrada}
+          misPicks={misPicks}
+          seleccionado={idxColumna}
+          onSeleccionar={setPartidoSeleccionado}
+        />
       )}
+
+      <div className={`ranking-desktop-grid${modoStream ? ' is-stream-embed' : ' rk-body'}`}>
+      <div className="rk-body-table">
+      {!layoutEscritorio && tarjetaGanador}
       <div className="ranking-desktop-left">
       {/* Banner de premio */}
       {!mostrarGanadorFinal && (conPremio ? (
@@ -673,8 +785,9 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
         </div>
       )}
 
-      {/* Stats */}
-      {!modoStream && <div className="ranking-stats-grid" style={{ display: 'grid', gridTemplateColumns: `repeat(${resumenStats.length},1fr)` }}>
+      {/* Resumen (participantes / partidos): en escritorio el carrusel ya
+          lleva la cuenta de partidos, así que estas tarjetas no se montan. */}
+      {!modoStream && !layoutEscritorio && <div className="ranking-stats-grid" style={{ display: 'grid', gridTemplateColumns: `repeat(${resumenStats.length},1fr)` }}>
         {resumenStats.map(s => (
           <div key={s.label} className="ranking-stat-card ranking-glass-card">
             <span className={`ranking-stat-watermark is-${s.label === 'Participantes' ? 'participants' : 'matches'}`} aria-hidden="true">
@@ -686,8 +799,9 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
         ))}
       </div>}
 
-      {/* Partidos */}
-      {!modoStream && partidos.length > 0 && (
+      {/* Partidos: en escritorio lo sustituyen el carrusel y la columna del
+          partido, así que solo se monta abajo de 1024px. */}
+      {!modoStream && !layoutEscritorio && partidos.length > 0 && (
         <div className={`ranking-panel ranking-matches-panel${enfoqueUltimoPartido ? ' is-last-match-focus' : ''}${finalesSimultaneas ? ' has-simultaneous-finals' : ''}`}>
           <div className="ranking-panel-header ranking-matches-header">
               <span className="ranking-matches-title">
@@ -713,25 +827,11 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
           </div>
           {partidos.map((p, i) => {
             if (enfoqueUltimoPartido && !partidosRestantesIdx.includes(i)) return null
-            const live      = p.espnId ? liveScores?.[p.espnId] : null
-            const stored    = resultados[i] ?? resultados[String(i)]
-            const cancelado = !!stored?.cancelado || !!live?.cancelado
-            const noFinal   = !cancelado && !!live?.noFinal
-            const suspendido = noFinal && !!live?.suspendido
-            const esVivo    = !cancelado && live?.state === 'in'
-            const esFinish  = !cancelado && !noFinal && live?.state === 'post'
-            let scoreLocal = '-', scoreVisitante = '-', resDisplay = null
-            if (!cancelado && live && (esVivo || esFinish) && live.local !== '') {
-              scoreLocal = live.local; scoreVisitante = live.visitante
-              resDisplay = goalsToResultado(live.local, live.visitante)
-            } else if (noFinal && live?.local !== '' && live?.visitante !== '') {
-              scoreLocal = live.local; scoreVisitante = live.visitante
-            } else if (!cancelado && stored) {
-              scoreLocal = stored.local ?? '-'; scoreVisitante = stored.visitante ?? '-'
-              resDisplay = getResultado(stored)
-            }
-            const marcadorNoFinalVisible = noFinal && scoreLocal !== '-' && scoreVisitante !== '-'
-            const pendiente = !cancelado && !resDisplay && !esVivo && !esFinish && !noFinal
+            const estado = calcularEstadoPartido(p, i, resultados, liveScores)
+            const {
+              live, stored, cancelado, esVivo, esFinish,
+              scoreLocal, scoreVisitante, resDisplay, marcadorNoFinalVisible, pendiente,
+            } = estado
             const pendienteEnQuinielaAbierta = !cerrada && pendiente
             const tieneStats = !!p.espnId
             const horaInicio = cierreToDate(p.hora)?.getTime()
@@ -762,31 +862,13 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
             const hayDetallesVisibles = hayStats || eventosNormales.length > 0 || hayPenales
             const tienePrevio = pendiente && !!p.hora
             const tieneAlgo = hayDetallesVisibles || hayResumen || tienePrevio
-            const jugado = !cancelado && (esFinish || getResultado(stored) !== null)
+            const jugado = estado.jugado
             const mostrarStream = quinielaEnJuego && !cancelado && !jugado &&
               Number.isFinite(horaInicio) && ahora >= horaInicio
             const mostrarReacciones = cerrada && !cancelado && jugado
             const matchScoreText = (resDisplay || marcadorNoFinalVisible) ? `${scoreLocal} - ${scoreVisitante}` : 'VS'
             const posH = hayStats ? parseFloat(st.home.posesion) || 50 : 50
-            const badgeNode = cancelado ? (
-              <span className="ranking-match-badge" style={{ background: 'var(--neutral-bg)', color: 'var(--muted)', borderColor: 'var(--border-strong)' }}>Cancelado</span>
-            ) : suspendido ? (
-              <span className="ranking-match-badge" style={{ background: 'rgba(245,158,11,0.12)', color: '#FBBF24', borderColor: 'rgba(245,158,11,0.38)' }}>Suspendido</span>
-            ) : noFinal ? (
-              <span className="ranking-match-badge" style={{ background: 'var(--neutral-bg)', color: 'var(--muted)', borderColor: 'var(--border-strong)' }}>En revisión</span>
-            ) : esVivo ? (
-              <span className="ranking-match-badge is-live-badge" style={{ background: 'var(--red-bg-strong)', color: '#FCA5A5', borderColor: 'rgba(239,68,68,0.4)' }}>
-                <span className="ranking-match-live-dot" />{live.penalesEnVivo ? 'Penales' : live.halftime ? 'Descanso' : live.clock || 'En vivo'}
-              </span>
-            ) : resDisplay ? (
-              <span className="ranking-match-badge" style={{ background: resultColor[resDisplay].bg, color: resultColor[resDisplay].color, borderColor: resultBorder[resDisplay] }}>
-                {resultLabel[resDisplay]}
-              </span>
-            ) : pendienteEnQuinielaAbierta ? (
-              null
-            ) : (
-              <span className="ranking-match-badge is-pending-badge" style={{ background: 'var(--neutral-bg)', color: 'var(--muted)', borderColor: 'rgba(148,163,184,0.24)' }}>Pendiente</span>
-            )
+            const badgeNode = badgePartido(estado, pendienteEnQuinielaAbierta)
             const muestraEstadoPartido = !!badgeNode || tieneAlgo
             return (
               <div
@@ -1079,9 +1161,9 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
         </div>
       )}
 
-      {/* Comentarios de la quiniela: en escritorio queda en la columna
-          izquierda bajo Partidos; en móvil entre Partidos y la tabla. */}
-      {!modoStream && <ComentariosQuiniela quiniela={quiniela} />}
+      {/* Comentarios de la quiniela: en móvil quedan entre Partidos y la tabla;
+          en escritorio se montan al pie de la columna del ranking (más abajo). */}
+      {!modoStream && !layoutEscritorio && <ComentariosQuiniela quiniela={quiniela} />}
 
       </div>
 
@@ -1475,7 +1557,28 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
           {compartiendo ? 'Generando imagen para compartir...' : feedbackShare}
         </p>
       )}
+      {/* En escritorio los comentarios cierran la columna del ranking y se
+          muestran abiertos: ya no hay que desplegar el acordeón. */}
+      {!modoStream && layoutEscritorio && <ComentariosQuiniela quiniela={quiniela} abiertoPorDefecto />}
       </div>
+      </div>
+
+      {layoutEscritorio && idxColumna != null && partidos[idxColumna] && (
+        <ColumnaPartido
+          quiniela={quiniela}
+          idx={idxColumna}
+          partido={partidos[idxColumna]}
+          estado={estadosPartidos[idxColumna]}
+          st={liveStats[partidos[idxColumna]?.espnId]}
+          eventos={liveEventos[partidos[idxColumna]?.espnId] ?? []}
+          penales={livePenales[partidos[idxColumna]?.espnId] ?? []}
+          conteoReacciones={reacciones[String(idxColumna)]}
+          miPick={misPicks?.[idxColumna] ?? misPicks?.[String(idxColumna)]}
+          puedeVerStream={puedeVerStream}
+          cerrada={cerrada}
+          ahora={ahora}
+        />
+      )}
       </div>
     </>
   )
@@ -1512,6 +1615,476 @@ function abreviarNombres(nombres) {
   return map
 }
 
+// Marcador de un pick con espacios ("2 - 1"), o su etiqueta si el pick es
+// solo ganador/empate.
+function pickTexto(pick) {
+  if (!pick) return ''
+  if (typeof pick === 'object') return `${pick.local ?? '?'} - ${pick.visitante ?? '?'}`
+  return { home: 'Local', draw: 'Empate', away: 'Visitante' }[pick] ?? String(pick)
+}
+
+const ETIQUETA_EVENTO = {
+  goal: 'Gol',
+  'yellow-card': 'Tarjeta amarilla',
+  'red-card': 'Tarjeta roja',
+  substitution: 'Cambio',
+}
+
+// ---------------------------------------------------------------------------
+// Escritorio: carrusel de partidos bajo el header
+// ---------------------------------------------------------------------------
+// Franja horizontal de tarjetas, una por partido. Se mueve solo con las flechas
+// (sin barra de desplazamiento) y al hacer clic en una tarjeta ese partido pasa
+// a la columna de la derecha.
+function CarruselPartidos({ partidos, estados, cerrada, misPicks, seleccionado, onSeleccionar }) {
+  const trackRef = useRef(null)
+  const [extremos, setExtremos] = useState({ inicio: true, fin: false })
+
+  // Las flechas se apagan en los extremos para no ofrecer un movimiento que no
+  // va a pasar. 500px ≈ dos tarjetas.
+  const revisarExtremos = () => {
+    const el = trackRef.current
+    if (!el) return
+    setExtremos({
+      inicio: el.scrollLeft <= 1,
+      fin: el.scrollLeft + el.clientWidth >= el.scrollWidth - 1,
+    })
+  }
+  useEffect(() => {
+    revisarExtremos()
+    const el = trackRef.current
+    if (!el) return
+    el.addEventListener('scroll', revisarExtremos, { passive: true })
+    return () => el.removeEventListener('scroll', revisarExtremos)
+  }, [partidos.length])
+
+  const desplazar = (dir) => trackRef.current?.scrollBy({ left: dir * 500, behavior: 'smooth' })
+
+  // El partido que se está viendo a la derecha se centra en la franja: si no,
+  // en una quiniela de 12 partidos la tarjeta marcada queda fuera de pantalla
+  // y no se entiende de dónde sale la columna.
+  const primerCentrado = useRef(true)
+  useEffect(() => {
+    const centrar = () => {
+      const track = trackRef.current
+      const tarjeta = track?.children?.[seleccionado]
+      if (!track || !tarjeta) return
+      const destino = tarjeta.offsetLeft - (track.clientWidth - tarjeta.clientWidth) / 2
+      // `instant` es a propósito: el track lleva `scroll-behavior: smooth` en
+      // CSS y una animación en el primer render se cancela con el siguiente
+      // repintado, dejando la franja de vuelta en el primer partido.
+      track.scrollTo({
+        left: Math.max(0, destino),
+        behavior: primerCentrado.current ? 'instant' : 'smooth',
+      })
+    }
+    if (!primerCentrado.current) { centrar(); return }
+    // La primera vez esperamos a que los escudos carguen: con
+    // `scroll-snap-type: mandatory` el navegador reajusta la posición cuando
+    // el contenido cambia de tamaño.
+    const frame = requestAnimationFrame(centrar)
+    const timer = setTimeout(() => { centrar(); primerCentrado.current = false }, 350)
+    return () => { cancelAnimationFrame(frame); clearTimeout(timer) }
+  }, [seleccionado])
+
+  const jugados = estados.filter(e => e.jugado).length
+  const enVivo  = estados.filter(e => e.esVivo).length
+  const resumen = [
+    `${partidos.length} en total`,
+    `${jugados} jugado${jugados === 1 ? '' : 's'}`,
+    enVivo > 0 ? `${enVivo} en vivo` : null,
+  ].filter(Boolean).join(' · ')
+
+  return (
+    <section className="rk-carousel" aria-label="Partidos de la quiniela">
+      <div className="rk-carousel-head">
+        <span className="rk-carousel-title">
+          <h2>Partidos</h2>
+          <small>{resumen}</small>
+        </span>
+        <span className="rk-carousel-nav">
+          <button
+            type="button"
+            className="rk-carousel-arrow"
+            onClick={() => desplazar(-1)}
+            disabled={extremos.inicio}
+            aria-label="Ver partidos anteriores"
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <polyline points="15 18 9 12 15 6" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            className="rk-carousel-arrow"
+            onClick={() => desplazar(1)}
+            disabled={extremos.fin}
+            aria-label="Ver más partidos"
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <polyline points="9 18 15 12 9 6" />
+            </svg>
+          </button>
+        </span>
+      </div>
+      <div className="rk-carousel-track" ref={trackRef}>
+        {partidos.map((p, i) => {
+          const e = estados[i]
+          const pick = misPicks?.[i] ?? misPicks?.[String(i)]
+          return (
+            <button
+              key={i}
+              type="button"
+              className={`rk-match-card${e.esVivo ? ' is-live' : ''}${seleccionado === i ? ' is-selected' : ''}`}
+              onClick={() => onSeleccionar(i)}
+              aria-pressed={seleccionado === i}
+            >
+              <span className="rk-match-card-top">
+                <span className="rk-match-card-date">{p.hora ? formatFechaDestacada(p.hora) : 'Horario por confirmar'}</span>
+                {badgePartido(e, !cerrada && e.pendiente)}
+              </span>
+              <span className="rk-match-card-teams">
+                <span className="rk-match-card-side">
+                  <span className="rk-match-card-crest">
+                    <EscudoEquipo url={p.escudoLocal} nombre={p.local} plano />
+                  </span>
+                  <span className="rk-match-card-team">{p.local}</span>
+                </span>
+                {e.marcadorVisible ? (
+                  <span className="rk-match-card-score">{e.scoreLocal} - {e.scoreVisitante}</span>
+                ) : (
+                  <span className="rk-match-card-vs">VS</span>
+                )}
+                <span className="rk-match-card-side">
+                  <span className="rk-match-card-crest">
+                    <EscudoEquipo url={p.escudoVisitante} nombre={p.visitante} plano />
+                  </span>
+                  <span className="rk-match-card-team">{p.visitante}</span>
+                </span>
+              </span>
+              <span className="rk-match-card-foot">
+                <span className="rk-match-card-mine">
+                  {pick ? <>Tu pronóstico <strong>{pickTexto(pick)}</strong></> : 'Sin pronóstico'}
+                </span>
+                {e.esVivo && (
+                  <span className="rk-match-card-cta">
+                    <SvgIcon name="broadcast" size={12} />
+                    Ver en vivo
+                  </span>
+                )}
+              </span>
+            </button>
+          )
+        })}
+      </div>
+    </section>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Escritorio: columna del partido (transmisión, marcador, estadísticas, eventos)
+// ---------------------------------------------------------------------------
+function ColumnaPartido({
+  quiniela, idx, partido, estado, st, eventos, penales, conteoReacciones,
+  miPick, puedeVerStream, cerrada, ahora,
+}) {
+  // Quien monta este componente ya garantizó que el partido existe: no hay
+  // salida temprana porque abajo se usan hooks.
+  const p = partido
+  const e = estado
+
+  const hayFuentes = obtenerStreamFuentes(p).length > 0
+  const mostrarPlayer = puedeVerStream && hayFuentes && streamDisponibleAhora(quiniela, idx, ahora)
+
+  // ESPN solo devuelve estadísticas y eventos mientras el partido sigue en la
+  // ventana del scoreboard (un par de días). Pasado eso los leemos del archivo
+  // que dejó la Cloud Function al terminar el partido, para que una quiniela
+  // vieja no se quede en blanco.
+  const statsEnVivo = !!st && st.state !== 'pre'
+  const espnSinDatos = e.jugado && !e.cancelado && (!statsEnVivo || eventos.length === 0)
+  const { detalle } = useDetallePartido(quiniela?.id, idx, espnSinDatos)
+  const stats = statsEnVivo ? st : (detalle?.stats ? { state: 'post', ...detalle.stats } : null)
+  const hayStats = !!stats
+  const posH = hayStats ? parseFloat(stats.home.posesion) || 50 : 50
+  const eventosFuente = eventos.length > 0 ? eventos : (detalle?.eventos ?? [])
+  const eventosNormales = eventosFuente.filter(ev => !ev.penalShootout)
+  const penalesRondas = (() => {
+    const porRonda = {}
+    penales.forEach(k => { (porRonda[k.orden] ||= {})[k.lado] = k })
+    return Object.keys(porRonda).map(Number).sort((a, b) => a - b)
+      .map(n => ({ orden: n, home: porRonda[n].home, away: porRonda[n].away }))
+  })()
+  const mostrarReacciones = cerrada && !e.cancelado && e.jugado
+  // Un partido terminado no necesita un bloque que diga que terminó: el
+  // marcador ya lo cuenta. El resto de los casos (por comenzar, sin señal,
+  // sin permiso) sí necesitan explicar por qué no hay video.
+  const mostrarStandby = !mostrarPlayer && !e.jugado
+  // Sin video la columna tiene ancho de sobra: marcador arriba y estadísticas
+  // debajo se leen mejor que en dos columnas apretadas.
+  const apilado = !mostrarPlayer
+  // El resumen en video es para partidos a los que ESPN ya dejó de mandarles
+  // datos en vivo: los recientes se explican solos con sus estadísticas.
+  // Primero se intenta el clip de ESPN (se pide al vuelo); si no hay, se usa
+  // el video de YouTube que la Cloud Function dejó archivado; y si tampoco,
+  // queda el enlace a la ficha del partido.
+  const mostrarResumen = !statsEnVivo && e.jugado && !e.cancelado && !!p.espnId
+  const { cargando: buscandoResumen, resumen } = useResumenPartido(p, mostrarResumen)
+  const youtube = detalle?.resumenYoutube
+  const hayVideoResumen = mostrarResumen && !!resumen?.mp4
+  const hayVideoYoutube = mostrarResumen && !hayVideoResumen && !buscandoResumen && !!youtube?.videoId
+  const hayAlgunVideo = hayVideoResumen || hayVideoYoutube
+
+  // Etiqueta del minuto/estado a la derecha del panel de marcador.
+  const etiquetaMomento = e.esVivo
+    ? (e.live.penalesEnVivo ? 'Penales' : e.live.halftime ? 'Descanso' : e.live.clock || 'En vivo')
+    : e.cancelado ? 'Cancelado'
+    : e.jugado ? 'Final'
+    : 'Por jugarse'
+
+  // Tu pronóstico contra lo que va pasando en la cancha.
+  const notaPick = (() => {
+    if (!miPick || !e.marcadorVisible || e.cancelado) return ''
+    const resR = goalsToResultado(e.scoreLocal, e.scoreVisitante)
+    const pickR = getPickResultado(miPick)
+    if (!resR || !pickR) return ''
+    const exacto = typeof miPick === 'object' && miPick !== null &&
+      String(e.scoreLocal) === String(miPick.local) &&
+      String(e.scoreVisitante) === String(miPick.visitante)
+    if (exacto) return e.jugado ? 'Marcador exacto · +3' : 'Vas con el marcador exacto'
+    if (resR === pickR) return e.jugado ? 'Resultado correcto · +1' : 'Vas ganando este'
+    return e.jugado ? 'Sin puntos' : 'Vas perdiendo este'
+  })()
+
+  return (
+    <section className="rk-body-live ranking-live-column" aria-label={`Detalle de ${p.local} vs ${p.visitante}`}>
+      <div className="rk-live-head">
+        <span className="rk-live-head-copy">
+          <h2>{p.local} vs {p.visitante}</h2>
+          {p.hora && <p>{formatFechaDestacada(p.hora)}</p>}
+        </span>
+        {e.esVivo && (
+          <span className="rk-live-head-tag">
+            <span className="rk-dot" aria-hidden="true" />
+            EN VIVO
+          </span>
+        )}
+      </div>
+
+      {mostrarPlayer && (
+        <RankingLivePlayer key={idx} quinielaId={quiniela.id} partidoIdx={idx} partido={p} />
+      )}
+      {hayVideoResumen && <ResumenPartido partido={p} resumen={resumen} />}
+      {hayVideoYoutube && <ResumenYoutube partido={p} video={youtube} />}
+      {mostrarResumen && buscandoResumen && (
+        <p className="rk-live-recap-buscando">Buscando el resumen del partido…</p>
+      )}
+      {mostrarStandby && (
+        <ColumnaPartidoSinVideo
+          partido={p}
+          estado={e}
+          puedeVerStream={puedeVerStream}
+          hayFuentes={hayFuentes}
+          ahora={ahora}
+        />
+      )}
+
+      <div className="rk-live-details">
+        <div className="rk-live-panel">
+          <div className="rk-live-panel-head">
+            <span>Marcador y estadísticas</span>
+            <span className={e.esVivo ? 'is-live' : ''}>{etiquetaMomento}</span>
+          </div>
+          <div className="rk-live-panel-body">
+            <div className={`rk-live-scoreboard-stats${apilado ? ' is-stacked' : ''}`}>
+              <div>
+                <div className="rk-live-scoreboard">
+                  <span className="rk-live-scoreboard-side">
+                    <span className="rk-live-scoreboard-crest">
+                      <EscudoEquipo url={p.escudoLocal} nombre={p.local} plano />
+                    </span>
+                    <span className="rk-live-scoreboard-team">{p.local}</span>
+                  </span>
+                  <span className="rk-live-scoreboard-score">
+                    <strong>{e.marcadorVisible ? `${e.scoreLocal} - ${e.scoreVisitante}` : 'VS'}</strong>
+                    {e.esVivo && <span>{etiquetaMomento}</span>}
+                  </span>
+                  <span className="rk-live-scoreboard-side">
+                    <span className="rk-live-scoreboard-crest">
+                      <EscudoEquipo url={p.escudoVisitante} nombre={p.visitante} plano />
+                    </span>
+                    <span className="rk-live-scoreboard-team">{p.visitante}</span>
+                  </span>
+                </div>
+                {miPick && (
+                  <div className="rk-live-mine">
+                    <span className="rk-live-mine-label">Tu pronóstico</span>
+                    <span className="rk-live-mine-value">{pickTexto(miPick)}</span>
+                    {notaPick && <span className="rk-live-mine-note">{notaPick}</span>}
+                  </div>
+                )}
+              </div>
+              {hayStats ? (
+                <div className="ranking-live-stats">
+                  <div className="ranking-match-stat-line is-possession">
+                    <span className="ranking-match-stat-value is-home">{stats.home.posesion}%</span>
+                    <span className="ranking-match-stat-label">Posesión</span>
+                    <span className="ranking-match-stat-value is-away">{stats.away.posesion}%</span>
+                  </div>
+                  <div className="ranking-match-possession-bar">
+                    <span style={{ width: `${posH}%` }} />
+                  </div>
+                  {[
+                    { label: 'Tiros al arco', h: stats.home.tirosArco,    a: stats.away.tirosArco },
+                    { label: 'Tiros totales', h: stats.home.tirosTotales, a: stats.away.tirosTotales },
+                    { label: 'Corners',       h: stats.home.corners,      a: stats.away.corners },
+                    { label: 'Faltas',        h: stats.home.faltas,       a: stats.away.faltas },
+                  ].map(({ label, h, a }) => (
+                    <div key={label} className="ranking-match-stat-line">
+                      <span className="ranking-match-stat-value is-home">{h}</span>
+                      <span className="ranking-match-stat-label">{label}</span>
+                      <span className="ranking-match-stat-value is-away">{a}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : e.jugado ? null : (
+                <p className="rk-live-stats-empty">
+                  Las estadísticas del partido aparecen aquí cuando arranca.
+                </p>
+              )}
+            </div>
+            {(mostrarReacciones || (mostrarResumen && !buscandoResumen && !hayAlgunVideo)) && (
+              <div className="rk-live-actions">
+                {mostrarReacciones && (
+                  <ReaccionesPartido quinielaId={quiniela.id} partidoIdx={idx} conteos={conteoReacciones} />
+                )}
+                {mostrarResumen && !buscandoResumen && !hayAlgunVideo && (
+                  <a
+                    href={`https://www.espn.com/soccer/match/_/gameId/${p.espnId}`}
+                    target="_blank" rel="noreferrer"
+                    className="ranking-match-summary-link"
+                  >
+                    Ver resumen del partido →
+                  </a>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {(eventosNormales.length > 0 || penalesRondas.length > 0) && (
+          <div className="rk-live-panel">
+            <div className="rk-live-panel-head">
+              <span>Eventos del partido</span>
+            </div>
+            <div className="rk-live-panel-body">
+              <div className="rk-live-events">
+                {eventosNormales.map((ev, j) => (
+                  <div key={j} className="rk-live-event">
+                    <span className="rk-live-event-min">{ev.minuto}</span>
+                    <span className={`rk-live-event-icon ranking-match-event-icon is-${ev.tipo || 'default'}`}>
+                      <SvgIcon name={ev.tipo || 'dot'} size={14} />
+                    </span>
+                    <span className="rk-live-event-copy">
+                      <strong>{ev.jugador}</strong>
+                      <span>{ETIQUETA_EVENTO[ev.tipo] ?? 'Jugada'}{ev.ownGoal ? ' en propia puerta' : ''}</span>
+                      {ev.lado && (
+                        <span className="rk-live-event-team">
+                          <EscudoEquipo
+                            url={ev.lado === 'home' ? p.escudoLocal : p.escudoVisitante}
+                            nombre={ev.lado === 'home' ? p.local : p.visitante}
+                            plano
+                          />
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              {penalesRondas.length > 0 && (
+                <div className="rk-live-shootout">
+                  <p>Tanda de penales{e.live?.localPen != null && e.live?.visitantePen != null ? ` · ${e.live.localPen}-${e.live.visitantePen}` : ''}</p>
+                  {penalesRondas.map((r, j) => (
+                    <div key={j} className="rk-live-shootout-row">
+                      <span className="is-home">
+                        {r.home && (
+                          <>
+                            <span style={{ display: 'inline-flex', color: r.home.anotado ? 'var(--green)' : 'var(--red)' }}>
+                              <SvgIcon name={r.home.anotado ? 'check' : 'x'} size={13} />
+                            </span>
+                            {r.home.jugador}
+                          </>
+                        )}
+                      </span>
+                      <span className="is-away">
+                        {r.away && (
+                          <>
+                            {r.away.jugador}
+                            <span style={{ display: 'inline-flex', color: r.away.anotado ? 'var(--green)' : 'var(--red)' }}>
+                              <SvgIcon name={r.away.anotado ? 'check' : 'x'} size={13} />
+                            </span>
+                          </>
+                        )}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </section>
+  )
+}
+
+// Qué se ve en lugar del reproductor cuando no hay transmisión que mostrar:
+// antes del partido, sin señal configurada, sin permiso o ya terminado.
+function ColumnaPartidoSinVideo({ partido, estado, puedeVerStream, hayFuentes, ahora }) {
+  const e = estado
+  const horaInicio = cierreToDate(partido.hora)?.getTime()
+  const porComenzar = e.pendiente && Number.isFinite(horaInicio) && ahora < horaInicio
+
+  let icono, titulo, texto
+  if (e.cancelado) {
+    icono = 'x'
+    titulo = 'Partido cancelado'
+    texto = 'Este partido no cuenta para el ranking.'
+  } else if (porComenzar) {
+    icono = 'calendar'
+    titulo = textoAntesDelPartido(partido.hora, ahora)
+    texto = 'Aquí verás el marcador, las estadísticas y la transmisión en cuanto arranque.'
+  } else if (e.jugado) {
+    icono = 'check'
+    titulo = 'Partido terminado'
+    texto = 'El marcador y las estadísticas quedan abajo.'
+  } else if (!hayFuentes) {
+    icono = 'broadcast'
+    titulo = 'Sin transmisión'
+    texto = 'Este partido no tiene una señal configurada.'
+  } else if (!puedeVerStream) {
+    icono = 'lock'
+    titulo = 'Transmisión para participantes'
+    texto = 'Se puede ver desde el dispositivo con el que registraste tu predicción.'
+  } else {
+    icono = 'broadcast'
+    titulo = 'Transmisión no disponible'
+    texto = 'La señal se habilita desde la hora de inicio y se cierra al guardar el resultado.'
+  }
+
+  return (
+    <div className="rk-live-standby">
+      <span className="rk-live-standby-icon" aria-hidden="true">
+        <SvgIcon name={icono} size={19} />
+      </span>
+      <strong>{titulo}</strong>
+      <p>{texto}</p>
+      {porComenzar && (
+        <CuentaRegresiva cierre={partido.hora} umbralHoras={24 * 365} prefijo="Comienza en" variante="pill" />
+      )}
+    </div>
+  )
+}
+
 // Iniciales de un equipo para usar cuando no hay escudo: nombres compuestos
 // toman la inicial de cada palabra ("South Korea" → "SK"); los simples, sus
 // 3 primeras letras ("Türkiye" → "TÜR").
@@ -1522,10 +2095,19 @@ function inicialesEquipo(nombre) {
 }
 
 // Escudo del equipo, o un badge con sus iniciales si no hay imagen.
-function EscudoEquipo({ url, nombre, size = 18 }) {
+// `plano` es la variante de escritorio (carrusel y marcador del partido): el
+// logo va suelto sobre el fondo, sin círculo ni borde, y llena el contenedor
+// que le da el tamaño desde CSS.
+function EscudoEquipo({ url, nombre, size = 18, plano = false }) {
   const [error, setError] = useState(false)
   if (url && !error) {
+    if (plano) {
+      return <img className="rk-crest-img" src={url} alt={nombre} title={nombre} onError={() => setError(true)} />
+    }
     return <img src={url} alt={nombre} title={nombre} style={{ width: size, height: size, objectFit: 'contain' }} onError={() => setError(true)} />
+  }
+  if (plano) {
+    return <span className="rk-crest-fallback" title={nombre}>{inicialesEquipo(nombre)}</span>
   }
   return (
     <span title={nombre} style={{
