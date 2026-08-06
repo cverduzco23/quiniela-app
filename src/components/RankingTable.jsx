@@ -5,6 +5,7 @@ import { tienePremio, calcularGanadores, formatearMXN, descripcionRegla } from '
 import { simularUltimoPartido } from '../utils/escenarios'
 import { normalizarNombre } from '../utils/nombres'
 import { miIdentidadEnQuiniela } from '../utils/misQuinielas'
+import { ReaccionesPartido } from './ReaccionesPartido'
 import { ComentariosQuiniela } from './ComentariosQuiniela'
 import { registrarApertura } from '../utils/analytics'
 import { compartirOraculo, compartirRanking } from '../utils/shareRanking'
@@ -277,7 +278,7 @@ export function SvgIcon({ name, size = 14, style }) {
   )
 }
 
-export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStats = {}, liveEventos = {}, livePenales = {}, modoStream = false }) {
+export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStats = {}, liveEventos = {}, livePenales = {}, reacciones = {}, modoStream = false }) {
   const { alerta } = useDialog()
   const [expandido, setExpandido]               = useState(new Set())
   const [expandidoPartido, setExpandidoPartido] = useState(new Set())
@@ -734,11 +735,9 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
             const tienePrevio = pendiente && !!p.hora
             const tieneAlgo = hayDetallesVisibles || hayResumen || tienePrevio
             const jugado = !cancelado && (esFinish || getResultado(stored) !== null)
-            // En desarrollo lo conservamos tras el resultado para facilitar las
-            // pruebas. La compilación de producción lo oculta al terminar.
-            const disponiblePorEstado = import.meta.env.PROD ? !jugado : true
-            const mostrarStream = quinielaEnJuego && !cancelado && disponiblePorEstado &&
+            const mostrarStream = quinielaEnJuego && !cancelado && !jugado &&
               Number.isFinite(horaInicio) && ahora >= horaInicio
+            const mostrarReacciones = cerrada && !cancelado && jugado
             const matchScoreText = pendiente ? 'VS' : `${scoreLocal} - ${scoreVisitante}`
             const posH = hayStats ? parseFloat(st.home.posesion) || 50 : 50
             const badgeNode = cancelado ? (
@@ -866,7 +865,14 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                       Ver en vivo
                     </a>
                   )}
-                  {!mostrarStream && <span className="ranking-stream-placeholder" aria-hidden="true" />}
+                  {mostrarReacciones && (
+                    <ReaccionesPartido
+                      quinielaId={quiniela.id}
+                      partidoIdx={i}
+                      conteos={reacciones[String(i)]}
+                    />
+                  )}
+                  {!mostrarStream && !mostrarReacciones && <span className="ranking-stream-placeholder" aria-hidden="true" />}
                   {tieneAlgo && (
                     <span className="ranking-match-toggle ranking-match-toggle-actions">
                       <span className="ranking-match-toggle-icon" aria-hidden="true">

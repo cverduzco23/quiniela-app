@@ -1748,21 +1748,33 @@ export default function Admin() {
   }, [tab, quinielaActual?.id])
 
   // Caja: carga
-  const cargarMovimientos = async () => {
-    setLoadingMovimientos(true)
-    try {
-      const snap = await getDocs(query(collection(db, 'movimientos'), orderBy('fecha', 'desc')))
-      setMovimientos(snap.docs.map(d => ({ id: d.id, ...d.data() })))
-    } catch { /* silent */ }
-    finally { setLoadingMovimientos(false) }
-  }
-
   useEffect(() => {
-    if (autenticado && authListo && (vista === 'caja' || (vista === 'lista' && soySuper))) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      cargarMovimientos()
+    const necesitaCaja = vista === 'caja' ||
+      (vista === 'lista' && (clienteTab === 'caja' || clienteTab === 'stats'))
+    if (!autenticado || !authListo || !necesitaCaja) return
+    let activo = true
+    const cargar = async () => {
+      setLoadingMovimientos(true)
+      try {
+        const ref = collection(db, 'movimientos')
+        const consulta = soySuper
+          ? query(ref, orderBy('fecha', 'desc'))
+          : query(ref, where('ownerUid', '==', miUid))
+        const snap = await getDocs(consulta)
+        if (!activo) return
+        const docsPropios = snap.docs
+          .map(d => ({ id: d.id, ...d.data() }))
+          // Los movimientos legacy sin ownerUid pertenecen a la Caja original
+          // del super admin; los movimientos nuevos ya vienen aislados.
+          .filter(m => !soySuper || !m.ownerUid || m.ownerUid === miUid)
+          .sort((a, b) => String(b.fecha ?? '').localeCompare(String(a.fecha ?? '')))
+        setMovimientos(docsPropios)
+      } catch { /* silent */ }
+      finally { if (activo) setLoadingMovimientos(false) }
     }
-  }, [autenticado, authListo, vista, soySuper])
+    cargar()
+    return () => { activo = false }
+  }, [autenticado, authListo, vista, soySuper, clienteTab, miUid])
 
   // Donativos: carga
   const cargarDonativos = async () => {
@@ -2493,6 +2505,7 @@ export default function Admin() {
         monto: Number(nuevoMonto),
         nota: nuevaNota.trim(),
         fecha: new Date().toISOString(),
+        ownerUid: miUid,
       }
       const ref = await addDoc(collection(db, 'movimientos'), datos)
       setMovimientos(prev => [{ id: ref.id, ...datos }, ...prev])
@@ -3054,11 +3067,9 @@ export default function Admin() {
     setFixtures([])
     setSeleccionados([])
     setCajaNombre(null)
-    if (soySuper && !esEscritorio) {
-      setSuperModulo(tab === 'caja' ? 'caja' : tab === 'stats' ? 'estadisticas' : null)
-    } else {
-      setSuperModulo(null)
-    }
+    // Caja y Estadísticas de la navegación principal siempre corresponden a la
+    // cuenta actual. Las métricas globales continúan dentro de "Super Admin".
+    setSuperModulo(null)
     setClienteTab(tab)
   }
   return (
@@ -3101,9 +3112,8 @@ export default function Admin() {
 
             {loadingLista ? (
               <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--muted)', fontSize: 14 }}>Cargando…</div>
-            ) : (superModuleDesktop || (soySuper && superModulo)) ? (
-              // Super escritorio (dashboard + módulos por sidebar) y super móvil en
-              // Caja/Estadísticas (superModulo fijado por la barra inferior).
+            ) : (superModuleDesktop || (soySuper && superModulo) || clienteTab === 'caja') ? (
+              // Módulos del super y Caja compartida por todos los administradores.
               (() => {
                 const secLabel = { display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, fontWeight: 700, color: 'var(--text-strong)' }
                 const secCard = { ...card, marginTop: 12, padding: '0.9rem 1.1rem' }
@@ -3243,7 +3253,7 @@ export default function Admin() {
                 const cajaDesktop = (
                   <div>
                     <div style={{ marginBottom: 20 }}>
-                      <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 27, fontWeight: 700, color: 'var(--text-strong)', margin: 0, lineHeight: 1.1 }}>Caja global</h2>
+                      <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 27, fontWeight: 700, color: 'var(--text-strong)', margin: 0, lineHeight: 1.1 }}>{soySuper ? 'Caja global' : 'Caja'}</h2>
                       <p style={{ fontSize: 12.5, color: 'var(--muted)', margin: '4px 0 0' }}>Saldos y movimientos por participante. Herramienta interna.</p>
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 20 }}>
@@ -4328,7 +4338,6 @@ export default function Admin() {
                       const horaPico = hpEntry ? `${String(hpEntry[0]).padStart(2, '0')}:00` : '-'
                       const maxV = Math.max(1, ...d7.map(d => Number(d.visitas) || 0))
                       const idxPico = d7.reduce((best, d, i) => (Number(d.visitas) || 0) > (Number(d7[best]?.visitas) || 0) ? i : best, 0)
-                      const cajaNeto = saldos.reduce((a, s) => a + s.saldo, 0)
                       const totalDonado = donativos.reduce((a, d) => a + (Number(d.monto) || 0), 0)
                       const cliAct = clientes.filter(c => c.activo).length
                       const saludo = auth.currentUser?.displayName || 'César'
@@ -4384,17 +4393,15 @@ export default function Admin() {
                             </div>
                           </div>
                           {/* KPIs */}
-                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 14, marginBottom: 20 }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 20 }}>
                             {kpi({ icon: 'users', color: 'var(--green-light)', tint: 'var(--green-bg)', valor: cliAct, sub: `/ ${clientes.length}`, label: 'Clientes activos' })}
                             {kpi({ icon: 'list', color: 'var(--muted)', tint: 'var(--neutral-bg)', valor: quinielas.length, label: 'Quinielas totales' })}
-                            {kpi({ icon: 'wallet', color: 'var(--green-light)', tint: 'var(--green-bg)', valor: formatearMXN(cajaNeto), label: 'Caja global' })}
                             {kpi({ icon: 'trending-up', color: 'var(--muted)', tint: 'var(--neutral-bg)', valor: visitas7.toLocaleString('es-MX'), label: 'Visitas · 7 días' })}
                             {kpi({ icon: 'heart', color: 'var(--yellow-soft)', tint: 'rgba(250,204,21,0.12)', valor: loadingDonativos ? '…' : formatearMXN(totalDonado), sub: donativos.length ? `· ${donativos.length}` : null, label: 'Donativos (Stripe)' })}
                           </div>
                           {/* Módulos */}
                           <p style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--muted-soft)', margin: '0 0 11px' }}>Módulos</p>
                           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 13, marginBottom: 20 }}>
-                            {deskModule({ modulo: 'caja', icon: 'wallet', title: 'Caja global', desc: 'Saldos y movimientos de todos los participantes.' })}
                             {deskModule({ modulo: 'clientes', icon: 'users', title: 'Clientes', meta: clientes.length || null, desc: 'Altas, notas y estado de cuentas.' })}
                             {quinielasOtras.length > 0 && deskModule({ modulo: 'otros', icon: 'user', title: 'Otros admins', meta: quinielasOtras.length, desc: 'Quinielas agrupadas por cliente.' })}
                             {deskModule({ modulo: 'estadisticas', icon: 'chart', title: 'Estadísticas', desc: 'Actividad y uso de toda la plataforma.' })}
@@ -4421,7 +4428,7 @@ export default function Admin() {
                         </div>
                       )
                     })()}
-                    {superModulo === 'caja' && (superModuleDesktop ? cajaDesktop : (<>{tituloTabSuper('Caja', 'Depósitos, premios y saldos por participante')}{cajaSection}</>))}
+                    {clienteTab === 'caja' && (clienteDesktop ? cajaDesktop : (<>{tituloTabSuper('Caja', 'Depósitos, premios y saldos por participante')}{cajaSection}</>))}
                     {superModulo === 'clientes' && (superModuleDesktop ? clientesDesktop : (<>{tituloTabSuper('Clientes', 'Altas, notas y estado de cuentas', volverACuentaSuper)}{clientesSection}</>))}
                     {superModulo === 'mis' && (superModuleDesktop ? misDesktop : misQuinielasSection)}
                     {superModulo === 'otros' && (superModuleDesktop ? otrosDesktop : (<>{tituloTabSuper('Otros admins', 'Quinielas agrupadas por cliente', volverACuentaSuper)}{otrosSection}</>))}
@@ -4685,24 +4692,28 @@ export default function Admin() {
                   })()}
                 </>
               )
-              const proximamente = (icono, titulo, descripcion) => (
-                <div className="admin-coming-soon">
-                  <span className="admin-coming-soon-icon"><AdminIcon name={icono} size={clienteDesktop ? 28 : 40} /></span>
-                  <span className="admin-coming-soon-badge">PRÓXIMAMENTE</span>
-                  <h3>{titulo}</h3>
-                  <p>{descripcion}</p>
-                </div>
-              )
-
               // Router
               if (clienteTab === 'quinielas') {
                 return (<section className="admin-client-page admin-client-quinielas-page">{headerCli('Quinielas', `${quinielasMias.length} en total · ${mias.activas.length} activa${mias.activas.length !== 1 ? 's' : ''}`, ctaNueva)}{listaQuinielas}</section>)
               }
               if (clienteTab === 'caja') {
-                return (<section className="admin-client-page">{headerCli('Caja', 'Depósitos, premios y saldos por participante', null, 'FINANZAS')}{proximamente('wallet', 'Caja próximamente', 'Aquí podrás registrar depósitos, inscripciones, premios y retiros por participante, y ver el saldo de cada quiniela. Estamos afinando esta sección.')}</section>)
+                return null
               }
               if (clienteTab === 'stats') {
-                return (<section className="admin-client-page">{headerCli('Estadísticas', 'Actividad de tus quinielas', null, 'RENDIMIENTO')}{proximamente('chart', 'Estadísticas próximamente', 'Aquí verás visitas, predicciones enviadas y participantes más activos de tus quinielas. Estamos afinando esta sección.')}</section>)
+                const movimientosPropios = soySuper
+                  ? movimientos.filter(m => !m.ownerUid || m.ownerUid === miUid)
+                  : movimientos
+                return (
+                  <section className="admin-client-page admin-organizer-stats-page">
+                    {headerCli('Estadísticas', 'Resultados de tus propias quinielas', null, clienteMobile ? null : 'RENDIMIENTO')}
+                    <EstadisticasOrganizador
+                      quinielas={quinielasMias}
+                      conteos={conteos}
+                      movimientos={movimientosPropios}
+                      onGestionar={gestionarQuiniela}
+                    />
+                  </section>
+                )
               }
               if (clienteTab === 'soporte') {
                 return (
@@ -4716,7 +4727,6 @@ export default function Admin() {
                 const modulosSuper = [
                   ['clientes', 'users', 'Clientes', `${clientes.length} cuenta${clientes.length !== 1 ? 's' : ''}`],
                   ['otros', 'user', 'Otros admins', `${quinielasOtras.length} quiniela${quinielasOtras.length !== 1 ? 's' : ''}`],
-                  ['caja', 'wallet', 'Caja global', 'Saldos y movimientos'],
                   ['estadisticas', 'chart', 'Estadísticas', 'Actividad de plataforma'],
                   ['anuncios', 'alert', 'Anuncios', 'Avisos para administradores'],
                 ]
@@ -6333,6 +6343,223 @@ export default function Admin() {
         </button>
       )}
       </div>
+    </div>
+  )
+}
+
+function EstadisticasOrganizador({ quinielas = [], conteos = {}, movimientos = [], onGestionar }) {
+  const participantesDe = (q) => Math.max(0, (conteos[q.id] ?? 0) - (q.ocultos ?? []).length)
+  const datos = quinielas.map(q => {
+    const participantes = participantesDe(q)
+    const cuota = Number(q.cuota) || 0
+    return {
+      q,
+      participantes,
+      cuota,
+      recaudacion: cuota * participantes,
+      premio: tienePremio(q) ? calcularBote(q, participantes) : 0,
+      creadaMs: fechaCreacionMs(q),
+    }
+  })
+  const participaciones = datos.reduce((total, d) => total + d.participantes, 0)
+  const recaudacion = datos.reduce((total, d) => total + d.recaudacion, 0)
+  const premios = datos.reduce((total, d) => total + d.premio, 0)
+  const promedio = quinielas.length ? participaciones / quinielas.length : 0
+
+  const estados = {
+    activas: quinielas.filter(q => !esCerradaQ(q)).length,
+    enJuego: quinielas.filter(q => esCerradaQ(q) && !esFinalizadaQ(q)).length,
+    finalizadas: quinielas.filter(q => esFinalizadaQ(q)).length,
+    vacias: datos.filter(d => d.participantes === 0).length,
+  }
+
+  const maxPor = (campo) => datos.reduce((mejor, actual) => (
+    !mejor || actual[campo] > mejor[campo] ? actual : mejor
+  ), null)
+  const masConcurrida = maxPor('participantes')
+  const mayorRecaudacion = maxPor('recaudacion')
+  const mayorPremio = maxPor('premio')
+  const cronologicas = [...datos].sort((a, b) => a.creadaMs - b.creadaMs)
+  const crecimientos = cronologicas.slice(1).map((actual, i) => ({
+    ...actual,
+    crecimiento: actual.participantes - cronologicas[i].participantes,
+  }))
+  const mayorCrecimiento = crecimientos.reduce((mejor, actual) => (
+    actual.crecimiento > 0 && (!mejor || actual.crecimiento > mejor.crecimiento) ? actual : mejor
+  ), null)
+
+  const caja = movimientos.reduce((resumen, m) => {
+    const monto = Number(m.monto) || 0
+    if (m.tipo in resumen) resumen[m.tipo] += monto
+    return resumen
+  }, { deposito: 0, inscripcion: 0, premio: 0, retiro: 0 })
+  const cajaNeta = caja.deposito + caja.premio - caja.inscripcion - caja.retiro
+
+  const estadoDe = (q) => {
+    if (esFinalizadaQ(q)) return { label: 'Finalizada', clase: 'is-final' }
+    if (esCerradaQ(q)) return { label: 'En juego', clase: 'is-playing' }
+    return { label: 'Activa', clase: 'is-open' }
+  }
+  const fechaCorta = (q) => {
+    const ms = fechaCreacionMs(q)
+    return ms
+      ? new Date(ms).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' })
+      : 'Sin fecha'
+  }
+
+  const kpis = [
+    { icon: 'ball', label: 'Quinielas creadas', valor: quinielas.length.toLocaleString('es-MX'), tone: 'green' },
+    { icon: 'users', label: 'Participaciones', valor: participaciones.toLocaleString('es-MX'), tone: 'blue' },
+    { icon: 'chart', label: 'Promedio por quiniela', valor: promedio.toLocaleString('es-MX', { maximumFractionDigits: 1 }), tone: 'purple' },
+    { icon: 'banknote', label: 'Recaudación estimada', valor: formatearMXN(recaudacion), tone: 'yellow' },
+    { icon: 'trophy', label: 'Premios generados', valor: formatearMXN(premios), tone: 'orange' },
+  ]
+  const records = [
+    {
+      icon: 'users',
+      kicker: 'Más concurrida',
+      dato: masConcurrida,
+      valor: masConcurrida ? `${masConcurrida.participantes} participantes` : '—',
+    },
+    {
+      icon: 'banknote',
+      kicker: 'Mayor recaudación',
+      dato: mayorRecaudacion,
+      valor: mayorRecaudacion ? formatearMXN(mayorRecaudacion.recaudacion) : '—',
+    },
+    {
+      icon: 'trophy',
+      kicker: 'Mayor premio',
+      dato: mayorPremio,
+      valor: mayorPremio ? formatearMXN(mayorPremio.premio) : '—',
+    },
+    {
+      icon: 'trending-up',
+      kicker: 'Mejor crecimiento',
+      dato: mayorCrecimiento,
+      valor: mayorCrecimiento ? `+${mayorCrecimiento.crecimiento} participantes` : 'Sin crecimiento comparable',
+    },
+  ]
+
+  if (quinielas.length === 0) {
+    return (
+      <div className="admin-organizer-stats-empty">
+        <span><AdminIcon name="chart" size={32} /></span>
+        <h3>Todavía no hay estadísticas</h3>
+        <p>Las métricas aparecerán cuando crees tu primera quiniela.</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="admin-organizer-stats">
+      <div className="admin-organizer-kpi-grid">
+        {kpis.map(kpi => (
+          <article key={kpi.label} className={`admin-organizer-kpi is-${kpi.tone}`}>
+            <span className="admin-organizer-kpi-icon"><AdminIcon name={kpi.icon} size={17} /></span>
+            <strong>{kpi.valor}</strong>
+            <small>{kpi.label}</small>
+          </article>
+        ))}
+      </div>
+
+      <section className="admin-organizer-stats-section">
+        <div className="admin-organizer-stats-heading">
+          <div>
+            <span>DESTACADAS</span>
+            <h3>Tus mejores quinielas</h3>
+          </div>
+          <small>Récords históricos</small>
+        </div>
+        <div className="admin-organizer-record-grid">
+          {records.map(record => (
+            <button
+              key={record.kicker}
+              type="button"
+              className="admin-organizer-record"
+              onClick={() => record.dato && onGestionar(record.dato.q)}
+              disabled={!record.dato}
+            >
+              <span className="admin-organizer-record-icon"><AdminIcon name={record.icon} size={16} /></span>
+              <span className="admin-organizer-record-copy">
+                <small>{record.kicker}</small>
+                <strong>{record.dato?.q.nombre ?? 'Sin datos todavía'}</strong>
+                <em>{record.valor}</em>
+              </span>
+              {record.dato && <AdminIcon name="chevron-right" size={15} />}
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <div className="admin-organizer-stats-columns">
+        <section className="admin-organizer-stats-section">
+          <div className="admin-organizer-stats-heading">
+            <div>
+              <span>ACTIVIDAD</span>
+              <h3>Estado de tus quinielas</h3>
+            </div>
+          </div>
+          <div className="admin-organizer-status-bar" aria-label={`${estados.activas} activas, ${estados.enJuego} en juego y ${estados.finalizadas} finalizadas`}>
+            {estados.activas > 0 && <span className="is-open" style={{ flex: estados.activas }} />}
+            {estados.enJuego > 0 && <span className="is-playing" style={{ flex: estados.enJuego }} />}
+            {estados.finalizadas > 0 && <span className="is-final" style={{ flex: estados.finalizadas }} />}
+          </div>
+          <div className="admin-organizer-status-list">
+            <span><i className="is-open" />Activas <strong>{estados.activas}</strong></span>
+            <span><i className="is-playing" />En juego <strong>{estados.enJuego}</strong></span>
+            <span><i className="is-final" />Finalizadas <strong>{estados.finalizadas}</strong></span>
+            <span><i className="is-empty" />Sin participantes <strong>{estados.vacias}</strong></span>
+          </div>
+        </section>
+
+        <section className="admin-organizer-stats-section">
+          <div className="admin-organizer-stats-heading">
+            <div>
+              <span>CAJA</span>
+              <h3>Resumen de movimientos</h3>
+            </div>
+            <strong className={cajaNeta < 0 ? 'is-negative' : ''}>{cajaNeta >= 0 ? '+' : ''}{formatearMXN(cajaNeta)}</strong>
+          </div>
+          <div className="admin-organizer-cash-grid">
+            <span><small>Depósitos</small><strong className="is-positive">+{formatearMXN(caja.deposito)}</strong></span>
+            <span><small>Premios</small><strong className="is-positive">+{formatearMXN(caja.premio)}</strong></span>
+            <span><small>Inscripciones</small><strong className="is-negative">−{formatearMXN(caja.inscripcion)}</strong></span>
+            <span><small>Retiros</small><strong className="is-negative">−{formatearMXN(caja.retiro)}</strong></span>
+          </div>
+        </section>
+      </div>
+
+      <section className="admin-organizer-stats-section admin-organizer-history">
+        <div className="admin-organizer-stats-heading">
+          <div>
+            <span>HISTORIAL</span>
+            <h3>Resultados por quiniela</h3>
+          </div>
+          <small>{quinielas.length} en total</small>
+        </div>
+        <div className="admin-organizer-history-head" aria-hidden="true">
+          <span>Quiniela</span><span>Estado</span><span>Participantes</span><span>Recaudación</span><span>Premio</span><span />
+        </div>
+        <div className="admin-organizer-history-list">
+          {[...datos].sort((a, b) => b.creadaMs - a.creadaMs).map(d => {
+            const estado = estadoDe(d.q)
+            return (
+              <button key={d.q.id} type="button" className="admin-organizer-history-row" onClick={() => onGestionar(d.q)}>
+                <span className="admin-organizer-history-name">
+                  <strong>{d.q.nombre}</strong>
+                  <small>{fechaCorta(d.q)}</small>
+                </span>
+                <span><i className={`admin-organizer-history-status ${estado.clase}`}>{estado.label}</i></span>
+                <span data-label="Participantes">{d.participantes}</span>
+                <span data-label="Recaudación">{formatearMXN(d.recaudacion)}</span>
+                <span data-label="Premio">{formatearMXN(d.premio)}</span>
+                <AdminIcon name="chevron-right" size={15} />
+              </button>
+            )
+          })}
+        </div>
+      </section>
     </div>
   )
 }

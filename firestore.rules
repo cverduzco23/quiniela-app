@@ -411,11 +411,42 @@ service cloud.firestore {
         esDuenoDeQuiniela(resource.data.quinielaId);
     }
 
-    // movimientos/  (caja interna del admin)
-    // Solo super admin. Esta colección es contabilidad interna del producto
-    // global: no escala por owner por ahora.
+    // movimientos/  (Caja de cada organizador)
+    // Cada admin trabaja únicamente con sus propios movimientos. El super admin
+    // conserva la lectura y administración global, incluyendo documentos legacy
+    // creados antes de añadir ownerUid.
     match /movimientos/{movimientoId} {
-      allow read, write: if isSuperAdmin();
+      allow read: if isSuperAdmin() || (
+        adminActivo() &&
+        resource.data.ownerUid == request.auth.uid
+      );
+
+      allow create: if isSuperAdmin() || (
+        adminActivo() &&
+        request.resource.data.ownerUid == request.auth.uid &&
+        request.resource.data.keys().hasOnly(
+          ['nombre', 'tipo', 'monto', 'nota', 'fecha', 'ownerUid']
+        ) &&
+        request.resource.data.nombre is string &&
+        request.resource.data.nombre.trim() == request.resource.data.nombre &&
+        request.resource.data.nombre.size() >= 2 &&
+        request.resource.data.nombre.size() <= 60 &&
+        request.resource.data.tipo in ['premio', 'deposito', 'inscripcion', 'retiro'] &&
+        request.resource.data.monto is number &&
+        request.resource.data.monto > 0 &&
+        request.resource.data.monto <= 10000000 &&
+        request.resource.data.nota is string &&
+        request.resource.data.nota.size() <= 200 &&
+        request.resource.data.fecha is string &&
+        request.resource.data.fecha.size() <= 40
+      );
+
+      allow update: if false;
+
+      allow delete: if isSuperAdmin() || (
+        adminActivo() &&
+        resource.data.ownerUid == request.auth.uid
+      );
     }
 
     // avisosAdmin/ guarda el historial de anuncios creados por el super admin.

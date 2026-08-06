@@ -55,19 +55,18 @@ describe('streaming', () => {
       partidos: [{ hora: '2026-08-05T18:00:00.000Z' }],
       resultados: {},
     }
-    expect(streamDisponibleAhora(base, 0, Date.parse('2026-08-05T17:30:00.000Z'), true)).toBe(false)
-    expect(streamDisponibleAhora(base, 0, Date.parse('2026-08-05T18:01:00.000Z'), true)).toBe(true)
+    expect(streamDisponibleAhora(base, 0, Date.parse('2026-08-05T17:30:00.000Z'))).toBe(false)
+    expect(streamDisponibleAhora(base, 0, Date.parse('2026-08-05T18:01:00.000Z'))).toBe(true)
   })
 
-  it('en producción cierra partidos terminados o cancelados', () => {
+  it('cierra partidos terminados o cancelados', () => {
     const base = {
       cierre: '2026-08-05T17:00:00.000Z',
       partidos: [{ hora: '2026-08-05T18:00:00.000Z' }, { hora: '2026-08-05T19:00:00.000Z' }],
       resultados: { 0: { local: 2, visitante: 1 } },
     }
     const ahora = Date.parse('2026-08-05T20:00:00.000Z')
-    expect(streamDisponibleAhora(base, 0, ahora, true)).toBe(false)
-    expect(streamDisponibleAhora(base, 0, ahora, false)).toBe(true)
-    expect(streamDisponibleAhora({ ...base, resultados: { 0: { cancelado: true } } }, 0, ahora, false)).toBe(false)
+    expect(streamDisponibleAhora(base, 0, ahora)).toBe(false)
+    expect(streamDisponibleAhora({ ...base, resultados: { 0: { cancelado: true } } }, 0, ahora)).toBe(false)
   })
 })

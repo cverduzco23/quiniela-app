@@ -21,6 +21,7 @@ export default function Ranking() {
 
   const [quiniela, setQuiniela]         = useState(null)
   const [predicciones, setPredicciones] = useState([])
+  const [reacciones, setReacciones]     = useState({})
   const [cargando, setCargando]         = useState(true)
   const [error, setError]               = useState(null)
   const [liveScores, setLiveScores]     = useState({})
@@ -307,6 +308,41 @@ export default function Ranking() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [quiniela?.id])
 
+  // Las reacciones solo se muestran en partidos terminados. Se refrescan aparte
+  // cada 2 minutos para no añadir una consulta a cada polling de marcadores.
+  useEffect(() => {
+    if (!quinielaId) return
+    let activo = true
+    let interval = null
+    const cargarReacciones = async () => {
+      try {
+        const snap = await getDocs(collection(db, 'quinielas', quinielaId, 'reacciones'))
+        if (!activo) return
+        const porPartido = {}
+        snap.docs.forEach(d => { porPartido[d.id] = d.data() })
+        setReacciones(porPartido)
+      } catch { /* las reacciones no deben bloquear el ranking */ }
+    }
+    const iniciar = () => {
+      if (interval || document.hidden) return
+      cargarReacciones()
+      interval = setInterval(cargarReacciones, 2 * 60 * 1000)
+    }
+    const detener = () => {
+      if (!interval) return
+      clearInterval(interval)
+      interval = null
+    }
+    const alCambiarVisibilidad = () => document.hidden ? detener() : iniciar()
+    iniciar()
+    document.addEventListener('visibilitychange', alCambiarVisibilidad)
+    return () => {
+      activo = false
+      detener()
+      document.removeEventListener('visibilitychange', alCambiarVisibilidad)
+    }
+  }, [quinielaId])
+
   // Tracking: ranking visto
   useEffect(() => {
     if (quinielaId) {
@@ -587,7 +623,7 @@ export default function Ranking() {
             </div>
           )
         })()}
-        <RankingTable quiniela={quiniela} predicciones={predicciones} liveScores={liveScores} liveStats={liveStats} liveEventos={liveEventos} livePenales={livePenales} />
+        <RankingTable quiniela={quiniela} predicciones={predicciones} liveScores={liveScores} liveStats={liveStats} liveEventos={liveEventos} livePenales={livePenales} reacciones={reacciones} />
         <div className="app-footer-slot">
           <Footer maxWidth="var(--ranking-max-width, 480px)" />
         </div>

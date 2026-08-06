@@ -46,7 +46,6 @@ export function streamDisponibleAhora(
   quiniela,
   partidoIdx,
   ahora = Date.now(),
-  produccion = import.meta.env.PROD,
 ) {
   const idx = Number(partidoIdx)
   if (!quiniela || !Number.isInteger(idx) || idx < 0) return false
@@ -60,9 +59,7 @@ export function streamDisponibleAhora(
   const resultado = resultados[idx] ?? resultados[String(idx)]
   if (resultado?.cancelado) return false
 
-  // En desarrollo permitimos conservar transmisiones ya terminadas para
-  // probarlas; el build de producción las cierra al guardarse el resultado.
-  if (produccion && (quinielaFinalizada(quiniela) || getResultado(resultado) !== null)) {
+  if (quinielaFinalizada(quiniela) || getResultado(resultado) !== null) {
     return false
   }
 
