@@ -1,6 +1,6 @@
 // Cloud Function: sincronización automática de resultados desde ESPN.
 //
-// Corre cada 10 minutos y hace lo mismo que hacía el botón "⚡ Sincronizar
+// Corre cada 2 minutos y hace lo mismo que hacía el botón "⚡ Sincronizar
 // resultados" del panel de admin, pero para TODAS las quinielas en juego a
 // la vez, sin que nadie tenga que apretar nada:
 //
@@ -176,10 +176,18 @@ async function fetchScoreboard(cache, ligaId, partidos) {
   }
   const hoy = fmtDia(new Date())
   const url = inicio
-    ? `https://site.api.espn.com/apis/site/v2/sports/soccer/${ligaId}/scoreboard?dates=${inicio}-${hoy}`
-    : `https://site.api.espn.com/apis/site/v2/sports/soccer/${ligaId}/scoreboard`
+    ? `https://site.api.espn.com/apis/site/v2/sports/soccer/${ligaId}/scoreboard?dates=${inicio}-${hoy}&limit=100`
+    : `https://site.api.espn.com/apis/site/v2/sports/soccer/${ligaId}/scoreboard?limit=100`
   if (cache.has(url)) return cache.get(url)
-  const promesa = fetch(url)
+  // ESPN empezó a rechazar con 403 el User-Agent predeterminado de Node/undici
+  // usado por Cloud Functions. Un agente HTTP genérico conserva el endpoint
+  // JSON estable sin depender de cookies ni de una sesión de navegador.
+  const promesa = fetch(url, {
+    headers: {
+      Accept: 'application/json',
+      'User-Agent': 'curl/8.7.1',
+    },
+  })
     .then(r => (r.ok ? r.json() : Promise.reject(new Error(`ESPN ${r.status}`))))
     .then(d => d.events ?? [])
   cache.set(url, promesa)
@@ -619,7 +627,7 @@ export const buscarTransmisionesStreamX = onCall({
 // La función programada
 
 export const sincronizarResultados = onSchedule({
-  schedule: 'every 10 minutes',
+  schedule: 'every 2 minutes',
   timeZone: 'America/Mexico_City',
   region: 'us-central1',
   memory: '256MiB',

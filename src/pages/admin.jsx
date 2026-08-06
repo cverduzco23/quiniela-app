@@ -1728,6 +1728,47 @@ export default function Admin() {
     if (syncResultadosMsgTimer.current) clearTimeout(syncResultadosMsgTimer.current)
   }, [])
 
+  // Mientras el organizador mira los resultados, refrescamos el documento cada
+  // minuto. La función programada guarda los marcadores en segundo plano; esta
+  // lectura hace que la tarjeta y su contador los reflejen sin recargar la página.
+  useEffect(() => {
+    if (vista !== 'gestionar' || tab !== 'resultados' || !quinielaActual?.id) return
+    const quinielaId = quinielaActual.id
+    let activo = true
+    let interval = null
+
+    const refrescar = async () => {
+      try {
+        const snap = await getDoc(doc(db, 'quinielas', quinielaId))
+        if (!activo || !snap.exists()) return
+        const remoto = { id: snap.id, ...snap.data() }
+        setQuinielaActual(actual => actual?.id === quinielaId ? remoto : actual)
+        setQuinielas(prev => prev.map(q => q.id === quinielaId ? remoto : q))
+        setResultados(resultadosParaUI(remoto.resultados ?? {}))
+      } catch {
+        // El botón manual queda disponible si una lectura puntual falla.
+      }
+    }
+    const iniciar = () => {
+      if (interval) return
+      interval = setInterval(refrescar, 60 * 1000)
+    }
+    const detener = () => {
+      if (!interval) return
+      clearInterval(interval)
+      interval = null
+    }
+    const alCambiarVisibilidad = () => document.hidden ? detener() : (refrescar(), iniciar())
+
+    iniciar()
+    document.addEventListener('visibilitychange', alCambiarVisibilidad)
+    return () => {
+      activo = false
+      detener()
+      document.removeEventListener('visibilitychange', alCambiarVisibilidad)
+    }
+  }, [vista, tab, quinielaActual?.id])
+
   useEffect(() => {
     if (tab !== 'editar' || !quinielaActual) return
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -5548,7 +5589,7 @@ export default function Admin() {
           const controlSyncResultados = (
             <div className="admin-manage-results-sync" style={{ display: 'grid', justifyItems: 'center', gap: 6, marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--border)', textAlign: 'center' }}>
               <p style={{ fontSize: 11.5, color: 'var(--muted)', margin: 0, lineHeight: 1.45 }}>
-                ¿Ya terminó un partido y no aparece el marcador?
+                Se revisa automáticamente cada minuto. También puedes actualizar ahora.
               </p>
               <button
                 type="button"
