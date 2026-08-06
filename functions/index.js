@@ -279,16 +279,104 @@ async function sincronizarQuiniela(q, cache) {
 
 // Autoasignación de transmisiones StreamX
 
-function normalizarEquipoStream(nombre) {
+const TOKENS_GENERICOS_EQUIPO = new Set([
+  'fc', 'cf', 'sc', 'ac', 'club', 'de', 'del', 'futbol', 'football',
+  'soccer', 'united', 'cd', 'ca', 'afc',
+])
+
+function normalizarEquipoStreamBase(nombre) {
   return normalizarEquipo(nombre)
     .replace(/[^\p{L}\p{N}\s]/gu, ' ')
     .split(/\s+/)
     .filter(Boolean)
-    .filter(token => !new Set([
-      'fc', 'cf', 'sc', 'ac', 'club', 'de', 'del', 'futbol', 'football',
-      'soccer', 'united', 'cd', 'ca', 'afc',
-    ]).has(token))
+    .filter(token => !TOKENS_GENERICOS_EQUIPO.has(token))
     .join(' ')
+}
+
+const GRUPOS_ALIAS_EQUIPO = [
+  // Liga MX
+  ['guadalajara', ['chivas', 'chivas guadalajara', 'deportivo guadalajara']],
+  ['america', ['club america', 'cf america', 'aguilas america']],
+  ['pumas unam', ['pumas', 'unam', 'universidad nacional']],
+  ['tigres uanl', ['tigres', 'uanl']],
+  ['monterrey', ['rayados', 'rayados monterrey']],
+  ['santos laguna', ['santos', 'club santos']],
+  ['tijuana', ['xolos', 'xolos tijuana']],
+  ['atletico san luis', ['atletico de san luis', 'san luis']],
+  ['juarez', ['fc juarez', 'bravos juarez']],
+  ['queretaro', ['gallos blancos', 'gallos blancos queretaro']],
+  ['leon', ['club leon', 'esmeraldas leon']],
+  ['cruz azul', ['la maquina cruz azul']],
+
+  // MLS
+  ['los angeles fc', ['lafc']],
+  ['los angeles galaxy', ['la galaxy', 'galaxy']],
+  ['new york city', ['new york city fc', 'nycfc']],
+  ['new york red bulls', ['ny red bulls', 'new york rb']],
+  ['sporting kansas city', ['sporting kc']],
+  ['inter miami', ['inter miami cf']],
+  ['real salt lake', ['rsl']],
+  ['dc united', ['d c united']],
+  ['cf montreal', ['montreal', 'cf montréal']],
+  ['vancouver whitecaps', ['vancouver whitecaps fc']],
+  ['seattle sounders', ['seattle sounders fc']],
+  ['san jose earthquakes', ['sj earthquakes']],
+
+  // Clubes internacionales conocidos
+  ['manchester united', ['man united', 'man utd', 'manutd']],
+  ['manchester city', ['man city']],
+  ['paris saint germain', ['psg', 'paris sg']],
+  ['bayern munich', ['bayern munchen', 'fc bayern', 'bayern']],
+  ['inter milan', ['internazionale', 'fc internazionale', 'inter']],
+  ['borussia dortmund', ['dortmund', 'bvb']],
+  ['tottenham hotspur', ['tottenham', 'spurs']],
+  ['atletico madrid', ['atletico de madrid']],
+  ['athletic bilbao', ['athletic club', 'athletic']],
+  ['olympique marseille', ['marseille', 'om']],
+  ['olympique lyonnais', ['lyon', 'ol']],
+  ['rb leipzig', ['leipzig']],
+  ['red bull salzburg', ['rb salzburg', 'salzburg']],
+  ['sporting lisboa', ['sporting lisbon', 'sporting cp', 'sporting portugal']],
+  ['benfica', ['sl benfica']],
+  ['porto', ['fc porto']],
+]
+
+const ALIAS_EQUIPO = new Map(GRUPOS_ALIAS_EQUIPO.flatMap(([canonico, alias]) => {
+  const claveCanonica = normalizarEquipoStreamBase(canonico)
+  return [canonico, ...alias].map(nombre => [normalizarEquipoStreamBase(nombre), claveCanonica])
+}))
+
+function normalizarEquipoStream(nombre) {
+  const base = normalizarEquipoStreamBase(nombre)
+  return ALIAS_EQUIPO.get(base) ?? base
+}
+
+function tokensParaSigla(nombre) {
+  return normalizarEquipo(nombre)
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .split(/\s+/)
+    .filter(Boolean)
+}
+
+function siglaEquipo(nombre) {
+  const tokens = tokensParaSigla(nombre)
+  if (tokens.length < 2) return ''
+  return tokens.map(token => {
+    if (['fc', 'cf', 'sc', 'ac', 'afc'].includes(token)) return token
+    return token[0]
+  }).join('')
+}
+
+function esEquivalenciaPorSigla(a, b) {
+  const tokensA = tokensParaSigla(a)
+  const tokensB = tokensParaSigla(b)
+  const compactaA = tokensA.length === 1 ? tokensA[0] : ''
+  const compactaB = tokensB.length === 1 ? tokensB[0] : ''
+  const siglaA = siglaEquipo(a)
+  const siglaB = siglaEquipo(b)
+  const siglaValida = valor => /^[a-z0-9]{3,7}$/.test(valor)
+  return (siglaValida(compactaA) && compactaA === siglaB) ||
+    (siglaValida(compactaB) && compactaB === siglaA)
 }
 
 function similaridadTexto(a, b) {
@@ -296,6 +384,7 @@ function similaridadTexto(a, b) {
   const dos = normalizarEquipoStream(b)
   if (!uno || !dos) return 0
   if (uno === dos) return 1
+  if (esEquivalenciaPorSigla(a, b)) return 0.98
   if (uno.length >= 5 && dos.length >= 5 && (uno.includes(dos) || dos.includes(uno))) return 0.94
   const tokensA = new Set(uno.split(' '))
   const tokensB = new Set(dos.split(' '))
