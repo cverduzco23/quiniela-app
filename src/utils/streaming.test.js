@@ -3,11 +3,13 @@ import {
   analizarStreamXUrl,
   construirStreamXUrl,
   dispositivoPuedeVerStream,
+  esDispositivoMovil,
   esIOS,
   miEnvioEnQuiniela,
   normalizarStreamUrl,
   obtenerStreamFuentes,
   obtenerStreamOpciones,
+  pareceBrave,
   resolverStreamFuente,
   streamDisponibleAhora,
 } from './streaming'
@@ -86,6 +88,15 @@ describe('streaming', () => {
   it('detecta iPhone y iPadOS sin afectar otros dispositivos', () => {
     expect(esIOS('Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)')).toBe(true)
     expect(esIOS('Mozilla/5.0 (Linux; Android 15)')).toBe(false)
+  })
+
+  it('detecta dispositivos móviles y una identificación explícita de Brave', () => {
+    expect(esDispositivoMovil('Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36')).toBe(true)
+    expect(esDispositivoMovil('Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)')).toBe(true)
+    expect(esDispositivoMovil('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)', 0)).toBe(false)
+    expect(esDispositivoMovil('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)', 5)).toBe(true)
+    expect(pareceBrave('Mozilla/5.0 Brave/1.83.109 Mobile')).toBe(true)
+    expect(pareceBrave('Mozilla/5.0 Chrome/140.0 Mobile')).toBe(false)
   })
 
   it('solo habilita una transmisión cuando la quiniela cerró y el partido comenzó', () => {

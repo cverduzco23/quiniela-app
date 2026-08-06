@@ -8,12 +8,16 @@ import { Footer } from '../components/Footer'
 import { miIdentidadEnQuiniela } from '../utils/misQuinielas'
 import {
   dispositivoPuedeVerStream,
+  esDispositivoMovil,
   esIOS,
   obtenerStreamFuentes,
+  pareceBrave,
   resolverStreamFuente,
   streamDisponibleAhora,
 } from '../utils/streaming'
 import { clasificarEstadoNoFinalESPN } from '../utils/espn'
+
+const BRAVE_TIP_DISMISSED_KEY = 'quinielapp-stream-brave-tip-dismissed'
 
 export default function Stream() {
   const { quinielaId, partidoIdx } = useParams()
@@ -24,7 +28,27 @@ export default function Stream() {
   const [iframeCargado, setIframeCargado] = useState(false)
   const [streamTardando, setStreamTardando] = useState(false)
   const [reproduccionIniciada, setReproduccionIniciada] = useState(false)
+  const dispositivoIOS = esIOS()
+  const dispositivoMovil = esDispositivoMovil()
+  const [mostrarConsejoBrave, setMostrarConsejoBrave] = useState(() => {
+    if (!dispositivoMovil || pareceBrave()) return false
+    try {
+      return localStorage.getItem(BRAVE_TIP_DISMISSED_KEY) !== '1'
+    } catch {
+      return true
+    }
+  })
   const playerRef = useRef(null)
+
+  useEffect(() => {
+    const detectarBrave = globalThis.navigator?.brave?.isBrave
+    if (!mostrarConsejoBrave || typeof detectarBrave !== 'function') return
+    detectarBrave.call(globalThis.navigator.brave)
+      .then(esBrave => {
+        if (esBrave) setMostrarConsejoBrave(false)
+      })
+      .catch(() => {})
+  }, [mostrarConsejoBrave])
 
   useEffect(() => {
     let activo = true
@@ -123,7 +147,7 @@ export default function Stream() {
   const modo = fuente?.esStreamX
     ? (modoPedido === 'live1' || modoPedido === 'live2'
         ? modoPedido
-        : (esIOS() ? 'live2' : 'live1'))
+        : (dispositivoIOS ? 'live2' : 'live1'))
     : 'directo'
   const streamUrl = resolverStreamFuente(fuente, modo)
 
@@ -210,9 +234,9 @@ export default function Stream() {
                 key={`${streamUrl}-${iframeKey}`}
                 src={streamUrl}
                 title={`Transmisión de ${partido.local} vs ${partido.visitante}`}
-                allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
+                allow="autoplay; encrypted-media; fullscreen; picture-in-picture; storage-access"
                 allowFullScreen
-                referrerPolicy="no-referrer"
+                referrerPolicy={dispositivoMovil ? 'strict-origin-when-cross-origin' : 'no-referrer'}
                 onLoad={() => {
                   setIframeCargado(true)
                   setStreamTardando(false)
@@ -310,6 +334,37 @@ export default function Stream() {
                 </button>
               ))}
             </div>
+          )}
+          {reproduccionIniciada && mostrarConsejoBrave && (
+            <aside className="stream-brave-tip">
+              <span className="stream-brave-tip-icon" aria-hidden="true">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" />
+                </svg>
+              </span>
+              <div>
+                <strong>¿La señal no avanza?</strong>
+                <p>Brave incluye bloqueo de anuncios y puede ofrecer una reproducción más estable en móvil.</p>
+              </div>
+              <a href="https://brave.com/download/" target="_blank" rel="noopener noreferrer">
+                Descargar Brave
+              </a>
+              <button
+                type="button"
+                className="stream-brave-tip-close"
+                aria-label="Ocultar recomendación"
+                onClick={() => {
+                  try {
+                    localStorage.setItem(BRAVE_TIP_DISMISSED_KEY, '1')
+                  } catch {
+                    // El aviso se oculta durante esta visita aunque el navegador bloquee el almacenamiento.
+                  }
+                  setMostrarConsejoBrave(false)
+                }}
+              >
+                ×
+              </button>
+            </aside>
           )}
         </section>
 

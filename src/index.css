@@ -12874,6 +12874,77 @@ button.admin-account-data-row {
   color: #fca5a5;
 }
 
+.stream-brave-tip {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 10px 36px 10px 11px;
+  border: 1px solid rgba(96,165,250,0.24);
+  border-radius: var(--radius-md);
+  background: rgba(30,64,175,0.09);
+}
+
+.stream-brave-tip-icon {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(96,165,250,0.28);
+  border-radius: 9px;
+  background: rgba(59,130,246,0.12);
+  color: #93c5fd;
+}
+
+.stream-brave-tip strong {
+  display: block;
+  color: var(--text);
+  font-size: 10.5px;
+}
+
+.stream-brave-tip p {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 9.5px;
+  line-height: 1.4;
+}
+
+.stream-brave-tip > a {
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 11px;
+  border: 1px solid rgba(96,165,250,0.36);
+  border-radius: var(--radius-full);
+  background: rgba(59,130,246,0.13);
+  color: #bfdbfe;
+  font-size: 9.5px;
+  font-weight: 850;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.stream-brave-tip-close {
+  position: absolute;
+  top: 5px;
+  right: 6px;
+  width: 25px;
+  height: 25px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+}
+
 .stream-ranking-section {
   width: min(720px, 100%);
   max-width: 100%;
@@ -13161,6 +13232,15 @@ button.admin-account-data-row {
     flex-basis: 100%;
     margin: 0 0 1px;
     text-align: center;
+  }
+
+  .stream-brave-tip {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .stream-brave-tip > a {
+    grid-column: 1 / -1;
+    width: 100%;
   }
 
   .stream-video-section {

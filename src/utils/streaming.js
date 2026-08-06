@@ -87,6 +87,19 @@ export function esIOS(userAgent = globalThis.navigator?.userAgent ?? '') {
     (/Macintosh/i.test(String(userAgent)) && Number(globalThis.navigator?.maxTouchPoints ?? 0) > 1)
 }
 
+export function esDispositivoMovil(
+  userAgent = globalThis.navigator?.userAgent ?? '',
+  maxTouchPoints = globalThis.navigator?.maxTouchPoints ?? 0,
+) {
+  const agente = String(userAgent)
+  return /Android|Mobi|iPad|iPhone|iPod/i.test(agente) ||
+    (/Macintosh/i.test(agente) && Number(maxTouchPoints) > 1)
+}
+
+export function pareceBrave(userAgent = globalThis.navigator?.userAgent ?? '') {
+  return /Brave/i.test(String(userAgent))
+}
+
 // A diferencia de miIdentidadEnQuiniela, este gate no acepta alias elegidos
 // desde otro dispositivo: exige el comprobante local que se guarda al enviar.
 export function miEnvioEnQuiniela(id) {
