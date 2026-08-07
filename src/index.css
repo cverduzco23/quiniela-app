@@ -261,11 +261,37 @@ a:focus-visible {
   0%, 100% { opacity: 1; transform: scale(1); }
   50%      { opacity: 0.84; transform: scale(0.96); }
 }
+.progreso-pasos {
+  width: 100%;
+  margin-top: 16px;
+}
+.progreso-pasos-desktop {
+  display: none;
+}
 .progreso-pasos-circulo-activo {
   animation: progreso-pasos-pulso 2.4s ease-in-out infinite;
 }
 @media (prefers-reduced-motion: reduce) {
   .progreso-pasos-circulo-activo {
+    animation: none;
+  }
+}
+@keyframes qp-sweep {
+  0%   { transform: translateX(-120%); }
+  100% { transform: translateX(260%); }
+}
+@keyframes qp-head {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(250, 204, 21, 0.16), 0 0 10px rgba(250, 204, 21, 0.5); }
+  50%      { box-shadow: 0 0 0 7px rgba(250, 204, 21, 0.05), 0 0 18px rgba(250, 204, 21, 0.85); }
+}
+@keyframes qp-dot {
+  0%, 100% { box-shadow: 0 0 10px rgba(34, 197, 94, 0.5); }
+  50%      { box-shadow: 0 0 18px rgba(34, 197, 94, 0.85); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .progreso-pasos-desktop-sweep,
+  .progreso-pasos-desktop-head,
+  .progreso-pasos-desktop-dot.is-active {
     animation: none;
   }
 }
@@ -13571,6 +13597,147 @@ button.admin-account-data-row {
   /* Vence al marginTop inline de ProgresoPasos. */
   .ranking-hero-stepper > div {
     margin-top: 20px !important;
+  }
+  .progreso-pasos-mobile {
+    display: none;
+  }
+  .progreso-pasos-desktop {
+    display: flex;
+    align-items: center;
+    height: 28px;
+  }
+  .progreso-pasos-desktop-pill {
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
+    gap: 7px;
+    padding: 5px 13px 5px 9px;
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    border-radius: var(--radius-full);
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--muted);
+    font-family: var(--font-sans);
+    font-size: 11.5px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    line-height: 16px;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .progreso-pasos-desktop-pill.is-cumplido {
+    border-color: rgba(34, 197, 94, 0.30);
+    background: rgba(34, 197, 94, 0.10);
+    color: var(--green-light);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  }
+  .progreso-pasos-desktop-pill.is-actual {
+    border-color: rgba(34, 197, 94, 0.38);
+    background: rgba(34, 197, 94, 0.12);
+    color: var(--green-light);
+    font-weight: 800;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  }
+  .progreso-pasos-desktop-pill.is-final {
+    padding-right: 14px;
+    border-color: rgba(250, 204, 21, 0.38);
+    background: rgba(250, 204, 21, 0.12);
+    color: var(--yellow);
+    font-weight: 800;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07), 0 0 20px rgba(250, 204, 21, 0.16);
+  }
+  .progreso-pasos-desktop-dot {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    box-sizing: border-box;
+    flex-shrink: 0;
+    border: 2px solid var(--border-strong);
+    border-radius: 50%;
+  }
+  .progreso-pasos-desktop-pill.is-cumplido .progreso-pasos-desktop-dot,
+  .progreso-pasos-desktop-pill.is-actual .progreso-pasos-desktop-dot {
+    border: 0;
+    background: var(--green);
+  }
+  .progreso-pasos-desktop-pill.is-final .progreso-pasos-desktop-dot {
+    border: 0;
+    background: var(--yellow);
+  }
+  .progreso-pasos-desktop-dot.is-active {
+    animation: qp-dot 2.4s ease-in-out infinite;
+  }
+  .progreso-pasos-desktop-tramo {
+    display: flex;
+    align-items: center;
+    flex: 1;
+    gap: 12px;
+    min-width: 0;
+    margin: 0 14px;
+  }
+  .progreso-pasos-desktop-linea,
+  .progreso-pasos-desktop-track {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+    height: 2px;
+    border-radius: 1px;
+    background: var(--border-strong);
+  }
+  .progreso-pasos-desktop-linea.is-recorrida {
+    background: var(--green);
+    opacity: 0.55;
+  }
+  .progreso-pasos-desktop-linea.is-final-izquierda {
+    background: linear-gradient(90deg, var(--green), rgba(250, 204, 21, 0.55));
+  }
+  .progreso-pasos-desktop-linea.is-final-derecha {
+    background: linear-gradient(90deg, rgba(250, 204, 21, 0.55), var(--yellow));
+  }
+  .progreso-pasos-desktop-label {
+    flex-shrink: 0;
+    color: var(--muted-soft);
+    font-family: var(--font-display);
+    font-size: 12.5px;
+    font-weight: 700;
+    letter-spacing: 0.6px;
+    line-height: 1;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .progreso-pasos-desktop-label.is-actual {
+    color: var(--muted);
+  }
+  .progreso-pasos-desktop-fill {
+    position: absolute;
+    inset: 0 auto 0 0;
+    overflow: hidden;
+    border-radius: 1px;
+    background: var(--green);
+    transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .progreso-pasos-desktop-fill.is-derecha {
+    background: linear-gradient(90deg, var(--green), var(--yellow));
+  }
+  .progreso-pasos-desktop-sweep {
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 40%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.6), transparent);
+    animation: qp-sweep 2.6s ease-in-out infinite;
+  }
+  .progreso-pasos-desktop-head {
+    position: absolute;
+    top: 50%;
+    width: 8px;
+    height: 8px;
+    margin-top: -4px;
+    margin-left: -4px;
+    border-radius: 50%;
+    background: var(--yellow);
+    animation: qp-head 1.8s ease-in-out infinite;
+    transition: left 0.6s cubic-bezier(0.22, 1, 0.36, 1);
   }
 
   /* --- 3. Ganador y carrusel de partidos ----------------------------------- */

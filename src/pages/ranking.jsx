@@ -486,6 +486,10 @@ export default function Ranking() {
 
   const partidos   = quiniela.partidos ?? []
   const resultados = quiniela.resultados ?? {}
+  const partidosJugados = partidos.filter((_, i) => {
+    const resultado = resultados[i] ?? resultados[String(i)]
+    return resultado?.cancelado || getResultado(resultado) !== null
+  }).length
   const enVivo     = Object.values(liveScores).some(l => l.state === 'in')
   const hayPartidosActualizables = partidos.some(p => p.espnId && p.ligaId)
   // Finalizada: nada en vivo y todos los partidos ya con resultado o cancelados.
@@ -606,6 +610,9 @@ export default function Ranking() {
             <ProgresoPasos
               etapa={finalizada ? 'final' : quinielaCerrada(quiniela) ? 'enjuego' : 'abierta'}
               animarActivo
+              participantes={predicciones.length}
+              partidosJugados={partidosJugados}
+              partidosTotales={partidos.length}
             />
           </div>
         </div>
