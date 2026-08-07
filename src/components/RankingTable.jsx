@@ -764,6 +764,14 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
       <div className="rk-body-table">
       {!layoutEscritorio && tarjetaGanador}
       <div className="ranking-desktop-left">
+      {layoutEscritorio && !modoStream && (
+        <div className="rk-participants-heading">
+          <h2>Participantes</h2>
+          <small>
+            {jugadores.length} en total · {finalizada ? 'clasificación final' : enVivo ? 'ranking provisional' : vistaParticipantesAbierta ? 'registrados' : 'clasificación actual'}
+          </small>
+        </div>
+      )}
       {/* Banner de premio */}
       {!mostrarGanadorFinal && (conPremio ? (
         <PremioBanner quiniela={quiniela} bote={bote} ganadores={ganadores} finalizada={finalizada} hayResultados={hayResultados} abierta={vistaParticipantesAbierta} />
@@ -1337,7 +1345,9 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                 <div className="ranking-prize-zone-row">
                   <span className="ranking-prize-zone-title">
                     <SvgIcon name="trophy" size={12} />
-                    En zona de premio
+                    {finalizada
+                      ? (zonaPremioIdxs.length > 1 ? 'Ganadores' : 'Ganador')
+                      : 'En zona de premio'}
                   </span>
                   {premioZonaLabel && <span className="ranking-prize-zone-amount">{premioZonaLabel}</span>}
                 </div>
@@ -1572,10 +1582,8 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
           st={liveStats[partidos[idxColumna]?.espnId]}
           eventos={liveEventos[partidos[idxColumna]?.espnId] ?? []}
           penales={livePenales[partidos[idxColumna]?.espnId] ?? []}
-          conteoReacciones={reacciones[String(idxColumna)]}
           miPick={misPicks?.[idxColumna] ?? misPicks?.[String(idxColumna)]}
           puedeVerStream={puedeVerStream}
-          cerrada={cerrada}
           ahora={ahora}
         />
       )}
@@ -1785,8 +1793,8 @@ function CarruselPartidos({ partidos, estados, cerrada, misPicks, seleccionado, 
 // Escritorio: columna del partido (transmisión, marcador, estadísticas, eventos)
 // ---------------------------------------------------------------------------
 function ColumnaPartido({
-  quiniela, idx, partido, estado, st, eventos, penales, conteoReacciones,
-  miPick, puedeVerStream, cerrada, ahora,
+  quiniela, idx, partido, estado, st, eventos, penales,
+  miPick, puedeVerStream, ahora,
 }) {
   // Quien monta este componente ya garantizó que el partido existe: no hay
   // salida temprana porque abajo se usan hooks.
@@ -1801,20 +1809,22 @@ function ColumnaPartido({
   // que dejó la Cloud Function al terminar el partido, para que una quiniela
   // vieja no se quede en blanco.
   const statsEnVivo = !!st && st.state !== 'pre'
-  const espnSinDatos = e.jugado && !e.cancelado && (!statsEnVivo || eventos.length === 0)
-  const { detalle } = useDetallePartido(quiniela?.id, idx, espnSinDatos)
+  // En un partido terminado también necesitamos el documento archivado para
+  // leer el respaldo de YouTube, aunque ESPN todavía conserve estadísticas.
+  const necesitaDetalle = e.jugado && !e.cancelado
+  const { detalle } = useDetallePartido(quiniela?.id, idx, necesitaDetalle)
   const stats = statsEnVivo ? st : (detalle?.stats ? { state: 'post', ...detalle.stats } : null)
   const hayStats = !!stats
   const posH = hayStats ? parseFloat(stats.home.posesion) || 50 : 50
   const eventosFuente = eventos.length > 0 ? eventos : (detalle?.eventos ?? [])
   const eventosNormales = eventosFuente.filter(ev => !ev.penalShootout)
+  const penalesFuente = penales.length > 0 ? penales : (detalle?.penales ?? [])
   const penalesRondas = (() => {
     const porRonda = {}
-    penales.forEach(k => { (porRonda[k.orden] ||= {})[k.lado] = k })
+    penalesFuente.forEach(k => { (porRonda[k.orden] ||= {})[k.lado] = k })
     return Object.keys(porRonda).map(Number).sort((a, b) => a - b)
       .map(n => ({ orden: n, home: porRonda[n].home, away: porRonda[n].away }))
   })()
-  const mostrarReacciones = cerrada && !e.cancelado && e.jugado
   // Un partido terminado no necesita un bloque que diga que terminó: el
   // marcador ya lo cuenta. El resto de los casos (por comenzar, sin señal,
   // sin permiso) sí necesitan explicar por qué no hay video.
@@ -1822,15 +1832,15 @@ function ColumnaPartido({
   // Sin video la columna tiene ancho de sobra: marcador arriba y estadísticas
   // debajo se leen mejor que en dos columnas apretadas.
   const apilado = !mostrarPlayer
-  // El resumen en video es para partidos a los que ESPN ya dejó de mandarles
-  // datos en vivo: los recientes se explican solos con sus estadísticas.
-  // Primero se intenta el clip de ESPN (se pide al vuelo); si no hay, se usa
-  // el video de YouTube que la Cloud Function dejó archivado; y si tampoco,
-  // queda el enlace a la ficha del partido.
-  const mostrarResumen = !statsEnVivo && e.jugado && !e.cancelado && !!p.espnId
+  // Todo partido terminado reserva este espacio arriba del marcador. Primero
+  // se intenta el clip de ESPN; si no hay, se usa el respaldo de YouTube y,
+  // como último recurso, una portada del partido que conserva el marco 16/9.
+  const mostrarResumen = e.jugado && !e.cancelado
   const { cargando: buscandoResumen, resumen } = useResumenPartido(p, mostrarResumen)
   const youtube = detalle?.resumenYoutube
-  const hayVideoResumen = mostrarResumen && !!resumen?.mp4
+  const claveResumen = `${p.ligaId ?? ''}:${p.espnId ?? ''}`
+  const [resumenFallido, setResumenFallido] = useState('')
+  const hayVideoResumen = mostrarResumen && !!resumen?.mp4 && resumenFallido !== claveResumen
   const hayVideoYoutube = mostrarResumen && !hayVideoResumen && !buscandoResumen && !!youtube?.videoId
   const hayAlgunVideo = hayVideoResumen || hayVideoYoutube
 
@@ -1873,10 +1883,21 @@ function ColumnaPartido({
       {mostrarPlayer && (
         <RankingLivePlayer key={idx} quinielaId={quiniela.id} partidoIdx={idx} partido={p} />
       )}
-      {hayVideoResumen && <ResumenPartido partido={p} resumen={resumen} />}
+      {hayVideoResumen && (
+        <ResumenPartido
+          key={claveResumen}
+          partido={p}
+          resumen={resumen}
+          onError={() => setResumenFallido(claveResumen)}
+        />
+      )}
       {hayVideoYoutube && <ResumenYoutube partido={p} video={youtube} />}
-      {mostrarResumen && buscandoResumen && (
-        <p className="rk-live-recap-buscando">Buscando el resumen del partido…</p>
+      {mostrarResumen && !hayAlgunVideo && (
+        <PortadaResumenPartido
+          partido={p}
+          estado={e}
+          buscando={buscandoResumen}
+        />
       )}
       {mostrarStandby && (
         <ColumnaPartidoSinVideo
@@ -1952,22 +1973,6 @@ function ColumnaPartido({
                 </p>
               )}
             </div>
-            {(mostrarReacciones || (mostrarResumen && !buscandoResumen && !hayAlgunVideo)) && (
-              <div className="rk-live-actions">
-                {mostrarReacciones && (
-                  <ReaccionesPartido quinielaId={quiniela.id} partidoIdx={idx} conteos={conteoReacciones} />
-                )}
-                {mostrarResumen && !buscandoResumen && !hayAlgunVideo && (
-                  <a
-                    href={`https://www.espn.com/soccer/match/_/gameId/${p.espnId}`}
-                    target="_blank" rel="noreferrer"
-                    className="ranking-match-summary-link"
-                  >
-                    Ver resumen del partido →
-                  </a>
-                )}
-              </div>
-            )}
           </div>
         </div>
 
@@ -2034,6 +2039,60 @@ function ColumnaPartido({
         )}
       </div>
     </section>
+  )
+}
+
+// Mantiene una cabecera visual estable cuando ninguna fuente publicó video.
+// Usa únicamente datos que ya pertenecen al partido, por lo que nunca puede
+// enseñar una foto ajena o equivocada.
+function PortadaResumenPartido({ partido, estado, buscando }) {
+  const marcador = estado.marcadorVisible
+    ? `${estado.scoreLocal} - ${estado.scoreVisitante}`
+    : 'VS'
+
+  return (
+    <figure className="rk-live-recap rk-live-recap--cover">
+      <div className="ranking-live-player rk-live-recap-cover">
+        <span className="rk-live-recap-cover-label">
+          {buscando ? 'Buscando resumen…' : 'Partido finalizado'}
+        </span>
+        <div className="rk-live-recap-cover-match">
+          <span className="rk-live-recap-cover-team">
+            <span className="rk-live-recap-cover-crest">
+              <EscudoEquipo url={partido.escudoLocal} nombre={partido.local} plano />
+            </span>
+            <strong>{partido.local}</strong>
+          </span>
+          <span className="rk-live-recap-cover-score">{marcador}</span>
+          <span className="rk-live-recap-cover-team">
+            <span className="rk-live-recap-cover-crest">
+              <EscudoEquipo url={partido.escudoVisitante} nombre={partido.visitante} plano />
+            </span>
+            <strong>{partido.visitante}</strong>
+          </span>
+        </div>
+        {!buscando && partido.espnId && (
+          <a
+            href={`https://www.espn.com/soccer/match/_/gameId/${partido.espnId}`}
+            target="_blank"
+            rel="noreferrer"
+            className="rk-live-recap-cover-link"
+          >
+            Ver ficha del partido en ESPN →
+          </a>
+        )}
+      </div>
+      <figcaption className="rk-live-recap-pie">
+        <span className="rk-live-recap-kicker">
+          {buscando ? 'Consultando ESPN y YouTube' : 'Resumen no disponible'}
+        </span>
+        <span className="rk-live-recap-titulo">
+          {buscando
+            ? 'En cuanto encontremos un video oficial aparecerá en este espacio.'
+            : 'No encontramos un video oficial para este partido.'}
+        </span>
+      </figcaption>
+    </figure>
   )
 }
 
@@ -2304,33 +2363,55 @@ function GanadorCard({ jugadores, premioPorNombre = {}, conPremio }) {
   const detalle = empate
     ? `Empate${conPremio && premio > 0 ? ` · ${premioTxt}` : ''}`
     : `${aciertosTxt} · ${exactosTxt} · ${premioTxt}`
+  const metricas = empate
+    ? [
+        { valor: ganadores.length, etiqueta: 'Ganadores' },
+        conPremio && premio > 0
+          ? { valor: formatearMXN(premio), etiqueta: 'Cada uno' }
+          : { valor: '1°', etiqueta: 'Compartido' },
+        { valor: 'Empate', etiqueta: 'En puntos', texto: true },
+      ]
+    : [
+        { valor: principal.aciertos, etiqueta: 'Aciertos' },
+        { valor: principal.exactos, etiqueta: 'Exactos' },
+        conPremio && premio > 0
+          ? { valor: formatearMXN(premio), etiqueta: 'Premio' }
+          : { valor: '1°', etiqueta: 'Lugar' },
+      ]
 
   return (
-    <div className="ranking-champion-card">
+    <div className={`ranking-champion-card${empate ? ' is-tie' : ''}`}>
       <span className="ranking-champion-shine" aria-hidden="true" />
       <span className="ranking-victory-star is-one" aria-hidden="true" />
-      <span className="ranking-victory-star is-two" aria-hidden="true" />
       <span className="ranking-victory-star is-three" aria-hidden="true" />
-      <span className="ranking-victory-star is-four" aria-hidden="true" />
       <span className="ranking-victory-star is-five" aria-hidden="true" />
-      <span className="ranking-victory-star is-six" aria-hidden="true" />
-      <span className="ranking-victory-star is-seven" aria-hidden="true" />
       <span className="ranking-victory-star is-eight" aria-hidden="true" />
-      <span className="ranking-victory-star is-nine" aria-hidden="true" />
-      <span className="ranking-victory-star is-ten" aria-hidden="true" />
-      <div className="ranking-champion-main">
-        <p className="ranking-champion-kicker">
-          <SvgIcon name="trophy" size={14} />
-          {empate ? 'GANADORES' : 'GANADOR'}
-        </p>
-        <div className={`ranking-champion-names${empate ? ' is-stacked' : ''}`}>
-          {nombres.map((nombre, idx) => (
-            <p key={`${nombre}-${idx}`} className="ranking-champion-name">{nombre}</p>
-          ))}
+      <div className="ranking-champion-identity">
+        <span className="ranking-champion-medallion" aria-hidden="true">
+          {empate ? <SvgIcon name="trophy" size={25} /> : inicialesPersona(principal.nombre)}
+        </span>
+        <div className="ranking-champion-main">
+          <p className="ranking-champion-kicker">
+            <SvgIcon name="trophy" size={14} />
+            {empate ? 'GANADORES' : 'GANADOR'}
+          </p>
+          <div className={`ranking-champion-names${empate ? ' is-stacked' : ''}`}>
+            {nombres.map((nombre, idx) => (
+              <p key={`${nombre}-${idx}`} className="ranking-champion-name">{nombre}</p>
+            ))}
+          </div>
+          <p className="ranking-champion-detail">
+            {detalle}
+          </p>
         </div>
-        <p className="ranking-champion-detail">
-          {detalle}
-        </p>
+      </div>
+      <div className="ranking-champion-metrics" aria-label={detalle}>
+        {metricas.map(({ valor, etiqueta, texto }) => (
+          <div key={etiqueta} className="ranking-champion-metric">
+            <strong className={texto ? 'is-text' : ''}>{valor}</strong>
+            <span>{etiqueta}</span>
+          </div>
+        ))}
       </div>
       <div className="ranking-champion-score" aria-label={`${puntosCampeon} puntos`}>
         <span className="ranking-champion-points">{puntosCampeon}</span>

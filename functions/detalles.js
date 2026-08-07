@@ -69,6 +69,89 @@ export function extraerDetalles(ev, partido) {
   return { stats: hayStats ? stats : null, eventos }
 }
 
+// La ficha individual (`/summary?event=`) conserva el boxscore y las jugadas
+// después de que el partido desaparece del scoreboard. Su forma es distinta:
+// equipos en `boxscore.teams`, jugadas en `keyEvents` y penales en `shootout`.
+export function extraerDetallesResumen(summary, partido) {
+  const competidores = summary?.header?.competitions?.[0]?.competitors ?? []
+  const homeHeader = competidores.find(c => c.homeAway === 'home')
+  const awayHeader = competidores.find(c => c.homeAway === 'away')
+  const equipos = summary?.boxscore?.teams ?? []
+
+  const encontrarEquipo = (header, fallbackIdx) => {
+    const id = header?.team?.id
+    return equipos.find(e => id && String(e?.team?.id) === String(id)) ?? equipos[fallbackIdx]
+  }
+  const home = encontrarEquipo(homeHeader, 0)
+  const away = encontrarEquipo(awayHeader, 1)
+
+  const lado = (equipo, nombreFallback) => ({
+    nombre:       equipo?.team?.displayName ?? nombreFallback ?? '',
+    logo:         equipo?.team?.logo ?? '',
+    posesion:     stat(equipo?.statistics, 'possessionPct'),
+    tirosArco:    stat(equipo?.statistics, 'shotsOnTarget'),
+    tirosTotales: stat(equipo?.statistics, 'totalShots'),
+    corners:      stat(equipo?.statistics, 'wonCorners'),
+    faltas:       stat(equipo?.statistics, 'foulsCommitted'),
+  })
+
+  const stats = home && away
+    ? { home: lado(home, partido?.local), away: lado(away, partido?.visitante) }
+    : null
+  const hayStats = !!stats && ['posesion', 'tirosArco', 'tirosTotales', 'corners', 'faltas']
+    .some(k => stats.home[k] !== '-' || stats.away[k] !== '-')
+
+  const homeId = homeHeader?.team?.id ?? home?.team?.id
+  const awayId = awayHeader?.team?.id ?? away?.team?.id
+  const tiposPermitidos = new Set(['goal', 'yellow-card', 'red-card', 'substitution'])
+  const eventos = (summary?.keyEvents ?? [])
+    .filter(e => e?.scoringPlay || tiposPermitidos.has(e?.type?.type))
+    .map(e => {
+      const tipoESPN = e?.type?.type
+      const tipo = e?.scoringPlay ? 'goal'
+        : tipoESPN === 'yellow-card' ? 'yellow-card'
+          : tipoESPN === 'red-card' ? 'red-card'
+            : tipoESPN === 'substitution' ? 'substitution' : 'default'
+      const teamId = e?.team?.id
+      const ladoEvento = teamId != null && String(teamId) === String(homeId) ? 'home'
+        : teamId != null && String(teamId) === String(awayId) ? 'away' : null
+      const atleta = e?.participants?.[0]?.athlete
+      return {
+        tipo,
+        minuto: e?.clock?.displayValue || '',
+        lado: ladoEvento,
+        jugador: atleta?.shortName || atleta?.displayName || '',
+        ownGoal: !!e?.ownGoal,
+        penalShootout: false,
+        anotado: !!e?.scoringPlay,
+      }
+    })
+
+  const penales = []
+  ;(summary?.shootout ?? []).forEach(equipo => {
+    const id = equipo?.id
+    const ladoTiro = id != null && String(id) === String(homeId) ? 'home'
+      : id != null && String(id) === String(awayId) ? 'away' : null
+    if (!ladoTiro) return
+    ;(equipo?.shots ?? []).forEach(tiro => {
+      penales.push({
+        lado: ladoTiro,
+        jugador: tiro?.player ?? '',
+        anotado: !!tiro?.didScore,
+        orden: Number(tiro?.shotNumber) || 0,
+      })
+    })
+  })
+  penales.sort((a, b) => (a.orden - b.orden) || (a.lado === 'home' ? -1 : 1))
+
+  if (!hayStats && eventos.length === 0 && penales.length === 0) return null
+  return {
+    stats: hayStats ? stats : null,
+    eventos,
+    ...(penales.length > 0 ? { penales } : {}),
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Resumen en video desde YouTube
 // ---------------------------------------------------------------------------
@@ -82,15 +165,27 @@ export function extraerDetalles(ev, partido) {
 // sin dar ningún error. La API los traduce por 1 unidad de cuota y el
 // resultado se guarda en memoria mientras viva la instancia.
 export const CANALES_OFICIALES = [
+  // Fuentes primarias del torneo y la liga. Los channelId salen enlazados
+  // desde sus sitios oficiales y evitan gastar cuota resolviendo el handle.
+  { channelId: 'UCcH10bZQXIfq3B1XzqPzNbQ', nombre: 'Leagues Cup' },
+  { handle: '@mls', nombre: 'Major League Soccer' },
+  // Clubes del partido que destapó esta carencia. Ambos publican resúmenes
+  // propios y sus IDs están enlazados desde sus sitios oficiales.
+  { channelId: 'UCnFoCifXR_Qp5iXhK73-kjQ', nombre: 'Minnesota United FC' },
+  { channelId: 'UCBG46z8mfj69eSbzpLJIv_Q', nombre: 'FC Juárez Oficial' },
   { handle: '@TUDNMEX', nombre: 'TUDN México' },
   { handle: '@ESPNDeportes', nombre: 'ESPN Deportes' },
   { handle: '@AztecaDeportes', nombre: 'Azteca Deportes' },
   { handle: '@LigaBBVAMX', nombre: 'Liga BBVA MX' },
+  { handle: '@foxdeportes', nombre: 'Fox Deportes' },
 ]
 
 const idsResueltos = new Map()
 
-export async function resolverCanal(handle, apiKey, fetchImpl = fetch) {
+export async function resolverCanal(canal, apiKey, fetchImpl = fetch) {
+  if (canal?.channelId) return canal.channelId
+  const handle = canal?.handle
+  if (!handle) return null
   if (idsResueltos.has(handle)) return idsResueltos.get(handle)
   const url = new URL('https://www.googleapis.com/youtube/v3/channels')
   url.searchParams.set('key', apiKey)
@@ -155,7 +250,7 @@ export function esResumenDelPartido(item, partido, { alias = {}, horasMargen = 7
 
   // Descarta previas y transmisiones: buscamos el resumen posterior.
   const t = normalizar(titulo)
-  if (/\b(previa|preview|en vivo|reaccion|analisis|rumbo a|conferencia)\b/.test(t)) return false
+  if (/\b(previa|preview|en vivo|reaccion|analisis|rumbo a|conferencia|entrevista|postgame|presser|press conference)\b/.test(t)) return false
   return true
 }
 
@@ -173,43 +268,53 @@ export function elegirResumenYoutube(items, partido, opciones) {
   }
 }
 
-// Busca en un canal oficial a la vez. La API cobra 100 unidades por búsqueda y
-// no acepta varios canales en la misma llamada, así que se recorre en orden y
-// se corta en cuanto uno da resultado. En el peor caso son 4 búsquedas por
-// partido, y solo se intenta un número acotado de veces (ver index.js).
+// Resuelve la lista blanca de canales y hace UNA búsqueda global. La API no
+// acepta varios channelId en una llamada; buscar cada canal por separado
+// multiplicaría la cuota al ampliar fuentes. Filtrar los resultados por
+// snippet.channelId conserva la garantía de usar solo publicaciones oficiales.
 export async function buscarResumenYoutube(partido, apiKey, fetchImpl = fetch) {
   if (!apiKey) return null
-  const consulta = `${partido.local} ${partido.visitante} resumen`
+  // Sin "resumen": los canales de EE. UU. titulan "Highlights". El filtro
+  // posterior exige ambos equipos y prioriza resumen/highlights.
+  const consulta = `${partido.local} ${partido.visitante}`
   const desde = new Date(partido.hora)
   if (isNaN(desde.getTime())) return null
   const publishedAfter = new Date(desde.getTime() - 3600e3).toISOString()
 
+  const permitidos = new Map()
   for (const canal of CANALES_OFICIALES) {
-    const canalId = await resolverCanal(canal.handle, apiKey, fetchImpl)
-    if (!canalId) continue
-    const url = new URL('https://www.googleapis.com/youtube/v3/search')
-    url.searchParams.set('key', apiKey)
-    url.searchParams.set('part', 'snippet')
-    url.searchParams.set('type', 'video')
-    url.searchParams.set('maxResults', '10')
-    url.searchParams.set('order', 'relevance')
-    url.searchParams.set('channelId', canalId)
-    url.searchParams.set('q', consulta)
-    url.searchParams.set('publishedAfter', publishedAfter)
-    try {
-      const res = await fetchImpl(url.toString())
-      if (!res.ok) {
-        logger.warn(`YouTube respondió ${res.status} para ${canal.nombre}`)
-        // 403 casi siempre es cuota agotada: no tiene caso seguir con los demás.
-        if (res.status === 403) return null
-        continue
-      }
-      const datos = await res.json()
-      const elegido = elegirResumenYoutube(datos.items, partido)
-      if (elegido?.videoId) return { ...elegido, canal: elegido.canal || canal.nombre }
-    } catch (error) {
-      logger.warn(`Búsqueda de resumen falló en ${canal.nombre}: ${error.message}`)
-    }
+    const canalId = await resolverCanal(canal, apiKey, fetchImpl)
+    if (canalId) permitidos.set(canalId, canal.nombre)
   }
-  return null
+  if (permitidos.size === 0) return null
+
+  const url = new URL('https://www.googleapis.com/youtube/v3/search')
+  url.searchParams.set('key', apiKey)
+  url.searchParams.set('part', 'snippet')
+  url.searchParams.set('type', 'video')
+  url.searchParams.set('maxResults', '25')
+  url.searchParams.set('order', 'relevance')
+  url.searchParams.set('q', consulta)
+  url.searchParams.set('publishedAfter', publishedAfter)
+  try {
+    const res = await fetchImpl(url.toString())
+    if (!res.ok) {
+      logger.warn(`YouTube respondió ${res.status} al buscar ${consulta}`)
+      return null
+    }
+    const datos = await res.json()
+    const oficiales = (datos.items ?? []).filter(item =>
+      permitidos.has(item?.snippet?.channelId))
+    const elegido = elegirResumenYoutube(oficiales, partido)
+    if (!elegido?.videoId) return null
+    return {
+      ...elegido,
+      canal: elegido.canal ||
+        permitidos.get(oficiales.find(i => i?.id?.videoId === elegido.videoId)?.snippet?.channelId) ||
+        'YouTube',
+    }
+  } catch (error) {
+    logger.warn(`Búsqueda de resumen falló para ${consulta}: ${error.message}`)
+    return null
+  }
 }

@@ -29,7 +29,7 @@ import { defineSecret } from 'firebase-functions/params'
 import { logger } from 'firebase-functions'
 import { initializeApp } from 'firebase-admin/app'
 import { getFirestore } from 'firebase-admin/firestore'
-import { buscarResumenYoutube, extraerDetalles } from './detalles.js'
+import { buscarResumenYoutube, extraerDetalles, extraerDetallesResumen } from './detalles.js'
 
 initializeApp()
 const db = getFirestore()
@@ -125,11 +125,42 @@ function clasificarEstadoNoFinalESPN(evento) {
 // Evita trabajar para siempre en quinielas abandonadas (ej. un partido que
 // ESPN nunca marcó como terminado). Pasado este plazo, el admin captura a mano.
 const DIAS_VENTANA = 14
+const MAX_INTENTOS_DETALLES = 8
+const ESPERA_DETALLES_MS = 30 * 60 * 1000
 
 function tieneMarcadorFinal(r) {
   if (!r) return false
   if (r.cancelado) return true
   return String(r.local ?? '').trim() !== '' && String(r.visitante ?? '').trim() !== ''
+}
+
+export function tocaBuscarDetalles(pendiente, horaPartido, ahora = new Date()) {
+  if (pendiente?.encontrado || pendiente?.agotado) return false
+  const jugado = new Date(horaPartido).getTime()
+  if (isNaN(jugado)) return false
+  const edad = ahora.getTime() - jugado
+  if (edad < 0 || edad > DIAS_VENTANA * 24 * 60 * 60 * 1000) return false
+  const intentos = Number(pendiente?.intentos) || 0
+  if (intentos >= MAX_INTENTOS_DETALLES) return false
+  const ultimo = pendiente?.ultimo ? new Date(pendiente.ultimo).getTime() : 0
+  if (ultimo && ahora.getTime() - ultimo < ESPERA_DETALLES_MS) return false
+  return true
+}
+
+export function indicesDetallesPendientes(q, ahora = new Date()) {
+  if (!q) return []
+  const archivados = new Set(Array.isArray(q.detallesGuardados) ? q.detallesGuardados.map(Number) : [])
+  const estados = q.detallesPendientes ?? {}
+  return (q.partidos ?? []).flatMap((partido, idx) => {
+    if (archivados.has(idx) || !partido?.espnId || !partido?.ligaId) return []
+    const resultado = q.resultados?.[idx]
+    if (!tieneMarcadorFinal(resultado) || resultado?.cancelado) return []
+    return tocaBuscarDetalles(estados[String(idx)], partido.hora, ahora) ? [idx] : []
+  })
+}
+
+export function necesitaDetalles(q, ahora = new Date()) {
+  return indicesDetallesPendientes(q, ahora).length > 0
 }
 
 /** ¿Esta quiniela necesita que intentemos sincronizarla en esta corrida? */
@@ -199,6 +230,72 @@ async function fetchScoreboard(cache, ligaId, partidos) {
   return promesa
 }
 
+async function fetchResumenPartido(cache, partido) {
+  const url = `https://site.api.espn.com/apis/site/v2/sports/soccer/${partido.ligaId}/summary?event=${partido.espnId}`
+  if (cache.has(url)) return cache.get(url)
+  const promesa = fetch(url, {
+    headers: {
+      Accept: 'application/json',
+      'User-Agent': 'curl/8.7.1',
+    },
+  })
+    .then(r => (r.ok ? r.json() : Promise.reject(new Error(`ESPN summary ${r.status}`))))
+  cache.set(url, promesa)
+  return promesa
+}
+
+async function respaldarDetallesFaltantes(q, cache, ahora = new Date()) {
+  const indices = indicesDetallesPendientes(q, ahora)
+  if (indices.length === 0) return 0
+
+  const archivados = new Set(Array.isArray(q.detallesGuardados) ? q.detallesGuardados.map(Number) : [])
+  const pendientes = { ...(q.detallesPendientes ?? {}) }
+  let guardados = 0
+  let cambio = false
+
+  for (const idx of indices) {
+    const partido = q.partidos[idx]
+    try {
+      const summary = await fetchResumenPartido(cache, partido)
+      const detalles = extraerDetallesResumen(summary, partido)
+      cambio = true
+      if (detalles) {
+        await db.collection('quinielas').doc(q.id).collection('detalles').doc(String(idx))
+          .set({ ...detalles, guardadoEn: ahora.toISOString(), fuenteDetalles: 'espn-summary' }, { merge: true })
+        archivados.add(idx)
+        pendientes[String(idx)] = { encontrado: true, encontradoEn: ahora.toISOString() }
+        guardados++
+      } else {
+        const previo = pendientes[String(idx)] ?? {}
+        const intentos = (Number(previo.intentos) || 0) + 1
+        pendientes[String(idx)] = {
+          intentos,
+          ultimo: ahora.toISOString(),
+          ...(intentos >= MAX_INTENTOS_DETALLES ? { agotado: true } : {}),
+        }
+      }
+    } catch (error) {
+      cambio = true
+      const previo = pendientes[String(idx)] ?? {}
+      const intentos = (Number(previo.intentos) || 0) + 1
+      pendientes[String(idx)] = {
+        intentos,
+        ultimo: ahora.toISOString(),
+        ...(intentos >= MAX_INTENTOS_DETALLES ? { agotado: true } : {}),
+      }
+      logger.warn(`No se pudo respaldar detalle ${q.id}/${idx}: ${error.message}`)
+    }
+  }
+
+  if (cambio) {
+    await db.collection('quinielas').doc(q.id).update({
+      detallesGuardados: [...archivados].sort((a, b) => a - b),
+      detallesPendientes: pendientes,
+    })
+  }
+  return guardados
+}
+
 /** Extrae el resultado final de un evento ESPN, o null si aún no termina. */
 function resultadoDeEvento(ev) {
   const state = ev.status?.type?.state
@@ -222,12 +319,15 @@ function resultadoDeEvento(ev) {
 // en el mismo tick en que se persiste el marcador final, que es el último
 // momento en que están disponibles.
 
-const MAX_INTENTOS_RESUMEN = 2
+// Cuatro intentos permiten reintentar partidos que agotaron la búsqueda antes
+// de que agregáramos las fuentes oficiales de Leagues Cup, MLS y los clubes.
+const MAX_INTENTOS_RESUMEN = 4
 const ESPERA_PRIMER_INTENTO_MS = 45 * 60 * 1000   // el video no está al pitazo final
 const ESPERA_ENTRE_INTENTOS_MS = 3 * 60 * 60 * 1000
 const VENTANA_RESUMEN_MS = 72 * 60 * 60 * 1000    // pasados 3 días, se deja de buscar
 
 export function tocaBuscarResumen(pendiente, horaPartido, ahora = new Date()) {
+  if (pendiente?.encontrado || pendiente?.agotado) return false
   const jugado = new Date(horaPartido).getTime()
   if (isNaN(jugado)) return false
   const t = ahora.getTime()
@@ -238,6 +338,29 @@ export function tocaBuscarResumen(pendiente, horaPartido, ahora = new Date()) {
   const ultimo = pendiente?.ultimo ? new Date(pendiente.ultimo).getTime() : 0
   if (ultimo && t - ultimo < ESPERA_ENTRE_INTENTOS_MS) return false
   return true
+}
+
+// Quinielas que ya tenían sus marcadores guardados antes de existir la cola de
+// videos nunca pasaron por `porArchivar`. Las incorporamos retroactivamente
+// mientras sigan dentro de la ventana de 72 horas.
+export function completarColaResumen(q, ahora = new Date()) {
+  if (!q) return q
+  const pendientes = { ...(q.resumenPendiente ?? {}) }
+  let cambio = false
+  ;(q.partidos ?? []).forEach((partido, idx) => {
+    const clave = String(idx)
+    if (Object.prototype.hasOwnProperty.call(pendientes, clave)) return
+    if (!partido?.espnId || !partido?.ligaId) return
+    const resultado = q.resultados?.[idx]
+    if (!tieneMarcadorFinal(resultado) || resultado?.cancelado) return
+    const jugado = new Date(partido.hora).getTime()
+    if (isNaN(jugado)) return
+    const edad = ahora.getTime() - jugado
+    if (edad < ESPERA_PRIMER_INTENTO_MS || edad > VENTANA_RESUMEN_MS) return
+    pendientes[clave] = { intentos: 0, ultimo: null }
+    cambio = true
+  })
+  return cambio ? { ...q, resumenPendiente: pendientes } : q
 }
 
 // ¿Vale la pena visitar esta quiniela solo por el resumen? (ya no entra por
@@ -258,12 +381,15 @@ async function buscarResumenesPendientes(q, apiKey, ahora = new Date()) {
     const idx = Number(clave)
     const partido = q.partidos?.[idx]
     const jugado = new Date(partido?.hora ?? '').getTime()
-    // Fuera de ventana o sin intentos disponibles: se suelta y ya.
+    // Fuera de ventana o sin intentos disponibles: se conserva como agotado
+    // para que el backfill retroactivo no lo vuelva a insertar en cada corrida.
     if (!partido || isNaN(jugado) ||
         ahora.getTime() - jugado > VENTANA_RESUMEN_MS ||
         (Number(estado?.intentos) || 0) >= MAX_INTENTOS_RESUMEN) {
-      delete pendientes[clave]
-      cambio = true
+      if (!estado?.agotado) {
+        pendientes[clave] = { ...estado, agotado: true }
+        cambio = true
+      }
       continue
     }
     if (!tocaBuscarResumen(estado, partido.hora, ahora)) continue
@@ -273,7 +399,11 @@ async function buscarResumenesPendientes(q, apiKey, ahora = new Date()) {
     if (resumen?.videoId) {
       await db.collection('quinielas').doc(q.id).collection('detalles').doc(String(idx))
         .set({ resumenYoutube: resumen, resumenGuardadoEn: ahora.toISOString() }, { merge: true })
-      delete pendientes[clave]
+      pendientes[clave] = {
+        encontrado: true,
+        videoId: resumen.videoId,
+        encontradoEn: ahora.toISOString(),
+      }
       encontrados++
       logger.info(`Quiniela ${q.id} partido ${idx}: resumen encontrado en ${resumen.canal}.`)
     } else {
@@ -768,6 +898,19 @@ export const sincronizarResultados = onSchedule({
   }
 
   const activas = todas.filter(q => necesitaSync(q, ahora))
+  const conDetallesPendientes = todas.filter(q => necesitaDetalles(q, ahora))
+  if (conDetallesPendientes.length > 0) {
+    const cacheResumen = new Map()
+    let respaldados = 0
+    for (const q of conDetallesPendientes) {
+      try {
+        respaldados += await respaldarDetallesFaltantes(q, cacheResumen, ahora)
+      } catch (error) {
+        logger.warn(`No se pudieron completar detalles de ${q.id}: ${error.message}`)
+      }
+    }
+    logger.info(`${respaldados} detalle(s) histórico(s) respaldado(s) desde ESPN summary.`)
+  }
 
   if (activas.length === 0) {
     logger.info(`Sin marcadores pendientes (${snap.size} quinielas en total).`)
@@ -800,7 +943,7 @@ export const sincronizarResultados = onSchedule({
 // opcional: si YOUTUBE_API_KEY faltara o se borrara, esa función ni siquiera
 // se podría desplegar. Aquí el peor caso es quedarse sin resumen en video.
 //
-// Cada 30 min basta: el throttle de `tocaBuscarResumen` ya limita a 2 intentos
+// Cada 30 min basta: el throttle de `tocaBuscarResumen` ya limita a 4 intentos
 // por partido, el primero 45 min después del pitazo final.
 
 export const buscarResumenesEnVideo = onSchedule({
@@ -822,6 +965,7 @@ export const buscarResumenesEnVideo = onSchedule({
   const snap = await db.collection('quinielas').get()
   const pendientes = snap.docs
     .map(d => ({ id: d.id, ...d.data() }))
+    .map(q => completarColaResumen(q, ahora))
     .filter(q => necesitaResumen(q, ahora))
 
   if (pendientes.length === 0) {

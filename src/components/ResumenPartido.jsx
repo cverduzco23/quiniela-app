@@ -8,7 +8,7 @@ import { formatearDuracion, olvidarResumen } from '../utils/resumenPartido'
 // porque publican el master de emisión en vez de una copia web. Con la portada
 // puesta y la carga diferida no se baja un solo byte hasta que alguien le da
 // play, y el navegador solo pide el trozo que va viendo.
-export function ResumenPartido({ partido, resumen }) {
+export function ResumenPartido({ partido, resumen, onError }) {
   const [fallo, setFallo] = useState(false)
   if (!resumen?.mp4 || fallo) return null
 
@@ -26,9 +26,10 @@ export function ResumenPartido({ partido, resumen }) {
           title={resumen.titulo || `Resumen de ${partido.local} vs ${partido.visitante}`}
           onError={() => {
             // Los clips caducan cerca de un mes después del partido: si este ya
-            // no existe, lo olvidamos y la columna vuelve al enlace a ESPN.
+            // no existe, lo olvidamos y la columna activa el siguiente respaldo.
             olvidarResumen(partido.ligaId, partido.espnId)
             setFallo(true)
+            onError?.()
           }}
         >
           {resumen.hls && <source src={resumen.hls} type="application/vnd.apple.mpegurl" />}

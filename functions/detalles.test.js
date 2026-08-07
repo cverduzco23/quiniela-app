@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest'
-import { elegirResumenYoutube, esResumenDelPartido, extraerDetalles, tituloMencionaEquipo } from './detalles.js'
+import {
+  buscarResumenYoutube,
+  elegirResumenYoutube,
+  esResumenDelPartido,
+  extraerDetalles,
+  extraerDetallesResumen,
+  tituloMencionaEquipo,
+} from './detalles.js'
 
 const PARTIDO = { local: 'Club América', visitante: 'Guadalajara', hora: '2026-08-05T20:30:00Z' }
 const item = (titulo, publishedAt = '2026-08-05T23:00:00Z') => ({
@@ -45,9 +52,17 @@ describe('esResumenDelPartido', () => {
 
   it('rechaza previas, análisis y transmisiones', () => {
     for (const t of ['Previa: América vs Guadalajara', 'América vs Guadalajara EN VIVO',
-      'Análisis del América vs Guadalajara', 'Rumbo a América vs Guadalajara']) {
+      'Análisis del América vs Guadalajara', 'Rumbo a América vs Guadalajara',
+      'Postgame Presser: América vs Guadalajara']) {
       expect(esResumenDelPartido(item(t), PARTIDO)).toBe(false)
     }
+  })
+
+  it('acepta highlights publicados por una fuente oficial en inglés', () => {
+    expect(esResumenDelPartido(
+      item('Club América vs. Guadalajara | Full Match Highlights'),
+      PARTIDO,
+    )).toBe(true)
   })
 
   it('rechaza cuando el partido no trae hora válida', () => {
@@ -68,6 +83,51 @@ describe('elegirResumenYoutube', () => {
       item('Resumen: América 1-1 Guadalajara'),
     ], PARTIDO)
     expect(elegido.titulo).toBe('Resumen: América 1-1 Guadalajara')
+  })
+})
+
+describe('buscarResumenYoutube', () => {
+  it('hace una sola búsqueda y descarta canales fuera de la lista oficial', async () => {
+    const llamadas = []
+    const fetchMock = async rawUrl => {
+      const url = new URL(rawUrl)
+      llamadas.push(url)
+      if (url.pathname.endsWith('/channels')) {
+        return { ok: true, json: async () => ({ items: [{ id: `id-${url.searchParams.get('forHandle')}` }] }) }
+      }
+      return {
+        ok: true,
+        json: async () => ({
+          items: [
+            {
+              ...item('Resumen | América 1-1 Guadalajara'),
+              id: { videoId: 'no-oficial' },
+              snippet: {
+                ...item('Resumen | América 1-1 Guadalajara').snippet,
+                channelId: 'canal-ajeno',
+              },
+            },
+            {
+              ...item('Club América vs. Guadalajara | Full Match Highlights'),
+              id: { videoId: 'oficial' },
+              snippet: {
+                ...item('Club América vs. Guadalajara | Full Match Highlights').snippet,
+                channelId: 'UCcH10bZQXIfq3B1XzqPzNbQ',
+                channelTitle: 'Leagues Cup',
+              },
+            },
+          ],
+        }),
+      }
+    }
+
+    const resumen = await buscarResumenYoutube(PARTIDO, 'api-key', fetchMock)
+    const busquedas = llamadas.filter(url => url.pathname.endsWith('/search'))
+    expect(busquedas).toHaveLength(1)
+    expect(busquedas[0].searchParams.has('channelId')).toBe(false)
+    expect(busquedas[0].searchParams.get('q')).toBe('Club América Guadalajara')
+    expect(resumen.videoId).toBe('oficial')
+    expect(resumen.canal).toBe('Leagues Cup')
   })
 })
 
@@ -134,5 +194,78 @@ describe('extraerDetalles', () => {
     const d = extraerDetalles(sinStats, PARTIDO)
     expect(d.stats).toBeNull()
     expect(d.eventos).toHaveLength(1)
+  })
+})
+
+describe('extraerDetallesResumen', () => {
+  const summary = {
+    header: {
+      competitions: [{
+        competitors: [
+          { homeAway: 'home', team: { id: '1' } },
+          { homeAway: 'away', team: { id: '2' } },
+        ],
+      }],
+    },
+    boxscore: {
+      teams: [
+        {
+          team: { id: '1', displayName: 'América', logo: 'h.png' },
+          statistics: [
+            { name: 'possessionPct', displayValue: '44.2' },
+            { name: 'shotsOnTarget', displayValue: '5' },
+          ],
+        },
+        {
+          team: { id: '2', displayName: 'Guadalajara', logo: 'a.png' },
+          statistics: [{ name: 'possessionPct', displayValue: '55.8' }],
+        },
+      ],
+    },
+    keyEvents: [
+      { type: { type: 'kickoff' }, clock: { displayValue: '' } },
+      {
+        type: { type: 'yellow-card' },
+        clock: { displayValue: "13'" },
+        team: { id: '2' },
+        participants: [{ athlete: { displayName: 'F. González' } }],
+      },
+      {
+        type: { type: 'goal' },
+        scoringPlay: true,
+        clock: { displayValue: "38'" },
+        team: { id: '1' },
+        participants: [{ athlete: { displayName: 'D. Bouanga' } }],
+      },
+      {
+        type: { type: 'substitution' },
+        clock: { displayValue: "71'" },
+        team: { id: '2' },
+        participants: [{ athlete: { displayName: 'B. Gutiérrez' } }],
+      },
+    ],
+    shootout: [
+      { id: '2', shots: [{ player: 'Visitante 1', shotNumber: 1, didScore: false }] },
+      { id: '1', shots: [{ player: 'Local 1', shotNumber: 1, didScore: true }] },
+    ],
+  }
+
+  it('extrae boxscore, filtra eventos administrativos y conserva la tanda', () => {
+    const detalles = extraerDetallesResumen(summary, PARTIDO)
+    expect(detalles.stats.home.posesion).toBe('44.2')
+    expect(detalles.stats.away.posesion).toBe('55.8')
+    expect(detalles.eventos.map(e => [e.tipo, e.lado, e.jugador])).toEqual([
+      ['yellow-card', 'away', 'F. González'],
+      ['goal', 'home', 'D. Bouanga'],
+      ['substitution', 'away', 'B. Gutiérrez'],
+    ])
+    expect(detalles.penales).toEqual([
+      { lado: 'home', jugador: 'Local 1', anotado: true, orden: 1 },
+      { lado: 'away', jugador: 'Visitante 1', anotado: false, orden: 1 },
+    ])
+  })
+
+  it('devuelve null cuando la ficha no trae información útil', () => {
+    expect(extraerDetallesResumen({}, PARTIDO)).toBeNull()
   })
 })
