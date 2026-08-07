@@ -8,6 +8,7 @@ import { miIdentidadEnQuiniela } from '../utils/misQuinielas'
 import { dispositivoPuedeVerStream, obtenerStreamFuentes, streamDisponibleAhora } from '../utils/streaming'
 import { useEscritorio } from '../hooks/useEscritorio'
 import { useResumenPartido } from '../hooks/useResumenPartido'
+import { useFichaPartido } from '../hooks/useFichaPartido'
 import { useDetallePartido } from '../hooks/useDetallePartido'
 import { ResumenPartido, ResumenYoutube } from './ResumenPartido'
 import { ReaccionesPartido } from './ReaccionesPartido'
@@ -41,6 +42,30 @@ function textoAntesDelPartido(value, ahora = Date.now()) {
   if (dias > 0) return `Comienza en ${dias} d${horas > 0 ? ` ${horas} h` : ''}`
   if (horas > 0) return `Comienza en ${horas} h${mins > 0 ? ` ${mins} min` : ''}`
   return `Comienza en ${mins} min`
+}
+
+function valorEstadisticaDisponible(valor) {
+  return valor !== null && valor !== undefined && String(valor).trim() !== '' && String(valor) !== '-'
+}
+
+function precisionPases(acertados, totales) {
+  const buenos = Number(acertados)
+  const total = Number(totales)
+  return Number.isFinite(buenos) && Number.isFinite(total) && total > 0
+    ? `${Math.round((buenos / total) * 100)}%`
+    : '-'
+}
+
+function TarjetasValor({ amarillas, rojas }) {
+  return (
+    <span
+      className="rk-live-card-counts"
+      aria-label={`${amarillas} tarjetas amarillas y ${rojas} tarjetas rojas`}
+    >
+      <span><i className="is-yellow" aria-hidden="true" />{amarillas}</span>
+      <span><i className="is-red" aria-hidden="true" />{rojas}</span>
+    </span>
+  )
 }
 
 function pickDisplay(pick) {
@@ -768,7 +793,7 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
         <div className="rk-participants-heading">
           <h2>Participantes</h2>
           <small>
-            {jugadores.length} en total · {finalizada ? 'clasificación final' : enVivo ? 'ranking provisional' : vistaParticipantesAbierta ? 'registrados' : 'clasificación actual'}
+            {jugadores.length} en total{finalizada ? ' · clasificación final' : enVivo ? '' : vistaParticipantesAbierta ? ' · registrados' : ' · clasificación actual'}
           </small>
         </div>
       )}
@@ -1329,7 +1354,7 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
           const esMiFila = !!miNombreRanking && j.nombre === miNombreRanking
           // Una quiniela sin puntos todavía (todos en cero) no tiene posiciones
           // reales: mostramos una línea en vez de declarar un empate en 1°.
-          const posicionVisible = rankingConPuntos ? pos : '—'
+          const posicionVisible = rankingConPuntos ? pos : '-'
           const medalColor = rankingConPuntos && pos <= 3 ? medalColors[pos - 1] : null
           const tienePremioFila = hayResultados && premioPorNombre[j.nombre] !== undefined
           const esInicioZonaPremio = tienePremioFila && !shown.slice(0, i).some(p => premioPorNombre[p.nombre] !== undefined)
@@ -1813,9 +1838,47 @@ function ColumnaPartido({
   // leer el respaldo de YouTube, aunque ESPN todavía conserve estadísticas.
   const necesitaDetalle = e.jugado && !e.cancelado
   const { detalle } = useDetallePartido(quiniela?.id, idx, necesitaDetalle)
+  const fichaEnVivo = useFichaPartido(p, !!p.espnId && !e.cancelado && (e.esVivo || e.jugado))
   const stats = statsEnVivo ? st : (detalle?.stats ? { state: 'post', ...detalle.stats } : null)
   const hayStats = !!stats
   const posH = hayStats ? parseFloat(stats.home.posesion) || 50 : 50
+  const contexto = detalle?.contexto ?? fichaEnVivo?.contexto ?? null
+  const alineaciones = detalle?.alineaciones ?? fichaEnVivo?.alineaciones ?? null
+  const contextoItems = [
+    contexto?.estadio && contexto?.ciudad
+      ? `${contexto.estadio} · ${contexto.ciudad}`
+      : contexto?.estadio || contexto?.ciudad,
+    contexto?.arbitro ? `Árbitro: ${contexto.arbitro}` : '',
+  ].filter(Boolean)
+  const estadisticasPrincipales = hayStats ? [
+    { label: 'Tiros al arco', h: stats.home.tirosArco, a: stats.away.tirosArco },
+    { label: 'Tiros totales', h: stats.home.tirosTotales, a: stats.away.tirosTotales },
+    { label: 'Corners', h: stats.home.corners, a: stats.away.corners },
+    { label: 'Faltas', h: stats.home.faltas, a: stats.away.faltas },
+  ].filter(f => valorEstadisticaDisponible(f.h) && valorEstadisticaDisponible(f.a)) : []
+  const estadisticasExtra = hayStats ? [
+    { label: 'Atajadas', h: stats.home.atajadas, a: stats.away.atajadas },
+    { label: 'Fueras de juego', h: stats.home.fuerasJuego, a: stats.away.fuerasJuego },
+    {
+      label: 'Precisión de pases',
+      h: precisionPases(stats.home.pasesAcertados, stats.home.pasesTotales),
+      a: precisionPases(stats.away.pasesAcertados, stats.away.pasesTotales),
+    },
+    {
+      label: 'Tarjetas',
+      h: <TarjetasValor amarillas={stats.home.amarillas} rojas={stats.home.rojas} />,
+      a: <TarjetasValor amarillas={stats.away.amarillas} rojas={stats.away.rojas} />,
+      disponible: valorEstadisticaDisponible(stats.home.amarillas) &&
+        valorEstadisticaDisponible(stats.away.amarillas) &&
+        valorEstadisticaDisponible(stats.home.rojas) &&
+        valorEstadisticaDisponible(stats.away.rojas),
+    },
+    { label: 'Entradas', h: stats.home.entradas, a: stats.away.entradas },
+    { label: 'Intercepciones', h: stats.home.intercepciones, a: stats.away.intercepciones },
+    { label: 'Despejes', h: stats.home.despejes, a: stats.away.despejes },
+  ].filter(f => f.disponible ?? (
+    valorEstadisticaDisponible(f.h) && valorEstadisticaDisponible(f.a)
+  )) : []
   const eventosFuente = eventos.length > 0 ? eventos : (detalle?.eventos ?? [])
   const eventosNormales = eventosFuente.filter(ev => !ev.penalShootout)
   const penalesFuente = penales.length > 0 ? penales : (detalle?.penales ?? [])
@@ -1829,9 +1892,6 @@ function ColumnaPartido({
   // marcador ya lo cuenta. El resto de los casos (por comenzar, sin señal,
   // sin permiso) sí necesitan explicar por qué no hay video.
   const mostrarStandby = !mostrarPlayer && !e.jugado
-  // Sin video la columna tiene ancho de sobra: marcador arriba y estadísticas
-  // debajo se leen mejor que en dos columnas apretadas.
-  const apilado = !mostrarPlayer
   // Todo partido terminado reserva este espacio arriba del marcador. Primero
   // se intenta el clip de ESPN; si no hay, se usa el respaldo de YouTube y,
   // como último recurso, una portada del partido que conserva el marco 16/9.
@@ -1840,6 +1900,8 @@ function ColumnaPartido({
   const youtube = detalle?.resumenYoutube
   const claveResumen = `${p.ligaId ?? ''}:${p.espnId ?? ''}`
   const [resumenFallido, setResumenFallido] = useState('')
+  const [masStatsAbiertas, setMasStatsAbiertas] = useState(false)
+  const [alineacionesAbiertas, setAlineacionesAbiertas] = useState(false)
   const hayVideoResumen = mostrarResumen && !!resumen?.mp4 && resumenFallido !== claveResumen
   const hayVideoYoutube = mostrarResumen && !hayVideoResumen && !buscandoResumen && !!youtube?.videoId
   const hayAlgunVideo = hayVideoResumen || hayVideoYoutube
@@ -1864,6 +1926,7 @@ function ColumnaPartido({
     if (resR === pickR) return e.jugado ? 'Resultado correcto · +1' : 'Vas ganando este'
     return e.jugado ? 'Sin puntos' : 'Vas perdiendo este'
   })()
+  const pickAcertado = /exacto|correcto|ganando/i.test(notaPick)
 
   return (
     <section className="rk-body-live ranking-live-column" aria-label={`Detalle de ${p.local} vs ${p.visitante}`}>
@@ -1871,6 +1934,11 @@ function ColumnaPartido({
         <span className="rk-live-head-copy">
           <h2>{p.local} vs {p.visitante}</h2>
           {p.hora && <p>{formatFechaDestacada(p.hora)}</p>}
+          {contextoItems.length > 0 && (
+            <span className="rk-live-context">
+              {contextoItems.map(item => <span key={item}>{item}</span>)}
+            </span>
+          )}
         </span>
         {e.esVivo && (
           <span className="rk-live-head-tag">
@@ -1916,7 +1984,7 @@ function ColumnaPartido({
             <span className={e.esVivo ? 'is-live' : ''}>{etiquetaMomento}</span>
           </div>
           <div className="rk-live-panel-body">
-            <div className={`rk-live-scoreboard-stats${apilado ? ' is-stacked' : ''}`}>
+            <div className="rk-live-scoreboard-stats">
               <div>
                 <div className="rk-live-scoreboard">
                   <span className="rk-live-scoreboard-side">
@@ -1937,7 +2005,7 @@ function ColumnaPartido({
                   </span>
                 </div>
                 {miPick && (
-                  <div className="rk-live-mine">
+                  <div className={`rk-live-mine${pickAcertado ? ' is-correct' : ''}`}>
                     <span className="rk-live-mine-label">Tu pronóstico</span>
                     <span className="rk-live-mine-value">{pickTexto(miPick)}</span>
                     {notaPick && <span className="rk-live-mine-note">{notaPick}</span>}
@@ -1946,26 +2014,48 @@ function ColumnaPartido({
               </div>
               {hayStats ? (
                 <div className="ranking-live-stats">
-                  <div className="ranking-match-stat-line is-possession">
-                    <span className="ranking-match-stat-value is-home">{stats.home.posesion}%</span>
-                    <span className="ranking-match-stat-label">Posesión</span>
-                    <span className="ranking-match-stat-value is-away">{stats.away.posesion}%</span>
-                  </div>
-                  <div className="ranking-match-possession-bar">
-                    <span style={{ width: `${posH}%` }} />
-                  </div>
-                  {[
-                    { label: 'Tiros al arco', h: stats.home.tirosArco,    a: stats.away.tirosArco },
-                    { label: 'Tiros totales', h: stats.home.tirosTotales, a: stats.away.tirosTotales },
-                    { label: 'Corners',       h: stats.home.corners,      a: stats.away.corners },
-                    { label: 'Faltas',        h: stats.home.faltas,       a: stats.away.faltas },
-                  ].map(({ label, h, a }) => (
+                  {valorEstadisticaDisponible(stats.home.posesion) &&
+                    valorEstadisticaDisponible(stats.away.posesion) && (
+                    <>
+                      <div className="ranking-match-stat-line is-possession">
+                        <span className="ranking-match-stat-value is-home">{stats.home.posesion}%</span>
+                        <span className="ranking-match-stat-label">Posesión</span>
+                        <span className="ranking-match-stat-value is-away">{stats.away.posesion}%</span>
+                      </div>
+                      <div className="ranking-match-possession-bar">
+                        <span style={{ width: `${posH}%` }} />
+                      </div>
+                    </>
+                  )}
+                  {estadisticasPrincipales.map(({ label, h, a }) => (
                     <div key={label} className="ranking-match-stat-line">
                       <span className="ranking-match-stat-value is-home">{h}</span>
                       <span className="ranking-match-stat-label">{label}</span>
                       <span className="ranking-match-stat-value is-away">{a}</span>
                     </div>
                   ))}
+                  {estadisticasExtra.length > 0 && (
+                    <div className={`rk-live-more-stats${masStatsAbiertas ? ' is-open' : ''}`}>
+                      <button
+                        type="button"
+                        onClick={() => setMasStatsAbiertas(v => !v)}
+                        aria-expanded={masStatsAbiertas}
+                      >
+                        Más estadísticas
+                      </button>
+                      <div className="rk-live-more-stats-collapse" aria-hidden={!masStatsAbiertas}>
+                        <div>
+                          {estadisticasExtra.map(({ label, h, a }) => (
+                            <div key={label} className="ranking-match-stat-line">
+                              <span className="ranking-match-stat-value is-home">{h}</span>
+                              <span className="ranking-match-stat-label">{label}</span>
+                              <span className="ranking-match-stat-value is-away">{a}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : e.jugado ? null : (
                 <p className="rk-live-stats-empty">
@@ -1976,6 +2066,52 @@ function ColumnaPartido({
           </div>
         </div>
 
+        {alineaciones?.home?.titulares?.length >= 11 &&
+          alineaciones?.away?.titulares?.length >= 11 && (
+          <div className={`rk-live-panel rk-live-lineups${alineacionesAbiertas ? ' is-open' : ''}`}>
+            <button
+              type="button"
+              className="rk-live-panel-head"
+              onClick={() => setAlineacionesAbiertas(v => !v)}
+              aria-expanded={alineacionesAbiertas}
+            >
+              <span>Alineaciones</span>
+              <span className="rk-live-panel-chevron" aria-hidden="true" />
+            </button>
+            <div className="rk-live-lineups-collapse" aria-hidden={!alineacionesAbiertas}>
+              <div>
+                <div className="rk-live-panel-body">
+                  <div className="rk-live-lineups-grid">
+                    {[
+                      { lado: 'home', nombre: p.local },
+                      { lado: 'away', nombre: p.visitante },
+                    ].map(({ lado, nombre }) => {
+                      const equipo = alineaciones[lado]
+                      return (
+                        <section key={lado} className="rk-live-lineup-team">
+                          <header>
+                            <strong>{nombre}</strong>
+                            {equipo.formacion && <span>{equipo.formacion}</span>}
+                          </header>
+                          <ol>
+                            {equipo.titulares.map((jugador, j) => (
+                              <li key={`${jugador.nombre}-${j}`}>
+                                <span>{jugador.dorsal || ''}</span>
+                                <strong>{jugador.corto || jugador.nombre}</strong>
+                                {jugador.posicion && <small>{jugador.posicion}</small>}
+                              </li>
+                            ))}
+                          </ol>
+                        </section>
+                      )
+                    })}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {(eventosNormales.length > 0 || penalesRondas.length > 0) && (
           <div className="rk-live-panel">
             <div className="rk-live-panel-head">
@@ -1983,7 +2119,7 @@ function ColumnaPartido({
             </div>
             <div className="rk-live-panel-body">
               <div className="rk-live-events">
-                {eventosNormales.map((ev, j) => (
+                {[...eventosNormales].reverse().map((ev, j) => (
                   <div key={j} className="rk-live-event">
                     <span className="rk-live-event-min">{ev.minuto}</span>
                     <span className={`rk-live-event-icon ranking-match-event-icon is-${ev.tipo || 'default'}`}>

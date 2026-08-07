@@ -13515,7 +13515,7 @@ button.admin-account-data-row {
 }
 
 /* ==========================================================================
-   RANKING — ESCRITORIO (≥1024px)
+   RANKING: ESCRITORIO (1024px o más)
    Layout de dos columnas para /ranking/:id: carrusel de partidos bajo el
    header, tabla de participantes a la izquierda y el partido (transmisión,
    marcador, estadísticas y eventos) a la derecha.
@@ -13858,6 +13858,28 @@ button.admin-account-data-row {
     font-size: 12.5px;
     color: var(--muted);
   }
+  .rk-live-context {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px 14px;
+    margin-top: 7px;
+    font-size: 11px;
+    line-height: 1.35;
+    color: var(--muted-soft);
+  }
+  .rk-live-context > span + span {
+    position: relative;
+  }
+  .rk-live-context > span + span::before {
+    content: '';
+    position: absolute;
+    left: -8px;
+    top: 50%;
+    width: 2px;
+    height: 2px;
+    border-radius: 50%;
+    background: currentColor;
+  }
   .rk-live-head-tag {
     display: inline-flex;
     align-items: center;
@@ -14199,10 +14221,10 @@ button.admin-account-data-row {
     gap: 16px;
   }
   .rk-live-panel {
-    border: 1px solid var(--border);
+    border: 1px solid rgba(255,255,255,0.10);
     border-radius: var(--radius-md);
-    background: linear-gradient(180deg, rgba(21,31,50,0.96), rgba(15,23,42,0.92));
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
+    background: linear-gradient(135deg, rgba(30,41,59,0.92), rgba(15,24,40,0.95));
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), 0 12px 26px rgba(0,0,0,0.32);
   }
   .rk-live-panel-head {
     display: flex;
@@ -14225,17 +14247,13 @@ button.admin-account-data-row {
   }
   .rk-live-scoreboard-stats {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
-    gap: 28px;
-    align-items: start;
-  }
-  /* Sin reproductor arriba (partido terminado o por comenzar) el panel tiene
-     el ancho completo de la columna: marcador arriba, estadísticas debajo. */
-  .rk-live-scoreboard-stats.is-stacked {
     grid-template-columns: minmax(0, 1fr);
     gap: 18px;
+    align-items: start;
   }
-  .rk-live-scoreboard-stats.is-stacked .rk-live-scoreboard {
+  /* Una sola composición para todas las etapas: transmisión o resumen arriba;
+     marcador, pronóstico y estadísticas siempre apilados en el mismo orden. */
+  .rk-live-scoreboard-stats .rk-live-scoreboard {
     padding-bottom: 2px;
   }
   .rk-live-scoreboard {
@@ -14324,6 +14342,97 @@ button.admin-account-data-row {
     height: 100%;
     background: linear-gradient(90deg, var(--green), var(--green-light));
   }
+  .rk-live-more-stats {
+    margin-top: 6px;
+    padding-top: 4px;
+    border-top: 1px solid var(--border);
+  }
+  .rk-live-more-stats > button {
+    width: 100%;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    min-height: 36px;
+    cursor: pointer;
+    color: var(--green-light);
+    font-size: 10.5px;
+    font-weight: 800;
+    letter-spacing: 0.7px;
+    text-transform: uppercase;
+  }
+  .rk-live-more-stats > button::after {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-right: 1.5px solid currentColor;
+    border-bottom: 1.5px solid currentColor;
+    transform: translateY(-2px) rotate(45deg);
+    transition: transform 0.18s ease;
+  }
+  .rk-live-more-stats.is-open > button::after {
+    transform: translateY(2px) rotate(225deg);
+  }
+  .rk-live-more-stats-collapse,
+  .rk-live-lineups-collapse {
+    display: grid;
+    grid-template-rows: 0fr;
+    opacity: 0;
+    visibility: hidden;
+    transition:
+      grid-template-rows 0.32s cubic-bezier(0.4,0,0.2,1),
+      opacity 0.24s ease,
+      visibility 0s linear 0.32s;
+  }
+  .rk-live-more-stats.is-open .rk-live-more-stats-collapse,
+  .rk-live-lineups.is-open .rk-live-lineups-collapse {
+    grid-template-rows: 1fr;
+    opacity: 1;
+    visibility: visible;
+    transition:
+      grid-template-rows 0.32s cubic-bezier(0.4,0,0.2,1),
+      opacity 0.24s ease,
+      visibility 0s;
+  }
+  .rk-live-more-stats-collapse > div,
+  .rk-live-lineups-collapse > div {
+    min-height: 0;
+    overflow: hidden;
+  }
+  .rk-live-more-stats-collapse > div {
+    border-radius: 8px;
+    background: rgba(6,12,24,0.55);
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.07);
+  }
+  .rk-live-card-counts {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    white-space: nowrap;
+  }
+  .ranking-match-stat-value.is-away .rk-live-card-counts {
+    justify-content: flex-end;
+  }
+  .rk-live-card-counts > span {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .rk-live-card-counts i {
+    width: 7px;
+    height: 10px;
+    border-radius: 1.5px;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.16);
+  }
+  .rk-live-card-counts i.is-yellow {
+    background: #FACC15;
+  }
+  .rk-live-card-counts i.is-red {
+    background: #EF4444;
+  }
   .rk-live-stats-empty {
     font-size: 12px;
     color: var(--muted);
@@ -14341,15 +14450,22 @@ button.admin-account-data-row {
     margin-top: 18px;
     padding: 10px 14px;
     border-radius: var(--radius-sm);
-    border: 1px solid rgba(250,204,21,0.34);
-    background: rgba(250,204,21,0.08);
+    border: 1px solid rgba(255,255,255,0.10);
+    background: rgba(6,12,24,0.55);
+  }
+  .rk-live-mine.is-correct {
+    border-color: rgba(134,239,172,0.30);
+    background: rgba(34,197,94,0.08);
   }
   .rk-live-mine-label {
     font-size: 10.5px;
     font-weight: 900;
     letter-spacing: 1px;
     text-transform: uppercase;
-    color: var(--yellow);
+    color: var(--muted);
+  }
+  .rk-live-mine.is-correct .rk-live-mine-label {
+    color: var(--green-light);
   }
   .rk-live-mine-value {
     justify-self: center;
@@ -14386,6 +14502,109 @@ button.admin-account-data-row {
     border: 1px solid rgba(34,197,94,0.28);
     border-radius: var(--radius-full);
     font-size: 12.5px;
+    font-weight: 800;
+  }
+
+  /* Alineaciones: existe solo cuando ESPN entrega los dos onces completos. */
+  .rk-live-lineups {
+    overflow: hidden;
+  }
+  .rk-live-lineups > .rk-live-panel-head {
+    width: 100%;
+    cursor: pointer;
+    border: 0;
+    border-bottom: 1px solid var(--border);
+    background: transparent;
+    text-align: left;
+  }
+  .rk-live-lineups > .rk-live-panel-head:active,
+  .rk-live-more-stats > button:active {
+    transform: none;
+  }
+  .rk-live-panel-chevron {
+    width: 7px;
+    height: 7px;
+    border-right: 1.5px solid currentColor;
+    border-bottom: 1.5px solid currentColor;
+    transform: translateY(-2px) rotate(45deg);
+    transition: transform 0.18s ease;
+  }
+  .rk-live-lineups.is-open .rk-live-panel-chevron {
+    transform: translateY(2px) rotate(225deg);
+  }
+  .rk-live-lineups-collapse .rk-live-panel-body {
+    border-top: 1px solid rgba(255,255,255,0.07);
+    background: rgba(6,12,24,0.55);
+  }
+  .rk-live-lineups-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 22px;
+  }
+  .rk-live-lineup-team {
+    min-width: 0;
+  }
+  .rk-live-lineup-team > header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+  .rk-live-lineup-team > header strong {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 12px;
+    color: var(--text);
+  }
+  .rk-live-lineup-team > header span {
+    flex-shrink: 0;
+    padding: 2px 7px;
+    border: 1px solid rgba(34,197,94,0.25);
+    border-radius: var(--radius-full);
+    background: rgba(34,197,94,0.08);
+    color: var(--green-light);
+    font-size: 10px;
+    font-weight: 800;
+  }
+  .rk-live-lineup-team ol {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    list-style: none;
+  }
+  .rk-live-lineup-team li {
+    display: grid;
+    grid-template-columns: 24px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px;
+    min-height: 30px;
+    padding: 3px 6px;
+    border-radius: 5px;
+    font-size: 11.5px;
+    color: var(--muted);
+  }
+  .rk-live-lineup-team li:nth-child(odd) {
+    background: rgba(148,163,184,0.045);
+  }
+  .rk-live-lineup-team li > span {
+    font-family: var(--font-display);
+    color: var(--muted-soft);
+    text-align: right;
+  }
+  .rk-live-lineup-team li > strong {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .rk-live-lineup-team li > small {
+    color: var(--muted-soft);
+    font-size: 9px;
     font-weight: 800;
   }
 
@@ -14496,14 +14715,8 @@ button.admin-account-data-row {
   }
 }
 
-/* Pantallas de 1024 a 1279px: la columna del partido queda en ~430px CSS
-   (por el zoom 1.1 de #root), muy angosta para poner marcador y estadísticas
-   lado a lado. Ahí se apilan; el resto del layout de escritorio no cambia. */
+/* Ajustes de la columna angosta en pantallas de 1024 a 1279px. */
 @media (min-width: 1024px) and (max-width: 1279px) {
-  .rk-live-scoreboard-stats {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 18px;
-  }
   .rk-live-mine {
     grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
     gap: 14px;

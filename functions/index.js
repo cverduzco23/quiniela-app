@@ -149,8 +149,13 @@ export function tocaBuscarDetalles(pendiente, horaPartido, ahora = new Date()) {
 
 export function indicesDetallesPendientes(q, ahora = new Date()) {
   if (!q) return []
-  const archivados = new Set(Array.isArray(q.detallesGuardados) ? q.detallesGuardados.map(Number) : [])
-  const estados = q.detallesPendientes ?? {}
+  // El primer respaldo guardaba marcador, cinco estadísticas y eventos. Esta
+  // cola independiente amplía esos mismos documentos con sede, árbitro,
+  // alineaciones y el boxscore completo, sin confundirlos con el archivo base.
+  const archivados = new Set(
+    Array.isArray(q.detallesAmpliadosGuardados) ? q.detallesAmpliadosGuardados.map(Number) : []
+  )
+  const estados = q.detallesAmpliadosPendientes ?? {}
   return (q.partidos ?? []).flatMap((partido, idx) => {
     if (archivados.has(idx) || !partido?.espnId || !partido?.ligaId) return []
     const resultado = q.resultados?.[idx]
@@ -248,8 +253,10 @@ async function respaldarDetallesFaltantes(q, cache, ahora = new Date()) {
   const indices = indicesDetallesPendientes(q, ahora)
   if (indices.length === 0) return 0
 
-  const archivados = new Set(Array.isArray(q.detallesGuardados) ? q.detallesGuardados.map(Number) : [])
-  const pendientes = { ...(q.detallesPendientes ?? {}) }
+  const archivados = new Set(
+    Array.isArray(q.detallesAmpliadosGuardados) ? q.detallesAmpliadosGuardados.map(Number) : []
+  )
+  const pendientes = { ...(q.detallesAmpliadosPendientes ?? {}) }
   let guardados = 0
   let cambio = false
 
@@ -289,8 +296,8 @@ async function respaldarDetallesFaltantes(q, cache, ahora = new Date()) {
 
   if (cambio) {
     await db.collection('quinielas').doc(q.id).update({
-      detallesGuardados: [...archivados].sort((a, b) => a - b),
-      detallesPendientes: pendientes,
+      detallesAmpliadosGuardados: [...archivados].sort((a, b) => a - b),
+      detallesAmpliadosPendientes: pendientes,
     })
   }
   return guardados

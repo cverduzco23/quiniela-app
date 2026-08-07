@@ -198,6 +198,12 @@ describe('extraerDetalles', () => {
 })
 
 describe('extraerDetallesResumen', () => {
+  const titulares = prefijo => Array.from({ length: 11 }, (_, i) => ({
+    starter: true,
+    jersey: String(i + 1),
+    athlete: { displayName: `${prefijo} ${i + 1}`, shortName: `${prefijo[0]}. ${i + 1}` },
+    position: { abbreviation: i === 0 ? 'A' : 'DEF' },
+  }))
   const summary = {
     header: {
       competitions: [{
@@ -214,6 +220,9 @@ describe('extraerDetallesResumen', () => {
           statistics: [
             { name: 'possessionPct', displayValue: '44.2' },
             { name: 'shotsOnTarget', displayValue: '5' },
+            { name: 'saves', displayValue: '3' },
+            { name: 'accuratePasses', displayValue: '360' },
+            { name: 'totalPasses', displayValue: '400' },
           ],
         },
         {
@@ -248,12 +257,39 @@ describe('extraerDetallesResumen', () => {
       { id: '2', shots: [{ player: 'Visitante 1', shotNumber: 1, didScore: false }] },
       { id: '1', shots: [{ player: 'Local 1', shotNumber: 1, didScore: true }] },
     ],
+    gameInfo: {
+      venue: { fullName: 'Estadio Azteca', address: { city: 'Ciudad de México' } },
+      officials: [{ displayName: 'Árbitro Ejemplo', position: { name: 'Referee', id: '1' } }],
+    },
+    rosters: [
+      {
+        homeAway: 'home',
+        team: { displayName: 'América' },
+        formation: '4-2-3-1',
+        roster: titulares('Local'),
+      },
+      {
+        homeAway: 'away',
+        team: { displayName: 'Guadalajara' },
+        formation: '4-3-3',
+        roster: titulares('Visita'),
+      },
+    ],
   }
 
-  it('extrae boxscore, filtra eventos administrativos y conserva la tanda', () => {
+  it('extrae boxscore ampliado, contexto, alineaciones y conserva la tanda', () => {
     const detalles = extraerDetallesResumen(summary, PARTIDO)
     expect(detalles.stats.home.posesion).toBe('44.2')
     expect(detalles.stats.away.posesion).toBe('55.8')
+    expect(detalles.stats.home.atajadas).toBe('3')
+    expect(detalles.stats.home.pasesAcertados).toBe('360')
+    expect(detalles.contexto).toEqual({
+      estadio: 'Estadio Azteca',
+      ciudad: 'Ciudad de México',
+      arbitro: 'Árbitro Ejemplo',
+    })
+    expect(detalles.alineaciones.home.formacion).toBe('4-2-3-1')
+    expect(detalles.alineaciones.home.titulares).toHaveLength(11)
     expect(detalles.eventos.map(e => [e.tipo, e.lado, e.jugador])).toEqual([
       ['yellow-card', 'away', 'F. González'],
       ['goal', 'home', 'D. Bouanga'],
@@ -267,5 +303,14 @@ describe('extraerDetallesResumen', () => {
 
   it('devuelve null cuando la ficha no trae información útil', () => {
     expect(extraerDetallesResumen({}, PARTIDO)).toBeNull()
+  })
+
+  it('omite alineaciones incompletas sin dejar una sección vacía', () => {
+    const detalles = extraerDetallesResumen({
+      ...summary,
+      rosters: [{ ...summary.rosters[0], roster: titulares('Local').slice(0, 10) }],
+    }, PARTIDO)
+    expect(detalles.alineaciones).toBeUndefined()
+    expect(detalles.contexto.estadio).toBe('Estadio Azteca')
   })
 })

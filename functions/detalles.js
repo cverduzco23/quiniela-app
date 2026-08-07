@@ -18,6 +18,38 @@ import { logger } from 'firebase-functions'
 
 const stat = (stats, name) => stats?.find(s => s.name === name)?.displayValue ?? '-'
 
+const CAMPOS_ESTADISTICA = [
+  'posesion', 'tirosArco', 'tirosTotales', 'corners', 'faltas',
+  'atajadas', 'fuerasJuego', 'pasesAcertados', 'pasesTotales',
+  'amarillas', 'rojas', 'entradas', 'intercepciones', 'despejes',
+]
+
+function ladoEstadisticas(equipo, nombreFallback) {
+  return {
+    nombre:         equipo?.team?.displayName ?? nombreFallback ?? '',
+    logo:           equipo?.team?.logo ?? '',
+    posesion:       stat(equipo?.statistics, 'possessionPct'),
+    tirosArco:      stat(equipo?.statistics, 'shotsOnTarget'),
+    tirosTotales:   stat(equipo?.statistics, 'totalShots'),
+    corners:        stat(equipo?.statistics, 'wonCorners'),
+    faltas:         stat(equipo?.statistics, 'foulsCommitted'),
+    atajadas:       stat(equipo?.statistics, 'saves'),
+    fuerasJuego:    stat(equipo?.statistics, 'offsides'),
+    pasesAcertados: stat(equipo?.statistics, 'accuratePasses'),
+    pasesTotales:   stat(equipo?.statistics, 'totalPasses'),
+    amarillas:      stat(equipo?.statistics, 'yellowCards'),
+    rojas:          stat(equipo?.statistics, 'redCards'),
+    entradas:       stat(equipo?.statistics, 'totalTackles'),
+    intercepciones: stat(equipo?.statistics, 'interceptions'),
+    despejes:       stat(equipo?.statistics, 'totalClearance'),
+  }
+}
+
+function tieneEstadisticas(stats) {
+  return !!stats && CAMPOS_ESTADISTICA
+    .some(k => stats.home?.[k] !== '-' || stats.away?.[k] !== '-')
+}
+
 function ladoDeEvento(detalle, home, away) {
   const teamId = detalle.team?.id
   if (teamId && teamId === home?.team?.id) return 'home'
@@ -41,19 +73,11 @@ export function extraerDetalles(ev, partido) {
   const away = comps.find(c => c.homeAway === 'away')
   if (!home || !away) return null
 
-  const lado = (c, nombreFallback) => ({
-    nombre:       c?.team?.displayName ?? nombreFallback ?? '',
-    logo:         c?.team?.logo ?? '',
-    posesion:     stat(c?.statistics, 'possessionPct'),
-    tirosArco:    stat(c?.statistics, 'shotsOnTarget'),
-    tirosTotales: stat(c?.statistics, 'totalShots'),
-    corners:      stat(c?.statistics, 'wonCorners'),
-    faltas:       stat(c?.statistics, 'foulsCommitted'),
-  })
-
-  const stats = { home: lado(home, partido?.local), away: lado(away, partido?.visitante) }
-  const hayStats = ['posesion', 'tirosArco', 'tirosTotales', 'corners', 'faltas']
-    .some(k => stats.home[k] !== '-' || stats.away[k] !== '-')
+  const stats = {
+    home: ladoEstadisticas(home, partido?.local),
+    away: ladoEstadisticas(away, partido?.visitante),
+  }
+  const hayStats = tieneEstadisticas(stats)
 
   const eventos = (ev?.competitions?.[0]?.details ?? []).map(d => ({
     tipo: tipoDeEvento(d),
@@ -85,21 +109,13 @@ export function extraerDetallesResumen(summary, partido) {
   const home = encontrarEquipo(homeHeader, 0)
   const away = encontrarEquipo(awayHeader, 1)
 
-  const lado = (equipo, nombreFallback) => ({
-    nombre:       equipo?.team?.displayName ?? nombreFallback ?? '',
-    logo:         equipo?.team?.logo ?? '',
-    posesion:     stat(equipo?.statistics, 'possessionPct'),
-    tirosArco:    stat(equipo?.statistics, 'shotsOnTarget'),
-    tirosTotales: stat(equipo?.statistics, 'totalShots'),
-    corners:      stat(equipo?.statistics, 'wonCorners'),
-    faltas:       stat(equipo?.statistics, 'foulsCommitted'),
-  })
-
   const stats = home && away
-    ? { home: lado(home, partido?.local), away: lado(away, partido?.visitante) }
+    ? {
+        home: ladoEstadisticas(home, partido?.local),
+        away: ladoEstadisticas(away, partido?.visitante),
+      }
     : null
-  const hayStats = !!stats && ['posesion', 'tirosArco', 'tirosTotales', 'corners', 'faltas']
-    .some(k => stats.home[k] !== '-' || stats.away[k] !== '-')
+  const hayStats = tieneEstadisticas(stats)
 
   const homeId = homeHeader?.team?.id ?? home?.team?.id
   const awayId = awayHeader?.team?.id ?? away?.team?.id
@@ -144,11 +160,51 @@ export function extraerDetallesResumen(summary, partido) {
   })
   penales.sort((a, b) => (a.orden - b.orden) || (a.lado === 'home' ? -1 : 1))
 
-  if (!hayStats && eventos.length === 0 && penales.length === 0) return null
+  const venue = summary?.gameInfo?.venue
+  const arbitro = summary?.gameInfo?.officials?.find(o =>
+    o?.position?.name === 'Referee' || o?.position?.id === '1'
+  ) ?? summary?.gameInfo?.officials?.[0]
+  const contexto = {
+    ...(venue?.fullName ? { estadio: venue.fullName } : {}),
+    ...(venue?.address?.city ? { ciudad: venue.address.city } : {}),
+    ...(arbitro?.displayName || arbitro?.fullName
+      ? { arbitro: arbitro.displayName || arbitro.fullName }
+      : {}),
+  }
+
+  const rosterPorLado = ladoBuscado => {
+    const roster = (summary?.rosters ?? []).find(r => r?.homeAway === ladoBuscado)
+    if (!roster) return null
+    const titulares = (roster.roster ?? [])
+      .filter(j => j?.starter)
+      .map(j => ({
+        nombre: j?.athlete?.displayName || j?.athlete?.shortName || '',
+        corto: j?.athlete?.shortName || j?.athlete?.displayName || '',
+        dorsal: String(j?.jersey ?? ''),
+        posicion: j?.position?.abbreviation || '',
+      }))
+      .filter(j => j.nombre)
+    if (titulares.length < 11) return null
+    return {
+      equipo: roster?.team?.displayName || '',
+      formacion: roster?.formation || '',
+      titulares,
+    }
+  }
+  const homeRoster = rosterPorLado('home')
+  const awayRoster = rosterPorLado('away')
+  const alineaciones = homeRoster && awayRoster
+    ? { home: homeRoster, away: awayRoster }
+    : null
+
+  const hayContexto = Object.keys(contexto).length > 0
+  if (!hayStats && eventos.length === 0 && penales.length === 0 && !hayContexto && !alineaciones) return null
   return {
     stats: hayStats ? stats : null,
     eventos,
     ...(penales.length > 0 ? { penales } : {}),
+    ...(hayContexto ? { contexto } : {}),
+    ...(alineaciones ? { alineaciones } : {}),
   }
 }
 

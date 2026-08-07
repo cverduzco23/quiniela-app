@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { normalizarResumen, formatearDuracion } from './resumenPartido'
+import { normalizarFichaPartido, normalizarResumen, formatearDuracion } from './resumenPartido'
 
 const clip = (over = {}) => ({
   headline: 'Un clip',
@@ -85,6 +85,37 @@ describe('normalizarResumen', () => {
       ],
     })
     expect(r.titulo).toBe('PSG vs Arsenal')
+  })
+})
+
+describe('normalizarFichaPartido', () => {
+  const titulares = Array.from({ length: 11 }, (_, i) => ({
+    starter: true,
+    jersey: String(i + 1),
+    athlete: { displayName: `Jugador ${i + 1}`, shortName: `J. ${i + 1}` },
+    position: { abbreviation: i === 0 ? 'A' : 'DEF' },
+  }))
+
+  it('conserva contexto y solo acepta dos onces completos', () => {
+    const ficha = normalizarFichaPartido({
+      gameInfo: {
+        venue: { fullName: 'Estadio Universitario', address: { city: 'Monterrey' } },
+        officials: [{ displayName: 'César Ramos', position: { name: 'Referee' } }],
+      },
+      rosters: [
+        { homeAway: 'home', formation: '4-3-3', roster: titulares },
+        { homeAway: 'away', formation: '4-4-2', roster: titulares },
+      ],
+    })
+    expect(ficha.contexto.arbitro).toBe('César Ramos')
+    expect(ficha.alineaciones.home.titulares).toHaveLength(11)
+  })
+
+  it('no crea bloques vacíos', () => {
+    expect(normalizarFichaPartido({})).toBeNull()
+    expect(normalizarFichaPartido({
+      rosters: [{ homeAway: 'home', roster: titulares }],
+    })).toBeNull()
   })
 })
 

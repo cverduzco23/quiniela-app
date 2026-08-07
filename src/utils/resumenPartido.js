@@ -11,6 +11,7 @@
 // parte del polling.
 
 const CACHE = new Map()
+const CACHE_FICHA = new Map()
 
 // Prefiere la copia liviana. ESPN suele publicar `href` a 360p/1464k y `HD` a
 // 720p/2896k, pero a veces todas las claves apuntan al master de emisión (más
@@ -65,24 +66,81 @@ export function normalizarResumen(datos) {
   }
 }
 
+export function normalizarFichaPartido(datos) {
+  const venue = datos?.gameInfo?.venue
+  const arbitro = datos?.gameInfo?.officials?.find(o =>
+    o?.position?.name === 'Referee' || o?.position?.id === '1'
+  ) ?? datos?.gameInfo?.officials?.[0]
+  const contexto = {
+    ...(venue?.fullName ? { estadio: venue.fullName } : {}),
+    ...(venue?.address?.city ? { ciudad: venue.address.city } : {}),
+    ...(arbitro?.displayName || arbitro?.fullName
+      ? { arbitro: arbitro.displayName || arbitro.fullName }
+      : {}),
+  }
+
+  const rosterPorLado = lado => {
+    const roster = (datos?.rosters ?? []).find(r => r?.homeAway === lado)
+    if (!roster) return null
+    const titulares = (roster.roster ?? [])
+      .filter(j => j?.starter)
+      .map(j => ({
+        nombre: j?.athlete?.displayName || j?.athlete?.shortName || '',
+        corto: j?.athlete?.shortName || j?.athlete?.displayName || '',
+        dorsal: String(j?.jersey ?? ''),
+        posicion: j?.position?.abbreviation || '',
+      }))
+      .filter(j => j.nombre)
+    if (titulares.length < 11) return null
+    return {
+      equipo: roster?.team?.displayName || '',
+      formacion: roster?.formation || '',
+      titulares,
+    }
+  }
+  const home = rosterPorLado('home')
+  const away = rosterPorLado('away')
+  const alineaciones = home && away ? { home, away } : null
+
+  if (Object.keys(contexto).length === 0 && !alineaciones) return null
+  return {
+    ...(Object.keys(contexto).length > 0 ? { contexto } : {}),
+    ...(alineaciones ? { alineaciones } : {}),
+  }
+}
+
+async function obtenerSummary(ligaId, espnId) {
+  if (!ligaId || !espnId) return null
+  const clave = `${ligaId}:${espnId}`
+  if (CACHE_FICHA.has(clave)) return CACHE_FICHA.get(clave)
+  const promesa = (async () => {
+    const url = `https://site.api.espn.com/apis/site/v2/sports/soccer/${encodeURIComponent(ligaId)}/summary?event=${encodeURIComponent(espnId)}&lang=es&region=mx`
+    const res = await fetch(url)
+    return res.ok ? res.json() : null
+  })().catch(() => null)
+  CACHE_FICHA.set(clave, promesa)
+  return promesa
+}
+
 export async function obtenerResumenPartido(ligaId, espnId) {
   if (!ligaId || !espnId) return null
   const clave = `${ligaId}:${espnId}`
   if (CACHE.has(clave)) return CACHE.get(clave)
-  const promesa = (async () => {
-    const url = `https://site.api.espn.com/apis/site/v2/sports/soccer/${encodeURIComponent(ligaId)}/summary?event=${encodeURIComponent(espnId)}&lang=es&region=mx`
-    const res = await fetch(url)
-    if (!res.ok) return null
-    return normalizarResumen(await res.json())
-  })().catch(() => null)
+  const promesa = obtenerSummary(ligaId, espnId).then(normalizarResumen).catch(() => null)
   CACHE.set(clave, promesa)
   return promesa
+}
+
+export async function obtenerFichaPartido(ligaId, espnId) {
+  return normalizarFichaPartido(await obtenerSummary(ligaId, espnId))
 }
 
 // Los clips de ESPN caducan cerca de un mes después del partido. Si el video
 // truena dejamos de ofrecerlo para que la columna caiga al enlace de siempre.
 export function olvidarResumen(ligaId, espnId) {
-  CACHE.delete(`${ligaId}:${espnId}`)
+  const clave = `${ligaId}:${espnId}`
+  CACHE.delete(clave)
+  CACHE_FICHA.delete(clave)
 }
 
 export function formatearDuracion(segundos) {

@@ -118,9 +118,9 @@ describe('respaldo de detalles ESPN', () => {
 
   it('omite cancelados, archivados y estados terminales', () => {
     expect(necesitaDetalles(q({ resultados: { 0: { cancelado: true } } }), enMinutos(120))).toBe(false)
-    expect(necesitaDetalles(q({ detallesGuardados: [0] }), enMinutos(120))).toBe(false)
-    expect(necesitaDetalles(q({ detallesPendientes: { 0: { encontrado: true } } }), enMinutos(120))).toBe(false)
-    expect(necesitaDetalles(q({ detallesPendientes: { 0: { agotado: true } } }), enMinutos(120))).toBe(false)
+    expect(necesitaDetalles(q({ detallesAmpliadosGuardados: [0] }), enMinutos(120))).toBe(false)
+    expect(necesitaDetalles(q({ detallesAmpliadosPendientes: { 0: { encontrado: true } } }), enMinutos(120))).toBe(false)
+    expect(necesitaDetalles(q({ detallesAmpliadosPendientes: { 0: { agotado: true } } }), enMinutos(120))).toBe(false)
   })
 
   it('espera 30 minutos entre intentos y limita la ventana', () => {
