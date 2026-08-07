@@ -169,6 +169,31 @@ export default function Stream() {
 
   useScreenWakeLock(estado.tipo === 'listo' && reproduccionIniciada)
 
+  const cambiarModo = valor => {
+    const next = new URLSearchParams(searchParams)
+    next.set('modo', valor)
+    setSearchParams(next, { replace: true })
+  }
+
+  const recargarTransmision = () => setIframeKey(k => k + 1)
+
+  const abrirPantallaCompleta = () => {
+    const elemento = playerRef.current
+    const solicitar = elemento?.requestFullscreen ?? elemento?.webkitRequestFullscreen
+    if (solicitar) {
+      const promesa = solicitar.call(elemento)
+      promesa?.catch?.(() => {})
+    }
+  }
+
+  const cambiarFuente = idx => {
+    const item = estado.tipo === 'listo' ? estado.fuentes[idx] : null
+    const next = new URLSearchParams(searchParams)
+    next.set('opcion', String(idx + 1))
+    if (!item?.esStreamX) next.delete('modo')
+    setSearchParams(next, { replace: true })
+  }
+
   if (estado.tipo === 'cargando') {
     return <StreamMessage texto="Preparando transmisión…" />
   }
@@ -268,74 +293,119 @@ export default function Stream() {
               </div>
             )}
           </div>
-          <div className="stream-player-actions" aria-label="Controles de transmisión">
-            {fuente?.esStreamX && (
-              <div className="stream-mode-options">
-                <span>Reproductor</span>
-                {[
-                  ['live2', 'Automático'],
-                  ['live1', 'Manual'],
-                ].map(([valor, etiqueta]) => (
+          <div className="stream-mobile-toolbar" aria-label="Controles de transmisión">
+              {fuente?.esStreamX && (
+                <div className="stream-mobile-mode" aria-label="Tipo de reproductor">
+                  {[
+                    ['live2', 'Auto'],
+                    ['live1', 'Manual'],
+                  ].map(([valor, etiqueta]) => (
+                    <button
+                      type="button"
+                      key={valor}
+                      className={modo === valor ? 'is-active' : ''}
+                      onClick={() => cambiarModo(valor)}
+                    >
+                      {etiqueta}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <button
+                type="button"
+                className="stream-mobile-tool"
+                disabled={!reproduccionIniciada}
+                onClick={recargarTransmision}
+                aria-label="Recargar transmisión"
+                title="Recargar"
+              >
+                <SvgIcon name="refresh" size={14} />
+              </button>
+              <button
+                type="button"
+                className="stream-mobile-tool"
+                onClick={abrirPantallaCompleta}
+                aria-label="Ver en pantalla completa"
+                title="Pantalla completa"
+              >
+                <SvgIcon name="maximize" size={14} />
+              </button>
+              {estado.fuentes.length > 1 && (
+                <label className="stream-mobile-source">
+                  <span className="stream-mobile-source-label">Señal</span>
+                  <span className="stream-mobile-source-control">
+                    <span className="stream-mobile-source-value">
+                      {estado.fuentes[opcionIdx]?.nombre || `Opción ${opcionIdx + 1}`}
+                    </span>
+                    <select
+                      value={opcionIdx}
+                      onChange={e => cambiarFuente(Number(e.target.value))}
+                      aria-label="Cambiar señal de transmisión"
+                    >
+                      {estado.fuentes.map((item, idx) => (
+                        <option key={idx} value={idx}>
+                          {item.nombre || `Opción ${idx + 1}`}
+                        </option>
+                      ))}
+                    </select>
+                  </span>
+                </label>
+              )}
+          </div>
+          <div className="stream-desktop-controls">
+              <div className="stream-player-actions" aria-label="Controles de transmisión">
+                {fuente?.esStreamX && (
+                  <div className="stream-mode-options">
+                    <span>Reproductor</span>
+                    {[
+                      ['live2', 'Automático'],
+                      ['live1', 'Manual'],
+                    ].map(([valor, etiqueta]) => (
+                      <button
+                      type="button"
+                      key={valor}
+                      className={modo === valor ? 'is-active' : ''}
+                      onClick={() => cambiarModo(valor)}
+                      >
+                        {etiqueta}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <div className="stream-utility-actions">
                   <button
                     type="button"
-                    key={valor}
-                    className={modo === valor ? 'is-active' : ''}
-                    onClick={() => {
-                      const next = new URLSearchParams(searchParams)
-                      next.set('modo', valor)
-                      setSearchParams(next, { replace: true })
-                    }}
+                    disabled={!reproduccionIniciada}
+                    onClick={recargarTransmision}
                   >
-                    {etiqueta}
+                    <SvgIcon name="refresh" size={13} />
+                    Recargar
                   </button>
-                ))}
+                  <button
+                    type="button"
+                    onClick={abrirPantallaCompleta}
+                  >
+                    <SvgIcon name="maximize" size={13} />
+                    Pantalla completa
+                  </button>
+                </div>
               </div>
-            )}
-            <div className="stream-utility-actions">
-              <button
-                type="button"
-                disabled={!reproduccionIniciada}
-                onClick={() => setIframeKey(k => k + 1)}
-              >
-                <SvgIcon name="refresh" size={13} />
-                Recargar
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  const elemento = playerRef.current
-                  const solicitar = elemento?.requestFullscreen ?? elemento?.webkitRequestFullscreen
-                  if (solicitar) {
-                    const promesa = solicitar.call(elemento)
-                    promesa?.catch?.(() => {})
-                  }
-                }}
-              >
-                <SvgIcon name="maximize" size={13} />
-                Pantalla completa
-              </button>
-            </div>
+              {estado.fuentes.length > 1 && (
+                <div className="stream-source-options" aria-label="Opciones de transmisión">
+                  <span>¿Problemas con la señal?</span>
+                  {estado.fuentes.map((item, idx) => (
+                    <button
+                      type="button"
+                      key={idx}
+                      className={idx === opcionIdx ? 'is-active' : ''}
+                      onClick={() => cambiarFuente(idx)}
+                    >
+                      {item.nombre || `Opción ${idx + 1}`}
+                    </button>
+                  ))}
+                </div>
+              )}
           </div>
-          {estado.fuentes.length > 1 && (
-            <div className="stream-source-options" aria-label="Opciones de transmisión">
-              <span>¿Problemas con la señal?</span>
-              {estado.fuentes.map((item, idx) => (
-                <button
-                  type="button"
-                  key={idx}
-                  className={idx === opcionIdx ? 'is-active' : ''}
-                  onClick={() => {
-                    const next = new URLSearchParams(searchParams)
-                    next.set('opcion', String(idx + 1))
-                    if (!item.esStreamX) next.delete('modo')
-                    setSearchParams(next, { replace: true })
-                  }}
-                >
-                  {item.nombre || `Opción ${idx + 1}`}
-                </button>
-              ))}
-            </div>
-          )}
           {reproduccionIniciada && mostrarConsejoBrave && (
             <aside className="stream-brave-tip">
               <span className="stream-brave-tip-icon" aria-hidden="true">
