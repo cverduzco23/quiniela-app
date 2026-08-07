@@ -47,6 +47,16 @@ export function ProgresoPasos({
   }
 
   const lineaMovil = (i) => {
+    if (i === 1 && etapa === 'enjuego') {
+      return (
+        <span aria-hidden="true" className="progreso-pasos-mobile-track">
+          <span className="progreso-pasos-mobile-fill" style={{ width: `${pct}%` }} />
+          {pct > 0 && pct < 100 && (
+            <span className="progreso-pasos-mobile-head" style={{ left: `${pct}%` }} />
+          )}
+        </span>
+      )
+    }
     let bg = 'var(--border-strong)'
     if (idx > i) bg = i === 1 ? 'linear-gradient(90deg, var(--green), var(--yellow))' : 'var(--green)'
     return <span aria-hidden="true" style={{ flex: 1, height: 2, borderRadius: 1, background: bg, margin: '0 8px' }} />

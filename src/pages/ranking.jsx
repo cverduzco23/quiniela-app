@@ -504,9 +504,13 @@ export default function Ranking() {
 
   const partidos   = quiniela.partidos ?? []
   const resultados = quiniela.resultados ?? {}
-  const partidosJugados = partidos.filter((_, i) => {
+  const partidosJugados = partidos.filter((partido, i) => {
     const resultado = resultados[i] ?? resultados[String(i)]
-    return resultado?.cancelado || getResultado(resultado) !== null
+    const live = partido.espnId ? liveScores[partido.espnId] : null
+    return resultado?.cancelado ||
+      getResultado(resultado) !== null ||
+      live?.cancelado ||
+      (live?.state === 'post' && !live?.noFinal)
   }).length
   const enVivo     = Object.values(liveScores).some(l => l.state === 'in')
   const hayPartidosActualizables = partidos.some(p => p.espnId && p.ligaId)
@@ -514,7 +518,12 @@ export default function Ranking() {
   // En ese estado no hay nada que "actualizar".
   const finalizada = quinielaFinalizada(quiniela) || (partidos.length > 0 && !enVivo && partidos.every((_, i) => {
     const r = resultados[i] ?? resultados[String(i)]
-    return r?.cancelado || getResultado(r) !== null
+    const partido = partidos[i]
+    const live = partido?.espnId ? liveScores[partido.espnId] : null
+    return r?.cancelado ||
+      getResultado(r) !== null ||
+      live?.cancelado ||
+      (live?.state === 'post' && !live?.noFinal)
   }))
   const mostrarControlesActualizacion = hayPartidosActualizables && quinielaCerrada(quiniela) && !finalizada
 

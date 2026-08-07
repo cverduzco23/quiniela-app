@@ -5,10 +5,10 @@ import { db } from '../firebase'
 // Detalles archivados de un partido: las estadísticas, los eventos y el
 // resumen en video que la Cloud Function guardó cuando el partido terminó.
 //
-// Solo se pide cuando ESPN ya no los devuelve (pasados un par de días) y para
-// el partido que el usuario tiene abierto en la columna de escritorio: es una
-// lectura por partido visto, no por visita al ranking. El resultado se guarda
-// en un caché de módulo para que ir y venir por el carrusel no vuelva a pedirlo.
+// Solo se pide para el partido que el usuario abre, tanto en el acordeón móvil
+// como en la columna de escritorio: es una lectura por partido visto, no por
+// visita al ranking. El resultado se guarda en un caché de módulo para que
+// volver a abrirlo no vuelva a pedirlo.
 const CACHE = new Map()
 
 function leerArchivo(quinielaId, idx) {

@@ -4,6 +4,7 @@ import Index from './pages/index'
 import Predicciones from './pages/predicciones'
 import Ranking from './pages/ranking'
 import Stream from './pages/stream'
+import ResumenPartidoPage from './pages/resumen-partido'
 import Temporada from './pages/temporada'
 import Admin from './pages/admin'
 import Donar from './pages/donar'
@@ -74,6 +75,7 @@ function App() {
           <Route path="/ranking/:id" element={<Ranking />} />
           <Route path="/ranking" element={<Ranking />} />
           <Route path="/stream/:quinielaId/:partidoIdx" element={<Stream />} />
+          <Route path="/ranking/:quinielaId/partido/:partidoIdx" element={<ResumenPartidoPage />} />
           {/* Tabla general de una temporada (grupo de quinielas). */}
           <Route path="/temporada/:id" element={<Temporada />} />
           <Route path="/admin" element={<Admin />} />

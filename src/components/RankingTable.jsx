@@ -1019,7 +1019,10 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                       conteos={reacciones[String(i)]}
                     />
                   )}
-                  {!mostrarStream && !mostrarReacciones && <span className="ranking-stream-placeholder" aria-hidden="true" />}
+                  {!layoutEscritorio && pendiente && (
+                    <EstadioPartidoPendiente partido={p} />
+                  )}
+                  {!mostrarStream && !mostrarReacciones && (layoutEscritorio || !pendiente) && <span className="ranking-stream-placeholder" aria-hidden="true" />}
                   {tieneAlgo && (
                     <span className="ranking-match-toggle ranking-match-toggle-actions">
                       <span className="ranking-match-toggle-icon" aria-hidden="true">
@@ -1174,10 +1177,18 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                         )}
                       </div>
                     )}
-                    {hayResumen && !hayDetallesVisibles && (
+                    {jugado && !cancelado && (
+                      <DetalleArchivadoMovil
+                        quinielaId={quiniela.id}
+                        idx={i}
+                        mostrarStats={!hayStats}
+                        mostrarEventos={eventosNormales.length === 0}
+                        mostrarPenales={!hayPenales}
+                      />
+                    )}
+                    {hayResumen && (
                       <a
-                        href={`https://www.espn.com/soccer/match/_/gameId/${p.espnId}`}
-                        target="_blank" rel="noreferrer"
+                        href={`/ranking/${quiniela.id}/partido/${i}`}
                         className="ranking-match-summary-link"
                         onClick={e => e.stopPropagation()}
                       >
@@ -1817,7 +1828,7 @@ function CarruselPartidos({ partidos, estados, cerrada, misPicks, seleccionado, 
 // ---------------------------------------------------------------------------
 // Escritorio: columna del partido (transmisión, marcador, estadísticas, eventos)
 // ---------------------------------------------------------------------------
-function ColumnaPartido({
+export function ColumnaPartido({
   quiniela, idx, partido, estado, st, eventos, penales,
   miPick, puedeVerStream, ahora,
 }) {
@@ -2292,6 +2303,161 @@ function inicialesEquipo(nombre) {
   const tokens = String(nombre || '').trim().split(/[\s-]+/).filter(Boolean)
   if (tokens.length > 1) return tokens.map(t => t[0]).join('').slice(0, 3).toUpperCase()
   return (tokens[0] || '').slice(0, 3).toUpperCase()
+}
+
+// En la lista móvil, los partidos que todavía no comienzan muestran su sede
+// debajo del VS. La ficha se consulta bajo demanda y comparte el caché de ESPN
+// con la columna de escritorio y la pantalla de resumen.
+function EstadioPartidoPendiente({ partido }) {
+  const ficha = useFichaPartido(
+    partido,
+    (!partido?.estadio || !partido?.ciudad) && !!partido?.espnId && !!partido?.ligaId,
+    false
+  )
+  const estadio = partido?.estadio || ficha?.contexto?.estadio
+  const ciudad = partido?.ciudad || ficha?.contexto?.ciudad
+  const ubicacion = [estadio, ciudad].filter(Boolean).join(' · ')
+  if (!ubicacion) return null
+
+  return (
+    <span className="ranking-match-stadium" title={ubicacion}>
+      {ubicacion}
+    </span>
+  )
+}
+
+// Respaldo permanente para el acordeón móvil. ESPN deja de incluir partidos
+// viejos en el scoreboard después de unos días; al abrirlos recuperamos el
+// documento archivado al finalizar el encuentro y conservamos el botón de
+// resumen como la última acción del panel.
+function DetalleArchivadoMovil({
+  quinielaId,
+  idx,
+  mostrarStats,
+  mostrarEventos,
+  mostrarPenales,
+}) {
+  const { detalle } = useDetallePartido(
+    quinielaId,
+    idx,
+    mostrarStats || mostrarEventos || mostrarPenales
+  )
+  const stats = mostrarStats ? detalle?.stats : null
+  const eventos = mostrarEventos
+    ? (detalle?.eventos ?? []).filter(ev => !ev.penalShootout)
+    : []
+  const penales = mostrarPenales ? (detalle?.penales ?? []) : []
+  const posH = stats ? parseFloat(stats.home?.posesion) || 50 : 50
+  const penalesRondas = (() => {
+    const porRonda = {}
+    penales.forEach(k => { (porRonda[k.orden] ||= {})[k.lado] = k })
+    return Object.keys(porRonda)
+      .map(Number)
+      .sort((a, b) => a - b)
+      .map(n => ({ orden: n, home: porRonda[n].home, away: porRonda[n].away }))
+  })()
+
+  if (!stats && eventos.length === 0 && penalesRondas.length === 0) return null
+
+  return (
+    <>
+      {stats && (
+        <div className="ranking-match-stats">
+          {valorEstadisticaDisponible(stats.home?.posesion) &&
+            valorEstadisticaDisponible(stats.away?.posesion) && (
+              <div className="ranking-match-possession">
+                <div className="ranking-match-stat-line is-possession">
+                  <span className="ranking-match-stat-value is-home">{stats.home.posesion}%</span>
+                  <span className="ranking-match-stat-label">Posesión</span>
+                  <span className="ranking-match-stat-value is-away">{stats.away.posesion}%</span>
+                </div>
+                <div className="ranking-match-possession-bar">
+                  <span style={{ width: `${posH}%` }} />
+                </div>
+              </div>
+            )}
+          {[
+            { label: 'Tiros al arco', h: stats.home?.tirosArco, a: stats.away?.tirosArco },
+            { label: 'Tiros totales', h: stats.home?.tirosTotales, a: stats.away?.tirosTotales },
+            { label: 'Corners', h: stats.home?.corners, a: stats.away?.corners },
+            { label: 'Faltas', h: stats.home?.faltas, a: stats.away?.faltas },
+          ].filter(({ h, a }) =>
+            valorEstadisticaDisponible(h) && valorEstadisticaDisponible(a)
+          ).map(({ label, h, a }) => (
+            <div key={label} className="ranking-match-stat-line">
+              <span className="ranking-match-stat-value is-home">{h}</span>
+              <span className="ranking-match-stat-label">{label}</span>
+              <span className="ranking-match-stat-value is-away">{a}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {eventos.length > 0 && (
+        <div className="ranking-match-events">
+          <p className="ranking-match-events-title">Últimos eventos</p>
+          {[...eventos].reverse().map((ev, j) => {
+            const izq = ev.lado === 'home'
+            return (
+              <div key={j} className={`ranking-match-event-row${izq ? ' is-home' : ' is-away'}`}>
+                <span className={`ranking-match-event-icon is-${ev.tipo || 'default'}`}>
+                  <SvgIcon name={ev.tipo || 'dot'} size={13} />
+                </span>
+                <span className="ranking-match-event-minute">{ev.minuto}</span>
+                <span className="ranking-match-event-player">
+                  {ev.jugador}{ev.ownGoal ? ' (a.g.)' : ''}
+                </span>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {penalesRondas.length > 0 && (
+        <div
+          className="ranking-match-shootout"
+          style={{
+            marginTop: (stats || eventos.length > 0) ? 12 : 0,
+            paddingTop: (stats || eventos.length > 0) ? 10 : 0,
+            borderTop: (stats || eventos.length > 0) ? '1px solid var(--border)' : 'none',
+          }}
+        >
+          <p style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6, textAlign: 'center' }}>
+            Tanda de penales
+          </p>
+          {penalesRondas.map((r, j) => (
+            <div key={j} className="ranking-match-shootout-row">
+              <TiroPenalMovil tiro={r.home} lado="home" />
+              <TiroPenalMovil tiro={r.away} lado="away" />
+            </div>
+          ))}
+          <p className="ranking-match-shootout-final">Se definió en penales.</p>
+        </div>
+      )}
+    </>
+  )
+}
+
+function TiroPenalMovil({ tiro, lado }) {
+  return (
+    <span className={lado === 'away' ? 'is-away' : undefined}>
+      {tiro && (
+        <>
+          {lado === 'home' && (
+            <span style={{ display: 'inline-flex', color: tiro.anotado ? 'var(--green)' : 'var(--red)' }}>
+              <SvgIcon name={tiro.anotado ? 'check' : 'x'} size={13} />
+            </span>
+          )}
+          <span>{tiro.jugador}</span>
+          {lado === 'away' && (
+            <span style={{ display: 'inline-flex', color: tiro.anotado ? 'var(--green)' : 'var(--red)' }}>
+              <SvgIcon name={tiro.anotado ? 'check' : 'x'} size={13} />
+            </span>
+          )}
+        </>
+      )}
+    </span>
+  )
 }
 
 // Escudo del equipo, o un badge con sus iniciales si no hay imagen.

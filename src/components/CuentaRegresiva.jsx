@@ -52,7 +52,7 @@ function partesConDias(ms) {
 
 function PanelTimeBlock({ val, label, color }) {
   return (
-    <span style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', lineHeight: 1 }}>
+    <span className="timer-panel-mobile-block" style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', lineHeight: 1 }}>
       <span style={{ display: 'inline-block', minWidth: '2ch', textAlign: 'center', fontFamily: 'var(--font-display)', fontSize: 'var(--timer-panel-number-size, 34px)', fontWeight: 800, color, letterSpacing: 0, lineHeight: 0.95 }}>
         {val}
       </span>
@@ -65,7 +65,7 @@ function PanelTimeBlock({ val, label, color }) {
 
 function PanelSeparator() {
   return (
-    <span aria-hidden="true" style={{ width: 6, height: 'var(--timer-panel-separator-height, 32px)', display: 'inline-flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 'var(--timer-panel-separator-gap, 7px)', flexShrink: 0 }}>
+    <span aria-hidden="true" className="timer-panel-mobile-separator" style={{ width: 6, height: 'var(--timer-panel-separator-height, 32px)', display: 'inline-flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 'var(--timer-panel-separator-gap, 7px)', flexShrink: 0 }}>
       <span style={{ width: 'var(--timer-panel-dot-size, 3.5px)', height: 'var(--timer-panel-dot-size, 3.5px)', borderRadius: '50%', background: 'rgba(148,163,184,0.78)' }} />
       <span style={{ width: 'var(--timer-panel-dot-size, 3.5px)', height: 'var(--timer-panel-dot-size, 3.5px)', borderRadius: '50%', background: 'rgba(148,163,184,0.78)' }} />
     </span>
@@ -144,11 +144,11 @@ export function CuentaRegresiva({ cierre, umbralHoras = UMBRAL_HORAS_DEFAULT, pr
     return (
       <div className={`timer-panel timer-panel--${nivel}`} style={{ ...estilo }}>
         <div className="timer-panel-mobile">
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--green)', fontSize: 'var(--timer-panel-title-size, 10px)', fontWeight: 900, textTransform: 'uppercase', letterSpacing: 1.3, marginBottom: 'var(--timer-panel-title-gap, 8px)' }}>
+          <div className="timer-panel-mobile-title" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--green)', fontSize: 'var(--timer-panel-title-size, 10px)', fontWeight: 900, textTransform: 'uppercase', letterSpacing: 1.3, marginBottom: 'var(--timer-panel-title-gap, 8px)' }}>
             <TimerIcon size={13} />
             {prefijo}
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'auto 6px auto 6px auto', alignItems: 'start', columnGap: 'var(--timer-panel-column-gap, 7px)', width: 'fit-content', fontVariantNumeric: 'tabular-nums' }}>
+          <div className="timer-panel-mobile-blocks" style={{ display: 'grid', gridTemplateColumns: 'auto 6px auto 6px auto', alignItems: 'start', columnGap: 'var(--timer-panel-column-gap, 7px)', width: 'fit-content', fontVariantNumeric: 'tabular-nums' }}>
             <PanelTimeBlock val={p.h} label="Hrs" color="var(--text-strong)" />
             <PanelSeparator />
             <PanelTimeBlock val={p.m} label="Min" color="var(--text-strong)" />
