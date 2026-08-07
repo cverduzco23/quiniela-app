@@ -1838,7 +1838,11 @@ function ColumnaPartido({
   // leer el respaldo de YouTube, aunque ESPN todavía conserve estadísticas.
   const necesitaDetalle = e.jugado && !e.cancelado
   const { detalle } = useDetallePartido(quiniela?.id, idx, necesitaDetalle)
-  const fichaEnVivo = useFichaPartido(p, !!p.espnId && !e.cancelado && (e.esVivo || e.jugado))
+  const fichaEnVivo = useFichaPartido(
+    p,
+    !!p.espnId && !e.cancelado,
+    !e.jugado
+  )
   const stats = statsEnVivo ? st : (detalle?.stats ? { state: 'post', ...detalle.stats } : null)
   const hayStats = !!stats
   const posH = hayStats ? parseFloat(stats.home.posesion) || 50 : 50
@@ -2059,7 +2063,8 @@ function ColumnaPartido({
                 </div>
               ) : e.jugado ? null : (
                 <p className="rk-live-stats-empty">
-                  Las estadísticas del partido aparecen aquí cuando arranca.
+                  Las estadísticas aparecerán cuando arranque; las alineaciones,
+                  en cuanto sean publicadas.
                 </p>
               )}
             </div>

@@ -108,3 +108,13 @@ export function tiempoRestante(cierre, ahora = Date.now()) {
   }
   return null
 }
+
+// Nivel visual del reloj de registro abierto. Recibe milisegundos restantes
+// para que el contador y la tarjeta compartan exactamente los mismos umbrales.
+export function nivelUrgenciaCierre(ms) {
+  if (!Number.isFinite(ms) || ms <= 0) return null
+  if (ms < 5 * 60 * 1000) return 'parpadeo'
+  if (ms < 30 * 60 * 1000) return 'critico'
+  if (ms < 24 * 60 * 60 * 1000) return 'proximo'
+  return 'normal'
+}

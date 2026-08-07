@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { cierreToDate } from '../utils/cierre'
+import { cierreToDate, nivelUrgenciaCierre } from '../utils/cierre'
 
 /**
  * Contador en vivo (horas:minutos:segundos) hasta el cierre de una quiniela.
@@ -72,6 +72,15 @@ function PanelSeparator() {
   )
 }
 
+function DesktopTimeBlock({ val, label, seconds = false }) {
+  return (
+    <span className={`timer-panel-desktop-block${seconds ? ' is-seconds' : ''}`}>
+      <strong>{String(val).padStart(2, '0')}</strong>
+      <small>{label}</small>
+    </span>
+  )
+}
+
 export function CuentaRegresiva({ cierre, umbralHoras = UMBRAL_HORAS_DEFAULT, prefijo = 'Cierra en', estilo, variante = 'pill', mostrarIcono = true }) {
   // Tick cada segundo para refrescar el contador.
   const [ahora, setAhora] = useState(() => Date.now())
@@ -112,18 +121,51 @@ export function CuentaRegresiva({ cierre, umbralHoras = UMBRAL_HORAS_DEFAULT, pr
   }
 
   if (variante === 'panel') {
+    const pd = partesConDias(ms)
+    const nivel = nivelUrgenciaCierre(ms) ?? 'normal'
+    const bloquesDesktop = pd.dias > 0
+      ? [
+          { val: pd.dias, label: 'Días' },
+          { val: pd.h, label: 'Hrs' },
+          { val: pd.m, label: 'Min' },
+          { val: pd.s, label: 'Seg', seconds: true },
+        ]
+      : ms < 30 * 60 * 1000
+        ? [
+            { val: pd.m, label: 'Min' },
+            { val: pd.s, label: 'Seg', seconds: true },
+          ]
+        : [
+            { val: pd.h, label: 'Hrs' },
+            { val: pd.m, label: 'Min' },
+            { val: pd.s, label: 'Seg', seconds: true },
+          ]
+
     return (
-      <div style={{ ...estilo }}>
-        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--green)', fontSize: 'var(--timer-panel-title-size, 10px)', fontWeight: 900, textTransform: 'uppercase', letterSpacing: 1.3, marginBottom: 'var(--timer-panel-title-gap, 8px)' }}>
-          <TimerIcon size={13} />
-          {prefijo}
+      <div className={`timer-panel timer-panel--${nivel}`} style={{ ...estilo }}>
+        <div className="timer-panel-mobile">
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--green)', fontSize: 'var(--timer-panel-title-size, 10px)', fontWeight: 900, textTransform: 'uppercase', letterSpacing: 1.3, marginBottom: 'var(--timer-panel-title-gap, 8px)' }}>
+            <TimerIcon size={13} />
+            {prefijo}
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'auto 6px auto 6px auto', alignItems: 'start', columnGap: 'var(--timer-panel-column-gap, 7px)', width: 'fit-content', fontVariantNumeric: 'tabular-nums' }}>
+            <PanelTimeBlock val={p.h} label="Hrs" color="var(--text-strong)" />
+            <PanelSeparator />
+            <PanelTimeBlock val={p.m} label="Min" color="var(--text-strong)" />
+            <PanelSeparator />
+            <PanelTimeBlock val={p.s} label="Seg" color={critico ? '#FCA5A5' : 'var(--yellow)'} />
+          </div>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'auto 6px auto 6px auto', alignItems: 'start', columnGap: 'var(--timer-panel-column-gap, 7px)', width: 'fit-content', fontVariantNumeric: 'tabular-nums' }}>
-          <PanelTimeBlock val={p.h} label="Hrs" color="var(--text-strong)" />
-          <PanelSeparator />
-          <PanelTimeBlock val={p.m} label="Min" color="var(--text-strong)" />
-          <PanelSeparator />
-          <PanelTimeBlock val={p.s} label="Seg" color={critico ? '#FCA5A5' : 'var(--yellow)'} />
+        <div className="timer-panel-desktop">
+          <div className="timer-panel-desktop-title">
+            <TimerIcon size={13} />
+            {prefijo}
+          </div>
+          <div className="timer-panel-desktop-blocks">
+            {bloquesDesktop.map(bloque => (
+              <DesktopTimeBlock key={bloque.label} {...bloque} />
+            ))}
+          </div>
         </div>
       </div>
     )

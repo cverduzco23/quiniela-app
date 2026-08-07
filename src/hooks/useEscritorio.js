@@ -6,8 +6,7 @@ import { useEffect, useState } from 'react'
 // arriba de este ancho, así que móvil y tablet quedan exactamente como estaban.
 export const ANCHO_ESCRITORIO = 1024
 
-// `matchMedia` se evalúa contra el viewport real, igual que el media query de
-// CSS, así que el `zoom: 1.1` que #root aplica desde 600px no lo descuadra.
+// `matchMedia` se evalúa contra el viewport real, igual que el media query CSS.
 export function useEscritorio(ancho = ANCHO_ESCRITORIO) {
   const consulta = `(min-width: ${ancho}px)`
   const [esEscritorio, setEsEscritorio] = useState(

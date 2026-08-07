@@ -10,6 +10,7 @@ Sistema visual "Armonía" aplicado en `Ranking - Armonia.dc.html`. Respetar en t
 El color es semántico, nunca decorativo:
 - **Verde `#22C55E`** (claro `#86EFAC`) = marca, acierto, acción, "en juego".
 - **Dorado `#FACC15` / `#F4D27E`** = RESERVADO solo para dinero y 1er lugar. Nunca de adorno.
+- **Excepción de cierre:** el timer de una quiniela abierta usa `#FACC15` cuando faltan menos de 24 horas como señal semántica de urgencia, no como adorno.
 - **Rojo `#EF4444`** (texto `#FCA5A5`) = en vivo / penales.
 - **Grises** (`#9CA3AF`, `#6B7280`, `#4B5563`) = secundario, estados neutros / pendientes.
 - Texto principal `#F9FAFB`.

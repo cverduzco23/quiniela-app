@@ -17,12 +17,29 @@ import { db, track } from '../firebase'
 import { registrarVisita, registrarVisitaQuiniela, registrarEnVivo } from '../utils/analytics'
 import { getResultado } from '../utils/scoring'
 import { clasificarEstadoNoFinalESPN, findEventByTeamsAndDate } from '../utils/espn'
-import { quinielaCerrada, quinielaFinalizada, cierreToDate, tiempoRestante } from '../utils/cierre'
+import { quinielaCerrada, quinielaFinalizada, cierreToDate, nivelUrgenciaCierre } from '../utils/cierre'
 import { RankingTable } from '../components/RankingTable'
 import { CuentaRegresiva } from '../components/CuentaRegresiva'
 import { Footer } from '../components/Footer'
 import { BrandMark } from '../components/Brand'
 import { ProgresoPasos } from '../components/ProgresoPasos'
+
+function formatCierreRegistro(value) {
+  const d = cierreToDate(value)
+  if (!d) return ''
+  const hoy = new Date()
+  const esHoy = d.getFullYear() === hoy.getFullYear() &&
+    d.getMonth() === hoy.getMonth() &&
+    d.getDate() === hoy.getDate()
+  const hora = d.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })
+  if (esHoy) return `Cierra hoy a las ${hora}, cuando arranca el primer partido.`
+  const fecha = d.toLocaleDateString('es-MX', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  }).replace(',', '')
+  return `Cierra el ${fecha} a las ${hora}, cuando arranca el primer partido.`
+}
 
 export default function Ranking() {
   const [searchParams] = useSearchParams()
@@ -409,15 +426,16 @@ export default function Ranking() {
     } catch { /* localStorage no disponible */ }
   }, [quinielaId])
 
-  // Refrescar el banner de "Cierra en X min" cada minuto cerca del cierre
-  const [, setTickCierre] = useState(0)
+  // Refrescar el copy y el tono de la tarjeta de registro cada minuto.
+  // El reloj interno mantiene los números y las transiciones visuales al segundo.
+  const [ahoraCierre, setAhoraCierre] = useState(() => Date.now())
   useEffect(() => {
     if (!quiniela?.cierre || quinielaCerrada(quiniela)) return
     const d = cierreToDate(quiniela.cierre)
     if (!d) return
     const ms = d.getTime() - Date.now()
-    if (ms <= 0 || ms > 24 * 60 * 60 * 1000) return
-    const i = setInterval(() => setTickCierre(t => t + 1), 60 * 1000)
+    if (ms <= 0) return
+    const i = setInterval(() => setAhoraCierre(Date.now()), 60 * 1000)
     return () => clearInterval(i)
   }, [quiniela])
 
@@ -621,21 +639,28 @@ export default function Ranking() {
       <div className="ranking-content" style={{ width: '100%', maxWidth: 'var(--ranking-max-width, 480px)', margin: '0 auto', padding: 'var(--ranking-content-padding, 1.25rem 1rem 6px)', paddingTop: 'calc(var(--ranking-section-gap, 16px) + 8px)', flex: '1 0 auto', display: 'flex', flexDirection: 'column' }}>
         {/* CTA para registrar predicción: solo si la quiniela sigue abierta y este dispositivo aún no envió */}
         {!quinielaCerrada(quiniela) && !yaEnvió && (() => {
-          const tr = tiempoRestante(quiniela.cierre)
-          // Tono del banner según urgencia
-          const border = tr?.nivel === 'critico' ? 'var(--red)' : 'var(--green)'
+          const cierre = cierreToDate(quiniela.cierre)
+          const ms = cierre ? cierre.getTime() - ahoraCierre : Number.NaN
+          const nivel = nivelUrgenciaCierre(ms) ?? 'normal'
+          const border = nivel === 'normal' ? 'var(--green)' : nivel === 'proximo' ? 'var(--yellow)' : 'var(--red)'
+          const ultimosMinutos = nivel === 'critico' || nivel === 'parpadeo'
           return (
-            <div className="ranking-entry-card" style={{
+            <div className={`ranking-entry-card is-${nivel}`} style={{
               background: 'linear-gradient(135deg, rgba(21,31,50,0.98), rgba(15,23,42,0.96))',
               borderRadius: 'var(--radius-lg)',
               padding: 'var(--ranking-entry-card-padding, 16px)', marginBottom: 'var(--ranking-section-gap, 16px)',
               border: `1.5px solid ${border}`, boxShadow: 'var(--shadow-md)',
             }}>
               <CuentaRegresiva cierre={quiniela.cierre} umbralHoras={24 * 365} prefijo="Cierra en" variante="panel" />
-              <p style={{ fontSize: 'var(--ranking-entry-text-size, 12px)', color: 'var(--muted)', lineHeight: 1.5, marginTop: 'var(--ranking-entry-text-margin-top, 12px)', marginBottom: 'var(--ranking-entry-text-margin-bottom, 14px)' }}>
+              <p className="ranking-entry-copy-mobile" style={{ fontSize: 'var(--ranking-entry-text-size, 12px)', color: 'var(--muted)', lineHeight: 1.5, marginTop: 'var(--ranking-entry-text-margin-top, 12px)', marginBottom: 'var(--ranking-entry-text-margin-bottom, 14px)' }}>
                 Regístrate antes del cierre para participar.
               </p>
+              <div className="ranking-entry-copy-desktop">
+                <p>{ultimosMinutos ? 'Últimos minutos para registrarte.' : 'Regístrate antes del cierre para participar.'}</p>
+                <p>{formatCierreRegistro(quiniela.cierre)}</p>
+              </div>
               <a
+                className="ranking-entry-cta"
                 href={`/quiniela/${quinielaId}`}
                 style={{
                   position: 'relative', overflow: 'hidden',

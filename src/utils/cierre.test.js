@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { tiempoRestante, hayPartidoEnVivo } from './cierre'
+import { tiempoRestante, hayPartidoEnVivo, nivelUrgenciaCierre } from './cierre'
 
 const ahora = new Date('2026-06-12T10:00:00').getTime()
 const isoEn = (msDelta) => new Date(ahora + msDelta).toISOString()
@@ -103,5 +103,23 @@ describe('tiempoRestante', () => {
 
     const r2 = tiempoRestante(isoEn(60 * 60 * 1000 - 1), ahora) // justo < 1h
     expect(r2?.nivel).toBe('critico')
+  })
+})
+
+describe('nivelUrgenciaCierre', () => {
+  const MIN = 60 * 1000
+  const HORA = 60 * MIN
+
+  it('clasifica los cuatro niveles en sus umbrales', () => {
+    expect(nivelUrgenciaCierre(24 * HORA)).toBe('normal')
+    expect(nivelUrgenciaCierre(24 * HORA - 1)).toBe('proximo')
+    expect(nivelUrgenciaCierre(30 * MIN - 1)).toBe('critico')
+    expect(nivelUrgenciaCierre(5 * MIN - 1)).toBe('parpadeo')
+  })
+
+  it('no clasifica tiempos vencidos o inválidos', () => {
+    expect(nivelUrgenciaCierre(0)).toBeNull()
+    expect(nivelUrgenciaCierre(-1)).toBeNull()
+    expect(nivelUrgenciaCierre(Number.NaN)).toBeNull()
   })
 })

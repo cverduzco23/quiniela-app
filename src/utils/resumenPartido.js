@@ -109,10 +109,10 @@ export function normalizarFichaPartido(datos) {
   }
 }
 
-async function obtenerSummary(ligaId, espnId) {
+async function obtenerSummary(ligaId, espnId, refrescar = false) {
   if (!ligaId || !espnId) return null
   const clave = `${ligaId}:${espnId}`
-  if (CACHE_FICHA.has(clave)) return CACHE_FICHA.get(clave)
+  if (!refrescar && CACHE_FICHA.has(clave)) return CACHE_FICHA.get(clave)
   const promesa = (async () => {
     const url = `https://site.api.espn.com/apis/site/v2/sports/soccer/${encodeURIComponent(ligaId)}/summary?event=${encodeURIComponent(espnId)}&lang=es&region=mx`
     const res = await fetch(url)
@@ -131,8 +131,8 @@ export async function obtenerResumenPartido(ligaId, espnId) {
   return promesa
 }
 
-export async function obtenerFichaPartido(ligaId, espnId) {
-  return normalizarFichaPartido(await obtenerSummary(ligaId, espnId))
+export async function obtenerFichaPartido(ligaId, espnId, { refrescar = false } = {}) {
+  return normalizarFichaPartido(await obtenerSummary(ligaId, espnId, refrescar))
 }
 
 // Los clips de ESPN caducan cerca de un mes después del partido. Si el video
