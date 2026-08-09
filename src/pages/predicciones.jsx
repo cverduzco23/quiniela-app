@@ -13,6 +13,8 @@ import { useDialog } from '../components/Dialogs'
 import { BrandMark, BrandWordmark } from '../components/Brand'
 import { ProgresoPasos } from '../components/ProgresoPasos'
 import { useEscritorio } from '../hooks/useEscritorio'
+import { BotonEstado, EstadoCarga, EstadoPantalla } from '../components/EstadoPantalla'
+import { MENSAJES_WA, waLink } from '../utils/whatsapp'
 
 function formatFecha(value) {
   const d = cierreToDate(value)
@@ -645,12 +647,15 @@ export default function Predicciones() {
   // Estados
 
   if (cargando) return (
-    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: '#070d18', color: 'var(--muted)', fontSize: 14 }}>
-      Cargando quiniela…
-    </div>
+    <EstadoCarga
+      texto="Cargando quiniela…"
+      mobileFallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: '#070d18', color: 'var(--muted)', fontSize: 14 }}>Cargando quiniela…</div>}
+    />
   )
 
-  if (error) return (
+  if (error) {
+    const noEncontrada = error === 'not-found' || error === 'no-id'
+    const mobileFallback = (
       <div style={{ minHeight: '100vh', background: '#070d18', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '5rem 1.5rem', color: 'var(--muted)' }}>
       <div style={{ textAlign: 'center', maxWidth: 360 }}>
         <div style={{ display: 'inline-flex', color: 'var(--yellow)', marginBottom: 20 }}>
@@ -670,7 +675,31 @@ export default function Predicciones() {
         </a>
       </div>
     </div>
-  )
+    )
+    return (
+      <EstadoPantalla
+        tono={noEncontrada ? 'warning' : 'error'}
+        icono={noEncontrada ? 'info' : 'refresh'}
+        titulo={noEncontrada ? 'Esta quiniela no existe' : 'No se pudo cargar'}
+        copia={noEncontrada
+          ? 'El enlace que abriste no corresponde a ninguna quiniela activa. Pídele al organizador que te lo mande otra vez, o busca la tuya con su código de acceso.'
+          : 'La conexión está tardando más de lo normal. Revisa tu internet e inténtalo de nuevo.'}
+        acciones={noEncontrada ? <><BotonEstado principal href="/#codigo" icono="search">Buscar con un código</BotonEstado><BotonEstado href="/">Ver quinielas abiertas</BotonEstado></> : <BotonEstado principal href="/">Ver quinielas abiertas</BotonEstado>}
+        aside={noEncontrada ? (
+          <aside className="system-state-reasons">
+            <h2>Qué pudo pasar</h2>
+            <ol>
+              <li><i>1</i><span>El enlace se copió incompleto desde WhatsApp.</span></li>
+              <li><i>2</i><span>El organizador eliminó la quiniela.</span></li>
+              <li><i>3</i><span>Estás abriendo un enlace viejo de otra temporada.</span></li>
+            </ol>
+          </aside>
+        ) : null}
+        pie={<span>¿Sigues sin poder entrar? <a href={waLink(MENSAJES_WA.soporte)} target="_blank" rel="noreferrer">Escríbenos por WhatsApp</a></span>}
+        mobileFallback={mobileFallback}
+      />
+    )
+  }
 
   if (enviado) {
     const primerNombre = normalizarNombre(nombre).split(/\s+/).filter(Boolean)[0] || nombre

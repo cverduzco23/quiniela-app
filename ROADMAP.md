@@ -1,6 +1,6 @@
 # ROADMAP: QuinielApp
 
-> **Última actualización: 2026-07-16** (🚀 LANZAMIENTO FÍSICO EJECUTADO: ver §0.bis).
+> **Última actualización: 2026-08-09** (🚀 LANZAMIENTO FÍSICO EJECUTADO: ver §0.bis).
 > Pivote de modelo de negocio (2026-07-04): §0. Mejoras de UX: 2026-06-15 (§4.bis).
 > Auditoría de código/seguridad/costos: 2026-06-11 (§3).
 > Este documento es la fuente de verdad para retomar el proyecto en cualquier momento:
@@ -161,6 +161,20 @@ correo en español, y la prueba end-to-end (cuenta + comentario/reacción + dona
 
 ### Pendiente post-lanzamiento (sin prisa, ver también §4)
 
+- **Decidir y documentar los breakpoints de escritorio:** las pantallas públicas
+  (`predicciones.jsx`, `ranking.jsx` y `temporada.jsx`) cambian a escritorio desde 1024 px,
+  mientras `admin.jsx` usa su propia detección desde 960 px. Entre 960 y 1023 px el panel se
+  comporta como escritorio y las pantallas públicas como móvil. No unificar a ciegas: probar
+  específicamente ese intervalo y decidir si (a) se conserva como diferencia intencional entre
+  un panel denso y las vistas públicas, documentando dos breakpoints semánticos, o (b) se unifica
+  todo en 1024 px si el admin queda apretado o la transición resulta incoherente. Si se comparte
+  la implementación, preferir un hook configurable o tokens CSS en vez de otro umbral rígido.
+- **Revisión gradual del sistema visual:** hoy existen tres catálogos de iconos (`AdminIcon`,
+  `PredIcon` y `SvgIcon`) con glifos duplicados y pequeñas diferencias, además de recetas de
+  tarjetas, superficies, radios y sombras repetidas literalmente entre archivos. Documentar
+  primero en `guia-diseño.md` cuáles son los iconos y patrones canónicos; después extraer
+  componentes compartidos conforme vuelvan a tocarse esas pantallas. Evitar una refactorización
+  masiva durante torneos activos: es deuda técnica real, pero no urgente.
 - **Stickers predeterminados en comentarios:** paquete cerrado de 12 a 20 stickers de fútbol,
   incluidos como assets WebP de la app y seleccionados desde una cuadrícula compacta en el chat.
   Guardar solo `tipo: "sticker"` y un `stickerId` permitido en cada comentario. No aceptar URLs ni

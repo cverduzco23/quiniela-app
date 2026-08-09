@@ -195,7 +195,7 @@ function HomeHeader({ scrolled }) {
 
 function CodeEntry({ codigoBusqueda, setCodigoBusqueda, errorBusqueda, setErrorBusqueda, buscando, buscarPorCodigo, codeRowRef }) {
   return (
-    <div className="public-code-card">
+    <div className="public-code-card" id="codigo">
       <p style={{ fontSize: 10.5, fontWeight: 850, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--muted-soft)', marginBottom: 8 }}>
         Entra a tu quiniela
       </p>

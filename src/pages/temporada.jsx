@@ -5,6 +5,7 @@ import { db, track } from '../firebase'
 import { Footer } from '../components/Footer'
 import { BrandMark } from '../components/Brand'
 import { SvgIcon } from '../components/RankingTable'
+import { BotonEstado, EstadoCarga, EstadoPantalla } from '../components/EstadoPantalla'
 import { calcularBote, calcularGanadores, formatearMXN } from '../utils/premios'
 import { calcularPuntos } from '../utils/scoring'
 import { normalizarNombre } from '../utils/nombres'
@@ -132,14 +133,14 @@ function DestellosCard() {
   return <span className="temporada-card-sparkles" aria-hidden="true">{Array.from({ length: 8 }, (_, i) => <i key={i} />)}</span>
 }
 
-function TarjetasDestacadas({ destacados, calculando, nombreTemporada }) {
+function TarjetasDestacadas({ destacados, calculando, nombreTemporada, escritorio = false }) {
   const carruselRef = useRef(null)
   const pausadoRef = useRef(false)
   const pausaManualHastaRef = useRef(0)
   const [volteadas, setVolteadas] = useState(new Set())
   const [activa, setActiva] = useState(0)
 
-  const tarjetas = destacados ? [
+  const tarjetasBase = destacados ? [
     destacados.masParticipantes && {
       icono: 'users', titulo: 'Más participantes', principal: destacados.masParticipantes.quiniela,
       valor: `${destacados.masParticipantes.valor} participantes`,
@@ -178,9 +179,13 @@ function TarjetasDestacadas({ destacados, calculando, nombreTemporada }) {
       descripcion: `Durante ${nombreTemporada} se repartieron ${formatearMXN(destacados.dineroRepartido.valor)} en premios informativos entre los participantes.`,
     },
   ].filter(Boolean) : []
+  const ordenEscritorio = ['Mayor premio individual', 'Más exactos en un partido', 'Más participantes', 'Mayor bolsa', 'Partidos totales', 'Total de dinero repartido']
+  const tarjetas = escritorio
+    ? [...tarjetasBase].sort((a, b) => ordenEscritorio.indexOf(a.titulo) - ordenEscritorio.indexOf(b.titulo))
+    : tarjetasBase
 
   useEffect(() => {
-    if (tarjetas.length < 2 || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    if (escritorio || tarjetas.length < 2 || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
     const interval = setInterval(() => {
       if (pausadoRef.current || Date.now() < pausaManualHastaRef.current) return
       const carrusel = carruselRef.current
@@ -191,15 +196,15 @@ function TarjetasDestacadas({ destacados, calculando, nombreTemporada }) {
       setActiva(siguiente)
     }, 4200)
     return () => clearInterval(interval)
-  }, [activa, tarjetas.length])
+  }, [activa, tarjetas.length, escritorio])
 
   if (calculando) return (
-    <div className="temporada-highlights-loading">Calculando récords de la temporada…</div>
+    <div className={`temporada-highlights-loading ${escritorio ? 'is-desktop' : 'is-mobile'}`}>Calculando récords de la temporada…</div>
   )
   if (!destacados) return null
   if (tarjetas.length === 0) return null
   return (
-    <div className="temporada-highlights-wrap">
+    <div className={`temporada-highlights-wrap ${escritorio ? 'is-desktop' : 'is-mobile'}`}>
       <section
         ref={carruselRef}
         aria-label="Récords de la temporada"
@@ -247,23 +252,107 @@ function TarjetasDestacadas({ destacados, calculando, nombreTemporada }) {
                   <span className="temporada-highlight-title">{t.titulo}</span>
                   <strong>{t.principal}</strong>
                   <span className="temporada-highlight-value">{t.valor}</span>
-                  <small>Toca para saber más</small>
+                  <small>{escritorio ? 'Pasa el cursor para saber más' : 'Toca para saber más'}</small>
                 </span>
                 <span className="temporada-highlight-face temporada-highlight-back">
                   <DestellosCard />
                   <span className="temporada-highlight-title">{t.titulo}</span>
                   <span>{t.descripcion}</span>
-                  <small>Toca para volver</small>
+                  <small>{escritorio ? 'Retira el cursor para volver' : 'Toca para volver'}</small>
                 </span>
               </span>
             </button>
           )
         })}
       </section>
-      <div className="temporada-highlight-dots" aria-hidden="true">
+      {!escritorio && <div className="temporada-highlight-dots" aria-hidden="true">
         {tarjetas.map((t, idx) => <span key={t.titulo} className={idx === activa ? 'is-active' : ''} />)}
-      </div>
+      </div>}
     </div>
+  )
+}
+
+function ChipLider({ icono, children, dinero = false, destacado = false }) {
+  return (
+    <span className={`temporada-leader-chip${dinero ? ' is-money' : ''}${destacado ? ' is-highlighted' : ''}`}>
+      {icono && <SvgIcon name={icono} size={12} />}{children}
+    </span>
+  )
+}
+
+function TarjetaLider({ lideres, tabla, ganadoDe }) {
+  if (!lideres.length) return null
+  const puntos = lideres[0].puntos ?? 0
+  const siguiente = tabla.find(j => (j.puntos ?? 0) !== puntos)
+  const ventaja = siguiente ? puntos - (siguiente.puntos ?? 0) : null
+
+  if (lideres.length === 1) {
+    const lider = lideres[0]
+    const ganado = ganadoDe(lider)
+    return (
+      <aside className="temporada-leader-card is-single">
+        <span className="temporada-leader-shine" aria-hidden="true" />
+        <div className="temporada-leader-kicker"><SvgIcon name="crown" size={14} /> Lidera la temporada</div>
+        <div className="temporada-leader-main">
+          <strong>{lider.nombre}</strong>
+          <span className="temporada-leader-score">{puntos}<small>pts</small></span>
+        </div>
+        <div className="temporada-leader-chips">
+          {ventaja != null && <ChipLider><b>+{ventaja}</b> sobre el segundo</ChipLider>}
+          <ChipLider icono="check"><b>{lider.aciertos ?? 0}</b> aciertos</ChipLider>
+          <ChipLider icono="target"><b>{lider.exactos ?? 0}</b> exactos</ChipLider>
+          {(ganado ?? 0) > 0 && <ChipLider dinero>Ganado {formatearMXN(ganado)}</ChipLider>}
+        </div>
+      </aside>
+    )
+  }
+
+  if (lideres.length === 2) {
+    const [primero, segundo] = lideres
+    return (
+      <aside className="temporada-leader-card is-tie-two">
+        <span className="temporada-leader-shine" aria-hidden="true" />
+        <div className="temporada-leader-head">
+          <div className="temporada-leader-kicker"><SvgIcon name="crown" size={14} /> Empate en la cima</div>
+          <span className="temporada-tie-score">{puntos}<small>pts c/u</small></span>
+        </div>
+        <div className="temporada-tie-columns">
+          {[primero, segundo].map((lider, idx) => (
+            <div className="temporada-tie-person" key={lider.nombre}>
+              <strong>{lider.nombre}</strong>
+              <div className="temporada-leader-chips">
+                <ChipLider icono="check"><b>{lider.aciertos ?? 0}</b></ChipLider>
+                <ChipLider icono="target" destacado={idx === 0}><b>{lider.exactos ?? 0}</b></ChipLider>
+                {(ganadoDe(lider) ?? 0) > 0 && <ChipLider dinero>{formatearMXN(ganadoDe(lider))}</ChipLider>}
+              </div>
+            </div>
+          ))}
+        </div>
+        <p className="temporada-tie-note"><SvgIcon name="info" size={13} /> Comparten el primer lugar. {primero.nombre} aparece primero por marcadores exactos: {primero.exactos ?? 0} contra {segundo.exactos ?? 0}.</p>
+      </aside>
+    )
+  }
+
+  const visibles = lideres.slice(0, 4)
+  return (
+    <aside className="temporada-leader-card is-tie-many">
+      <span className="temporada-leader-shine" aria-hidden="true" />
+      <div className="temporada-leader-head">
+        <div className="temporada-leader-kicker"><SvgIcon name="crown" size={14} /> {lideres.length === 3 ? 'Triple empate en la cima' : 'Empate en la cima'}</div>
+        <span className="temporada-tie-score">{puntos}<small>pts c/u</small></span>
+      </div>
+      <div className="temporada-tie-list">
+        {visibles.map(lider => (
+          <div key={lider.nombre}>
+            <span>1</span><strong title={lider.nombre}>{lider.nombre}</strong>
+            <ChipLider icono="target"><b>{lider.exactos ?? 0}</b></ChipLider>
+            <b>{formatearMXN(ganadoDe(lider) ?? 0)}</b>
+          </div>
+        ))}
+        {lideres.length > 4 && <small>y {lideres.length - 4} más</small>}
+      </div>
+      <p className="temporada-tie-note"><SvgIcon name="info" size={13} /> Los {lideres.length === 3 ? 'tres' : lideres.length} comparten el primer lugar. El orden lo dan los marcadores exactos.</p>
+    </aside>
   )
 }
 
@@ -381,25 +470,35 @@ export default function Temporada() {
   }
 
   if (cargando) return (
-    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', color: 'var(--muted)', fontSize: 14 }}>
-      Cargando temporada…
-    </div>
+    <EstadoCarga
+      texto="Cargando temporada…"
+      backHref={backHref}
+      onBack={handleBack}
+      temporada
+      mobileFallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', color: 'var(--muted)', fontSize: 14 }}>Cargando temporada…</div>}
+    />
   )
 
   if (error || !temporada) return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '5rem 1.5rem', color: 'var(--muted)' }}>
-      <div style={{ maxWidth: 360 }}>
-        <p style={{ fontSize: 18, fontWeight: 600, color: 'var(--text)', marginBottom: 16 }}>No se encontró la temporada</p>
-        <a href={backHref} onClick={handleBack} style={{
-          display: 'inline-block', padding: '11px 24px', borderRadius: 'var(--radius-md)',
-          background: 'linear-gradient(135deg, var(--green), var(--green-light))',
-          color: '#07120A', fontWeight: 800, fontSize: 14, textDecoration: 'none',
-          boxShadow: 'var(--shadow-green)', letterSpacing: 0.2,
-        }}>
-          ← Volver
-        </a>
-      </div>
-    </div>
+    <EstadoPantalla
+      tono="neutral"
+      icono="trophy"
+      titulo="Esta temporada no existe"
+      copia="El enlace no corresponde a ninguna tabla general. Las temporadas se ven desde el ranking de cualquiera de sus jornadas."
+      backHref={backHref}
+      onBack={handleBack}
+      temporada
+      acciones={<BotonEstado principal href={backHref} onClick={handleBack}>Volver</BotonEstado>}
+      pie={<span>© {new Date().getFullYear()} QuinielApp</span>}
+      mobileFallback={(
+        <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '5rem 1.5rem', color: 'var(--muted)' }}>
+          <div style={{ maxWidth: 360 }}>
+            <p style={{ fontSize: 18, fontWeight: 600, color: 'var(--text)', marginBottom: 16 }}>No se encontró la temporada</p>
+            <a href={backHref} onClick={handleBack} style={{ display: 'inline-block', padding: '11px 24px', borderRadius: 'var(--radius-md)', background: 'linear-gradient(135deg, var(--green), var(--green-light))', color: '#07120A', fontWeight: 800, fontSize: 14, textDecoration: 'none', boxShadow: 'var(--shadow-green)', letterSpacing: 0.2 }}>← Volver</a>
+          </div>
+        </div>
+      )}
+    />
   )
 
   const tabla = temporada.tabla ?? []
@@ -411,17 +510,30 @@ export default function Temporada() {
   const destacados = estadisticasCalculadas ? temporada.destacados : legacyActual?.destacados
 
   // Posiciones olímpicas: empate en puntos comparte posición.
-  const posiciones = tabla.map((j, i) => {
-    if (i === 0) return 1
-    return tabla[i - 1].puntos === j.puntos ? null : i + 1
-  })
-  let ultimaPos = 1
-  const posicionesFinales = posiciones.map(p => { if (p != null) ultimaPos = p; return ultimaPos })
+  const posicionesFinales = tabla.reduce((acumuladas, j, i) => [
+    ...acumuladas,
+    i === 0 || tabla[i - 1].puntos !== j.puntos ? i + 1 : acumuladas[i - 1],
+  ], [])
+  const lideres = tabla.filter((_, i) => posicionesFinales[i] === 1)
+  const ganadoDe = jugador => {
+    const clave = claveNombre(jugador.nombre)
+    if (premiosCalculados) return jugador.ganado ?? 0
+    return legacyActual ? (legacyActual.porJugador?.[clave]?.ganado ?? 0) : null
+  }
+  const dineroRepartido = destacados?.dineroRepartido?.valor ?? 0
+  const temporadaTerminada = totalQuinielas > 0 && jornadasJugadas === totalQuinielas
+  const compartirTemporada = async () => {
+    const datos = { title: temporada.nombre, text: `Tabla general de ${temporada.nombre}`, url: window.location.href }
+    try {
+      if (navigator.share) await navigator.share(datos)
+      else await navigator.clipboard.writeText(window.location.href)
+    } catch { /* La persona canceló el diálogo o el portapapeles no está disponible. */ }
+  }
 
   return (
     <div className="temporada-page" style={{ minHeight: '100vh', background: 'var(--bg)', position: 'relative', zIndex: 0, display: 'flex', flexDirection: 'column' }}>
       <div className="ranking-bg-fade" aria-hidden="true" />
-      <div className="hero-pad ranking-hero-pad" style={{ color: 'var(--text)' }}>
+      <div className="hero-pad ranking-hero-pad temporada-mobile-hero" style={{ color: 'var(--text)' }}>
         <div style={{ maxWidth: 640, margin: '0 auto' }}>
           <div className="ranking-brand-row" style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
             <a href={backHref} onClick={handleBack} className="app-back-button" aria-label="Volver" title="Volver">
@@ -448,17 +560,53 @@ export default function Temporada() {
         </div>
       </div>
 
-      <div style={{ width: '100%', maxWidth: 640, margin: '0 auto', padding: '20px 16px 6px', flex: '1 0 auto', display: 'flex', flexDirection: 'column' }}>
-        <div className="temporada-section-title">
+      <section className="temporada-desktop-hero">
+        <div className="temporada-desktop-shell">
+          <div className="ranking-brand-row temporada-desktop-topbar">
+            <a href={backHref} onClick={handleBack} className="app-back-button" aria-label="Volver" title="Volver">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M19 12H5" /><path d="m12 19-7-7 7-7" /></svg>
+            </a>
+            <a href="/" className="ranking-brand-link" aria-label="QuinielApp Temporada">
+              <BrandMark size={22} /><span className="ranking-brand-name">Quiniel<span style={{ color: 'var(--green)' }}>App</span></span><span className="ranking-brand-dot" aria-hidden="true" /><span className="ranking-brand-label">Temporada</span>
+            </a>
+            <button type="button" className="temporada-share-button" onClick={compartirTemporada}><SvgIcon name="share" size={14} /> Compartir tabla</button>
+          </div>
+          <div className={`temporada-cover-grid${lideres.length ? '' : ' has-no-leader'}`}>
+            <div className="temporada-cover-copy">
+              <span className={`temporada-status-pill${temporadaTerminada ? ' is-finished' : ''}`}><i aria-hidden="true" />{temporadaTerminada ? 'Temporada terminada' : 'Temporada en curso'}</span>
+              <h1>{temporada.nombre}</h1>
+              <div className="temporada-cover-stats">
+                <span><b>{jornadasJugadas} de {totalQuinielas}</b><small>Jornadas</small></span><i />
+                <span><b>{tabla.length}</b><small>Jugadores</small></span><i />
+                <span className="is-money"><b>{formatearMXN(dineroRepartido)}</b><small>Repartido</small></span>
+              </div>
+            </div>
+            <TarjetaLider lideres={lideres} tabla={tabla} ganadoDe={ganadoDe} />
+          </div>
+        </div>
+      </section>
+
+      <div className="temporada-content" style={{ width: '100%', maxWidth: 640, margin: '0 auto', padding: '20px 16px 6px', flex: '1 0 auto', display: 'flex', flexDirection: 'column' }}>
+        <div className="temporada-section-title is-mobile">
           <h2><span aria-hidden="true">✦</span> Momentos destacados</h2>
           <p>Toca una tarjeta para conocer la historia detrás del dato.</p>
         </div>
         <TarjetasDestacadas destacados={destacados} calculando={!estadisticasCalculadas && !legacyActual} nombreTemporada={temporada.nombre} />
+        <div className="temporada-section-title is-desktop">
+          <h2><span aria-hidden="true">✦</span> Momentos de la temporada</h2>
+          <p>Pasa el cursor por una tarjeta para leer la historia detrás del dato.</p>
+        </div>
+        <TarjetasDestacadas escritorio destacados={destacados} calculando={!estadisticasCalculadas && !legacyActual} nombreTemporada={temporada.nombre} />
         <div className="ranking-panel ranking-table-panel">
           <div className="ranking-table-head temporada-table-head">
             <span style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.8 }}>#</span>
             <span style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.8 }}>Jugador</span>
+            <span className="temporada-desktop-column">Jornadas</span>
+            <span className="temporada-desktop-column">Aciertos</span>
+            <span className="temporada-desktop-column">Exactos</span>
+            <span className="temporada-desktop-column">Ganado</span>
             <span style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.8, textAlign: 'right' }}>Puntos</span>
+            <span className="temporada-desktop-column" aria-hidden="true" />
           </div>
           {tabla.length === 0 ? (
             <div style={{ padding: '2.5rem 1.5rem', textAlign: 'center', color: 'var(--muted)', fontSize: 13.5, lineHeight: 1.6 }}>
@@ -492,13 +640,19 @@ export default function Temporada() {
                     <span className="temporada-player-position" style={{ color: esLider ? 'var(--yellow)' : 'var(--muted)' }}>{pos}</span>
                     <span className="temporada-player-name">
                       <span style={{ fontWeight: esLider ? 750 : 600 }}>{j.nombre}</span>
-                      {esLider && (
+                      {i === 0 && (
                         <span aria-label="Líder de la temporada" title="Líder de la temporada">👑</span>
                       )}
                     </span>
                     <span className="temporada-player-points" style={{ color: esLider ? 'var(--yellow)' : 'var(--text)' }}>{j.puntos}<small>pts</small></span>
                     <span className="temporada-player-chevron" aria-hidden="true">⌄</span>
                   </span>
+                  <span className="temporada-player-desktop-stat is-journeys">{j.jornadas ?? 0}/{jornadasJugadas}</span>
+                  <span className="temporada-player-desktop-stat is-hits">{j.aciertos}</span>
+                  <span className="temporada-player-desktop-stat is-exacts">{j.exactos}</span>
+                  <span className={`temporada-player-desktop-stat is-prize${(ganado ?? 0) > 0 ? ' has-prize' : ''}`}>{ganado == null ? 'Calculando…' : formatearMXN(ganado)}</span>
+                  <span className="temporada-player-desktop-points" style={{ color: esLider ? 'var(--yellow)' : 'var(--text)' }}>{j.puntos}<small>pts</small></span>
+                  <span className="temporada-player-desktop-chevron" aria-hidden="true">⌄</span>
                   <span className="temporada-player-meta">
                     <span title={`Jugó ${j.jornadas ?? 0} de ${jornadasJugadas} jornadas`}><b>{j.jornadas ?? 0}/{jornadasJugadas}</b> jornadas</span>
                     <span className="is-hits"><SvgIcon name="check" size={11} /><b>{j.aciertos}</b> aciertos</span>

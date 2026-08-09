@@ -21,6 +21,8 @@ import { quinielaCerrada, quinielaFinalizada, cierreToDate, nivelUrgenciaCierre 
 import { RankingTable } from '../components/RankingTable'
 import { CuentaRegresiva } from '../components/CuentaRegresiva'
 import { Footer } from '../components/Footer'
+import { BotonEstado, EstadoCarga, EstadoPantalla } from '../components/EstadoPantalla'
+import { MENSAJES_WA, waLink } from '../utils/whatsapp'
 import { BrandMark } from '../components/Brand'
 import { ProgresoPasos } from '../components/ProgresoPasos'
 
@@ -485,11 +487,17 @@ export default function Ranking() {
 
   // Render estados
   if (cargando) return (
-    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', color: 'var(--muted)', fontSize: 14 }}>
-      Cargando ranking…
-    </div>
+    <EstadoCarga
+      texto="Cargando ranking…"
+      backHref={backHref}
+      onBack={handleBack}
+      mobileFallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', color: 'var(--muted)', fontSize: 14 }}>Cargando ranking…</div>}
+    />
   )
-  if (error || !quiniela) return (
+  if (error || !quiniela) {
+    const esConexion = error === 'timeout' || error === 'error'
+    const reintentar = () => { setError(null); setCargando(true); setIntento(n => n + 1) }
+    const mobileFallback = (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '5rem 1.5rem', color: 'var(--muted)' }}>
       <div style={{ maxWidth: 360 }}>
         <div style={{ display: 'inline-flex', color: 'var(--yellow)', marginBottom: 20 }}>
@@ -507,7 +515,7 @@ export default function Ranking() {
         )}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: error === 'timeout' ? 0 : 24 }}>
           {(error === 'timeout' || error === 'error') && (
-            <button onClick={() => { setError(null); setCargando(true); setIntento(n => n + 1) }} style={{
+            <button onClick={reintentar} style={{
               padding: '11px 24px', borderRadius: 'var(--radius-md)', border: 'none', cursor: 'pointer',
               background: 'linear-gradient(135deg, var(--green), var(--green-light))',
               color: '#07120A', fontWeight: 800, fontSize: 14,
@@ -528,7 +536,23 @@ export default function Ranking() {
         </div>
       </div>
     </div>
-  )
+    )
+    return (
+      <EstadoPantalla
+        tono={esConexion ? 'error' : 'warning'}
+        icono={esConexion ? 'refresh' : 'info'}
+        titulo={esConexion ? 'No se pudo cargar' : 'No se pudo cargar el ranking'}
+        copia={esConexion
+          ? 'La conexión está tardando más de lo normal. Revisa tu internet e inténtalo de nuevo.'
+          : 'El enlace no corresponde a un ranking disponible. Revisa que esté completo o vuelve a las quinielas activas.'}
+        backHref={backHref}
+        onBack={handleBack}
+        acciones={esConexion ? <><BotonEstado principal icono="refresh" onClick={reintentar}>Reintentar</BotonEstado><BotonEstado href={backHref} onClick={handleBack}>Volver</BotonEstado></> : <BotonEstado principal href={backHref} onClick={handleBack}>{vieneDeAdmin ? 'Volver al panel' : 'Ver quinielas activas'}</BotonEstado>}
+        pie={esConexion && intento >= 1 ? <span>Segundo intento fallido. <a href={waLink(MENSAJES_WA.soporte)} target="_blank" rel="noreferrer">Contactar a soporte</a></span> : null}
+        mobileFallback={mobileFallback}
+      />
+    )
+  }
 
   const partidos   = quiniela.partidos ?? []
   const resultados = quiniela.resultados ?? {}

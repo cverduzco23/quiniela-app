@@ -169,6 +169,23 @@ export function SvgIcon({ name, size = 14, style }) {
     style: { display: 'inline-block', flexShrink: 0, ...style },
     'aria-hidden': 'true',
   }
+  if (name === 'info') {
+    return (
+      <svg {...common}>
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 11v5" />
+        <path d="M12 8h.01" />
+      </svg>
+    )
+  }
+  if (name === 'search') {
+    return (
+      <svg {...common}>
+        <circle cx="11" cy="11" r="7" />
+        <path d="m20 20-4-4" />
+      </svg>
+    )
+  }
   if (name === 'goal') {
     return (
       <svg {...common}>
