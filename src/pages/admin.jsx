@@ -12,7 +12,8 @@ import { BrandWordmark } from '../components/Brand'
 import { evaluarPassword } from '../utils/password'
 import { waLink, MENSAJES_WA, mensajeReporteProblema } from '../utils/whatsapp'
 import { cierreToDate, cierreToInputValue, inputValueACierre, quinielaCerrada, quinielaFinalizada, resultadosCompletos, hayPartidoEnVivo } from '../utils/cierre'
-import { TIPO_PREMIO, MODELO_PREMIO, calcularBote, tienePremio, formatearMXN } from '../utils/premios'
+import { TIPO_PREMIO, MODELO_PREMIO, calcularBote, calcularGanadores, tienePremio, formatearMXN } from '../utils/premios'
+import { calcularPuntos } from '../utils/scoring'
 import { normalizarNombre } from '../utils/nombres'
 import { detectarSimilares } from '../utils/duplicados'
 import { leerDias, leerQuiniela, leerGlobal, estaExcluido, marcarExcluido } from '../utils/analytics'
@@ -44,6 +45,19 @@ const MAX_PARTIDOS = 30
 // máximo de 10 caracteres en la pantalla pública de acceso.
 const MAX_NOMBRE_QUINIELA = 60
 const MAX_CODIGO_ACCESO = 10
+const CAMPOS_TRANSMISION = [
+  'streamUrl', 'streamUrl2', 'streamUrl3',
+  'streamKey', 'streamKey2', 'streamKey3',
+  'streamNombre', 'streamNombre2', 'streamNombre3',
+  'streamAuto',
+]
+
+function clavePartidoTransmision(partido = {}) {
+  if (partido.espnId) return `espn:${partido.espnId}`
+  return [partido.ligaId, partido.local, partido.visitante, partido.hora]
+    .map(valor => String(valor ?? '').trim().toLowerCase())
+    .join('|')
+}
 
 function contarCaracteres(value) {
   return Array.from(String(value ?? '')).length
@@ -101,6 +115,7 @@ const LIGAS = [
   // Otros
   { id: 'fifa.friendly',         nombre: '🌐 Amistosos Internacionales' },
 ]
+const OPCIONES_LIGA = LIGAS.map(liga => ({ value: liga.id, label: liga.nombre }))
 
 // Código de acceso legible y autogenerado (sin caracteres ambiguos: 0/O, 1/I).
 // 6 caracteres sobre un alfabeto de 32 = ~1,000 millones de combinaciones:
@@ -313,6 +328,98 @@ function AdminIcon({ name, size = 14, style, strokeWidth = 2 }) {
   return <svg {...common}><circle cx="12" cy="12" r="9" /></svg>
 }
 
+function AdminCustomSelect({ id, value, onChange, opciones, placeholder = 'Selecciona una opción…' }) {
+  const [abierto, setAbierto] = useState(false)
+  const rootRef = useRef(null)
+  const triggerRef = useRef(null)
+  const optionRefs = useRef([])
+  const seleccionada = opciones.find(opcion => opcion.value === value) ?? { value: '', label: placeholder, placeholder: true }
+
+  useEffect(() => {
+    if (!abierto) return undefined
+    const cerrarFuera = event => {
+      if (!rootRef.current?.contains(event.target)) setAbierto(false)
+    }
+    document.addEventListener('pointerdown', cerrarFuera)
+    optionRefs.current[Math.max(0, opciones.findIndex(opcion => opcion.value === seleccionada.value))]?.focus()
+    return () => document.removeEventListener('pointerdown', cerrarFuera)
+  }, [abierto, opciones, seleccionada.value])
+
+  const moverFoco = (direccion) => {
+    const actual = optionRefs.current.findIndex(elemento => elemento === document.activeElement)
+    const siguiente = Math.min(opciones.length - 1, Math.max(0, actual + direccion))
+    optionRefs.current[siguiente]?.focus()
+  }
+
+  const onMenuKeyDown = event => {
+    if (event.key === 'ArrowDown') { event.preventDefault(); moverFoco(1) }
+    if (event.key === 'ArrowUp') { event.preventDefault(); moverFoco(-1) }
+    if (event.key === 'Home') { event.preventDefault(); optionRefs.current[0]?.focus() }
+    if (event.key === 'End') { event.preventDefault(); optionRefs.current[opciones.length - 1]?.focus() }
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      setAbierto(false)
+      triggerRef.current?.focus()
+    }
+  }
+
+  return (
+    <div className={`admin-custom-select${abierto ? ' is-open' : ''}`} ref={rootRef}>
+      <button
+        id={id}
+        ref={triggerRef}
+        type="button"
+        className={`admin-custom-select-trigger${seleccionada.placeholder ? ' is-placeholder' : ''}`}
+        aria-haspopup="listbox"
+        aria-expanded={abierto}
+        aria-controls={`${id}-options`}
+        onClick={() => setAbierto(valor => !valor)}
+        onKeyDown={event => {
+          if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+            event.preventDefault()
+            setAbierto(true)
+          }
+          if (event.key === 'Escape') setAbierto(false)
+        }}
+      >
+        <span>{seleccionada.label}</span>
+        <AdminIcon name="chevron-down" size={16} />
+      </button>
+      {abierto && (
+        <div id={`${id}-options`} className="admin-custom-select-menu" role="listbox" aria-labelledby={id} onKeyDown={onMenuKeyDown}>
+          {opciones.map((opcion, index) => (
+            <button
+              key={opcion.value || '__sin_temporada__'}
+              ref={elemento => { optionRefs.current[index] = elemento }}
+              type="button"
+              role="option"
+              aria-selected={opcion.value === seleccionada.value}
+              className={`admin-custom-select-option${opcion.nueva ? ' is-new' : ''}`}
+              onClick={() => {
+                onChange(opcion.value)
+                setAbierto(false)
+                triggerRef.current?.focus()
+              }}
+            >
+              <span>{opcion.nueva ? '+ ' : ''}{opcion.label}</span>
+              {opcion.value === seleccionada.value && <AdminIcon name="check" size={15} />}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function TemporadaSelect({ id, value, onChange, temporadas = [] }) {
+  const opciones = useMemo(() => [
+    { value: '', label: 'Sin temporada' },
+    ...temporadas.map(t => ({ value: t.id, label: t.nombre })),
+    { value: '__nueva__', label: 'Crear temporada nueva', nueva: true },
+  ], [temporadas])
+  return <AdminCustomSelect id={id} value={value} onChange={onChange} opciones={opciones} />
+}
+
 function AdminAuthIntro() {
   const beneficios = [
     ['ball', 'Configura partidos, reglas y cierre'],
@@ -507,6 +614,41 @@ function formatFixtureDate(value) {
     weekday: 'short', day: 'numeric', month: 'short',
     hour: '2-digit', minute: '2-digit',
   })
+}
+
+function formatFechaResultadoTablero(value, enVivo = false) {
+  const d = cierreToDate(value)
+  if (!d) return enVivo ? 'EN JUEGO' : 'HORARIO POR CONFIRMAR'
+  const hoy = new Date()
+  const esHoy = d.getFullYear() === hoy.getFullYear() &&
+    d.getMonth() === hoy.getMonth() && d.getDate() === hoy.getDate()
+  if (enVivo) return esHoy ? 'HOY, EN JUEGO' : 'EN JUEGO'
+  const hora = d.toLocaleTimeString('es-MX', { hour: 'numeric', minute: '2-digit' })
+    .replace(/\s+/g, ' ')
+    .replace(/([ap])\.\s*m\./i, (_, periodo) => `${periodo.toUpperCase()}.M.`)
+    .toUpperCase()
+  if (esHoy) return `HOY, ${hora}`
+  const dia = d.toLocaleDateString('es-MX', { weekday: 'short', day: 'numeric', month: 'short' })
+    .replace(/\./g, '')
+    .toUpperCase()
+  return `${dia}, ${hora}`
+}
+
+function notaPartidoPendiente(value, ahora = Date.now()) {
+  const d = cierreToDate(value)
+  if (!d) return 'Horario por confirmar'
+  const minutos = Math.ceil((d.getTime() - ahora) / 60000)
+  if (minutos <= 0) return 'Esperando marcador'
+  if (minutos < 60) return `Empieza en ${minutos} min`
+  if (minutos < 24 * 60) {
+    const horas = Math.ceil(minutos / 60)
+    return `Empieza en ${horas} ${horas === 1 ? 'hora' : 'horas'}`
+  }
+  return 'Programado'
+}
+
+function marcaTiempoActual() {
+  return Date.now()
 }
 
 // Traducciones de fases/rondas conocidas. Lo que no se reconozca se muestra tal cual
@@ -1433,6 +1575,7 @@ export default function Admin() {
   const [sincronizandoResultados, setSincronizandoResultados] = useState(false)
   const [syncResultadosCooldown, setSyncResultadosCooldown]   = useState(false)
   const [syncResultadosMsg, setSyncResultadosMsg]             = useState(null) // { tipo: 'ok'|'info'|'error', texto }
+  const [horaResultadosUI, setHoraResultadosUI]               = useState(() => Date.now())
   const syncResultadosCooldownTimer = useRef(null)
   const syncResultadosMsgTimer = useRef(null)
 
@@ -1714,13 +1857,15 @@ export default function Admin() {
   }, [statsQId, quinielas])
 
   useEffect(() => {
-    if (tab !== 'participantes' || !quinielaActual) return
+    if (!['resultados', 'participantes'].includes(tab) || !quinielaActual) return
+    let activo = true
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoadingPredicciones(true)
     getDocs(query(collection(db, 'predicciones'), where('quinielaId', '==', quinielaActual.id)))
-      .then(snap => setListaPredicciones(snap.docs.map(d => ({ id: d.id, ...d.data() }))))
-      .catch(() => setListaPredicciones([]))
-      .finally(() => setLoadingPredicciones(false))
+      .then(snap => { if (activo) setListaPredicciones(snap.docs.map(d => ({ id: d.id, ...d.data() }))) })
+      .catch(() => { if (activo) setListaPredicciones([]) })
+      .finally(() => { if (activo) setLoadingPredicciones(false) })
+    return () => { activo = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, quinielaActual?.id])
 
@@ -1739,6 +1884,7 @@ export default function Admin() {
     let interval = null
 
     const refrescar = async () => {
+      setHoraResultadosUI(marcaTiempoActual())
       try {
         const snap = await getDoc(doc(db, 'quinielas', quinielaId))
         if (!activo || !snap.exists()) return
@@ -1846,10 +1992,10 @@ export default function Admin() {
   const quitarPartido = (i) =>
     setPartidos(prev => prev.filter((_, idx) => idx !== i))
   // Escudo del equipo, o un círculo con la inicial si es manual (sin logo de ESPN).
-  const escudoMini = (url, nombre) => (
+  const escudoMini = (url, nombre, size = 20) => (
     url
-      ? <img src={url} alt="" style={{ width: 20, height: 20, objectFit: 'contain', flexShrink: 0 }} onError={e => { e.target.style.display = 'none' }} />
-      : <span style={{ width: 20, height: 20, borderRadius: '50%', background: 'var(--border)', color: 'var(--muted)', fontSize: 10, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{(nombre ?? '?').trim().charAt(0).toUpperCase() || '?'}</span>
+      ? <img src={url} alt="" style={{ width: size, height: size, objectFit: 'contain', flexShrink: 0 }} onError={e => { e.target.style.display = 'none' }} />
+      : <span style={{ width: size, height: size, borderRadius: '50%', background: 'var(--border)', color: 'var(--muted)', fontSize: size >= 30 ? 13 : 10, fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{(nombre ?? '?').trim().charAt(0).toUpperCase() || '?'}</span>
   )
 
   // Buscador ESPN
@@ -2017,7 +2163,7 @@ export default function Admin() {
     if (!quinielaActual || guardandoEdicion) return
     if (editPartidos.length === 0) return alerta('La quiniela debe tener al menos un partido.')
     if (editPartidos.length > MAX_PARTIDOS) return alerta(`Una quiniela puede tener máximo ${MAX_PARTIDOS} partidos. Quita ${editPartidos.length - MAX_PARTIDOS} para poder guardar.`)
-    const streamInvalido = editPartidos.find(p => {
+    const streamInvalido = soySuper && editPartidos.find(p => {
       return ['streamUrl', 'streamUrl2', 'streamUrl3'].some(campo => {
         const raw = String(p[campo] ?? '').trim()
         if (!raw) return false
@@ -2085,13 +2231,29 @@ export default function Admin() {
         setGuardandoEdicion(false)
         return
       }
+      let partidosConStreamsActuales = quinielaActual.partidos ?? []
+      if (!soySuper) {
+        const snapActual = await getDoc(doc(db, 'quinielas', quinielaActual.id))
+        if (snapActual.exists()) partidosConStreamsActuales = snapActual.data().partidos ?? partidosConStreamsActuales
+      }
+      const streamsPorPartido = new Map(partidosConStreamsActuales.map(p => [clavePartidoTransmision(p), p]))
       const patch = {
         nombre:   editNombre.trim(),
         partidos: editPartidos.map(p => {
           const limpio = { ...p }
-          ;['streamUrl', 'streamUrl2', 'streamUrl3'].forEach(campo => {
-            limpio[campo] = String(p[campo] ?? '').trim()
-          })
+          if (soySuper) {
+            ;['streamUrl', 'streamUrl2', 'streamUrl3'].forEach(campo => {
+              limpio[campo] = String(p[campo] ?? '').trim()
+            })
+          } else {
+            CAMPOS_TRANSMISION.forEach(campo => { delete limpio[campo] })
+            const original = streamsPorPartido.get(clavePartidoTransmision(p))
+            if (original) {
+              CAMPOS_TRANSMISION.forEach(campo => {
+                if (original[campo] !== undefined) limpio[campo] = original[campo]
+              })
+            }
+          }
           return limpio
         }),
         cierre:   cierreTs,
@@ -2114,7 +2276,7 @@ export default function Admin() {
   }
 
   const buscarTransmisionesAhora = async () => {
-    if (!quinielaActual || buscandoStreams) return
+    if (!soySuper || !quinielaActual || buscandoStreams) return
     setBuscandoStreams(true)
     setStreamSyncMsg(null)
     try {
@@ -2531,6 +2693,8 @@ export default function Admin() {
     registrarVistaAdmin({ vista: 'gestionar', quinielaId: q.id, cajaNombre: null })
     setQuinielaActual(q)
     setResultados(resultadosParaUI(q.resultados ?? {}))
+    setHoraResultadosUI(marcaTiempoActual())
+    setListaPredicciones([])
     setSyncResultadosMsg(null)
     setTab('resultados')
     setParticipantesInfoAbierta(false)
@@ -3051,19 +3215,19 @@ export default function Admin() {
         Elige la liga, toca <strong style={{ color: 'var(--text)' }}>Buscar</strong> y marca los partidos que quieras agregar.
       </p>}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, marginBottom: fixtures.length > 0 ? 12 : 0 }}>
-        <select
+      <div className="admin-fixture-search-controls" style={{ marginBottom: fixtures.length > 0 ? 12 : 0 }}>
+        <AdminCustomSelect
+          id="fixture-liga"
           value={ligaId}
-          onChange={e => { setLigaId(e.target.value); setFixtures([]); setSeleccionados([]) }}
-          style={{ fontSize: 14, color: ligaId ? 'var(--text)' : 'var(--muted)' }}
-        >
-          <option value="" disabled>Selecciona una liga…</option>
-          {LIGAS.map(l => <option key={l.id} value={l.id}>{l.nombre}</option>)}
-        </select>
+          onChange={value => { setLigaId(value); setFixtures([]); setSeleccionados([]) }}
+          opciones={OPCIONES_LIGA}
+          placeholder="Selecciona una liga…"
+        />
         <button
+          type="button"
           onClick={buscarFixtures}
           disabled={loadingFixtures || !ligaId}
-          style={{ ...greenCtaStyle(loadingFixtures || !ligaId), padding: '9px 16px', whiteSpace: 'nowrap' }}
+          style={{ ...greenCtaStyle(loadingFixtures || !ligaId), minHeight: 48, padding: '9px 16px', borderRadius: 10, whiteSpace: 'nowrap' }}
         >
           {loadingFixtures ? 'Buscando…' : 'Buscar'}
         </button>
@@ -3377,7 +3541,7 @@ export default function Admin() {
                           >
                             <AdminIcon name="plus" size={13} /> Agregar usuario
                           </button>
-                          <select value={cajaOrden} onChange={e => setCajaOrden(e.target.value)} style={{ fontSize: 12, padding: '8px 10px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-strong)', background: 'var(--card-light)', color: 'var(--text)' }}>
+                          <select value={cajaOrden} onChange={e => setCajaOrden(e.target.value)} className="super-order-select" aria-label="Ordenar caja">
                             <option value="monto">Monto</option>
                             <option value="nombre">A-Z</option>
                           </select>
@@ -5461,7 +5625,7 @@ export default function Admin() {
                 <h2>Nombre</h2>
               </header>
               <label htmlFor="quiniela-nombre" className="admin-new-sr-only">Nombre de la quiniela</label>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'stretch', marginBottom: 6 }}>
+              <div className="admin-new-name-field" style={{ display: 'flex', gap: 8, alignItems: 'stretch', marginBottom: 6 }}>
                 <input id="quiniela-nombre" type="text" placeholder="Ej. Jornada 17: Liga MX" value={nombre} maxLength={MAX_NOMBRE_QUINIELA} onChange={e => setNombre(limitarNombreQuiniela(e.target.value))} style={{ flex: 1, marginBottom: 0 }} />
                 <EmojiPicker inputId="quiniela-nombre" value={nombre} onChange={value => setNombre(limitarNombreQuiniela(value))} />
               </div>
@@ -5470,7 +5634,7 @@ export default function Admin() {
               </p>
             </section>
 
-            <section className="admin-new-step-card">
+            <section className="admin-new-step-card admin-fixtures-card">
               <header className="admin-new-step-heading">
                 <span className="admin-new-step-number">2</span>
                 <h2>Partidos</h2>
@@ -5509,7 +5673,7 @@ export default function Admin() {
               )}
             </section>
 
-            <section className="admin-new-step-card">
+            <section className="admin-new-step-card admin-new-rules-card">
               <header className="admin-new-step-heading">
                 <span className="admin-new-step-number">3</span>
                 <h2>Reglas y premio</h2>
@@ -5547,11 +5711,12 @@ export default function Admin() {
               <div className="admin-new-rule-block">
                 <label htmlFor="quiniela-temporada" className="admin-new-field-label">Temporada <span className="admin-new-optional">· opcional</span></label>
                 <p className="admin-new-field-help">Suma sus puntos a una tabla general entre varias quinielas.</p>
-                <select id="quiniela-temporada" value={temporadaSel} onChange={e => setTemporadaSel(e.target.value)} style={{ marginBottom: 0 }}>
-                  <option value="">Sin temporada</option>
-                  {temporadas.map(t => <option key={t.id} value={t.id}>{t.nombre}</option>)}
-                  <option value="__nueva__">+ Crear temporada nueva</option>
-                </select>
+                <TemporadaSelect
+                  id="quiniela-temporada"
+                  value={temporadaSel}
+                  onChange={setTemporadaSel}
+                  temporadas={temporadas}
+                />
                 {temporadaSel === '__nueva__' && (
                   <input type="text" placeholder="Ej. Clausura 2026 con los compas" value={temporadaNueva} maxLength={60} onChange={e => setTemporadaNueva(e.target.value)} aria-label="Nombre de la temporada nueva" style={{ marginTop: 8, marginBottom: 0 }} />
                 )}
@@ -5587,7 +5752,76 @@ export default function Admin() {
             : estaCerrada
               ? { label: 'Jugándose', bg: 'var(--green-bg)', color: 'var(--green-light)' }
               : { label: 'Abierta', bg: 'var(--green-bg)', color: 'var(--green)' }
+          const prediccionesVisibles = listaPredicciones.filter(p => !(quinielaActual.ocultos ?? []).includes(p.id))
+          const jugadoresResultado = prediccionesVisibles
+            .map(p => ({
+              nombre: normalizarNombre(p.nombre),
+              ...calcularPuntos(p.picks, resultados, {}, quinielaActual.partidos ?? []),
+            }))
+            .sort((a, b) => b.puntos - a.puntos || b.exactos - a.exactos || b.aciertos - a.aciertos)
+          const puntosLider = jugadoresResultado[0]?.puntos ?? 0
+          const lideresResultado = puntosLider > 0
+            ? jugadoresResultado.filter(j => j.puntos === puntosLider)
+            : []
+          const hayMarcadoresResultado = (quinielaActual.partidos ?? []).some((_, i) => (
+            resultadoPartidoListo(resultados[i] ?? resultados[String(i)])
+          ))
+          const { premioPorNombre: premiosResultado } = calcularGanadores(
+            jugadoresResultado,
+            quinielaActual,
+            prediccionesVisibles.length,
+          )
+          const premioLider = lideresResultado.length > 0
+            ? Number(premiosResultado[lideresResultado[0].nombre]) || 0
+            : 0
+          const nombresLideres = lideresResultado.map(j => j.nombre)
+          const nombresLideresTexto = nombresLideres.length <= 2
+            ? nombresLideres.join(' y ')
+            : `${nombresLideres.slice(0, 2).join(', ')} y ${nombresLideres.length - 2} más`
+          const partidosResultados = quinielaActual.partidos ?? []
+          const ahoraResultados = horaResultadosUI
+          const partidosResultadoEstado = partidosResultados.map((p, i) => {
+            const r = resultados[i] ?? resultados[String(i)] ?? {}
+            const listo = resultadoPartidoListo(r)
+            const inicio = cierreToDate(p?.hora)?.getTime() ?? 0
+            const enVivo = !listo && inicio > 0 && ahoraResultados >= inicio && ahoraResultados <= inicio + 2.5 * 60 * 60 * 1000
+            return { p, i, r, listo, inicio, enVivo }
+          })
+          const resultadosResueltos = partidosResultadoEstado.filter(item => item.listo).length
+          const avanceResultados = partidosResultados.length > 0
+            ? Math.round((resultadosResueltos / partidosResultados.length) * 100)
+            : 0
+          const partidoEnVivoResultado = partidosResultadoEstado.find(item => item.enVivo) ?? null
+          const siguientePartidoResultado = partidosResultadoEstado
+            .filter(item => !item.listo && item.inicio > ahoraResultados)
+            .sort((a, b) => a.inicio - b.inicio)[0] ?? null
           const volverAtras = () => volverVistaAdmin(() => { setVista('lista'); setQuinielaActual(null); setFixtures([]); setSeleccionados([]); setCajaNombre(null) })
+          const resumenLiderResultados = !loadingPredicciones && hayMarcadoresResultado ? (
+            <div className={`admin-manage-leader-summary${estaFinalizada ? ' is-final' : ''}`}>
+              <span className="admin-manage-leader-icon"><AdminIcon name="trophy" size={15} /></span>
+              {lideresResultado.length > 0 ? (
+                <span className="admin-manage-leader-copy">
+                  <small>{estaFinalizada ? (lideresResultado.length > 1 ? 'GANADORES' : 'GANADOR') : (lideresResultado.length > 1 ? 'LÍDERES AHORA' : 'LÍDER AHORA')}</small>
+                  <strong>{nombresLideresTexto}</strong>
+                  <span>
+                    {puntosLider} {puntosLider === 1 ? 'punto' : 'puntos'}
+                    {' · '}
+                    {quinielaActual.boteDevuelto
+                      ? 'Bote devuelto'
+                      : premioLider > 0
+                        ? `${estaFinalizada ? 'Premio' : 'Premio proyectado'}: ${formatearMXN(premioLider)}${lideresResultado.length > 1 ? ' c/u' : ''}`
+                        : 'Sin premio en dinero'}
+                  </span>
+                </span>
+              ) : (
+                <span className="admin-manage-leader-copy">
+                  <small>CLASIFICACIÓN</small>
+                  <strong>Aún no hay líder</strong>
+                  <span>Nadie ha sumado puntos con los resultados registrados.</span>
+                </span>
+              )}
+            </div>
+          ) : null
           const controlSyncResultados = (
             <div className="admin-manage-results-sync" style={{ display: 'grid', justifyItems: 'center', gap: 6, marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--border)', textAlign: 'center' }}>
               <p style={{ fontSize: 11.5, color: 'var(--muted)', margin: 0, lineHeight: 1.45 }}>
@@ -5620,6 +5854,108 @@ export default function Admin() {
                   {syncResultadosMsg.texto}
                 </p>
               )}
+            </div>
+          )
+          const barraEstadoResultados = (
+            <>
+              <div className="admin-results-statusbar">
+                <div className="admin-results-progress">
+                  <div className="admin-results-progress-copy">
+                    <strong>{resultadosResueltos}</strong>
+                    <span>de {partidosResultados.length} partidos con marcador</span>
+                  </div>
+                  <span className="admin-results-progress-track" aria-label={`${avanceResultados}% de marcadores registrados`}>
+                    <span style={{ width: `${avanceResultados}%` }} />
+                  </span>
+                </div>
+
+                {partidoEnVivoResultado && (
+                  <>
+                    <span className="admin-results-status-separator" aria-hidden="true" />
+                    <div className="admin-results-status-item is-live">
+                      <small><i aria-hidden="true" /> EN VIVO</small>
+                      <strong>{partidoEnVivoResultado.p.local} vs {partidoEnVivoResultado.p.visitante}</strong>
+                      <span>Jugándose ahora</span>
+                    </div>
+                  </>
+                )}
+
+                {siguientePartidoResultado && (
+                  <>
+                    <span className="admin-results-status-separator" aria-hidden="true" />
+                    <div className="admin-results-status-item">
+                      <small>SIGUIENTE</small>
+                      <strong>{siguientePartidoResultado.p.local} vs {siguientePartidoResultado.p.visitante}</strong>
+                      <span>{formatFixtureDate(siguientePartidoResultado.p.hora)}</span>
+                    </div>
+                  </>
+                )}
+
+                <div className="admin-results-status-sync">
+                  <span>Se revisa cada minuto</span>
+                  <button
+                    type="button"
+                    onClick={actualizarMarcadoresAhora}
+                    disabled={actualizarMarcadoresDisabled}
+                  >
+                    <AdminIcon name="refresh" size={13} style={sincronizandoResultados ? { animation: 'refresh-spin .75s linear infinite' } : undefined} />
+                    {sincronizandoResultados ? 'Actualizando…' : 'Actualizar'}
+                  </button>
+                </div>
+              </div>
+              {syncResultadosMsg && (
+                <p className={`admin-results-status-message is-${syncResultadosMsg.tipo}`}>
+                  {syncResultadosMsg.texto}
+                </p>
+              )}
+            </>
+          )
+          const tableroResultados = (
+            <div className="admin-results-board">
+              {partidosResultadoEstado.map(({ p, i, r, enVivo }) => {
+                const cancelado = !!r.cancelado
+                const tieneMarcador = !cancelado && String(r.local ?? '').trim() !== '' && String(r.visitante ?? '').trim() !== ''
+                const resultado = tieneMarcador ? goalsToResultado(r.local, r.visitante) : null
+                const estado = cancelado ? 'cancelled'
+                  : enVivo ? 'live'
+                    : resultado === 'home' ? 'home'
+                      : resultado === 'draw' ? 'draw'
+                        : resultado === 'away' ? 'away' : 'pending'
+                const etiqueta = cancelado ? 'CANCELADO'
+                  : enVivo ? 'EN VIVO'
+                    : resultado === 'home' ? 'LOCAL'
+                      : resultado === 'draw' ? 'EMPATE'
+                        : resultado === 'away' ? 'VISITANTE' : 'PENDIENTE'
+                const nota = cancelado ? 'Partido cancelado'
+                  : enVivo ? 'Jugándose ahora'
+                    : resultado === 'home' ? 'Final. Gana el local'
+                      : resultado === 'draw' ? 'Final. Empate'
+                        : resultado === 'away' ? 'Final. Gana el visitante'
+                          : notaPartidoPendiente(p.hora, ahoraResultados)
+
+                return (
+                  <article className={`admin-result-match-card is-${estado}`} key={i}>
+                    <header>
+                      <span>{formatFechaResultadoTablero(p.hora, enVivo)}</span>
+                      <small>{etiqueta}</small>
+                    </header>
+                    <div className="admin-result-match-card-body">
+                      <div className="admin-result-match-team">
+                        {escudoMini(p.escudoLocal, p.local, 34)}
+                        <strong>{p.local || `Local ${i + 1}`}</strong>
+                      </div>
+                      <span className="admin-result-match-score">
+                        {cancelado ? 'vs' : tieneMarcador ? `${r.local}-${r.visitante}` : 'vs'}
+                      </span>
+                      <div className="admin-result-match-team">
+                        {escudoMini(p.escudoVisitante, p.visitante, 34)}
+                        <strong>{p.visitante || `Visitante ${i + 1}`}</strong>
+                      </div>
+                    </div>
+                    <footer>{nota}</footer>
+                  </article>
+                )
+              })}
             </div>
           )
           return (
@@ -5678,7 +6014,10 @@ export default function Admin() {
                 ].map(t => (
                   <button
                     className={`admin-manage-tab${tab === t.key ? ' is-active' : ''}`}
-                    key={t.key} onClick={() => setTab(t.key)}
+                    key={t.key} onClick={() => {
+                      setTab(t.key)
+                      if (t.key === 'resultados') setHoraResultadosUI(marcaTiempoActual())
+                    }}
                     style={{
                       flex: 1, padding: '9px 8px', fontSize: 13, fontWeight: 700,
                       border: 'none', borderRadius: 7, cursor: 'pointer',
@@ -5699,74 +6038,60 @@ export default function Admin() {
               {/* Tab: Resultados */}
               {tab === 'resultados' && (
                 <>
-                  <div className="admin-manage-results-card" style={card}>
-                    <label style={{ ...lbl, marginBottom: 6 }}>Marcadores</label>
-                    <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 14, lineHeight: 1.5 }}>
-                      Se llenan <strong style={{ color: 'var(--green)' }}>automáticamente</strong> cuando termina cada partido.
-                    </p>
-	                    {(quinielaActual.partidos ?? []).map((p, i) => {
-                      const r = resultados[i] ?? {}
-                      const cancelado    = !!r.cancelado
-                      const tieneMarcador = !cancelado && String(r.local ?? '').trim() !== '' && String(r.visitante ?? '').trim() !== ''
-                      const resultado    = tieneMarcador ? goalsToResultado(r.local, r.visitante) : null
-                      const pendiente    = !cancelado && !tieneMarcador
-                      const resColor   = cancelado ? { bg: 'var(--neutral-bg)', color: 'var(--muted)' }
-                        : resultado === 'home' ? { bg: 'var(--green-bg)',  color: 'var(--green)' }
-                        : resultado === 'draw' ? { bg: 'var(--neutral-bg)', color: 'var(--muted)' }
-                        : resultado === 'away' ? { bg: 'var(--yellow-bg)', color: 'var(--yellow)' }
-                        : { bg: 'var(--neutral-bg)', color: 'var(--muted)' }
-                      const resLabel = cancelado ? 'Cancelado'
-                        : resultado === 'home' ? 'Local'
-                        : resultado === 'draw' ? 'Empate'
-                        : resultado === 'away' ? 'Visitante'
-                        : 'Pendiente'
-                      const ultimo = i === (quinielaActual.partidos?.length ?? 0) - 1
+                  {clienteDesktop ? (
+                    <>
+                      {barraEstadoResultados}
+                      {resumenLiderResultados}
+                      {tableroResultados}
+                    </>
+                  ) : (
+                    <div className="admin-manage-results-card" style={card}>
+                      <label style={{ ...lbl, marginBottom: 6 }}>Marcadores</label>
+                      <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 14, lineHeight: 1.5 }}>
+                        Se llenan <strong style={{ color: 'var(--green)' }}>automáticamente</strong> cuando termina cada partido.
+                      </p>
+                      {resumenLiderResultados}
+                      {partidosResultados.map((p, i) => {
+                        const r = resultados[i] ?? resultados[String(i)] ?? {}
+                        const cancelado = !!r.cancelado
+                        const tieneMarcador = !cancelado && String(r.local ?? '').trim() !== '' && String(r.visitante ?? '').trim() !== ''
+                        const resultado = tieneMarcador ? goalsToResultado(r.local, r.visitante) : null
+                        const pendiente = !cancelado && !tieneMarcador
+                        const resColor = cancelado ? { bg: 'var(--neutral-bg)', color: 'var(--muted)' }
+                          : resultado === 'home' ? { bg: 'var(--green-bg)', color: 'var(--green)' }
+                            : resultado === 'draw' ? { bg: 'var(--neutral-bg)', color: 'var(--muted)' }
+                              : resultado === 'away' ? { bg: 'var(--yellow-bg)', color: 'var(--yellow)' }
+                                : { bg: 'var(--neutral-bg)', color: 'var(--muted)' }
+                        const resLabel = cancelado ? 'Cancelado'
+                          : resultado === 'home' ? 'Local'
+                            : resultado === 'draw' ? 'Empate'
+                              : resultado === 'away' ? 'Visitante' : 'Pendiente'
+                        const ultimo = i === partidosResultados.length - 1
 
-                      return (
-                        <div
-                          className="admin-manage-result-row"
-                          key={i}
-                          style={{
-                            padding: '12px 4px',
-                            borderBottom: ultimo ? 'none' : '1px solid var(--border)',
-                          }}
-                        >
-                          {/* Fila horizontal estilo ranking: local: marcador: visitante */}
-                          <div className="admin-manage-result-match" style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) auto minmax(0,1fr)', gap: 10, alignItems: 'center' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0, justifyContent: 'flex-end' }}>
-                              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'right' }}>
-                                {p.local || `Local ${i + 1}`}
+                        return (
+                          <div className="admin-manage-result-row" key={i} style={{ padding: '12px 4px', borderBottom: ultimo ? 'none' : '1px solid var(--border)' }}>
+                            <div className="admin-manage-result-match" style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) auto minmax(0,1fr)', gap: 10, alignItems: 'center' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0, justifyContent: 'flex-end' }}>
+                                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'right' }}>{p.local || `Local ${i + 1}`}</span>
+                                {escudoMini(p.escudoLocal, p.local)}
+                              </div>
+                              <span style={{ minWidth: 52, textAlign: 'center', fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 800, padding: '3px 8px', borderRadius: 'var(--radius-sm)', background: 'var(--card-light)', color: cancelado ? 'var(--muted)' : pendiente ? 'var(--muted-soft)' : 'var(--text-strong)', textDecoration: cancelado ? 'line-through' : 'none' }}>
+                                {cancelado ? 'Cancelado' : pendiente ? 'vs' : `${r.local}-${r.visitante}`}
                               </span>
-                              {escudoMini(p.escudoLocal, p.local)}
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
+                                {escudoMini(p.escudoVisitante, p.visitante)}
+                                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.visitante || `Visitante ${i + 1}`}</span>
+                              </div>
                             </div>
-                            <span style={{
-                              minWidth: 52, textAlign: 'center',
-                              fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 800,
-                              padding: '3px 8px', borderRadius: 'var(--radius-sm)',
-                              background: 'var(--card-light)',
-                              color: cancelado ? 'var(--muted)' : pendiente ? 'var(--muted-soft)' : 'var(--text-strong)',
-                              textDecoration: cancelado ? 'line-through' : 'none',
-                            }}>
-                              {cancelado ? 'Cancelado' : pendiente ? 'vs' : `${r.local}-${r.visitante}`}
-                            </span>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
-                              {escudoMini(p.escudoVisitante, p.visitante)}
-                              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                {p.visitante || `Visitante ${i + 1}`}
-                              </span>
+                            <div style={{ display: 'flex', justifyContent: 'center', marginTop: 8 }}>
+                              <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 'var(--radius-full)', background: resColor.bg, color: resColor.color, whiteSpace: 'nowrap', letterSpacing: 0.3 }}>{resLabel}</span>
                             </div>
                           </div>
-                          <div style={{ display: 'flex', justifyContent: 'center', marginTop: 8 }}>
-                            <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 'var(--radius-full)', background: resColor.bg, color: resColor.color, whiteSpace: 'nowrap', letterSpacing: 0.3 }}>
-                              {resLabel}
-                            </span>
-                          </div>
-	                        </div>
-	                      )
-	                    })}
-	                    {clienteMobile && controlSyncResultados}
-	                </div>
-	                    {clienteDesktop && controlSyncResultados}
+                        )
+                      })}
+                      {controlSyncResultados}
+                    </div>
+                  )}
 
                   {tienePremio(quinielaActual) && esFinalizadaQ(quinielaActual) && (
                     <div className="admin-manage-prize-card" style={{
@@ -6076,7 +6401,7 @@ export default function Admin() {
                         <h2>Nombre</h2>
                       </header>
                       <label htmlFor="edit-nombre" className="admin-new-sr-only">Nombre de la quiniela</label>
-                      <div style={{ display: 'flex', gap: 8, alignItems: 'stretch', marginBottom: 6 }}>
+                      <div className="admin-edit-name-field" style={{ display: 'flex', gap: 8, alignItems: 'stretch', marginBottom: 6 }}>
                         <input id="edit-nombre" type="text" value={editNombre} maxLength={MAX_NOMBRE_QUINIELA} onChange={e => setEditNombre(limitarNombreQuiniela(e.target.value))} placeholder="Nombre de la quiniela" style={{ flex: 1, marginBottom: 0 }} />
                         <EmojiPicker inputId="edit-nombre" value={editNombre} onChange={value => setEditNombre(limitarNombreQuiniela(value))} />
                       </div>
@@ -6085,7 +6410,7 @@ export default function Admin() {
                       </p>
                     </section>
 
-                    <section className="admin-new-step-card admin-edit-section-card">
+                    <section className="admin-new-step-card admin-edit-section-card admin-fixtures-card">
                       <header className="admin-new-step-heading admin-edit-section-heading">
                         <h2>Partidos</h2>
                         {conteoPredicciones > 0 && (
@@ -6113,20 +6438,24 @@ export default function Admin() {
                           </div>
                         </SmoothCollapse>
                       )}
-                      <div className="admin-stream-auto">
-                        <div>
-                          <strong><AdminIcon name="link" size={14} /> Transmisiones automáticas</strong>
-                          <p>QuinielApp revisa la agenda de StreamX cerca de cada partido y vincula hasta tres señales cuando la coincidencia es segura.</p>
-                        </div>
-                        <button type="button" onClick={buscarTransmisionesAhora} disabled={buscandoStreams}>
-                          <AdminIcon name={buscandoStreams ? 'refresh' : 'search'} size={14} />
-                          {buscandoStreams ? 'Buscando…' : 'Buscar ahora'}
-                        </button>
-                      </div>
-                      {streamSyncMsg && (
-                        <div className={`admin-stream-sync-msg is-${streamSyncMsg.tipo}`}>
-                          {streamSyncMsg.texto}
-                        </div>
+                      {soySuper && (
+                        <>
+                          <div className="admin-stream-auto">
+                            <div>
+                              <strong><AdminIcon name="link" size={14} /> Transmisiones automáticas</strong>
+                              <p>QuinielApp revisa la agenda de StreamX cerca de cada partido y vincula hasta tres señales cuando la coincidencia es segura.</p>
+                            </div>
+                            <button type="button" onClick={buscarTransmisionesAhora} disabled={buscandoStreams}>
+                              <AdminIcon name={buscandoStreams ? 'refresh' : 'search'} size={14} />
+                              {buscandoStreams ? 'Buscando…' : 'Buscar ahora'}
+                            </button>
+                          </div>
+                          {streamSyncMsg && (
+                            <div className={`admin-stream-sync-msg is-${streamSyncMsg.tipo}`}>
+                              {streamSyncMsg.texto}
+                            </div>
+                          )}
+                        </>
                       )}
                       {conteoPredicciones === 0 && renderBuscadorFixtures(agregarSeleccionadosAEdicion, { embedded: true })}
                       {editPartidos.length === 0 ? (
@@ -6152,7 +6481,7 @@ export default function Admin() {
                                   {escudoMini(p.escudoVisitante, p.visitante)}
                                 </div>
                                 {p.hora && <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{formatFixtureDate(p.hora)}</div>}
-                                <div className={`admin-stream-options${streamsAbiertos ? ' is-open' : ''}`}>
+                                {soySuper && <div className={`admin-stream-options${streamsAbiertos ? ' is-open' : ''}`}>
                                   <button
                                     type="button"
                                     className="admin-stream-options-toggle"
@@ -6213,7 +6542,7 @@ export default function Admin() {
                                       <p>Las opciones 2 y 3 solo aparecerán al espectador cuando tengan un enlace.</p>
                                     </div>
                                   </SmoothCollapse>
-                                </div>
+                                </div>}
                               </div>
                               {conteoPredicciones === 0 && (
                                 <button type="button" onClick={() => setEditPartidos(prev => prev.filter((_, idx) => idx !== i))} aria-label={`Quitar ${p.local} vs ${p.visitante}`} title="Quitar partido">
@@ -6227,7 +6556,7 @@ export default function Admin() {
                       )}
                     </section>
 
-                    <section className="admin-new-step-card admin-edit-section-card">
+                    <section className="admin-new-step-card admin-edit-section-card admin-edit-rules-card">
                       <header className="admin-new-step-heading admin-edit-section-heading">
                         <h2>Reglas y premio</h2>
                       </header>
@@ -6265,11 +6594,12 @@ export default function Admin() {
                       <div className="admin-new-rule-block">
                         <label htmlFor="edit-temporada" className="admin-new-field-label">Temporada <span className="admin-new-optional">· opcional</span></label>
                         <p className="admin-new-field-help">Suma sus puntos a una tabla general entre varias quinielas.</p>
-                        <select id="edit-temporada" value={editTemporadaSel} onChange={e => setEditTemporadaSel(e.target.value)} style={{ marginBottom: 0 }}>
-                          <option value="">Sin temporada</option>
-                          {temporadas.map(t => <option key={t.id} value={t.id}>{t.nombre}</option>)}
-                          <option value="__nueva__">+ Crear temporada nueva</option>
-                        </select>
+                        <TemporadaSelect
+                          id="edit-temporada"
+                          value={editTemporadaSel}
+                          onChange={setEditTemporadaSel}
+                          temporadas={temporadas}
+                        />
                         {editTemporadaSel === '__nueva__' && (
                           <input type="text" placeholder="Ej. Clausura 2026 con los compas" value={editTemporadaNueva} maxLength={60} onChange={e => setEditTemporadaNueva(e.target.value)} aria-label="Nombre de la temporada nueva" style={{ marginTop: 8, marginBottom: 0 }} />
                         )}
@@ -6499,6 +6829,37 @@ export default function Admin() {
   )
 }
 
+function OrganizerKpiCard({ kpi }) {
+  const [volteada, setVolteada] = useState(false)
+
+  return (
+    <button
+      type="button"
+      className={`admin-organizer-kpi is-${kpi.tone}${volteada ? ' is-flipped' : ''}`}
+      onClick={() => setVolteada(valor => !valor)}
+      aria-pressed={volteada}
+      aria-label={`${kpi.label}: ${kpi.valor}. ${volteada ? 'Ocultar' : 'Mostrar'} explicación`}
+    >
+      <span className="admin-organizer-kpi-inner">
+        <span className="admin-organizer-kpi-face admin-organizer-kpi-front">
+          <span className="admin-organizer-kpi-hint" aria-hidden="true"><AdminIcon name="info" size={13} /></span>
+          <span className="admin-organizer-kpi-icon"><AdminIcon name={kpi.icon} size={17} /></span>
+          <strong>{kpi.valor}</strong>
+          <small>{kpi.label}</small>
+        </span>
+        <span className="admin-organizer-kpi-face admin-organizer-kpi-back">
+          <span className="admin-organizer-kpi-back-heading">
+            <AdminIcon name="info" size={14} />
+            <strong>{kpi.label}</strong>
+          </span>
+          <span className="admin-organizer-kpi-description">{kpi.descripcion}</span>
+          <small>Haz clic para volver</small>
+        </span>
+      </span>
+    </button>
+  )
+}
+
 function EstadisticasOrganizador({ quinielas = [], conteos = {}, movimientos = [], onGestionar }) {
   const participantesDe = (q) => Math.max(0, (conteos[q.id] ?? 0) - (q.ocultos ?? []).length)
   const datos = quinielas.map(q => {
@@ -6514,7 +6875,6 @@ function EstadisticasOrganizador({ quinielas = [], conteos = {}, movimientos = [
     }
   })
   const participaciones = datos.reduce((total, d) => total + d.participantes, 0)
-  const recaudacion = datos.reduce((total, d) => total + d.recaudacion, 0)
   const premios = datos.reduce((total, d) => total + d.premio, 0)
   const promedio = quinielas.length ? participaciones / quinielas.length : 0
 
@@ -6560,11 +6920,34 @@ function EstadisticasOrganizador({ quinielas = [], conteos = {}, movimientos = [
   }
 
   const kpis = [
-    { icon: 'ball', label: 'Quinielas creadas', valor: quinielas.length.toLocaleString('es-MX'), tone: 'green' },
-    { icon: 'users', label: 'Participaciones', valor: participaciones.toLocaleString('es-MX'), tone: 'blue' },
-    { icon: 'chart', label: 'Promedio por quiniela', valor: promedio.toLocaleString('es-MX', { maximumFractionDigits: 1 }), tone: 'purple' },
-    { icon: 'banknote', label: 'Recaudación estimada', valor: formatearMXN(recaudacion), tone: 'yellow' },
-    { icon: 'trophy', label: 'Premios generados', valor: formatearMXN(premios), tone: 'orange' },
+    {
+      icon: 'ball',
+      label: 'Quinielas creadas',
+      valor: quinielas.length.toLocaleString('es-MX'),
+      tone: 'green',
+      descripcion: 'Total de quinielas que has creado, sin importar si están activas, en juego o finalizadas.',
+    },
+    {
+      icon: 'users',
+      label: 'Participaciones',
+      valor: participaciones.toLocaleString('es-MX'),
+      tone: 'blue',
+      descripcion: 'Suma de participaciones visibles en todas tus quinielas. Una persona cuenta cada vez que participa en una distinta.',
+    },
+    {
+      icon: 'chart',
+      label: 'Participaciones por quiniela',
+      valor: promedio.toLocaleString('es-MX', { maximumFractionDigits: 1 }),
+      tone: 'purple',
+      descripcion: 'Cantidad promedio de participaciones en cada quiniela: participaciones totales divididas entre quinielas creadas.',
+    },
+    {
+      icon: 'trophy',
+      label: 'Premios generados',
+      valor: formatearMXN(premios),
+      tone: 'orange',
+      descripcion: 'Total previsto para repartir en tus quinielas: suma de los premios fijos y las cuotas destinadas al bote.',
+    },
   ]
   const records = [
     {
@@ -6607,11 +6990,7 @@ function EstadisticasOrganizador({ quinielas = [], conteos = {}, movimientos = [
     <div className="admin-organizer-stats">
       <div className="admin-organizer-kpi-grid">
         {kpis.map(kpi => (
-          <article key={kpi.label} className={`admin-organizer-kpi is-${kpi.tone}`}>
-            <span className="admin-organizer-kpi-icon"><AdminIcon name={kpi.icon} size={17} /></span>
-            <strong>{kpi.valor}</strong>
-            <small>{kpi.label}</small>
-          </article>
+          <OrganizerKpiCard key={kpi.label} kpi={kpi} />
         ))}
       </div>
 

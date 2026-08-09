@@ -49,8 +49,8 @@ const btnDanger = { ...btnBase, background: 'var(--red)', color: '#fff' }
 
 const inputStyle = {
   width: '100%', padding: '10px 12px', marginBottom: 18,
-  borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-strong)',
-  background: 'var(--bg-soft)', color: 'var(--text)', fontSize: 14,
+  minHeight: 44, borderRadius: 'var(--control-radius)', border: '1px solid var(--control-border)',
+  background: 'var(--control-bg)', color: 'var(--text-strong)', fontSize: 14,
 }
 
 export function DialogProvider({ children }) {

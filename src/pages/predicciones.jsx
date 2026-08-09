@@ -38,6 +38,17 @@ function formatFechaCierreDesktop(value) {
   return `${fecha} · ${hora}`
 }
 
+function formatoRestanteGate(cierre) {
+  const fecha = cierreToDate(cierre)
+  if (!fecha) return 'N/D'
+  const ms = fecha.getTime() - Date.now()
+  if (ms <= 0) return '0h'
+  const hora = 60 * 60 * 1000
+  const dia = 24 * hora
+  if (ms < dia) return `${Math.max(1, Math.ceil(ms / hora))}h`
+  return `${Math.max(1, Math.floor(ms / dia))}d`
+}
+
 function pickValido(pick) {
   if (!pick) return false
   const l = pick.local, v = pick.visitante
@@ -875,8 +886,46 @@ export default function Predicciones() {
 
         ) : !accesoOk ? (
           /* Gate: código de acceso (quinielas privadas) */
-          <div>
-            <div style={{
+          <div className="pred-gate-layout">
+            <section className="pred-gate-context">
+              <span className="pred-gate-context-kicker">Te invitaron a</span>
+              <h2>{quiniela.nombre}</h2>
+              <div className="pred-gate-stats">
+                <div>
+                  <strong>{partidos.length}</strong>
+                  <span>Partidos por predecir</span>
+                </div>
+                <div>
+                  <strong>{conteoParticipantes}</strong>
+                  <span>{conteoParticipantes === 0 ? 'Sé el primero' : 'Ya van dentro'}</span>
+                </div>
+                <div className="is-deadline">
+                  <strong>{formatoRestanteGate(quiniela.cierre)}</strong>
+                  <span>Para registrarte</span>
+                </div>
+              </div>
+              <div className="pred-gate-how">
+                <p>Cómo se juega</p>
+                <div>
+                  {[
+                    `Escribe los marcadores de los ${partidos.length} partidos.`,
+                    'Envía tu quiniela antes del cierre.',
+                    'Sigue el ranking mientras se juegan.',
+                  ].map((paso, idx) => (
+                    <span key={paso}>
+                      <i>{idx + 1}</i>
+                      {paso}
+                    </span>
+                  ))}
+                </div>
+                <small>
+                  <PredIcon name="check" size={13} />
+                  1 punto por resultado correcto, 2 puntos extra por marcador exacto.
+                </small>
+              </div>
+            </section>
+
+            <div className="pred-gate-access" style={{
               background: 'linear-gradient(135deg, rgba(30,41,59,0.92), rgba(15,24,40,0.95))',
               borderRadius: 14,
               padding: 'var(--pred-large-card-padding, 1.75rem 1.5rem)', marginBottom: 'var(--pred-large-card-gap, 14px)',
@@ -884,24 +933,34 @@ export default function Predicciones() {
               boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 12px 26px rgba(0,0,0,0.32)',
               textAlign: 'center',
             }}>
-              <div style={{
-                width: 54, height: 54, borderRadius: '50%',
-                background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.10)',
-                boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)',
-                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                color: 'var(--muted)', marginBottom: 12,
-              }}>
-                <PredIcon name="lock" size={26} />
+              <div className="pred-gate-mobile-heading">
+                <div style={{
+                  width: 54, height: 54, borderRadius: '50%',
+                  background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.10)',
+                  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)',
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                  color: 'var(--muted)', marginBottom: 12,
+                }}>
+                  <PredIcon name="lock" size={26} />
+                </div>
+                <p style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--pred-card-title-size, 20px)', fontWeight: 700, color: 'var(--text-strong)', marginBottom: 6 }}>
+                  Quiniela privada
+                </p>
               </div>
-              <p style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--pred-card-title-size, 20px)', fontWeight: 700, color: 'var(--text-strong)', marginBottom: 6 }}>
-                Quiniela privada
-              </p>
+              <div className="pred-gate-desktop-heading">
+                <span><PredIcon name="lock" size={20} /></span>
+                <div>
+                  <small>Quiniela privada</small>
+                  <p>Entra con tu código</p>
+                </div>
+              </div>
               <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 18, lineHeight: 1.5 }}>
                 Escribe el código que te compartió el organizador para registrar tus predicciones.
               </p>
               <label htmlFor="codigo-acceso" style={{ ...lbl, textAlign: 'left', display: 'block' }}>Código de acceso</label>
-              <div className="public-code-input-wrap" style={{ position: 'relative', marginBottom: codigoError ? 8 : 14 }}>
+              <div className={`public-code-input-wrap pred-gate-code-wrap${codigoError ? ' has-error' : ''}`} style={{ position: 'relative', marginBottom: codigoError ? 8 : 14 }}>
                 <input
+                  className="pred-gate-code-input"
                   id="codigo-acceso"
                   type="text"
                   placeholder="ACME2026"
@@ -930,6 +989,7 @@ export default function Predicciones() {
                 </p>
               )}
               <button
+                className="pred-gate-submit"
                 onClick={validarCodigo}
                 disabled={validandoCodigo}
                 style={ctaPrimary(validandoCodigo)}
@@ -940,8 +1000,16 @@ export default function Predicciones() {
                 <PredIcon name="check" size={12} />
                 Sin cuenta ni registro · solo tu nombre
               </p>
+              <p className="pred-gate-ranking-desktop">
+                Solo ver el{' '}
+                <a href={`/ranking/${quinielaId}`}>ranking</a>
+              </p>
+              <div className="pred-gate-help">
+                <p>¿No tienes el código?</p>
+                <span>Pídeselo a quien organiza la quiniela. Es el mismo para todo el grupo.</span>
+              </div>
             </div>
-            <p style={{ fontSize: 12, color: 'var(--muted)', textAlign: 'center' }}>
+            <p className="pred-gate-ranking-mobile" style={{ fontSize: 12, color: 'var(--muted)', textAlign: 'center' }}>
               Solo ver el{' '}
               <a
                 href={`/ranking/${quinielaId}`}

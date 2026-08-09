@@ -18,6 +18,7 @@ import { CuentaRegresiva } from './CuentaRegresiva'
 import { RankingLivePlayer } from './RankingLivePlayer'
 import { registrarApertura } from '../utils/analytics'
 import { compartirOraculo, compartirRanking } from '../utils/shareRanking'
+import { combinarEventosPartido, resumirEventosRanking } from '../utils/eventosPartido'
 import { useDialog } from './Dialogs'
 
 function formatFecha(value) {
@@ -876,6 +877,7 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
             // eventos normales: los filtramos. La secuencia completa de la tanda
             // (con anotados y fallados) viene aparte en livePenales.
             const eventosNormales = eventos.filter(e => !e.penalShootout)
+            const eventosResumen = resumirEventosRanking(eventosNormales)
             const penalesTanda    = livePenales[p.espnId] ?? []
             // Agrupamos los penales por ronda (mismo turno = misma línea): local
             // a la izquierda, visitante a la derecha. El orden es de arriba hacia
@@ -893,7 +895,7 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
             const hayPenales      = !cancelado && (!!live?.penales || penalesTanda.length > 0)
             const hayStats = !!st && st.state !== 'pre'
             const hayResumen = tieneStats && (esFinish || !!stored) && !cancelado
-            const hayDetallesVisibles = hayStats || eventosNormales.length > 0 || hayPenales
+            const hayDetallesVisibles = hayStats || eventosResumen.length > 0 || hayPenales
             const tienePrevio = pendiente && !!p.hora
             const tieneAlgo = hayDetallesVisibles || hayResumen || tienePrevio
             const jugado = estado.jugado
@@ -1115,10 +1117,10 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                         ))}
                       </div>
                     )}
-                    {eventosNormales.length > 0 && (
+                    {eventosResumen.length > 0 && (
                       <div className="ranking-match-events">
                         <p className="ranking-match-events-title">Últimos eventos</p>
-                        {[...eventosNormales].reverse().map((ev, j) => {
+                        {[...eventosResumen].reverse().map((ev, j) => {
                           const izq = ev.lado === 'home'
                           return (
                             <div key={j} className={`ranking-match-event-row${izq ? ' is-home' : ' is-away'}`}>
@@ -1138,9 +1140,9 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                       <div
                         className="ranking-match-shootout"
                         style={{
-                          marginTop: (hayStats || eventosNormales.length > 0) ? 12 : 0,
-                          paddingTop: (hayStats || eventosNormales.length > 0) ? 10 : 0,
-                          borderTop: (hayStats || eventosNormales.length > 0) ? '1px solid var(--border)' : 'none',
+                          marginTop: (hayStats || eventosResumen.length > 0) ? 12 : 0,
+                          paddingTop: (hayStats || eventosResumen.length > 0) ? 10 : 0,
+                          borderTop: (hayStats || eventosResumen.length > 0) ? '1px solid var(--border)' : 'none',
                         }}
                       >
                         <p style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6, textAlign: 'center' }}>
@@ -1184,7 +1186,7 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                         idx={i}
                         partido={p}
                         mostrarStats={!hayStats}
-                        mostrarEventos={eventosNormales.length === 0}
+                        mostrarEventos={eventosResumen.length === 0}
                         mostrarPenales={!hayPenales}
                       />
                     )}
@@ -1904,9 +1906,11 @@ export function ColumnaPartido({
   ].filter(f => f.disponible ?? (
     valorEstadisticaDisponible(f.h) && valorEstadisticaDisponible(f.a)
   )) : []
-  const eventosFuente = eventos.length > 0
-    ? eventos
-    : (fichaEnVivo?.eventos?.length ? fichaEnVivo.eventos : (detalle?.eventos ?? []))
+  const eventosFuente = combinarEventosPartido(
+    eventos,
+    fichaEnVivo?.eventos ?? [],
+    detalle?.eventos ?? []
+  )
   const eventosNormales = eventosFuente.filter(ev => !ev.penalShootout)
   const penalesFuente = penales.length > 0 ? penales : (detalle?.penales ?? [])
   const penalesRondas = (() => {
@@ -2365,7 +2369,10 @@ function DetalleArchivadoMovil({
   const ficha = useFichaPartido(partido, mostrarEventos && !!partido?.espnId, false)
   const stats = mostrarStats ? detalle?.stats : null
   const eventos = mostrarEventos
-    ? (ficha?.eventos?.length ? ficha.eventos : (detalle?.eventos ?? [])).filter(ev => !ev.penalShootout)
+    ? resumirEventosRanking(
+      (ficha?.eventos?.length ? ficha.eventos : (detalle?.eventos ?? []))
+        .filter(ev => !ev.penalShootout)
+    )
     : []
   const penales = mostrarPenales ? (detalle?.penales ?? []) : []
   const posH = stats ? parseFloat(stats.home?.posesion) || 50 : 50
