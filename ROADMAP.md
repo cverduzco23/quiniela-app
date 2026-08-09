@@ -357,12 +357,9 @@ toca seguridad ni infraestructura; todo es client-side y sin lecturas nuevas a F
 
 - **Orden automático de partidos**: al agregarlos desde el buscador (crear y editar) se
   ordenan por fecha/hora; los manuales sin hora van al final. ([admin.jsx](src/pages/admin.jsx))
-- **Secciones del inicio configurables** (solo super admin): tarjeta "🏠 Secciones del inicio"
-  para mostrar/ocultar y **reordenar** cada bloque del home (código, cómo funciona, crear
-  quiniela, quiniela activa, jugándose, terminada, imagen, promo). Config en **`config/home`**
-  (doc nuevo: lectura pública, escritura super admin: regla agregada en [firestore.rules](firestore.rules),
-  ya desplegada). Util único: [src/utils/homeSections.js](src/utils/homeSections.js). El home usa
-  flexbox `order`; default = todo visible en orden estándar.
+- ~~**Secciones del inicio configurables**~~: retiradas el 2026-08-09 porque el panel dejó de
+  utilizarse. El home conserva un orden fijo y ya no lee `config/home`; también se eliminó la
+  imagen decorativa que permanecía oculta mediante esa configuración.
 - **Panel super admin**: quinielas de otros admins ocultas por defecto (desplegables), mis
   finalizadas ocultas por defecto, activas/jugándose top 2 con "ver más".
 - **Caja**: ordenar saldos por nombre o por monto.

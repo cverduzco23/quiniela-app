@@ -505,12 +505,11 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // config/  (configuración global del producto)
-    // config/home guarda qué secciones del inicio se muestran. Lectura
-    // pública (el home la lee sin sesión); solo el super admin la edita.
+    // config/  (configuración interna del backend)
+    // config/chat guarda umbrales de moderación y solo lo consume Cloud
+    // Functions mediante Admin SDK, que no depende de estas reglas.
     match /config/{docId} {
-      allow read: if true;
-      allow write: if isSuperAdmin();
+      allow read, write: if false;
     }
 
     // analytics/  (estadísticas propias: solo contadores agregados)
