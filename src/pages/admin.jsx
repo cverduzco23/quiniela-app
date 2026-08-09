@@ -1,8 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { collection, addDoc, doc, updateDoc, getDoc, getDocs, deleteDoc, query, orderBy, where, setDoc, serverTimestamp, writeBatch, increment, getCountFromServer } from 'firebase/firestore'
 import { signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, updatePassword, createUserWithEmailAndPassword, sendEmailVerification, reload, updateProfile, deleteUser } from 'firebase/auth'
-import { httpsCallable } from 'firebase/functions'
-import { db, auth, functions, crearUsuarioAislado, generarPasswordTemporal } from '../firebase'
+import { db, auth, crearUsuarioAislado, generarPasswordTemporal } from '../firebase'
 import { CambioPassword } from '../components/CambioPassword'
 import { useDialog } from '../components/Dialogs'
 import { ComoFunciona } from '../components/ComoFunciona'
@@ -1599,10 +1598,8 @@ export default function Admin() {
   const [conteoPredicciones, setConteoPredicciones] = useState(null)
   const [partidosFijosInfo, setPartidosFijosInfo] = useState(false)
   const [guardandoEdicion, setGuardandoEdicion] = useState(false)
-  const [buscandoStreams, setBuscandoStreams]     = useState(false)
-  const [streamSyncMsg, setStreamSyncMsg]         = useState(null)
-  const [streamsManualesAbiertos, setStreamsManualesAbiertos] = useState(() => new Set())
   const [deleteConfirm, setDeleteConfirm]       = useState('')
+  const [dangerAbierta, setDangerAbierta]       = useState(false)
   const [eliminando, setEliminando]             = useState(false)
 
   // Cerrar / reabrir
@@ -1920,8 +1917,8 @@ export default function Admin() {
     if (tab !== 'editar' || !quinielaActual) return
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setEditNombre(quinielaActual.nombre ?? '')
-    setStreamSyncMsg(null)
-    setStreamsManualesAbiertos(new Set())
+    setDangerAbierta(false)
+    setDeleteConfirm('')
     setEditPartidos([...(quinielaActual.partidos ?? [])])
     setEditPartidosOriginales((quinielaActual.partidos ?? []).length)
     setEditCierre(cierreToInputValue(quinielaActual.cierre))
@@ -2163,21 +2160,6 @@ export default function Admin() {
     if (!quinielaActual || guardandoEdicion) return
     if (editPartidos.length === 0) return alerta('La quiniela debe tener al menos un partido.')
     if (editPartidos.length > MAX_PARTIDOS) return alerta(`Una quiniela puede tener máximo ${MAX_PARTIDOS} partidos. Quita ${editPartidos.length - MAX_PARTIDOS} para poder guardar.`)
-    const streamInvalido = soySuper && editPartidos.find(p => {
-      return ['streamUrl', 'streamUrl2', 'streamUrl3'].some(campo => {
-        const raw = String(p[campo] ?? '').trim()
-        if (!raw) return false
-        try {
-          const url = new URL(raw)
-          return url.protocol !== 'https:'
-        } catch {
-          return true
-        }
-      })
-    })
-    if (streamInvalido) {
-      return alerta(`El enlace de transmisión de ${streamInvalido.local} vs ${streamInvalido.visitante} debe ser una URL HTTPS válida.`)
-    }
     if (!editNombre.trim()) return alerta('El nombre no puede estar vacío.')
     if (contarCaracteres(editNombre.trim()) > MAX_NOMBRE_QUINIELA) return alerta(`El nombre puede tener máximo ${MAX_NOMBRE_QUINIELA} caracteres.`)
     if (!editCierre) return alerta('La fecha y hora de cierre es obligatoria.')
@@ -2231,28 +2213,23 @@ export default function Admin() {
         setGuardandoEdicion(false)
         return
       }
+      // Las transmisiones pertenecen exclusivamente a la sincronización
+      // automática. Leemos su estado más reciente para que una edición abierta
+      // no sobrescriba señales que el proceso programado haya actualizado.
       let partidosConStreamsActuales = quinielaActual.partidos ?? []
-      if (!soySuper) {
-        const snapActual = await getDoc(doc(db, 'quinielas', quinielaActual.id))
-        if (snapActual.exists()) partidosConStreamsActuales = snapActual.data().partidos ?? partidosConStreamsActuales
-      }
+      const snapActual = await getDoc(doc(db, 'quinielas', quinielaActual.id))
+      if (snapActual.exists()) partidosConStreamsActuales = snapActual.data().partidos ?? partidosConStreamsActuales
       const streamsPorPartido = new Map(partidosConStreamsActuales.map(p => [clavePartidoTransmision(p), p]))
       const patch = {
         nombre:   editNombre.trim(),
         partidos: editPartidos.map(p => {
           const limpio = { ...p }
-          if (soySuper) {
-            ;['streamUrl', 'streamUrl2', 'streamUrl3'].forEach(campo => {
-              limpio[campo] = String(p[campo] ?? '').trim()
+          CAMPOS_TRANSMISION.forEach(campo => { delete limpio[campo] })
+          const original = streamsPorPartido.get(clavePartidoTransmision(p))
+          if (original) {
+            CAMPOS_TRANSMISION.forEach(campo => {
+              if (original[campo] !== undefined) limpio[campo] = original[campo]
             })
-          } else {
-            CAMPOS_TRANSMISION.forEach(campo => { delete limpio[campo] })
-            const original = streamsPorPartido.get(clavePartidoTransmision(p))
-            if (original) {
-              CAMPOS_TRANSMISION.forEach(campo => {
-                if (original[campo] !== undefined) limpio[campo] = original[campo]
-              })
-            }
           }
           return limpio
         }),
@@ -2272,52 +2249,6 @@ export default function Admin() {
       alerta('Error al guardar cambios.')
     } finally {
       setGuardandoEdicion(false)
-    }
-  }
-
-  const buscarTransmisionesAhora = async () => {
-    if (!soySuper || !quinielaActual || buscandoStreams) return
-    setBuscandoStreams(true)
-    setStreamSyncMsg(null)
-    try {
-      const buscar = httpsCallable(functions, 'buscarTransmisionesStreamX')
-      const respuesta = await buscar({ quinielaId: quinielaActual.id })
-      const data = respuesta.data ?? {}
-      const partidosServidor = Array.isArray(data.partidos) ? data.partidos : []
-      const camposStream = [
-        'streamUrl', 'streamUrl2', 'streamUrl3',
-        'streamKey', 'streamKey2', 'streamKey3',
-        'streamNombre', 'streamNombre2', 'streamNombre3',
-        'streamAuto',
-      ]
-      if (partidosServidor.length > 0) {
-        setEditPartidos(prev => prev.map((partido, idx) => {
-          const remoto = partidosServidor[idx]
-          if (!remoto) return partido
-          const actualizado = { ...partido }
-          camposStream.forEach(campo => {
-            if (remoto[campo] !== undefined) actualizado[campo] = remoto[campo]
-          })
-          return actualizado
-        }))
-        const actualizado = { ...quinielaActual, partidos: partidosServidor }
-        setQuinielaActual(actualizado)
-        setQuinielas(prev => prev.map(q => q.id === actualizado.id ? actualizado : q))
-      }
-      const asignados = Number(data.asignados ?? 0)
-      setStreamSyncMsg({
-        tipo: asignados > 0 ? 'ok' : 'info',
-        texto: asignados > 0
-          ? `${asignados} ${asignados === 1 ? 'partido quedó vinculado' : 'partidos quedaron vinculados'} automáticamente.`
-          : 'No encontramos coincidencias suficientemente seguras en la agenda de hoy.',
-      })
-    } catch {
-      setStreamSyncMsg({
-        tipo: 'error',
-        texto: 'StreamX no respondió. La sincronización automática volverá a intentarlo.',
-      })
-    } finally {
-      setBuscandoStreams(false)
     }
   }
 
@@ -6134,6 +6065,139 @@ export default function Admin() {
 
               {/* Tab: Participantes */}
               {tab === 'participantes' && (
+                clienteDesktop ? (() => {
+                  const esTipoBote = (Number(quinielaActual.cuota) > 0) || quinielaActual.tipoPremio === TIPO_PREMIO.BOTE
+                  const pagados = quinielaActual.pagados ?? []
+                  const ocultos = quinielaActual.ocultos ?? []
+                  const pendientes = esTipoBote ? listaPredicciones.filter(p => !pagados.includes(p.id)).length : 0
+                  const pagadosActivos = listaPredicciones.filter(p => pagados.includes(p.id)).length
+                  const mapaSimilares = mapaSimilaresPorNombre
+                  const nSospechosos = [...mapaSimilares.values()].filter(arr => arr.length > 0).length
+                  const filtro = busquedaParticipante.trim().toLowerCase()
+                  const listaFiltrada = filtro
+                    ? listaPredicciones.filter(p => (p.nombre ?? '').toLowerCase().includes(filtro))
+                    : listaPredicciones
+                  const columnas = esTipoBote ? ' is-bote' : ''
+                  return (
+                    <div className="admin-participants-desktop">
+                      <div className="admin-participants-toolbar">
+                        <label className="admin-participants-search-wrap">
+                          <AdminIcon name="search" size={14} />
+                          <input
+                            type="text"
+                            className="admin-participant-search"
+                            placeholder={`Buscar entre ${listaPredicciones.length} participantes…`}
+                            value={busquedaParticipante}
+                            onChange={e => setBusquedaParticipante(e.target.value)}
+                            aria-label="Buscar participante por nombre"
+                          />
+                        </label>
+                        {esTipoBote && (
+                          <span className={`admin-participants-payment-pill${pendientes > 0 ? ' is-pending' : ' is-complete'}`}>
+                            <AdminIcon name={pendientes > 0 ? 'clock' : 'check'} size={13} />
+                            {pendientes > 0
+                              ? `${pendientes} pago${pendientes !== 1 ? 's' : ''} pendiente${pendientes !== 1 ? 's' : ''} de validar`
+                              : 'Todos los pagos confirmados'}
+                          </span>
+                        )}
+                        <div className="admin-participants-counts">
+                          <span><strong>{listaPredicciones.length}</strong> registrados</span>
+                          {esTipoBote && <><i /><span className="is-paid"><strong>{pagadosActivos}</strong> pagados</span></>}
+                          <i />
+                          <button
+                            type="button"
+                            className={participantesInfoAbierta ? 'is-active' : ''}
+                            onClick={() => setParticipantesInfoAbierta(v => !v)}
+                            aria-expanded={participantesInfoAbierta}
+                          >
+                            <AdminIcon name="info" size={13} /> Qué hace cada acción
+                          </button>
+                        </div>
+                      </div>
+
+                      <SmoothCollapse open={participantesInfoAbierta}>
+                        <div className="admin-participants-help">
+                          <span><AdminIcon name="pencil" size={13} /><span><strong>Renombrar</strong>: corrige el nombre sin cambiar sus predicciones, puntos ni posición.</span></span>
+                          {esTipoBote && <span><AdminIcon name="clock" size={13} /><span><strong>Pendiente/Pagado</strong>: confirma el pago del jugador.</span></span>}
+                          <span><AdminIcon name="eye" size={13} /><span><strong>Ocultar</strong>: lo quita del ranking público sin borrarlo. Es reversible.</span></span>
+                          <span><AdminIcon name="trash" size={13} /><span><strong>Eliminar</strong>: lo saca de la quiniela para que pueda registrarse de nuevo.</span></span>
+                        </div>
+                      </SmoothCollapse>
+
+                      {nSospechosos > 0 && (
+                        <div className="admin-participants-duplicates">
+                          <AdminIcon name="info" size={13} />
+                          <span>{nSospechosos} posible{nSospechosos !== 1 ? 's' : ''} duplicado{nSospechosos !== 1 ? 's' : ''} detectado{nSospechosos !== 1 ? 's' : ''}. Revisa los nombres marcados como <strong>Similar</strong>.</span>
+                        </div>
+                      )}
+
+                      <div className="admin-participants-table">
+                        <div className={`admin-participants-table-head${columnas}`} aria-hidden="true">
+                          <span>Participante</span>
+                          <span>Se registró</span>
+                          {esTipoBote && <span>Pago</span>}
+                          <span>En el ranking</span>
+                          <span>Acciones</span>
+                        </div>
+                        {loadingPredicciones ? (
+                          <p className="admin-participants-empty">Cargando…</p>
+                        ) : listaPredicciones.length === 0 ? (
+                          <div className="admin-participants-empty"><AdminIcon name="users" size={36} /><span>Nadie ha registrado predicciones todavía.</span></div>
+                        ) : filtro && listaFiltrada.length === 0 ? (
+                          <p className="admin-participants-empty is-search">Sin resultados para "{busquedaParticipante}".</p>
+                        ) : listaFiltrada.map(pred => {
+                          const fecha = pred.fecha
+                            ? new Date(pred.fecha).toLocaleString('es-MX', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+                            : '-'
+                          const yaPagado = pagados.includes(pred.id)
+                          const estaOculto = ocultos.includes(pred.id)
+                          const similares = mapaSimilares.get(pred.nombre) ?? []
+                          const togglingPagoEste = togglingPago === pred.id
+                          const togglingOcultoEste = togglingOculto === pred.id
+                          return (
+                            <div className={`admin-participants-table-row${columnas}`} key={pred.id}>
+                              <div className="admin-participants-person">
+                                <span className="admin-participants-avatar">{iniciales(pred.nombre)}</span>
+                                <div>
+                                  <p>
+                                    <strong>{pred.nombre}</strong>
+                                    {similares.length > 0 && <span className="is-similar" title={`Posible duplicado con: ${similares.join(', ')}`}><AdminIcon name="info" size={10} /> Similar</span>}
+                                    {estaOculto && <span className="is-hidden"><AdminIcon name="eye-off" size={10} /> Oculta</span>}
+                                  </p>
+                                  {similares.length > 0 && <small>Parecido a: {similares.join(', ')}</small>}
+                                </div>
+                              </div>
+                              <time>{fecha}</time>
+                              {esTipoBote && (
+                                <button
+                                  type="button"
+                                  className={`admin-participants-payment${yaPagado ? ' is-paid' : ' is-pending'}`}
+                                  onClick={() => togglePago(pred.id)}
+                                  disabled={togglingPagoEste}
+                                  aria-label={yaPagado ? 'Marcar como no pagado' : 'Marcar como pagado'}
+                                >
+                                  {togglingPagoEste ? '…' : <><AdminIcon name={yaPagado ? 'check' : 'clock'} size={12} />{yaPagado ? 'Pagado' : 'Pendiente'}</>}
+                                </button>
+                              )}
+                              <span className={`admin-participants-visibility${estaOculto ? ' is-hidden' : ''}`}><i />{estaOculto ? 'Oculta' : 'Visible'}</span>
+                              <div className="admin-participants-actions">
+                                <button type="button" className="is-rename" onClick={() => renombrarParticipante(pred)} disabled={renombrandoPred === pred.id} title="Renombrar participante" aria-label={`Renombrar a ${pred.nombre}`}>
+                                  {renombrandoPred === pred.id ? '…' : <><AdminIcon name="pencil" size={13} /><span>Renombrar</span></>}
+                                </button>
+                                <button type="button" className={estaOculto ? 'is-visibility is-hidden' : 'is-visibility'} onClick={() => toggleOculto(pred.id)} disabled={togglingOcultoEste} title={estaOculto ? 'Mostrar en el ranking' : 'Ocultar del ranking'} aria-label={estaOculto ? 'Mostrar predicción' : 'Ocultar predicción'}>
+                                  {togglingOcultoEste ? '…' : <AdminIcon name={estaOculto ? 'eye-off' : 'eye'} size={15} />}
+                                </button>
+                                <button type="button" className="is-delete" onClick={() => eliminarPrediccion(pred)} disabled={eliminandoPred === pred.id} aria-label={`Eliminar a ${pred.nombre}`} title="Eliminar participante">
+                                  {eliminandoPred === pred.id ? '…' : <AdminIcon name="trash" size={15} />}
+                                </button>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )
+                })() : (
                 <div className="admin-manage-participants-card" style={card}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 14 }}>
                     <label style={{ ...lbl, marginBottom: 0 }}>Predicciones registradas</label>
@@ -6390,10 +6454,142 @@ export default function Admin() {
                     )
                   })()}
                 </div>
+                )
               )}
 
               {/* Tab: Editar */}
               {tab === 'editar' && (
+                clienteDesktop ? (() => {
+                  const camposCambiados = []
+                  if (editNombre !== (quinielaActual.nombre ?? '')) camposCambiados.push('nombre')
+                  if (editCodigoAcceso !== String(quinielaActual.codigoAcceso ?? '').toUpperCase()) camposCambiados.push('código')
+                  if (editCierre !== cierreToInputValue(quinielaActual.cierre)) camposCambiados.push('hora de cierre')
+                  if (editTemporadaSel !== (quinielaActual.temporadaId ?? '') || editTemporadaNueva) camposCambiados.push('temporada')
+                  if (editChatHabilitado !== (quinielaActual.chatHabilitado !== false)) camposCambiados.push('comentarios')
+                  if (editPremioFijo !== (quinielaActual.premioFijo != null ? String(quinielaActual.premioFijo) : '') || editCuota !== (quinielaActual.cuota != null ? String(quinielaActual.cuota) : '') || editModeloPremio !== (quinielaActual.modeloPremio ?? MODELO_PREMIO.GANADOR_UNICO)) camposCambiados.push('premio')
+                  const sinStreams = lista => (lista ?? []).map(partido => {
+                    const limpio = { ...partido }
+                    CAMPOS_TRANSMISION.forEach(campo => { delete limpio[campo] })
+                    return limpio
+                  })
+                  if (JSON.stringify(sinStreams(editPartidos)) !== JSON.stringify(sinStreams(quinielaActual.partidos))) camposCambiados.push('partidos')
+                  const hayCambios = camposCambiados.length > 0
+                  const resumenCambios = camposCambiados.length > 0
+                    ? `${camposCambiados.slice(0, -1).join(', ')}${camposCambiados.length > 1 ? ' y ' : ''}${camposCambiados.at(-1)} modificad${camposCambiados.length > 1 ? 'os' : 'o'}`
+                    : 'No hay modificaciones pendientes'
+                  const cancelarEdicion = () => { setTab('resultados'); setFixtures([]); setSeleccionados([]) }
+                  return (
+                    <div className="admin-edit-desktop">
+                      <div className="admin-edit-savebar">
+                        <span className={hayCambios ? 'is-dirty' : ''}><i />{hayCambios ? 'Cambios sin guardar' : 'Todo guardado'}</span>
+                        <small>{resumenCambios}</small>
+                        <div>
+                          <button className="admin-new-cancel" onClick={cancelarEdicion}>Cancelar</button>
+                          <button className="admin-new-save" onClick={guardarEdicion} disabled={guardandoEdicion || !hayCambios}>
+                            {guardandoEdicion ? 'Guardando…' : 'Guardar cambios'} <span aria-hidden="true">→</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="admin-edit-columns">
+                        <section className="admin-new-step-card admin-edit-section-card admin-fixtures-card admin-edit-matches-column">
+                          <header className="admin-new-step-heading admin-edit-section-heading">
+                            <div><h2>Partidos</h2><span className="admin-edit-match-count"><strong>{editPartidos.length}</strong> agregados</span></div>
+                            {conteoPredicciones > 0 && (
+                              <button type="button" className="admin-edit-lock-info" onClick={() => setPartidosFijosInfo(v => !v)} aria-label="Por qué la lista de partidos está fija" aria-expanded={partidosFijosInfo} title="Lista fija"><AdminIcon name="lock" size={14} /></button>
+                            )}
+                          </header>
+                          <p className="admin-new-step-help">
+                            {conteoPredicciones === 0 ? 'Busca y agrega partidos. Después de la primera predicción ya no podrás cambiarlos.' : 'La lista queda fija cuando ya existen predicciones registradas.'}
+                          </p>
+                          {conteoPredicciones > 0 && <SmoothCollapse open={partidosFijosInfo}><div className="admin-edit-locked-note">Ya hay {conteoPredicciones} predicción{conteoPredicciones !== 1 ? 'es' : ''} registrada{conteoPredicciones !== 1 ? 's' : ''}. Para usar otros partidos, crea una quiniela nueva.</div></SmoothCollapse>}
+                          {conteoPredicciones === 0 && renderBuscadorFixtures(agregarSeleccionadosAEdicion, { embedded: true })}
+                          {editPartidos.length === 0 ? (
+                            <div className="admin-new-empty-matches"><span><AdminIcon name="search" size={22} /></span><strong>Aún no hay partidos</strong><p>Busca una liga y agrega los que quieras incluir.</p></div>
+                          ) : (
+                            <div className="admin-new-selected-matches admin-edit-match-list">
+                              {editPartidos.map((p, i) => (
+                                <div key={i} className="admin-new-selected-match admin-edit-match-row">
+                                  <div>
+                                    <div className="admin-edit-match-teams">
+                                      {escudoMini(p.escudoLocal, p.local)}
+                                      <span className="admin-new-team-name">{p.local}</span>
+                                      <span>vs</span>
+                                      <span className="admin-new-team-name is-away">{p.visitante}</span>
+                                      {escudoMini(p.escudoVisitante, p.visitante)}
+                                    </div>
+                                    {p.hora && <time>{formatFixtureDate(p.hora)}</time>}
+                                  </div>
+                                  {conteoPredicciones === 0 && <button type="button" onClick={() => setEditPartidos(prev => prev.filter((_, idx) => idx !== i))} aria-label={`Quitar ${p.local} vs ${p.visitante}`} title="Quitar partido"><AdminIcon name="x" size={17} strokeWidth={2.4} /></button>}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </section>
+
+                        <aside className="admin-edit-settings-column">
+                          <section className="admin-new-step-card admin-edit-section-card admin-edit-general-card">
+                            <header className="admin-new-step-heading admin-edit-section-heading"><h2>General</h2></header>
+                            <div>
+                              <label htmlFor="edit-nombre-desktop" className="admin-new-field-label">Nombre</label>
+                              <div className="admin-edit-name-field">
+                                <input id="edit-nombre-desktop" type="text" value={editNombre} maxLength={MAX_NOMBRE_QUINIELA} onChange={e => setEditNombre(limitarNombreQuiniela(e.target.value))} placeholder="Nombre de la quiniela" />
+                                <EmojiPicker inputId="edit-nombre-desktop" value={editNombre} onChange={value => setEditNombre(limitarNombreQuiniela(value))} />
+                              </div>
+                              <p className="admin-new-counter" style={{ color: contarCaracteres(editNombre) > MAX_NOMBRE_QUINIELA ? 'var(--red)' : undefined }}>{contarCaracteres(editNombre)}/{MAX_NOMBRE_QUINIELA} caracteres</p>
+                            </div>
+                            <div className="admin-new-rule-block">
+                              <label htmlFor="edit-codigo-desktop" className="admin-new-field-label">Código de acceso <span className="admin-new-required-dot" aria-label="Requerido" /></label>
+                              <p className="admin-new-field-help">Compártelo para que tus jugadores puedan entrar.</p>
+                              <div className="admin-new-code-field">
+                                <input id="edit-codigo-desktop" type="text" placeholder="Ej. ACME2026" value={editCodigoAcceso} maxLength={MAX_CODIGO_ACCESO} autoCapitalize="characters" onChange={e => setEditCodigoAcceso(normalizarCodigoAccesoInput(e.target.value))} style={{ borderColor: contarCaracteres(editCodigoAcceso) > MAX_CODIGO_ACCESO ? 'var(--red)' : undefined }} />
+                                <button type="button" onClick={() => setEditCodigoAcceso(generarCodigoAcceso())} aria-label="Generar otro código" title="Generar otro código"><AdminIcon name="refresh" size={17} /></button>
+                              </div>
+                              {contarCaracteres(editCodigoAcceso) > MAX_CODIGO_ACCESO && <p className="admin-edit-field-error">Este código histórico excede el límite. Acórtalo antes de guardar.</p>}
+                            </div>
+                          </section>
+
+                          <section className="admin-new-step-card admin-edit-section-card admin-edit-rules-card">
+                            <header className="admin-new-step-heading admin-edit-section-heading"><h2>Reglas y premio</h2></header>
+                            <div className="admin-new-rule-block">
+                              <label htmlFor="edit-cierre-desktop" className="admin-new-field-label">Fecha y hora de cierre <span className="admin-new-required-dot" aria-label="Requerido" /></label>
+                              <p className="admin-new-field-help">Tras esta hora ya no se pueden registrar ni cambiar predicciones.</p>
+                              <FechaHoraPicker id="edit-cierre-desktop" value={editCierre} onChange={setEditCierre} required />
+                              {primeraHoraPartido(editPartidos) && <p className="admin-new-first-match"><AdminIcon name="calendar" size={13} /><span>Primer partido:</span><strong>{formatFixtureDate(primeraHoraPartido(editPartidos))}</strong><button type="button" onClick={() => setEditCierre(cierreSugerido(editPartidos))}>Cerrar 5 min antes</button></p>}
+                            </div>
+                            <div className="admin-new-rule-block">
+                              <label htmlFor="edit-temporada-desktop" className="admin-new-field-label">Temporada <span className="admin-new-optional">· opcional</span></label>
+                              <p className="admin-new-field-help">Suma sus puntos a una tabla general entre varias quinielas.</p>
+                              <TemporadaSelect id="edit-temporada-desktop" value={editTemporadaSel} onChange={setEditTemporadaSel} temporadas={temporadas} />
+                              {editTemporadaSel === '__nueva__' && <input type="text" placeholder="Ej. Clausura 2026 con los compas" value={editTemporadaNueva} maxLength={60} onChange={e => setEditTemporadaNueva(e.target.value)} aria-label="Nombre de la temporada nueva" style={{ marginTop: 8, marginBottom: 0 }} />}
+                            </div>
+                            <div className="admin-new-rule-block admin-edit-comments-block">
+                              <div><p className="admin-new-field-label">Comentarios</p><p className="admin-new-field-help">Permite que tus jugadores comenten en el ranking.</p></div>
+                              <button type="button" className={`admin-edit-comments-toggle${editChatHabilitado ? ' is-on' : ''}`} role="switch" aria-checked={editChatHabilitado} aria-label="Comentarios de la quiniela" onClick={() => setEditChatHabilitado(v => !v)}><span /></button>
+                            </div>
+                            <div className="admin-new-rule-block is-prize">{renderFormularioPremio(editPremioFijo, setEditPremioFijo, editCuota, setEditCuota, { embedded: true })}</div>
+                          </section>
+
+                          <section className={`admin-edit-danger-card${dangerAbierta ? ' is-open' : ''}`}>
+                            <header>
+                              <div><strong>Zona de peligro</strong><p>Eliminar la quiniela borra también todas las predicciones.</p></div>
+                              <button type="button" onClick={() => setDangerAbierta(v => !v)} aria-expanded={dangerAbierta}>Eliminar <AdminIcon name="chevron-down" size={13} /></button>
+                            </header>
+                            <SmoothCollapse open={dangerAbierta}>
+                              <div className="admin-edit-danger-body">
+                                <p>Eliminar la quiniela borrará también todas las predicciones registradas. Esta acción es permanente e irreversible.</p>
+                                <label>Escribe el nombre de la quiniela para confirmar</label>
+                                <small>"{quinielaActual.nombre}"</small>
+                                <input type="text" placeholder="Escribe el nombre exacto…" value={deleteConfirm} onChange={e => setDeleteConfirm(e.target.value)} />
+                                <button onClick={eliminarQuiniela} disabled={eliminando || deleteConfirm.trim() !== quinielaActual.nombre.trim()}>{eliminando ? 'Eliminando…' : '🗑 Eliminar quiniela permanentemente'}</button>
+                              </div>
+                            </SmoothCollapse>
+                          </section>
+                        </aside>
+                      </div>
+                    </div>
+                  )
+                })() : (
                 <>
                   <div className="admin-manage-edit-layout">
                     <section className="admin-new-step-card admin-new-name-card admin-edit-section-card">
@@ -6438,25 +6634,6 @@ export default function Admin() {
                           </div>
                         </SmoothCollapse>
                       )}
-                      {soySuper && (
-                        <>
-                          <div className="admin-stream-auto">
-                            <div>
-                              <strong><AdminIcon name="link" size={14} /> Transmisiones automáticas</strong>
-                              <p>QuinielApp revisa la agenda de StreamX cerca de cada partido y vincula hasta tres señales cuando la coincidencia es segura.</p>
-                            </div>
-                            <button type="button" onClick={buscarTransmisionesAhora} disabled={buscandoStreams}>
-                              <AdminIcon name={buscandoStreams ? 'refresh' : 'search'} size={14} />
-                              {buscandoStreams ? 'Buscando…' : 'Buscar ahora'}
-                            </button>
-                          </div>
-                          {streamSyncMsg && (
-                            <div className={`admin-stream-sync-msg is-${streamSyncMsg.tipo}`}>
-                              {streamSyncMsg.texto}
-                            </div>
-                          )}
-                        </>
-                      )}
                       {conteoPredicciones === 0 && renderBuscadorFixtures(agregarSeleccionadosAEdicion, { embedded: true })}
                       {editPartidos.length === 0 ? (
                         <div className="admin-new-empty-matches">
@@ -6467,9 +6644,6 @@ export default function Admin() {
                       ) : (
                         <div className="admin-new-selected-matches">
                           {editPartidos.map((p, i) => {
-                            const streamsAbiertos = streamsManualesAbiertos.has(i)
-                            const totalStreams = ['streamUrl', 'streamUrl2', 'streamUrl3']
-                              .filter(campo => String(p[campo] ?? '').trim()).length
                             return (
                             <div key={i} className="admin-new-selected-match">
                               <div style={{ flex: 1, minWidth: 0 }}>
@@ -6481,68 +6655,6 @@ export default function Admin() {
                                   {escudoMini(p.escudoVisitante, p.visitante)}
                                 </div>
                                 {p.hora && <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{formatFixtureDate(p.hora)}</div>}
-                                {soySuper && <div className={`admin-stream-options${streamsAbiertos ? ' is-open' : ''}`}>
-                                  <button
-                                    type="button"
-                                    className="admin-stream-options-toggle"
-                                    aria-expanded={streamsAbiertos}
-                                    aria-controls={`stream-options-${i}`}
-                                    onClick={() => setStreamsManualesAbiertos(prev => {
-                                      const next = new Set(prev)
-                                      if (next.has(i)) next.delete(i)
-                                      else next.add(i)
-                                      return next
-                                    })}
-                                  >
-                                    <span>
-                                      <strong><AdminIcon name="link" size={12} /> Transmisión</strong>
-                                      <small>
-                                        {totalStreams > 0
-                                          ? `${totalStreams} ${totalStreams === 1 ? 'opción lista' : 'opciones listas'}${p.streamAuto?.proveedor === 'streamx' ? ' · automática' : ''}`
-                                          : 'Asignación automática'}
-                                      </small>
-                                    </span>
-                                    <span className="admin-stream-options-edit">
-                                      Editar manualmente
-                                      <AdminIcon name="chevron-down" size={13} />
-                                    </span>
-                                  </button>
-                                  <SmoothCollapse open={streamsAbiertos}>
-                                    <div id={`stream-options-${i}`} className="admin-stream-options-body">
-                                      {[
-                                        ['streamUrl', 'Opción 1'],
-                                        ['streamUrl2', 'Opción 2'],
-                                        ['streamUrl3', 'Opción 3'],
-                                      ].map(([campo, etiqueta]) => (
-                                        <label className="admin-stream-field" key={campo}>
-                                          <span>{etiqueta}</span>
-                                          <input
-                                            type="url"
-                                            inputMode="url"
-                                            placeholder="https://proveedor.com/embed/partido"
-                                            value={p[campo] ?? ''}
-                                            onChange={e => {
-                                              const value = e.target.value
-                                              const sufijo = campo === 'streamUrl' ? '' : campo.replace('streamUrl', '')
-                                              setEditPartidos(prev => prev.map((partido, idx) => (
-                                                idx === i
-                                                  ? {
-                                                      ...partido,
-                                                      [campo]: value,
-                                                      [`streamKey${sufijo}`]: '',
-                                                      [`streamNombre${sufijo}`]: '',
-                                                      streamAuto: null,
-                                                    }
-                                                  : partido
-                                              )))
-                                            }}
-                                          />
-                                        </label>
-                                      ))}
-                                      <p>Las opciones 2 y 3 solo aparecerán al espectador cuando tengan un enlace.</p>
-                                    </div>
-                                  </SmoothCollapse>
-                                </div>}
                               </div>
                               {conteoPredicciones === 0 && (
                                 <button type="button" onClick={() => setEditPartidos(prev => prev.filter((_, idx) => idx !== i))} aria-label={`Quitar ${p.local} vs ${p.visitante}`} title="Quitar partido">
@@ -6666,6 +6778,7 @@ export default function Admin() {
                     </button>
                   </div>
                 </>
+                )
               )}
 
               {/* Tab: Compartir */}

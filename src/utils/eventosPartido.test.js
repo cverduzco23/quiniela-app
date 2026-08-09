@@ -19,6 +19,30 @@ describe('combinarEventosPartido', () => {
     expect(combinarEventosPartido([corto], [completo])).toEqual([completo])
   })
 
+  it('combina una sustitución parcial con la versión que identifica al jugador que sale', () => {
+    const parcial = {
+      tipo: 'substitution', minuto: "87'", lado: 'home', jugador: 'J. Sanabria',
+      entra: 'J. Sanabria',
+    }
+    const completa = {
+      tipo: 'substitution', minuto: "87'", lado: 'home', jugador: 'Juan Manuel Sanabria',
+      entra: 'Juan Manuel Sanabria', sale: 'Alexandros Katranis',
+    }
+
+    expect(combinarEventosPartido([parcial], [completa])).toEqual([completa])
+  })
+
+  it('mantiene separados los cambios simultáneos de jugadores distintos', () => {
+    const primero = {
+      tipo: 'substitution', minuto: "66'", lado: 'home', entra: 'Saba Lobjanidze',
+    }
+    const segundo = {
+      tipo: 'substitution', minuto: "66'", lado: 'home', entra: 'Philip Quinton',
+    }
+
+    expect(combinarEventosPartido([primero], [segundo])).toEqual([primero, segundo])
+  })
+
   it('ordena cronológicamente eventos procedentes de fuentes diferentes', () => {
     const cambio = { tipo: 'substitution', minuto: "70'", lado: 'away', jugador: 'Pérez' }
     const tarjeta = { tipo: 'yellow-card', minuto: "45'+2'", lado: 'home', jugador: 'López' }

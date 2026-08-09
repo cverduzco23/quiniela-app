@@ -24,7 +24,6 @@
 process.env.TZ = 'America/Mexico_City'
 
 import { onSchedule } from 'firebase-functions/v2/scheduler'
-import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import { defineSecret } from 'firebase-functions/params'
 import { logger } from 'firebase-functions'
 import { initializeApp } from 'firebase-admin/app'
@@ -36,7 +35,6 @@ const db = getFirestore()
 // Opcional: mientras no exista, el archivo de estadísticas y eventos funciona
 // igual y solo se queda sin el resumen en video.
 const YOUTUBE_API_KEY = defineSecret('YOUTUBE_API_KEY')
-const SUPER_ADMIN_UIDS = new Set(['w6uc7cHowgM4Pmsya4bUHt1G3Pu2'])
 const STREAMX_AGENDA_URL = 'https://streamx-hd.com/eventos.json'
 
 export { crearSesionDonativo, webhookDonativos } from './stripe.js'
@@ -839,35 +837,6 @@ async function sincronizarStreamsQuiniela(q, eventos, { forzar = false } = {}) {
   }
   return { asignados, detalles, partidos }
 }
-
-export const buscarTransmisionesStreamX = onCall({
-  region: 'us-central1',
-  memory: '256MiB',
-  timeoutSeconds: 30,
-}, async request => {
-  if (!request.auth) throw new HttpsError('unauthenticated', 'Debes iniciar sesión.')
-  const quinielaId = String(request.data?.quinielaId ?? '').trim()
-  if (!quinielaId) throw new HttpsError('invalid-argument', 'Falta la quiniela.')
-  const ref = db.collection('quinielas').doc(quinielaId)
-  const snap = await ref.get()
-  if (!snap.exists) throw new HttpsError('not-found', 'No encontramos la quiniela.')
-  const q = { id: snap.id, ...snap.data() }
-  if (q.ownerUid !== request.auth.uid && !SUPER_ADMIN_UIDS.has(request.auth.uid)) {
-    throw new HttpsError('permission-denied', 'No puedes editar esta quiniela.')
-  }
-  try {
-    const eventos = await obtenerAgendaStreamX()
-    const resultado = await sincronizarStreamsQuiniela(q, eventos, { forzar: true })
-    return {
-      asignados: resultado.asignados,
-      detalles: resultado.detalles,
-      partidos: resultado.partidos,
-    }
-  } catch (error) {
-    logger.warn(`No se pudo consultar StreamX manualmente: ${error.message}`)
-    throw new HttpsError('unavailable', 'La agenda de transmisiones no está disponible en este momento.')
-  }
-})
 
 // La función programada
 

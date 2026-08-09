@@ -95,14 +95,14 @@ const card = {
 
 const lbl = { fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 8 }
 
-function PredIcon({ name, size = 16, style }) {
+function PredIcon({ name, size = 16, style, strokeWidth = 2 }) {
   const common = {
     width: size,
     height: size,
     viewBox: '0 0 24 24',
     fill: 'none',
     stroke: 'currentColor',
-    strokeWidth: 2,
+    strokeWidth,
     strokeLinecap: 'round',
     strokeLinejoin: 'round',
     style: { display: 'inline-block', flexShrink: 0, ...style },
@@ -113,6 +113,14 @@ function PredIcon({ name, size = 16, style }) {
       <svg {...common}>
         <path d="M19 12H5" />
         <path d="m12 19-7-7 7-7" />
+      </svg>
+    )
+  }
+  if (name === 'pencil') {
+    return (
+      <svg {...common}>
+        <path d="M12 20h9" />
+        <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5Z" />
       </svg>
     )
   }
@@ -222,6 +230,25 @@ function PredIcon({ name, size = 16, style }) {
         <path d="M12 19V5" />
         <path d="M19 19v-7" />
         <path d="M3 19h18" />
+      </svg>
+    )
+  }
+  if (name === 'share') {
+    return (
+      <svg {...common}>
+        <circle cx="18" cy="5" r="3" />
+        <circle cx="6" cy="12" r="3" />
+        <circle cx="18" cy="19" r="3" />
+        <path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4" />
+      </svg>
+    )
+  }
+  if (name === 'info') {
+    return (
+      <svg {...common}>
+        <circle cx="12" cy="12" r="10" />
+        <path d="M12 16v-4" />
+        <path d="M12 8h.01" />
       </svg>
     )
   }
@@ -351,6 +378,12 @@ export default function Predicciones() {
   const partidos   = quiniela?.partidos ?? []
   const cerrada    = quinielaCerrada(quiniela)
   const finalizada = quinielaFinalizada(quiniela)
+  const partidosJugados = partidos.filter((_, i) => {
+    const resultado = quiniela?.resultados?.[i]
+    if (!resultado) return false
+    if (resultado.cancelado) return true
+    return String(resultado.local ?? '').trim() !== '' && String(resultado.visitante ?? '').trim() !== ''
+  }).length
   const progreso   = partidos.filter((_, i) => pickValido(picks[i])).length
   const completado = nombre.trim().length > 0 && progreso === partidos.length
 
@@ -639,109 +672,187 @@ export default function Predicciones() {
     </div>
   )
 
-  if (enviado) return (
-    <div style={{ minHeight: '100vh', background: '#070d18', position: 'relative', zIndex: 0, display: 'flex', flexDirection: 'column' }}>
-      <div className="pred-gate-bg-fade" aria-hidden="true" />
-      <div className="hero-pad pred-hero-pad" style={{ color: 'var(--text)' }}>
-        <div className="pred-brand-row" style={{ maxWidth: 560, margin: '0 auto', display: 'flex', alignItems: 'center', gap: 12 }}>
-          <BackHomeButton />
-          <a className="pred-brand-link" href="/" style={{ textDecoration: 'none' }}>
-            <BrandWordmark markSize={24} fontSize={20} />
-          </a>
-        </div>
-      </div>
-      <div className="pred-content" style={{ width: '100%', maxWidth: 560, margin: '0 auto', padding: 'var(--pred-content-padding, 1.5rem 1rem 6px)', flex: '1 0 auto', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ textAlign: 'center', marginBottom: 24 }}>
-          <div style={{
-            width: 72, height: 72, borderRadius: '50%',
-            background: 'linear-gradient(135deg, var(--green), var(--green-light))',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            margin: '0 auto 16px', color: '#07120A',
-            boxShadow: 'var(--shadow-green)',
-          }}>
-            <PredIcon name="check" size={36} />
+  if (enviado) {
+    const primerNombre = normalizarNombre(nombre).split(/\s+/).filter(Boolean)[0] || nombre
+    const participantesConEnvio = conteoParticipantes + 1
+    const cierreRestante = formatoRestanteGate(quiniela.cierre)
+    const puedeCompartir = !!navigator.share
+    const invitarAmigos = () => {
+      const enlace = `${window.location.origin}/quiniela/${quinielaId}`
+      if (puedeCompartir) {
+        navigator.share({
+          text: `Te invito a participar en la quiniela "${quiniela.nombre}". Registra tus predicciones aquí: ${enlace}`,
+        }).catch(() => {})
+        return
+      }
+      navigator.clipboard?.writeText(enlace).catch(() => {})
+    }
+
+    return (
+      <div className="pred-success-shell">
+        <div className="pred-success-mobile">
+          <div className="pred-gate-bg-fade" aria-hidden="true" />
+          <div className="hero-pad pred-hero-pad" style={{ color: 'var(--text)' }}>
+            <div className="pred-brand-row" style={{ maxWidth: 560, margin: '0 auto', display: 'flex', alignItems: 'center', gap: 12 }}>
+              <BackHomeButton />
+              <a className="pred-brand-link" href="/" style={{ textDecoration: 'none' }}>
+                <BrandWordmark markSize={24} fontSize={20} />
+              </a>
+            </div>
           </div>
-          <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 700, marginBottom: 8, color: 'var(--text-strong)' }}>¡Listo, {nombre}!</h2>
-          <p style={{ color: 'var(--muted)', fontSize: 14 }}>Tus predicciones fueron registradas.</p>
+          <div className="pred-content" style={{ width: '100%', maxWidth: 560, margin: '0 auto', padding: 'var(--pred-content-padding, 1.5rem 1rem 6px)', flex: '1 0 auto', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ textAlign: 'center', marginBottom: 24 }}>
+              <div style={{
+                width: 72, height: 72, borderRadius: '50%',
+                background: 'linear-gradient(135deg, var(--green), var(--green-light))',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                margin: '0 auto 16px', color: '#07120A',
+                boxShadow: 'var(--shadow-green)',
+              }}>
+                <PredIcon name="check" size={36} />
+              </div>
+              <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 700, marginBottom: 8, color: 'var(--text-strong)' }}>¡Listo, {nombre}!</h2>
+              <p style={{ color: 'var(--muted)', fontSize: 14 }}>Tus predicciones fueron registradas.</p>
+            </div>
+
+            <div style={{ background: 'var(--card)', borderRadius: 'var(--radius-lg)', padding: 'var(--pred-large-card-padding, 1.25rem)', marginBottom: 12, border: '1px solid var(--green)', boxShadow: 'var(--shadow-md)' }}>
+              <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 14 }}>
+                Tu quiniela · {quiniela.nombre}
+              </p>
+              <div style={{ display: 'grid', gap: 'var(--pred-review-gap, 10px)', maxWidth: 'var(--pred-review-max-width, 420px)', margin: '0 auto' }}>
+                {partidos.map((p, i) => {
+                  const pick = picks[i]
+                  const res = getPickResultado(pick)
+                  const info = res ? resultadoInfo(res, p.local, p.visitante) : null
+                  return (
+                    <Fragment key={i}>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto minmax(0, 1fr)', alignItems: 'center', columnGap: 'var(--pred-review-column-gap, 10px)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 'var(--pred-review-team-gap, 5px)', minWidth: 0 }}>
+                          {p.escudoLocal && <img src={p.escudoLocal} alt="" style={{ width: 'var(--pred-review-crest-size, 18px)', height: 'var(--pred-review-crest-size, 18px)', objectFit: 'contain', flexShrink: 0 }} onError={e => { e.target.style.display = 'none' }} />}
+                          <span style={{ fontSize: 'var(--pred-review-team-size, 13px)', color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.local}</span>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 'var(--pred-review-center-gap, 5px)' }}>
+                          <span style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--pred-review-score-size, 18px)', fontWeight: 700, color: 'var(--text-strong)', padding: 'var(--pred-review-score-padding, 2px 12px)', minWidth: 'var(--pred-review-score-min-width, 58px)', textAlign: 'center', background: 'var(--green-bg)', borderRadius: 'var(--radius-sm)' }}>
+                            {pick?.local ?? '?'}-{pick?.visitante ?? '?'}
+                          </span>
+                          <span style={{ fontSize: 'var(--pred-review-badge-size, 10px)', fontWeight: 700, padding: 'var(--pred-review-badge-padding, 2px 8px)', borderRadius: 'var(--radius-full)', background: info?.bg ?? 'transparent', color: info?.color ?? 'transparent', whiteSpace: 'nowrap', textAlign: 'center' }}>
+                            {info?.label ?? ''}
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--pred-review-team-gap, 5px)', minWidth: 0 }}>
+                          <span style={{ fontSize: 'var(--pred-review-team-size, 13px)', color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.visitante}</span>
+                          {p.escudoVisitante && <img src={p.escudoVisitante} alt="" style={{ width: 'var(--pred-review-crest-size, 18px)', height: 'var(--pred-review-crest-size, 18px)', objectFit: 'contain', flexShrink: 0 }} onError={e => { e.target.style.display = 'none' }} />}
+                        </div>
+                      </div>
+                      {i < partidos.length - 1 && <div style={{ borderBottom: '1px solid var(--border)' }} />}
+                    </Fragment>
+                  )
+                })}
+              </div>
+            </div>
+
+            <button onClick={invitarAmigos} style={{ ...ctaPrimary(false), marginBottom: 10 }}>
+              {puedeCompartir ? 'Invitar amigos' : 'Copiar enlace de invitación'}
+            </button>
+            <a
+              href={`/ranking/${quinielaId}`}
+              style={{
+                display: 'block', textAlign: 'center', padding: 'var(--home-secondary-cta-padding, 12px)', borderRadius: 'var(--radius-md)',
+                background: 'linear-gradient(135deg, rgba(34,197,94,0.14), rgba(34,197,94,0.06))',
+                border: '1px solid rgba(34,197,94,0.42)',
+                color: 'var(--green-light)', fontWeight: 700, fontSize: 'var(--home-secondary-cta-size, 14px)', textDecoration: 'none',
+                boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05), 0 0 0 1px rgba(34,197,94,0.04)',
+              }}
+            >
+              <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}>
+                <PredIcon name="ranking" size={15} />
+                Ver ranking
+              </span>
+            </a>
+            <div className="app-footer-slot"><Footer /></div>
+          </div>
         </div>
 
-        {/* Resumen de picks */}
-        <div style={{ background: 'var(--card)', borderRadius: 'var(--radius-lg)', padding: 'var(--pred-large-card-padding, 1.25rem)', marginBottom: 12, border: '1px solid var(--green)', boxShadow: 'var(--shadow-md)' }}>
-          <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 14 }}>
-            Tu quiniela · {quiniela.nombre}
-          </p>
-          <div style={{ display: 'grid', gap: 'var(--pred-review-gap, 10px)', maxWidth: 'var(--pred-review-max-width, 420px)', margin: '0 auto' }}>
-            {partidos.map((p, i) => {
-              const pick = picks[i]
-              const res  = getPickResultado(pick)
-              const info = res ? resultadoInfo(res, p.local, p.visitante) : null
-              return (
-                <Fragment key={i}>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto minmax(0, 1fr)', alignItems: 'center', columnGap: 'var(--pred-review-column-gap, 10px)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 'var(--pred-review-team-gap, 5px)', minWidth: 0 }}>
-                      {p.escudoLocal && <img src={p.escudoLocal} alt="" style={{ width: 'var(--pred-review-crest-size, 18px)', height: 'var(--pred-review-crest-size, 18px)', objectFit: 'contain', flexShrink: 0 }} onError={e => { e.target.style.display = 'none' }} />}
-                      <span style={{ fontSize: 'var(--pred-review-team-size, 13px)', color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.local}</span>
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 'var(--pred-review-center-gap, 5px)' }}>
-                      <span style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--pred-review-score-size, 18px)', fontWeight: 700, color: 'var(--text-strong)', padding: 'var(--pred-review-score-padding, 2px 12px)', minWidth: 'var(--pred-review-score-min-width, 58px)', textAlign: 'center', background: 'var(--green-bg)', borderRadius: 'var(--radius-sm)' }}>
-                        {pick?.local ?? '?'}-{pick?.visitante ?? '?'}
-                      </span>
-                      <span style={{ fontSize: 'var(--pred-review-badge-size, 10px)', fontWeight: 700, padding: 'var(--pred-review-badge-padding, 2px 8px)', borderRadius: 'var(--radius-full)', background: info?.bg ?? 'transparent', color: info?.color ?? 'transparent', whiteSpace: 'nowrap', textAlign: 'center' }}>
-                        {info?.label ?? ''}
-                      </span>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--pred-review-team-gap, 5px)', minWidth: 0 }}>
-                      <span style={{ fontSize: 'var(--pred-review-team-size, 13px)', color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.visitante}</span>
-                      {p.escudoVisitante && <img src={p.escudoVisitante} alt="" style={{ width: 'var(--pred-review-crest-size, 18px)', height: 'var(--pred-review-crest-size, 18px)', objectFit: 'contain', flexShrink: 0 }} onError={e => { e.target.style.display = 'none' }} />}
-                    </div>
+        <div className="pred-success-desktop">
+          <section className="pred-success-hero">
+            <div className="pred-success-hero-veil" aria-hidden="true" />
+            <div className="pred-success-hero-inner">
+              <header className="pred-success-topbar">
+                <BackHomeButton />
+                <a className="pred-brand-link" href="/" style={{ textDecoration: 'none' }}>
+                  <BrandWordmark markSize={24} fontSize={20} />
+                </a>
+              </header>
+              <div className="pred-success-hero-body">
+                <div className="pred-success-copy">
+                  <div className="pred-success-check-wrap">
+                    <span className="pred-success-check-halo" aria-hidden="true" />
+                    <span className="pred-success-check-seal"><PredIcon name="check" size={38} strokeWidth={2.4} /></span>
                   </div>
-                  {i < partidos.length - 1 && <div style={{ borderBottom: '1px solid var(--border)' }} />}
-                </Fragment>
-              )
-            })}
-          </div>
-        </div>
+                  <h1>¡Listo, {primerNombre}!</h1>
+                  <p>
+                    Tus {partidos.length} predicciones quedaron registradas en <strong>{quiniela.nombre}</strong>. Ya no se pueden cambiar, así que ahora solo queda ver los partidos.
+                  </p>
+                  <div className="pred-success-facts">
+                    <span><strong>{partidos.length}</strong><small>Partidos</small></span>
+                    <i aria-hidden="true" />
+                    <span><strong>{participantesConEnvio}</strong><small>Van dentro</small></span>
+                    <i aria-hidden="true" />
+                    <span><strong className="is-deadline">{cierreRestante}</strong><small>Para el cierre</small></span>
+                  </div>
+                </div>
 
-        {navigator.share ? (
-          <button
-            onClick={() => navigator.share?.({
-              text: `Te invito a participar en la quiniela "${quiniela.nombre}". Registra tus predicciones aquí: ${window.location.origin}/quiniela/${quinielaId}`,
-            }).catch(() => {})}
-            style={{ ...ctaPrimary(false), marginBottom: 10 }}
-          >
-            Invitar amigos
-          </button>
-        ) : (
-          <button
-            onClick={() => navigator.clipboard?.writeText(`${window.location.origin}/quiniela/${quinielaId}`).catch(() => {})}
-            style={{ ...ctaPrimary(false), marginBottom: 10 }}
-          >
-            Copiar enlace de invitación
-          </button>
-        )}
+                <aside className="pred-success-actions">
+                  <span>Lo que sigue</span>
+                  <h2>Sigue el ranking en vivo</h2>
+                  <a href={`/ranking/${quinielaId}`} className="pred-success-primary" style={ctaPrimary(false)}>
+                    <PredIcon name="ranking" size={16} /> Ver ranking
+                  </a>
+                  <button type="button" className="pred-success-secondary" onClick={invitarAmigos}>
+                    <PredIcon name="share" size={15} /> {puedeCompartir ? 'Invitar amigos' : 'Copiar enlace de invitación'}
+                  </button>
+                  <p><PredIcon name="info" size={13} /> Tu nombre y tus predicciones son públicos en el ranking.</p>
+                </aside>
+              </div>
+            </div>
+          </section>
 
-        <a
-          href={`/ranking/${quinielaId}`}
-          style={{
-            display: 'block', textAlign: 'center', padding: 'var(--home-secondary-cta-padding, 12px)', borderRadius: 'var(--radius-md)',
-            background: 'linear-gradient(135deg, rgba(34,197,94,0.14), rgba(34,197,94,0.06))',
-            border: '1px solid rgba(34,197,94,0.42)',
-            color: 'var(--green-light)', fontWeight: 700, fontSize: 'var(--home-secondary-cta-size, 14px)', textDecoration: 'none',
-            boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05), 0 0 0 1px rgba(34,197,94,0.04)',
-          }}
-        >
-          <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}>
-            <PredIcon name="ranking" size={15} />
-            Ver ranking
-          </span>
-        </a>
-
-        <div className="app-footer-slot">
-          <Footer />
+          <main className="pred-success-picks">
+            <header className="pred-success-picks-head">
+              <h2>Tus predicciones</h2>
+              <p>{partidos.length} marcadores enviados</p>
+            </header>
+            <div className="pred-success-picks-grid">
+              {partidos.map((p, i) => {
+                const pick = picks[i]
+                const res = getPickResultado(pick)
+                const info = res ? resultadoInfo(res, p.local, p.visitante) : null
+                return (
+                  <article className="pred-success-pick-card" key={i}>
+                    <div className="pred-success-team is-local">
+                      <span title={p.local}>{p.local}</span>
+                      {p.escudoLocal
+                        ? <img src={p.escudoLocal} alt="" onError={e => { e.target.style.display = 'none' }} />
+                        : <i aria-hidden="true">{p.local?.trim()?.[0] ?? '?'}</i>}
+                    </div>
+                    <strong className="pred-success-score">{pick?.local ?? '?'}-{pick?.visitante ?? '?'}</strong>
+                    <div className="pred-success-team is-away">
+                      {p.escudoVisitante
+                        ? <img src={p.escudoVisitante} alt="" onError={e => { e.target.style.display = 'none' }} />
+                        : <i aria-hidden="true">{p.visitante?.trim()?.[0] ?? '?'}</i>}
+                      <span title={p.visitante}>{p.visitante}</span>
+                    </div>
+                    <span className="pred-success-result" title={info?.label ?? ''} style={{ background: info?.bg, color: info?.color }}>{info?.label ?? ''}</span>
+                  </article>
+                )
+              })}
+            </div>
+            <div className="app-footer-slot"><Footer /></div>
+          </main>
         </div>
       </div>
-    </div>
-  )
+    )
+  }
 
   const pct = partidos.length > 0 ? (progreso / partidos.length) * 100 : 0
   const pantallaArmonia = !cerrada && !yaEnviadoAntes
@@ -756,7 +867,7 @@ export default function Predicciones() {
   }
 
   return (
-    <div className={`pred-shell${pantallaArmonia ? ' is-armonia' : ''}`} style={{ minHeight: '100vh', background: '#070d18', position: 'relative', zIndex: 0, overflow: celebrando ? 'hidden' : 'visible', display: 'flex', flexDirection: 'column' }}>
+    <div className={`pred-shell${pantallaArmonia ? ' is-armonia' : ''}${cerrada ? ' is-closed' : ''}`} style={{ minHeight: '100vh', background: '#070d18', position: 'relative', zIndex: 0, overflow: celebrando ? 'hidden' : 'visible', display: 'flex', flexDirection: 'column' }}>
       <div className="pred-gate-bg-fade" aria-hidden="true" />
       {celebrando && (
         <div aria-hidden="true" style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 9999, overflow: 'hidden' }}>
@@ -807,7 +918,7 @@ export default function Predicciones() {
             )}
           </div>
           <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--pred-title-size, 24px)', fontWeight: 700, lineHeight: 1.2, marginBottom: 'var(--pred-title-gap, 10px)', letterSpacing: '-0.01em' }}>{quiniela.nombre}</h1>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+          <div className="pred-status-badges" style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
             {!pantallaArmonia && quiniela.cierre && (() => {
               // Si ya cerro, el estado se muestra solo en la barra de progreso.
               // Mientras sigue abierta, usamos el timer en vivo.
@@ -832,7 +943,14 @@ export default function Predicciones() {
               )
             })()}
           </div>
-          {cerrada && <ProgresoPasos etapa={finalizada ? 'final' : 'enjuego'} />}
+          {cerrada && (
+            <ProgresoPasos
+              etapa={finalizada ? 'final' : 'enjuego'}
+              participantes={conteoParticipantes}
+              partidosJugados={partidosJugados}
+              partidosTotales={partidos.length}
+            />
+          )}
           {pantallaArmonia && <ProgresoPasos etapa="abierta" />}
           {pantallaArmonia && quiniela.cierre && (
             <div className="pred-deadline-bar" style={{
@@ -860,28 +978,42 @@ export default function Predicciones() {
 
         {/* Quiniela cerrada */}
         {cerrada ? (
-          <div style={{ textAlign: 'center', padding: 'var(--pred-closed-padding, 3rem 1.5rem)', maxWidth: 440, margin: '0 auto', width: '100%' }}>
-            <span className="pred-live-ball-wrap" aria-hidden="true">
-              <span className="pred-live-ball-shadow" />
-              <span className="pred-live-ball-icon">
-                <PredIcon name="ball" size={56} />
+          <div className="pred-closed-layout">
+            <section className="pred-closed-primary">
+              <span className="pred-closed-kicker">Estado de la quiniela</span>
+              <span className="pred-live-ball-wrap" aria-hidden="true">
+                <span className="pred-live-ball-shadow" />
+                <span className="pred-live-ball-icon">
+                  <PredIcon name="ball" size={56} />
+                </span>
               </span>
-            </span>
-            <p style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-strong)', marginBottom: 8 }}>
-              {finalizada ? '¡La quiniela ya terminó!' : '¡Los partidos están en juego!'}
-            </p>
-            <p style={{ fontSize: 14, color: 'var(--muted)', lineHeight: 1.6, marginBottom: 28 }}>
-              El tiempo para registrar predicciones ya cerró.<br />
-              {finalizada ? 'Consulta los resultados finales en el ranking.' : 'Sigue los resultados en el ranking en tiempo real.'}
-            </p>
-            <a href={`/ranking/${quinielaId}`} style={{
-              display: 'inline-block', padding: '12px 28px', borderRadius: 'var(--radius-md)',
-              background: 'linear-gradient(135deg, var(--green), var(--green-light))',
-              color: '#07120A', fontWeight: 800, fontSize: 15, textDecoration: 'none',
-              boxShadow: 'var(--shadow-green)', letterSpacing: 0.2,
-            }}>
-              Ver ranking →
-            </a>
+              <h2>{finalizada ? '¡La quiniela ya terminó!' : '¡Los partidos están en juego!'}</h2>
+              <p>
+                El tiempo para registrar predicciones ya cerró.<br />
+                {finalizada ? 'Consulta los resultados finales en el ranking.' : 'Sigue los resultados en el ranking en tiempo real.'}
+              </p>
+              <a href={`/ranking/${quinielaId}`}>Ver ranking <span aria-hidden="true">→</span></a>
+            </section>
+
+            <aside className="pred-closed-summary">
+              <span>Resumen</span>
+              <h3>{finalizada ? 'Resultados definitivos' : 'Sigue cada marcador en vivo'}</h3>
+              <div>
+                <article>
+                  <strong>{conteoParticipantes}</strong>
+                  <small>{conteoParticipantes === 1 ? 'Participante' : 'Participantes'}</small>
+                </article>
+                <article>
+                  <strong>{partidosJugados}<i>/ {partidos.length}</i></strong>
+                  <small>Partidos jugados</small>
+                </article>
+              </div>
+              <p>
+                {finalizada
+                  ? 'Consulta posiciones, puntos y ganadores en la tabla final.'
+                  : 'El ranking se actualiza conforme se registran los resultados.'}
+              </p>
+            </aside>
           </div>
 
         ) : !accesoOk ? (
@@ -1321,6 +1453,90 @@ export default function Predicciones() {
 
             {/* Pantalla de resumen */}
             {mostrarResumen ? (
+          esEscritorio ? (() => {
+            const completos = partidos.filter((_, i) => pickValido(picks[i])).length
+            const faltantes = partidos.length - completos
+            const primerNombre = normalizarNombre(nombre).split(/\s+/).filter(Boolean)[0] ?? nombre
+            const cambiarPick = i => {
+              setMostrarResumen(false)
+              setTimeout(() => localRefs.current[i]?.focus({ preventScroll: false }), 0)
+            }
+            return (
+              <div className="pred-review-desktop">
+                <header className="pred-review-heading">
+                  <div>
+                    <p>Revisa tus picks</p>
+                    <h2>{nombre}</h2>
+                  </div>
+                  <span className={`pred-review-completion${faltantes > 0 ? ' is-incomplete' : ''}`}>
+                    <PredIcon name={faltantes > 0 ? 'warning' : 'check'} size={14} />
+                    {faltantes > 0 ? `Faltan ${faltantes} marcadores` : `${completos} de ${partidos.length} completos`}
+                  </span>
+                </header>
+
+                <div className="pred-review-table">
+                  <div className="pred-review-table-head" aria-hidden="true">
+                    <span>Local</span>
+                    <span>Tu marcador</span>
+                    <span>Visitante</span>
+                    <span>Tu pronóstico</span>
+                    <span>Editar</span>
+                  </div>
+                  <div className="pred-review-table-body">
+                    {partidos.map((p, i) => {
+                      const pick = picks[i]
+                      const res = getPickResultado(pick)
+                      const info = res ? resultadoInfo(res, p.local, p.visitante) : null
+                      return (
+                        <div className="pred-review-table-row" key={i}>
+                          <div className="pred-review-table-team is-local">
+                            <span>{p.local}</span>
+                            {p.escudoLocal
+                              ? <img src={p.escudoLocal} alt="" onError={e => { e.target.style.display = 'none' }} />
+                              : <i aria-hidden="true">{Array.from(p.local ?? '?')[0]}</i>}
+                          </div>
+                          <strong className="pred-review-table-score">{pick?.local ?? '?'} - {pick?.visitante ?? '?'}</strong>
+                          <div className="pred-review-table-team is-away">
+                            {p.escudoVisitante
+                              ? <img src={p.escudoVisitante} alt="" onError={e => { e.target.style.display = 'none' }} />
+                              : <i aria-hidden="true">{Array.from(p.visitante ?? '?')[0]}</i>}
+                            <span>{p.visitante}</span>
+                          </div>
+                          <span className="pred-review-table-result" style={{ background: info?.bg, color: info?.color }}>
+                            {info?.label ?? ''}
+                          </span>
+                          <button type="button" className="pred-review-change" onClick={() => cambiarPick(i)} disabled={enviando} aria-label={`Cambiar marcador de ${p.local} contra ${p.visitante}`}>
+                            <PredIcon name="pencil" size={12} />
+                            <span>Cambiar</span>
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {nombreError && (
+                  <div className="pred-review-error">
+                    <PredIcon name="warning" size={14} />
+                    <span>{nombreError}</span>
+                  </div>
+                )}
+
+                <div className="pred-review-submit-bar">
+                  <div>
+                    <strong>Todo listo, {primerNombre}</strong>
+                    <p className="legal-note">
+                      Al enviar aceptas los <a href="/terminos">Términos</a> y el <a href="/privacidad">Aviso de Privacidad</a>. Tu nombre y predicciones serán públicos en el ranking. Una vez enviadas no se pueden editar.
+                    </p>
+                  </div>
+                  <button type="button" className="pred-review-edit-all" onClick={() => setMostrarResumen(false)} disabled={enviando}>← Editar picks</button>
+                  <button onClick={enviar} disabled={enviando} className={enviando ? 'pred-review-submit' : 'pred-review-submit green-shine-button'} style={ctaPrimary(enviando)}>
+                    <span>{enviando ? 'Enviando…' : 'Enviar predicciones ahora →'}</span>
+                  </button>
+                </div>
+              </div>
+            )
+          })() : (
           <div>
             <div style={{
               background: 'linear-gradient(135deg, rgba(30,41,59,0.92), rgba(15,24,40,0.95))',
@@ -1328,38 +1544,27 @@ export default function Predicciones() {
               border: '1px solid rgba(134,239,172,0.36)',
               boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 12px 26px rgba(0,0,0,0.32), 0 0 0 3px rgba(34,197,94,0.10)',
             }}>
-              <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>
-                Revisa tus picks
-              </p>
+              <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>Revisa tus picks</p>
               <p style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-strong)', marginBottom: 16 }}>{nombre}</p>
-
               <div style={{ display: 'grid', gap: 'var(--pred-review-gap, 10px)', maxWidth: 'var(--pred-review-max-width, 420px)', margin: '0 auto' }}>
                 {partidos.map((p, i) => {
                   const pick = picks[i]
-                  const res  = getPickResultado(pick)
+                  const res = getPickResultado(pick)
                   const info = res ? resultadoInfo(res, p.local, p.visitante) : null
                   return (
                     <Fragment key={i}>
                       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto minmax(0, 1fr)', alignItems: 'center', columnGap: 'var(--pred-review-column-gap, 10px)' }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 'var(--pred-review-team-gap, 5px)', minWidth: 0 }}>
-                          {p.escudoLocal && (
-                            <img src={p.escudoLocal} alt="" style={{ width: 'var(--pred-review-crest-size, 18px)', height: 'var(--pred-review-crest-size, 18px)', objectFit: 'contain', flexShrink: 0 }} onError={e => { e.target.style.display = 'none' }} />
-                          )}
+                          {p.escudoLocal && <img src={p.escudoLocal} alt="" style={{ width: 'var(--pred-review-crest-size, 18px)', height: 'var(--pred-review-crest-size, 18px)', objectFit: 'contain', flexShrink: 0 }} onError={e => { e.target.style.display = 'none' }} />}
                           <span style={{ fontSize: 'var(--pred-review-team-size, 13px)', color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.local}</span>
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 'var(--pred-review-center-gap, 5px)' }}>
-                          <span style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--pred-review-score-size, 20px)', fontWeight: 700, color: 'var(--text-strong)', padding: 'var(--pred-review-score-padding, 2px 14px)', minWidth: 'var(--pred-review-score-min-width, 64px)', textAlign: 'center', background: 'var(--green-bg)', borderRadius: 'var(--radius-sm)' }}>
-                            {pick?.local ?? '?'} - {pick?.visitante ?? '?'}
-                          </span>
-                          <span style={{ fontSize: 'var(--pred-review-badge-size, 10px)', fontWeight: 700, padding: 'var(--pred-review-badge-padding, 2px 8px)', borderRadius: 'var(--radius-full)', background: info?.bg ?? 'transparent', color: info?.color ?? 'transparent', whiteSpace: 'nowrap', textAlign: 'center' }}>
-                            {info?.label ?? ''}
-                          </span>
+                          <span style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--pred-review-score-size, 20px)', fontWeight: 700, color: 'var(--text-strong)', padding: 'var(--pred-review-score-padding, 2px 14px)', minWidth: 'var(--pred-review-score-min-width, 64px)', textAlign: 'center', background: 'var(--green-bg)', borderRadius: 'var(--radius-sm)' }}>{pick?.local ?? '?'} - {pick?.visitante ?? '?'}</span>
+                          <span style={{ fontSize: 'var(--pred-review-badge-size, 10px)', fontWeight: 700, padding: 'var(--pred-review-badge-padding, 2px 8px)', borderRadius: 'var(--radius-full)', background: info?.bg ?? 'transparent', color: info?.color ?? 'transparent', whiteSpace: 'nowrap', textAlign: 'center' }}>{info?.label ?? ''}</span>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--pred-review-team-gap, 5px)', minWidth: 0 }}>
                           <span style={{ fontSize: 'var(--pred-review-team-size, 13px)', color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.visitante}</span>
-                          {p.escudoVisitante && (
-                            <img src={p.escudoVisitante} alt="" style={{ width: 'var(--pred-review-crest-size, 18px)', height: 'var(--pred-review-crest-size, 18px)', objectFit: 'contain', flexShrink: 0 }} onError={e => { e.target.style.display = 'none' }} />
-                          )}
+                          {p.escudoVisitante && <img src={p.escudoVisitante} alt="" style={{ width: 'var(--pred-review-crest-size, 18px)', height: 'var(--pred-review-crest-size, 18px)', objectFit: 'contain', flexShrink: 0 }} onError={e => { e.target.style.display = 'none' }} />}
                         </div>
                       </div>
                       {i < partidos.length - 1 && <div style={{ borderBottom: '1px solid var(--border)' }} />}
@@ -1368,41 +1573,12 @@ export default function Predicciones() {
                 })}
               </div>
             </div>
-
-            {nombreError && (
-              <div style={{
-                marginBottom: 10, padding: '10px 14px', borderRadius: 'var(--radius-md)',
-                background: 'var(--red-bg)', border: '1px solid var(--red)',
-                fontSize: 13, color: '#FCA5A5', lineHeight: 1.5,
-              }}>
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                  <PredIcon name="warning" size={14} />
-                  <span>{nombreError}</span>
-                </span>
-              </div>
-            )}
-
-            <button onClick={enviar} disabled={enviando} className={enviando ? undefined : 'green-shine-button'} style={{ ...ctaPrimary(enviando), marginBottom: 10 }}>
-              <span style={{ position: 'relative', zIndex: 1 }}>
-                {enviando ? 'Enviando…' : 'Enviar predicciones ahora →'}
-              </span>
-            </button>
-            <p className="legal-note" style={{ margin: '0 0 12px' }}>
-              Al enviar aceptas los <a href="/terminos">Términos</a> y el <a href="/privacidad">Aviso de Privacidad</a>.
-              Tu nombre y predicciones serán públicos en el ranking.
-            </p>
-            <button
-              onClick={() => setMostrarResumen(false)}
-              disabled={enviando}
-              style={{
-                width: '100%', padding: '12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-strong)',
-                background: 'transparent', color: 'var(--muted)', fontSize: 14, fontWeight: 600,
-                cursor: 'pointer',
-              }}
-            >
-              ← Editar picks
-            </button>
+            {nombreError && <div style={{ marginBottom: 10, padding: '10px 14px', borderRadius: 'var(--radius-md)', background: 'var(--red-bg)', border: '1px solid var(--red)', fontSize: 13, color: '#FCA5A5', lineHeight: 1.5 }}><span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><PredIcon name="warning" size={14} /><span>{nombreError}</span></span></div>}
+            <button onClick={enviar} disabled={enviando} className={enviando ? undefined : 'green-shine-button'} style={{ ...ctaPrimary(enviando), marginBottom: 10 }}><span style={{ position: 'relative', zIndex: 1 }}>{enviando ? 'Enviando…' : 'Enviar predicciones ahora →'}</span></button>
+            <p className="legal-note" style={{ margin: '0 0 12px' }}>Al enviar aceptas los <a href="/terminos">Términos</a> y el <a href="/privacidad">Aviso de Privacidad</a>. Tu nombre y predicciones serán públicos en el ranking.</p>
+            <button onClick={() => setMostrarResumen(false)} disabled={enviando} style={{ width: '100%', padding: '12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-strong)', background: 'transparent', color: 'var(--muted)', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>← Editar picks</button>
           </div>
+          )
 
             /* Formulario principal */
             ) : (

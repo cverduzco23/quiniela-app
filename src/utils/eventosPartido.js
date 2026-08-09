@@ -23,8 +23,22 @@ function identidadEvento(evento, incluirTipo = true) {
   ].join('|')
 }
 
+function mismaSustitucion(a, b) {
+  if (a?.tipo !== 'substitution' || b?.tipo !== 'substitution') return false
+
+  const entraA = apellidoClave(a.entra || a.jugador)
+  const entraB = apellidoClave(b.entra || b.jugador)
+  if (!entraA || entraA !== entraB) return false
+  if (textoClave(a.minuto) !== textoClave(b.minuto) || (a.lado || '') !== (b.lado || '')) return false
+
+  const saleA = apellidoClave(a.sale)
+  const saleB = apellidoClave(b.sale)
+  return !saleA || !saleB || saleA === saleB
+}
+
 function sonElMismoEvento(a, b) {
   if (identidadEvento(a) === identidadEvento(b)) return true
+  if (mismaSustitucion(a, b)) return true
   const algunoSinClasificar = !a?.tipo || a.tipo === 'default' || !b?.tipo || b.tipo === 'default'
   return algunoSinClasificar && identidadEvento(a, false) === identidadEvento(b, false)
 }
