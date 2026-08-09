@@ -6,7 +6,6 @@ import { quinielaCerrada, quinielaFinalizada, hayPartidoEnVivo } from '../utils/
 import { tienePremio } from '../utils/premios'
 import { datosTarjetaQuiniela } from '../utils/quinielaCard'
 import { Footer } from '../components/Footer'
-import { ordenSeccionesHome } from '../utils/homeSections'
 import { leerMisQuinielasGuardadas, recordarMiQuiniela, olvidarMiQuiniela } from '../utils/misQuinielas'
 import { BrandWordmark } from '../components/Brand'
 import { TusQuinielaCard } from '../components/TusQuinielaCard'
@@ -176,16 +175,16 @@ function HomeHeader({ scrolled }) {
       borderBottom: scrolled ? '1px solid var(--border)' : '1px solid transparent',
       transition: 'background-color 0.25s ease, border-color 0.25s ease',
     }}>
-      <div className="public-home-shell public-home-nav" style={{ maxWidth: 1100, margin: '0 auto', padding: '14px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 18 }}>
+      <div className="public-home-shell public-home-nav" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 18 }}>
         <a href="/" aria-label="QuinielApp inicio" style={{ display: 'inline-flex', textDecoration: 'none', minWidth: 0 }}>
           <BrandWordmark markSize={28} fontSize={20} />
         </a>
         <nav className="public-home-links" aria-label="Secciones de inicio" style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
           <a href="#como-funciona" style={{ color: 'var(--muted)', fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>Cómo funciona</a>
-          <a href="#quinielas" style={{ color: 'var(--muted)', fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>Quinielas</a>
+          <a href="#codigo" style={{ color: 'var(--muted)', fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>Jugar</a>
           <a href="/admin" onClick={() => track('home_login_header')} style={ctaGhost}>
             <HomeIcon name="login" size={14} />
-            Log In
+            Ingresar
           </a>
         </nav>
       </div>
@@ -378,7 +377,7 @@ function HomeQuinielaRow({ q, conteos }) {
 function QuinielasPublicasSection({ quinielas, conteos }) {
   if (quinielas.length === 0) return null
   return (
-    <section className="public-section-open" style={{ maxWidth: 1100, width: '100%', margin: '0 auto', padding: '0 24px' }}>
+    <section className="public-home-shell public-section-open">
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 16, marginBottom: 18 }}>
         <div>
           <h2 style={{ ...sectionTitleStyle, margin: 0 }}>Quinielas públicas</h2>
@@ -415,7 +414,7 @@ function TusQuinielasSection({ quinielas, conteos, predicciones, onQuitar }) {
   const visibles = esMovil && !expandido ? colapsadas : ordenadas
   const hayMas = esMovil && ordenadas.length > colapsadas.length
   return (
-    <section id="quinielas" className="public-section-mine" style={{ maxWidth: 1100, width: '100%', margin: '0 auto', padding: '0 24px' }}>
+    <section id="quinielas" className="public-home-shell public-section-mine">
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 16, marginBottom: 16 }}>
         <div>
           <h2 style={{ ...sectionTitleStyle, margin: 0 }}>Tus quinielas</h2>
@@ -450,7 +449,7 @@ function TusQuinielasSection({ quinielas, conteos, predicciones, onQuitar }) {
 function HowItWorks() {
   return (
     <section id="como-funciona">
-      <div className="public-home-shell public-how-inner" style={{ maxWidth: 1100, margin: '0 auto', padding: '12px 24px' }}>
+      <div className="public-home-shell public-how-inner">
         <h2 style={{ ...sectionTitleStyle, textAlign: 'center', marginBottom: 24 }}>Cómo funciona</h2>
         <div className="public-steps-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20 }}>
           {[
@@ -501,7 +500,7 @@ function FaqSection() {
     })
   }
   return (
-    <section className="public-faq-section" style={{ maxWidth: 1100, margin: '0 auto', padding: '0 24px' }}>
+    <section className="public-home-shell public-faq-section">
       <h2 style={sectionTitleStyle}>Preguntas frecuentes</h2>
       <div style={{ display: 'grid', gap: 10 }}>
         {faq.map(([titulo, texto], i) => {
@@ -598,8 +597,6 @@ export default function Home() {
   const [misPredicciones, setMisPredicciones] = useState({})
   const [conteos, setConteos] = useState({})
   const [cargando, setCargando] = useState(true)
-  const [homeConfig, setHomeConfig] = useState({})
-  const verSeccion = (clave) => homeConfig?.[clave] !== false
 
   const navigate = useNavigate()
   const [codigoBusqueda, setCodigoBusqueda] = useState('')
@@ -664,12 +661,6 @@ export default function Home() {
     setMisQuinielas(prev => prev.filter(q => q.id !== id))
   }
 
-  useEffect(() => {
-    getDoc(doc(db, 'config', 'home'))
-      .then(s => { if (s.exists()) setHomeConfig(s.data()) })
-      .catch(() => {})
-  }, [])
-
   const [, setTickVivo] = useState(0)
   useEffect(() => {
     const i = setInterval(() => setTickVivo(t => t + 1), 30000)
@@ -731,21 +722,9 @@ export default function Home() {
   const publicasAbiertas = quinielasPublicas.filter(q => !esCerrada(q))
   const principal = publicasAbiertas.find(q => q.destacada) ?? publicasAbiertas[0] ?? null
 
-  const ordenHome = ordenSeccionesHome(homeConfig)
-  const ordenDe = (clave) => ordenHome.indexOf(clave)
   const hayMisQuinielas = misQuinielas.length > 0
   const hayQuinielasPublicas = quinielasPublicas.length > 0
-  const seccionesVisibles = [
-    { clave: 'mostrarComoFunciona', visible: verSeccion('mostrarComoFunciona') },
-    { clave: 'mostrarCrearQuiniela', visible: verSeccion('mostrarCrearQuiniela') },
-    { clave: 'mostrarMisQuinielas', visible: verSeccion('mostrarMisQuinielas') && hayMisQuinielas },
-    { clave: 'mostrarPublicas', visible: verSeccion('mostrarPublicas') && hayQuinielasPublicas },
-    { clave: 'mostrarFaq', visible: verSeccion('mostrarFaq') },
-    { clave: 'mostrarImagen', visible: verSeccion('mostrarImagen') },
-  ]
-    .filter(s => s.visible)
-    .sort((a, b) => ordenDe(a.clave) - ordenDe(b.clave))
-  const mainClassName = `public-home-main${seccionesVisibles[0]?.clave === 'mostrarComoFunciona' ? ' public-home-main--starts-with-how' : ''}`
+  const mainClassName = `public-home-main${hayMisQuinielas ? '' : ' public-home-main--starts-with-how'}`
 
   return (
     <div style={{ minHeight: '100vh', background: '#070d18', position: 'relative', zIndex: 0, display: 'flex', flexDirection: 'column' }}>
@@ -755,9 +734,6 @@ export default function Home() {
 
         <section>
           <div className="public-home-hero public-home-shell" style={{
-            maxWidth: 1100,
-            margin: '0 auto',
-            padding: '56px 24px 40px',
             display: 'grid',
             gridTemplateColumns: '1.05fr 0.95fr',
             gap: 46,
@@ -765,24 +741,22 @@ export default function Home() {
           }}>
             <div style={{ minWidth: 0 }}>
               <FreeBadge />
-              <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(36px, 6vw, 56px)', fontWeight: 700, color: 'var(--text-strong)', margin: '0 0 14px', lineHeight: 1.02, letterSpacing: 0 }}>
+              <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(40px, 4.5vw, 56px)', fontWeight: 700, color: 'var(--text-strong)', margin: '0 0 14px', lineHeight: 1.02, letterSpacing: 0 }}>
                 Arma tu quiniela.<br className="public-home-title-break" /> Juega con tus amigos.
               </h1>
               <p style={{ fontSize: 15.5, color: 'rgba(255,255,255,0.72)', margin: '0 0 26px', lineHeight: 1.6, maxWidth: 470 }}>
                 Predice los marcadores, sube en el ranking en vivo y presume tus aciertos.{' '}
                 <strong style={{ color: 'var(--text-strong)', fontWeight: 700 }}>Sin cuentas ni complicaciones.</strong>
               </p>
-              {verSeccion('mostrarCodigo') && (
-                <CodeEntry
-                  codigoBusqueda={codigoBusqueda}
-                  setCodigoBusqueda={setCodigoBusqueda}
-                  errorBusqueda={errorBusqueda}
-                  setErrorBusqueda={setErrorBusqueda}
-                  buscando={buscando}
-                  buscarPorCodigo={buscarPorCodigo}
-                  codeRowRef={codeRowRef}
-                />
-              )}
+              <CodeEntry
+                codigoBusqueda={codigoBusqueda}
+                setCodigoBusqueda={setCodigoBusqueda}
+                errorBusqueda={errorBusqueda}
+                setErrorBusqueda={setErrorBusqueda}
+                buscando={buscando}
+                buscarPorCodigo={buscarPorCodigo}
+                codeRowRef={codeRowRef}
+              />
               <p style={{ fontSize: 12.5, color: 'var(--muted-soft)', margin: '14px 0 0' }}>
                 ¿Organizas una quiniela? <a href="/admin" onClick={() => track('home_login_hero')} style={{ color: 'var(--green-light)', fontWeight: 800, textDecoration: 'none' }}>Entra como organizador</a>.
               </p>
@@ -793,20 +767,8 @@ export default function Home() {
       </div>
 
       <main className={mainClassName} style={{ display: 'flex', flexDirection: 'column', gap: 32, padding: '20px 0 0', flex: '1 0 auto' }}>
-        {verSeccion('mostrarComoFunciona') && (
-          <div style={{ order: ordenDe('mostrarComoFunciona') }}>
-            <HowItWorks />
-          </div>
-        )}
-
-        {verSeccion('mostrarCrearQuiniela') && (
-          <section className="public-section-create" style={{ order: ordenDe('mostrarCrearQuiniela'), maxWidth: 1100, width: '100%', margin: '0 auto', padding: '0 24px' }}>
-            <PromoCreateCard />
-          </section>
-        )}
-
-        {verSeccion('mostrarMisQuinielas') && hayMisQuinielas && (
-          <div style={{ order: ordenDe('mostrarMisQuinielas') }}>
+        {hayMisQuinielas && (
+          <div>
             <TusQuinielasSection
               quinielas={misQuinielas}
               conteos={conteos}
@@ -816,29 +778,29 @@ export default function Home() {
           </div>
         )}
 
-        {verSeccion('mostrarPublicas') && hayQuinielasPublicas && (
-          <div style={{ order: ordenDe('mostrarPublicas') }}>
+        <div>
+          <HowItWorks />
+        </div>
+
+        <section className="public-home-shell public-section-create">
+          <PromoCreateCard />
+        </section>
+
+        {hayQuinielasPublicas && (
+          <div>
             <QuinielasPublicasSection quinielas={quinielasPublicas} conteos={conteos} />
           </div>
         )}
 
-        {verSeccion('mostrarFaq') && (
-          <div style={{ order: ordenDe('mostrarFaq') }}>
-            <FaqSection />
-            <section className="public-section-donation" style={{ maxWidth: 1100, width: '100%', margin: '18px auto 0', padding: '0 24px' }}>
-              <ProjectSupportCard />
-            </section>
-          </div>
-        )}
-
-        {verSeccion('mostrarImagen') && (
-          <section style={{ order: ordenDe('mostrarImagen'), maxWidth: 1100, width: '100%', margin: '0 auto', padding: '0 24px', textAlign: 'center' }}>
-            <img src="/jugador-verde.png" alt="" style={{ width: '100%', maxWidth: 330, height: 'auto', display: 'block', margin: '0 auto' }} />
+        <div>
+          <FaqSection />
+          <section className="public-home-shell public-section-donation" style={{ marginTop: 18 }}>
+            <ProjectSupportCard />
           </section>
-        )}
+        </div>
       </main>
 
-      <div style={{ width: '100%', maxWidth: 1100, margin: 'auto auto 0', padding: '0 24px 6px' }}>
+      <div className="public-home-shell public-home-footer">
         <Footer variant="simple" />
       </div>
     </div>
