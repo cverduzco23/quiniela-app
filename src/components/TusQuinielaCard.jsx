@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { datosTarjetaQuiniela } from '../utils/quinielaCard'
 import { asignarAliasQuiniela } from '../utils/misQuinielas'
 import { useDialog } from './Dialogs'
@@ -224,7 +225,7 @@ export function TusQuinielaCard({ q, predicciones, participantes, onQuitar }) {
 
   return (
     <div className="tq-card">
-      <a href={href} className="tq-card-link">
+      <Link to={href} className="tq-card-link">
         <div className="tq-header">
           <div style={{ minWidth: 0 }}>
             <p className="tq-title">{q.nombre}</p>
@@ -238,15 +239,15 @@ export function TusQuinielaCard({ q, predicciones, participantes, onQuitar }) {
             <ProgressRow d={d} />
           </div>
         )}
-      </a>
+      </Link>
       <div className={`tq-actions${mostrarRankingSecundario ? ' tq-actions--open-choice' : ''}`}>
-        <a href={href} className={ctaGhost ? 'tq-cta tq-cta--ghost' : 'tq-cta tq-cta--solid'}>
+        <Link to={href} className={ctaGhost ? 'tq-cta tq-cta--ghost' : 'tq-cta tq-cta--solid'}>
           {ctaLabel}
-        </a>
+        </Link>
         {mostrarRankingSecundario && (
-          <a href={`/ranking/${q.id}`} className="tq-cta tq-cta--ghost tq-cta--ranking">
+          <Link to={`/ranking/${q.id}`} className="tq-cta tq-cta--ghost tq-cta--ranking">
             Ver ranking
-          </a>
+          </Link>
         )}
         <button type="button" className="tq-share" onClick={() => compartirQuiniela(q)} aria-label="Compartir quiniela">
           <ShareIcon />

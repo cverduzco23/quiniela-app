@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { useSearchParams, useParams } from 'react-router-dom'
+import { useState, useEffect, useRef } from 'react'
+import { Link, useSearchParams, useParams } from 'react-router-dom'
 import {
   collection,
   doc,
@@ -24,6 +24,11 @@ import { Footer } from '../components/Footer'
 import { BrandMark } from '../components/Brand'
 import { ProgresoPasos } from '../components/ProgresoPasos'
 
+// React Router desmonta el ranking al abrir otra pantalla. Conservamos la
+// última versión de cada ranking durante la sesión para que Back pueda pintarlo
+// de inmediato mientras la lectura de Firestore lo actualiza en segundo plano.
+const rankingCache = new Map()
+
 function formatCierreRegistro(value) {
   const d = cierreToDate(value)
   if (!d) return ''
@@ -47,11 +52,12 @@ export default function Ranking() {
   // Acepta /ranking/<id> (ruta nueva) y /ranking?q=<id> (links viejos ya compartidos).
   const quinielaId = idDeRuta || searchParams.get('q')
   const vieneDeAdmin = searchParams.get('from') === 'admin'
+  const datosEnCache = quinielaId ? rankingCache.get(quinielaId) : null
 
-  const [quiniela, setQuiniela]         = useState(null)
-  const [predicciones, setPredicciones] = useState([])
+  const [quiniela, setQuiniela]         = useState(() => datosEnCache?.quiniela ?? null)
+  const [predicciones, setPredicciones] = useState(() => datosEnCache?.predicciones ?? [])
   const [reacciones, setReacciones]     = useState({})
-  const [cargando, setCargando]         = useState(true)
+  const [cargando, setCargando]         = useState(() => !datosEnCache)
   const [error, setError]               = useState(null)
   const [liveScores, setLiveScores]     = useState({})
   const [liveStats, setLiveStats]       = useState({})
@@ -60,6 +66,7 @@ export default function Ranking() {
   const [ultimaAct, setUltimaAct]       = useState(null)
   const [actualizando, setActualizando] = useState(false)
   const [mostrarReglas, setMostrarReglas] = useState(false)
+  const ultimaCargaIniciada = useRef(0)
   const espectadoresRanking = useRankingPresence(quinielaId)
 
   // Carga de datos (lectura puntual, no escucha permanente)
@@ -71,8 +78,13 @@ export default function Ranking() {
   // puntuales cada pestaña pide los datos, los recibe y suelta la conexión.
   // Los marcadores en vivo vienen de ESPN cada 90s (no de Firebase), así que no
   // perdemos nada de "tiempo real"; los datos se refrescan en ese mismo ciclo.
-  const cargarDatos = async () => {
+  const cargarDatos = async ({ omitirSiReciente = false } = {}) => {
     if (!quinielaId) return false
+    const ahora = Date.now()
+    // `pageshow` y `visibilitychange` suelen dispararse juntos al regresar con
+    // las flechas del navegador. Evitamos repetir la misma lectura en esa ráfaga.
+    if (omitirSiReciente && ahora - ultimaCargaIniciada.current < 1500) return true
+    ultimaCargaIniciada.current = ahora
     const [snapQ, snapP] = await Promise.all([
       getDoc(doc(db, 'quinielas', quinielaId)),
       getDocs(query(collection(db, 'predicciones'), where('quinielaId', '==', quinielaId))),
@@ -80,16 +92,23 @@ export default function Ranking() {
     if (!snapQ.exists()) { setError('not-found'); setCargando(false); return false }
     const datosQ = snapQ.data()
     const ocultosIds = datosQ.ocultos ?? []
-    setQuiniela({ id: snapQ.id, ...datosQ })
-    setPredicciones(snapP.docs.map(d => ({ id: d.id, ...d.data() })).filter(p => !ocultosIds.includes(p.id)))
+    const siguienteQuiniela = { id: snapQ.id, ...datosQ }
+    const siguientesPredicciones = snapP.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .filter(p => !ocultosIds.includes(p.id))
+    rankingCache.set(quinielaId, {
+      quiniela: siguienteQuiniela,
+      predicciones: siguientesPredicciones,
+    })
+    setQuiniela(siguienteQuiniela)
+    setPredicciones(siguientesPredicciones)
     setError(null)
     setCargando(false)
     return true
   }
 
-  // Carga inicial + reintento
-  // `intento` se incrementa para forzar una recarga (timeout o regreso de una
-  // pestaña congelada por el navegador).
+  // Carga inicial + reintento. `intento` se incrementa cuando una lectura
+  // tarda demasiado para forzar una nueva consulta.
   const [intento, setIntento] = useState(0)
   useEffect(() => {
     if (!quinielaId) {
@@ -112,15 +131,17 @@ export default function Ranking() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [quinielaId, intento])
 
-  // Recarga al volver de una pestaña "congelada"
-  // Safari/Chrome móvil congelan las pestañas en segundo plano (bfcache). Al
-  // volver al enlace recargamos los datos para no mostrar algo viejo o pegado.
+  // Al volver desde bfcache el navegador ya restauró un ranking válido. Lo
+  // conservamos visible y refrescamos en segundo plano; encender otra vez el
+  // spinner hacía que Back pareciera mucho más lento que una navegación normal.
   useEffect(() => {
     const onPageShow = (e) => {
-      if (e.persisted) { setCargando(true); setError(null); setIntento(n => n + 1) }
+      if (e.persisted) cargarDatos({ omitirSiReciente: true }).catch(() => {})
     }
     window.addEventListener('pageshow', onPageShow)
     return () => window.removeEventListener('pageshow', onPageShow)
+    // La ruta no cambia mientras esta instancia puede entrar o salir de bfcache.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Polling ESPN
@@ -251,7 +272,9 @@ export default function Ranking() {
           const eventos = detalles.map(dt => {
             const teamId = dt.team?.id
             const lado = teamId === home?.team?.id ? 'home' : teamId === away?.team?.id ? 'away' : null
-            const jugador = dt.athletesInvolved?.[0]?.shortName || dt.athletesInvolved?.[0]?.displayName || ''
+            const atletas = dt.athletesInvolved ?? []
+            const nombreAtleta = atleta => atleta?.shortName || atleta?.displayName || ''
+            const jugador = nombreAtleta(atletas[0])
             let tipo = 'default'
             if (dt.scoringPlay) tipo = 'goal'
             else if (dt.redCard) tipo = 'red-card'
@@ -264,6 +287,8 @@ export default function Ranking() {
               minuto: dt.clock?.displayValue || '',
               lado,
               jugador,
+              ...(tipo === 'substitution' && jugador ? { entra: jugador } : {}),
+              ...(tipo === 'substitution' && nombreAtleta(atletas[1]) ? { sale: nombreAtleta(atletas[1]) } : {}),
               ownGoal: !!dt.ownGoal,
               penalShootout: !!dt.shootout,
               anotado: !!dt.scoringPlay,
@@ -335,7 +360,10 @@ export default function Ranking() {
     // Polling 60s, pausa cuando la pestaña no está visible
     // (ahorro de ancho de banda + cuota ESPN cuando hay muchos clientes abiertos)
     let interval = null
-    const tick = () => { cargarDatos().catch(() => {}); fetchLiveData(quiniela) }
+    const tick = () => {
+      cargarDatos({ omitirSiReciente: true }).catch(() => {})
+      fetchLiveData(quiniela)
+    }
     const start = () => {
       if (interval) return
       tick()
@@ -488,7 +516,7 @@ export default function Ranking() {
               ↻ Reintentar
             </button>
           )}
-          <a href={backHref} onClick={handleBack} style={{
+          <Link to={backHref} onClick={handleBack} style={{
             display: 'inline-block', padding: '11px 24px', borderRadius: 'var(--radius-md)',
             background: (error === 'timeout' || error === 'error') ? 'transparent' : 'linear-gradient(135deg, var(--green), var(--green-light))',
             color: (error === 'timeout' || error === 'error') ? 'var(--muted)' : '#07120A',
@@ -496,7 +524,7 @@ export default function Ranking() {
             boxShadow: (error === 'timeout' || error === 'error') ? 'none' : 'var(--shadow-green)', letterSpacing: 0.2,
           }}>
             ← {vieneDeAdmin ? 'Volver al panel' : 'Ver quinielas activas'}
-          </a>
+          </Link>
         </div>
       </div>
     </div>
@@ -534,20 +562,20 @@ export default function Ranking() {
       <div className="hero-pad ranking-hero-pad" style={{ color: 'var(--text)' }}>
         <div className="ranking-hero-inner" style={{ maxWidth: 'var(--ranking-max-width, 480px)', margin: '0 auto' }}>
           <div className="ranking-brand-row" style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 'var(--ranking-brand-margin-bottom, 16px)' }}>
-            <a href={backHref} onClick={handleBack} className="app-back-button" aria-label={backLabel} title={backLabel}>
+            <Link to={backHref} onClick={handleBack} className="app-back-button" aria-label={backLabel} title={backLabel}>
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d="M19 12H5" />
                 <path d="m12 19-7-7 7-7" />
               </svg>
-            </a>
-            <a href="/" className="ranking-brand-link" aria-label="QuinielApp Ranking">
+            </Link>
+            <Link to="/" className="ranking-brand-link" aria-label="QuinielApp Ranking">
               <BrandMark size={22} />
               <span className="ranking-brand-name">
                 Quiniel<span style={{ color: 'var(--green)' }}>App</span>
               </span>
               <span className="ranking-brand-dot" aria-hidden="true" />
               <span className="ranking-brand-label">Ranking</span>
-            </a>
+            </Link>
           </div>
           <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--ranking-title-size, 24px)', fontWeight: 700, lineHeight: 1.2, marginBottom: 'var(--ranking-title-margin-bottom, 10px)', letterSpacing: '-0.01em' }}>{quiniela.nombre}</h1>
           <div className="ranking-hero-badges" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -573,8 +601,8 @@ export default function Ranking() {
               </span>
             )}
             {quiniela.temporadaId && (
-              <a
-                href={`/temporada/${quiniela.temporadaId}?q=${quinielaId}`}
+              <Link
+                to={`/temporada/${quiniela.temporadaId}?q=${quinielaId}`}
                 style={{
                   display: 'inline-flex', alignItems: 'center', gap: 5,
                   fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 'var(--radius-full)',
@@ -588,7 +616,7 @@ export default function Ranking() {
                   <path d="M7 6H4v1a3 3 0 0 0 3 3" /><path d="M17 6h3v1a3 3 0 0 1-3 3" />
                 </svg>
                 Tabla de temporada →
-              </a>
+              </Link>
             )}
           </div>
           {mostrarControlesActualizacion && (
@@ -668,9 +696,9 @@ export default function Ranking() {
                 <p>{ultimosMinutos ? 'Últimos minutos para registrarte.' : 'Regístrate antes del cierre para participar.'}</p>
                 <p>{formatCierreRegistro(quiniela.cierre)}</p>
               </div>
-              <a
+              <Link
                 className="ranking-entry-cta"
-                href={`/quiniela/${quinielaId}`}
+                to={`/quiniela/${quinielaId}`}
                 style={{
                   position: 'relative', overflow: 'hidden',
                   display: 'block', width: '100%', textAlign: 'center',
@@ -687,7 +715,7 @@ export default function Ranking() {
                   animation: 'cta-button-shine 9.5s ease-in-out infinite',
                 }} />
                 <span style={{ position: 'relative' }}>Entrar a la quiniela →</span>
-              </a>
+              </Link>
             </div>
           )
         })()}

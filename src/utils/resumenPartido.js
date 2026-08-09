@@ -102,10 +102,44 @@ export function normalizarFichaPartido(datos) {
   const away = rosterPorLado('away')
   const alineaciones = home && away ? { home, away } : null
 
-  if (Object.keys(contexto).length === 0 && !alineaciones) return null
+  const competidores = datos?.header?.competitions?.[0]?.competitors ?? []
+  const homeId = competidores.find(c => c?.homeAway === 'home')?.team?.id
+  const awayId = competidores.find(c => c?.homeAway === 'away')?.team?.id
+  const tiposPermitidos = new Set(['goal', 'yellow-card', 'red-card', 'substitution'])
+  const nombreAtleta = atleta => atleta?.shortName || atleta?.displayName || ''
+  const eventos = (datos?.keyEvents ?? [])
+    .filter(e => e?.scoringPlay || tiposPermitidos.has(e?.type?.type))
+    .map(e => {
+      const tipoESPN = e?.type?.type
+      const tipo = e?.scoringPlay ? 'goal'
+        : tipoESPN === 'yellow-card' ? 'yellow-card'
+          : tipoESPN === 'red-card' ? 'red-card'
+            : tipoESPN === 'substitution' ? 'substitution' : 'default'
+      const teamId = e?.team?.id
+      const lado = teamId != null && String(teamId) === String(homeId) ? 'home'
+        : teamId != null && String(teamId) === String(awayId) ? 'away' : null
+      const participantes = e?.participants ?? []
+      const jugador = nombreAtleta(participantes[0]?.athlete)
+      return {
+        tipo,
+        minuto: e?.clock?.displayValue || '',
+        lado,
+        jugador,
+        ...(tipo === 'substitution' && jugador ? { entra: jugador } : {}),
+        ...(tipo === 'substitution' && nombreAtleta(participantes[1]?.athlete)
+          ? { sale: nombreAtleta(participantes[1].athlete) }
+          : {}),
+        ownGoal: !!e?.ownGoal,
+        penalShootout: false,
+        anotado: !!e?.scoringPlay,
+      }
+    })
+
+  if (Object.keys(contexto).length === 0 && !alineaciones && eventos.length === 0) return null
   return {
     ...(Object.keys(contexto).length > 0 ? { contexto } : {}),
     ...(alineaciones ? { alineaciones } : {}),
+    ...(eventos.length > 0 ? { eventos } : {}),
   }
 }
 

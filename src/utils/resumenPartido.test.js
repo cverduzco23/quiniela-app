@@ -111,6 +111,28 @@ describe('normalizarFichaPartido', () => {
     expect(ficha.alineaciones.home.titulares).toHaveLength(11)
   })
 
+  it('identifica quién entra y quién sale en cada sustitución', () => {
+    const ficha = normalizarFichaPartido({
+      header: { competitions: [{ competitors: [
+        { homeAway: 'home', team: { id: '1' } },
+        { homeAway: 'away', team: { id: '2' } },
+      ] }] },
+      keyEvents: [{
+        type: { type: 'substitution' },
+        clock: { displayValue: "63'" },
+        team: { id: '2' },
+        participants: [
+          { athlete: { displayName: 'Jugador que entra' } },
+          { athlete: { displayName: 'Jugador que sale' } },
+        ],
+      }],
+    })
+    expect(ficha.eventos[0]).toMatchObject({
+      tipo: 'substitution', lado: 'away', jugador: 'Jugador que entra',
+      entra: 'Jugador que entra', sale: 'Jugador que sale',
+    })
+  })
+
   it('no crea bloques vacíos', () => {
     expect(normalizarFichaPartido({})).toBeNull()
     expect(normalizarFichaPartido({

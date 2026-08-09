@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useParams, useSearchParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore'
 import { db } from '../firebase'
 import { BrandMark } from '../components/Brand'
@@ -213,20 +213,20 @@ export default function Stream() {
     <div className="stream-page">
       <header className="stream-header">
         <div className="stream-header-inner">
-          <a href={rankingHref} className="app-back-button stream-back-link" aria-label="Volver al ranking" title="Volver al ranking">
+          <Link to={rankingHref} className="app-back-button stream-back-link" aria-label="Volver al ranking" title="Volver al ranking">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M19 12H5" />
               <path d="m12 19-7-7 7-7" />
             </svg>
-          </a>
-          <a href="/" className="ranking-brand-link" aria-label="QuinielApp Transmisión">
+          </Link>
+          <Link to="/" className="ranking-brand-link" aria-label="QuinielApp Transmisión">
             <BrandMark size={22} />
             <span className="ranking-brand-name">
               Quiniel<span style={{ color: 'var(--green)' }}>App</span>
             </span>
             <span className="ranking-brand-dot" aria-hidden="true" />
             <span className="ranking-brand-label">Transmisión</span>
-          </a>
+          </Link>
         </div>
       </header>
       <main className="stream-main">
@@ -249,10 +249,10 @@ export default function Stream() {
               </span>
               <h1>{partido.local} <small>vs</small> {partido.visitante}</h1>
             </div>
-            <a href={rankingHref} className="stream-ranking-button">
+            <Link to={rankingHref} className="stream-ranking-button">
               <SvgIcon name="trophy" size={14} />
               Ranking completo
-            </a>
+            </Link>
           </div>
           <div className="stream-player-shell" ref={playerRef}>
             {reproduccionIniciada && (
@@ -271,11 +271,6 @@ export default function Stream() {
             )}
             {!reproduccionIniciada && (
               <div className="stream-start-overlay">
-                <span className="stream-start-icon" aria-hidden="true">
-                  <svg width="30" height="30" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="m8 5 11 7-11 7V5Z" />
-                  </svg>
-                </span>
                 <strong>La señal está lista</strong>
                 <p>Iníciala con un toque para mejorar la compatibilidad en tu dispositivo.</p>
                 <button type="button" onClick={() => setReproduccionIniciada(true)}>
@@ -331,25 +326,11 @@ export default function Stream() {
                 <SvgIcon name="maximize" size={14} />
               </button>
               {estado.fuentes.length > 1 && (
-                <label className="stream-mobile-source">
-                  <span className="stream-mobile-source-label">Señal</span>
-                  <span className="stream-mobile-source-control">
-                    <span className="stream-mobile-source-value">
-                      {estado.fuentes[opcionIdx]?.nombre || `Opción ${opcionIdx + 1}`}
-                    </span>
-                    <select
-                      value={opcionIdx}
-                      onChange={e => cambiarFuente(Number(e.target.value))}
-                      aria-label="Cambiar señal de transmisión"
-                    >
-                      {estado.fuentes.map((item, idx) => (
-                        <option key={idx} value={idx}>
-                          {item.nombre || `Opción ${idx + 1}`}
-                        </option>
-                      ))}
-                    </select>
-                  </span>
-                </label>
+                <StreamSourceSelector
+                  fuentes={estado.fuentes}
+                  opcionIdx={opcionIdx}
+                  onChange={cambiarFuente}
+                />
               )}
           </div>
           <div className="stream-desktop-controls">
@@ -443,9 +424,12 @@ export default function Stream() {
           <div className="stream-ranking-heading">
             <div>
               <span className="stream-section-kicker">Actualización automática</span>
-              <h2>Ranking en vivo</h2>
+              <h2>
+                Ranking en vivo
+                <span className="stream-ranking-live-dot" aria-hidden="true" />
+              </h2>
             </div>
-            <a href={rankingHref}>Ver ranking completo →</a>
+            <Link to={rankingHref}>Ver ranking completo →</Link>
           </div>
           <div className="stream-ranking-embed">
             <RankingTable
@@ -469,7 +453,74 @@ function StreamMessage({ texto, rankingHref = '/' }) {
     <div className="stream-message-page">
       <BrandMark size={34} />
       <h1>{texto}</h1>
-      <a href={rankingHref}>← Volver al ranking</a>
+      <Link to={rankingHref}>← Volver al ranking</Link>
+    </div>
+  )
+}
+
+function StreamSourceSelector({ fuentes, opcionIdx, onChange }) {
+  const [abierto, setAbierto] = useState(false)
+  const contenedorRef = useRef(null)
+  const nombreSeleccionado = fuentes[opcionIdx]?.nombre || `Opción ${opcionIdx + 1}`
+
+  useEffect(() => {
+    if (!abierto) return
+    const cerrarFuera = e => {
+      if (!contenedorRef.current?.contains(e.target)) setAbierto(false)
+    }
+    const cerrarEscape = e => {
+      if (e.key === 'Escape') setAbierto(false)
+    }
+    document.addEventListener('pointerdown', cerrarFuera)
+    document.addEventListener('keydown', cerrarEscape)
+    return () => {
+      document.removeEventListener('pointerdown', cerrarFuera)
+      document.removeEventListener('keydown', cerrarEscape)
+    }
+  }, [abierto])
+
+  const seleccionar = idx => {
+    onChange(idx)
+    setAbierto(false)
+  }
+
+  return (
+    <div className="stream-mobile-source">
+      <span className="stream-mobile-source-label">Señal</span>
+      <div className={`stream-mobile-source-control${abierto ? ' is-open' : ''}`} ref={contenedorRef}>
+        <button
+          type="button"
+          className="stream-mobile-source-trigger"
+          aria-label="Cambiar señal de transmisión"
+          aria-haspopup="listbox"
+          aria-expanded={abierto}
+          onClick={() => setAbierto(v => !v)}
+        >
+          <span className="stream-mobile-source-value">{nombreSeleccionado}</span>
+          <span className="stream-mobile-source-chevron" aria-hidden="true" />
+        </button>
+        {abierto && (
+          <div className="stream-mobile-source-menu" role="listbox" aria-label="Señales disponibles">
+            {fuentes.map((item, idx) => {
+              const nombre = item.nombre || `Opción ${idx + 1}`
+              const seleccionada = idx === opcionIdx
+              return (
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={seleccionada}
+                  className={seleccionada ? 'is-active' : ''}
+                  key={idx}
+                  onClick={() => seleccionar(idx)}
+                >
+                  <span>{nombre}</span>
+                  {seleccionada && <SvgIcon name="check" size={13} />}
+                </button>
+              )
+            })}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

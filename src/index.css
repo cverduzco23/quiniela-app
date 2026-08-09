@@ -13649,19 +13649,6 @@ button.admin-account-data-row {
   line-height: 1.45;
 }
 
-.stream-start-icon {
-  width: 54px;
-  height: 54px;
-  display: grid;
-  place-items: center;
-  padding-left: 3px;
-  border: 1px solid rgba(248,113,113,0.48);
-  border-radius: 50%;
-  background: rgba(239,68,68,0.16);
-  color: #fca5a5;
-  box-shadow: 0 0 0 8px rgba(239,68,68,0.055);
-}
-
 .stream-start-overlay > button {
   min-height: 38px;
   margin-top: 5px;
@@ -13924,9 +13911,23 @@ button.admin-account-data-row {
 }
 
 .stream-ranking-heading h2 {
+  display: flex;
+  width: fit-content;
+  align-items: center;
+  gap: 9px;
   margin: 3px 0 0;
   font-family: var(--font-display);
   font-size: clamp(19px, 2.4vw, 24px);
+}
+
+.stream-ranking-live-dot {
+  width: 7px;
+  height: 7px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--red);
+  box-shadow: 0 0 0 4px rgba(239,68,68,0.10);
+  animation: pulse-dot 1.2s ease-in-out infinite;
 }
 
 .stream-section-kicker {
@@ -14230,19 +14231,6 @@ button.admin-account-data-row {
     margin-right: 1px;
   }
 
-  .stream-mobile-source-control::after {
-    content: '';
-    position: absolute;
-    right: 9px;
-    top: 50%;
-    width: 5px;
-    height: 5px;
-    border-right: 1px solid var(--muted);
-    border-bottom: 1px solid var(--muted);
-    pointer-events: none;
-    transform: translateY(-70%) rotate(45deg);
-  }
-
   .stream-mobile-source-label {
     flex-shrink: 0;
     color: var(--muted-soft);
@@ -14257,17 +14245,34 @@ button.admin-account-data-row {
     min-width: 0;
     flex: 1;
     height: 29px;
-    display: flex;
-    align-items: center;
-    padding: 3px 25px 3px 8px;
-    overflow: hidden;
     border: 1px solid rgba(148,163,184,0.11);
     border-radius: 7px;
     background: rgba(6,12,24,0.12);
     transition: border-color 0.18s ease, background 0.18s ease;
   }
 
+  .stream-mobile-source-control.is-open {
+    border-color: rgba(34,197,94,0.36);
+    background: rgba(34,197,94,0.05);
+  }
+
+  .stream-mobile-source-trigger {
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 3px 9px;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+  }
+
   .stream-mobile-source-value {
+    flex: 1;
     min-width: 0;
     overflow: hidden;
     color: var(--muted);
@@ -14278,21 +14283,78 @@ button.admin-account-data-row {
     white-space: nowrap;
   }
 
+  .stream-mobile-source-chevron {
+    width: 5px;
+    height: 5px;
+    flex-shrink: 0;
+    border-right: 1px solid var(--muted);
+    border-bottom: 1px solid var(--muted);
+    transform: translateY(-1px) rotate(45deg);
+    transition: transform 0.18s ease;
+  }
+
+  .stream-mobile-source-control.is-open .stream-mobile-source-chevron {
+    transform: translateY(2px) rotate(225deg);
+  }
+
   .stream-mobile-source-control:focus-within {
     border-color: rgba(34,197,94,0.24);
     background: rgba(34,197,94,0.035);
   }
 
-  .stream-mobile-source select {
+  .stream-mobile-source-menu {
     position: absolute;
-    inset: 0;
+    z-index: 12;
+    right: -1px;
+    bottom: calc(100% + 8px);
+    width: max(100%, 190px);
+    max-width: min(260px, calc(100vw - 32px));
+    display: grid;
+    gap: 3px;
+    padding: 6px;
+    border: 1px solid rgba(148,163,184,0.24);
+    border-radius: 11px;
+    background: linear-gradient(145deg, rgba(24,34,52,0.99), rgba(10,17,29,0.99));
+    box-shadow: 0 16px 36px rgba(0,0,0,0.48), inset 0 1px 0 rgba(255,255,255,0.05);
+  }
+
+  .stream-mobile-source-menu button {
     width: 100%;
-    height: 100%;
-    margin: 0;
-    border: 0;
-    opacity: 0;
-    font-size: 16px;
+    min-width: 0;
+    min-height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 7px 9px;
+    border: 1px solid transparent;
+    border-radius: 7px;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    font-size: 11px;
+    font-weight: 700;
+    text-align: left;
     cursor: pointer;
+  }
+
+  .stream-mobile-source-menu button:hover,
+  .stream-mobile-source-menu button:focus-visible {
+    outline: none;
+    background: rgba(148,163,184,0.09);
+  }
+
+  .stream-mobile-source-menu button.is-active {
+    border-color: rgba(34,197,94,0.26);
+    background: rgba(34,197,94,0.11);
+    color: var(--green-light);
+  }
+
+  .stream-mobile-source-menu button > span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .stream-player-actions {
@@ -15873,12 +15935,18 @@ button.admin-account-data-row {
     color: var(--text);
     white-space: nowrap;
   }
+  .rk-live-event-copy > strong.is-sub-in {
+    color: var(--green-light);
+  }
   .rk-live-event-copy > span {
     font-size: 12px;
     color: var(--muted);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  .rk-live-event-copy > span.is-sub-out {
+    color: #FCA5A5;
   }
   /* El equipo del evento se identifica con su escudo, no con las iniciales:
      a este tamaño el logo se reconoce más rápido que un "GUA" o un "LAF". */
@@ -16328,9 +16396,9 @@ button.admin-account-data-row {
 
 .match-summary-page .rk-live-mine {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
-  gap: 5px 12px;
+  gap: 12px;
   margin-top: 16px;
   padding: 9px 11px;
   border: 1px solid rgba(255,255,255,0.10);
@@ -16347,7 +16415,7 @@ button.admin-account-data-row {
 }
 
 .match-summary-page .rk-live-mine-value {
-  justify-self: end;
+  justify-self: center;
   font-family: var(--font-display);
   color: var(--text-strong);
   font-size: 16px;
@@ -16355,9 +16423,10 @@ button.admin-account-data-row {
 }
 
 .match-summary-page .rk-live-mine-note {
-  grid-column: 1 / -1;
+  justify-self: end;
   color: var(--muted);
   font-size: 10px;
+  text-align: right;
 }
 
 .match-summary-page .ranking-live-stats {
@@ -16464,8 +16533,8 @@ button.admin-account-data-row {
 
 .match-summary-page .rk-live-lineups-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 18px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
 }
 
 .match-summary-page .rk-live-lineup-team header {
@@ -16496,9 +16565,9 @@ button.admin-account-data-row {
 
 .match-summary-page .rk-live-lineup-team li {
   display: grid;
-  grid-template-columns: 24px minmax(0, 1fr) auto;
+  grid-template-columns: 20px minmax(0, 1fr);
   align-items: center;
-  gap: 7px;
+  gap: 6px;
   min-height: 30px;
   padding: 3px 6px;
   border-radius: 5px;
@@ -16552,10 +16621,18 @@ button.admin-account-data-row {
   white-space: nowrap;
 }
 
+.match-summary-page .rk-live-event-copy > strong.is-sub-in {
+  color: var(--green-light);
+}
+
 .match-summary-page .rk-live-event-copy > span:not(.rk-live-event-team) {
   grid-column: 1;
   color: var(--muted);
   font-size: 10px;
+}
+
+.match-summary-page .rk-live-event-copy > span.is-sub-out:not(.rk-live-event-team) {
+  color: #FCA5A5;
 }
 
 .match-summary-page .rk-live-event-team {
@@ -16658,7 +16735,6 @@ button.admin-account-data-row {
   }
 
   .match-summary-page .rk-live-lineups-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 22px;
   }
 }

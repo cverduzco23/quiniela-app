@@ -65,6 +65,8 @@ function tipoDeEvento(detalle) {
   return 'default'
 }
 
+const nombreAtleta = atleta => atleta?.shortName || atleta?.displayName || ''
+
 // Devuelve null cuando el evento de ESPN no trae nada que valga la pena
 // archivar (por ejemplo un partido cancelado o sin estadísticas capturadas).
 export function extraerDetalles(ev, partido) {
@@ -79,15 +81,22 @@ export function extraerDetalles(ev, partido) {
   }
   const hayStats = tieneEstadisticas(stats)
 
-  const eventos = (ev?.competitions?.[0]?.details ?? []).map(d => ({
-    tipo: tipoDeEvento(d),
-    minuto: d.clock?.displayValue || '',
-    lado: ladoDeEvento(d, home, away),
-    jugador: d.athletesInvolved?.[0]?.shortName || d.athletesInvolved?.[0]?.displayName || '',
-    ownGoal: !!d.ownGoal,
-    penalShootout: !!d.shootout,
-    anotado: !!d.scoringPlay,
-  }))
+  const eventos = (ev?.competitions?.[0]?.details ?? []).map(d => {
+    const tipo = tipoDeEvento(d)
+    const atletas = d.athletesInvolved ?? []
+    const jugador = nombreAtleta(atletas[0])
+    return {
+      tipo,
+      minuto: d.clock?.displayValue || '',
+      lado: ladoDeEvento(d, home, away),
+      jugador,
+      ...(tipo === 'substitution' && jugador ? { entra: jugador } : {}),
+      ...(tipo === 'substitution' && nombreAtleta(atletas[1]) ? { sale: nombreAtleta(atletas[1]) } : {}),
+      ownGoal: !!d.ownGoal,
+      penalShootout: !!d.shootout,
+      anotado: !!d.scoringPlay,
+    }
+  })
 
   if (!hayStats && eventos.length === 0) return null
   return { stats: hayStats ? stats : null, eventos }
@@ -131,12 +140,18 @@ export function extraerDetallesResumen(summary, partido) {
       const teamId = e?.team?.id
       const ladoEvento = teamId != null && String(teamId) === String(homeId) ? 'home'
         : teamId != null && String(teamId) === String(awayId) ? 'away' : null
-      const atleta = e?.participants?.[0]?.athlete
+      const participantes = e?.participants ?? []
+      const atleta = participantes[0]?.athlete
+      const jugador = nombreAtleta(atleta)
       return {
         tipo,
         minuto: e?.clock?.displayValue || '',
         lado: ladoEvento,
-        jugador: atleta?.shortName || atleta?.displayName || '',
+        jugador,
+        ...(tipo === 'substitution' && jugador ? { entra: jugador } : {}),
+        ...(tipo === 'substitution' && nombreAtleta(participantes[1]?.athlete)
+          ? { sale: nombreAtleta(participantes[1].athlete) }
+          : {}),
         ownGoal: !!e?.ownGoal,
         penalShootout: false,
         anotado: !!e?.scoringPlay,

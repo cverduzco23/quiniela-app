@@ -172,13 +172,19 @@ describe('extraerDetalles', () => {
       details: [
         { scoringPlay: true, team: { id: '1' }, clock: { displayValue: "12'" }, athletesInvolved: [{ shortName: 'H. Martín' }] },
         { yellowCard: true, team: { id: '2' }, clock: { displayValue: "40'" }, athletesInvolved: [{ shortName: 'E. Beltrán' }] },
-        { type: { text: 'Substitution' }, team: { id: '1' }, clock: { displayValue: "60'" }, athletesInvolved: [] },
+        {
+          type: { text: 'Substitution' }, team: { id: '1' }, clock: { displayValue: "60'" },
+          athletesInvolved: [{ shortName: 'B. Rodríguez' }, { shortName: 'H. Martín' }],
+        },
       ],
     }), PARTIDO)
     expect(d.eventos.map(e => [e.tipo, e.lado])).toEqual([
       ['goal', 'home'], ['yellow-card', 'away'], ['substitution', 'home'],
     ])
     expect(d.eventos[0].jugador).toBe('H. Martín')
+    expect(d.eventos[2]).toMatchObject({
+      jugador: 'B. Rodríguez', entra: 'B. Rodríguez', sale: 'H. Martín',
+    })
   })
 
   it('conserva los eventos aunque no haya estadísticas', () => {
@@ -250,7 +256,10 @@ describe('extraerDetallesResumen', () => {
         type: { type: 'substitution' },
         clock: { displayValue: "71'" },
         team: { id: '2' },
-        participants: [{ athlete: { displayName: 'B. Gutiérrez' } }],
+        participants: [
+          { athlete: { displayName: 'B. Gutiérrez' } },
+          { athlete: { displayName: 'R. Alvarado' } },
+        ],
       },
     ],
     shootout: [
@@ -295,6 +304,9 @@ describe('extraerDetallesResumen', () => {
       ['goal', 'home', 'D. Bouanga'],
       ['substitution', 'away', 'B. Gutiérrez'],
     ])
+    expect(detalles.eventos[2]).toMatchObject({
+      entra: 'B. Gutiérrez', sale: 'R. Alvarado',
+    })
     expect(detalles.penales).toEqual([
       { lado: 'home', jugador: 'Local 1', anotado: true, orden: 1 },
       { lado: 'away', jugador: 'Visitante 1', anotado: false, orden: 1 },

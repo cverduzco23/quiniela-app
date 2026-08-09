@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
+import { Link } from 'react-router-dom'
 import { cierreToDate, quinielaCerrada, quinielaFinalizada } from '../utils/cierre'
 import { goalsToResultado, getResultado, getPickResultado, getEfectivo, calcularPuntos, calcularRacha } from '../utils/scoring'
 import { tienePremio, calcularGanadores, formatearMXN, descripcionRegla } from '../utils/premios'
@@ -1126,7 +1127,7 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                               </span>
                               <span className="ranking-match-event-minute">{ev.minuto}</span>
                               <span className="ranking-match-event-player">
-                                {ev.jugador}{ev.ownGoal ? ' (a.g.)' : ''}
+                                {textoJugadorEvento(ev)}
                               </span>
                             </div>
                           )
@@ -1181,19 +1182,20 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                       <DetalleArchivadoMovil
                         quinielaId={quiniela.id}
                         idx={i}
+                        partido={p}
                         mostrarStats={!hayStats}
                         mostrarEventos={eventosNormales.length === 0}
                         mostrarPenales={!hayPenales}
                       />
                     )}
                     {hayResumen && (
-                      <a
-                        href={`/ranking/${quiniela.id}/partido/${i}`}
+                      <Link
+                        to={`/ranking/${quiniela.id}/partido/${i}`}
                         className="ranking-match-summary-link"
                         onClick={e => e.stopPropagation()}
                       >
                         Ver resumen del partido →
-                      </a>
+                      </Link>
                     )}
                   </div>
                   </div>
@@ -1236,7 +1238,7 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
       )}
       {/* Tabla ranking */}
       <div className="ranking-panel ranking-table-panel">
-        {enVivo && (
+        {enVivo && !modoStream && (
           <div className="ranking-live-strip">
             <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--red)', display: 'inline-block', flexShrink: 0, animation: 'pulse-dot 1.2s ease-in-out infinite' }} />
             <span style={{ fontSize: 12, color: '#FCA5A5', fontWeight: 600 }}>Ranking provisional</span>
@@ -1667,6 +1669,14 @@ function pickTexto(pick) {
   return { home: 'Local', draw: 'Empate', away: 'Visitante' }[pick] ?? String(pick)
 }
 
+function textoJugadorEvento(evento) {
+  if (evento?.tipo !== 'substitution') {
+    return `${evento?.jugador ?? ''}${evento?.ownGoal ? ' (a.g.)' : ''}`
+  }
+  const entra = evento.entra || evento.jugador || ''
+  return evento.sale ? `↑ ${entra} · ↓ ${evento.sale}` : entra
+}
+
 const ETIQUETA_EVENTO = {
   goal: 'Gol',
   'yellow-card': 'Tarjeta amarilla',
@@ -1894,7 +1904,9 @@ export function ColumnaPartido({
   ].filter(f => f.disponible ?? (
     valorEstadisticaDisponible(f.h) && valorEstadisticaDisponible(f.a)
   )) : []
-  const eventosFuente = eventos.length > 0 ? eventos : (detalle?.eventos ?? [])
+  const eventosFuente = eventos.length > 0
+    ? eventos
+    : (fichaEnVivo?.eventos?.length ? fichaEnVivo.eventos : (detalle?.eventos ?? []))
   const eventosNormales = eventosFuente.filter(ev => !ev.penalShootout)
   const penalesFuente = penales.length > 0 ? penales : (detalle?.penales ?? [])
   const penalesRondas = (() => {
@@ -2114,7 +2126,6 @@ export function ColumnaPartido({
                               <li key={`${jugador.nombre}-${j}`}>
                                 <span>{jugador.dorsal || ''}</span>
                                 <strong>{jugador.corto || jugador.nombre}</strong>
-                                {jugador.posicion && <small>{jugador.posicion}</small>}
                               </li>
                             ))}
                           </ol>
@@ -2142,8 +2153,16 @@ export function ColumnaPartido({
                       <SvgIcon name={ev.tipo || 'dot'} size={14} />
                     </span>
                     <span className="rk-live-event-copy">
-                      <strong>{ev.jugador}</strong>
-                      <span>{ETIQUETA_EVENTO[ev.tipo] ?? 'Jugada'}{ev.ownGoal ? ' en propia puerta' : ''}</span>
+                      <strong className={ev.tipo === 'substitution' ? 'is-sub-in' : ''}>
+                        {ev.tipo === 'substitution'
+                          ? `Entra · ${ev.entra || ev.jugador || 'Sin identificar'}`
+                          : ev.jugador}
+                      </strong>
+                      <span className={ev.tipo === 'substitution' ? 'is-sub-out' : ''}>
+                        {ev.tipo === 'substitution'
+                          ? (ev.sale ? `Sale · ${ev.sale}` : 'Cambio')
+                          : `${ETIQUETA_EVENTO[ev.tipo] ?? 'Jugada'}${ev.ownGoal ? ' en propia puerta' : ''}`}
+                      </span>
                       {ev.lado && (
                         <span className="rk-live-event-team">
                           <EscudoEquipo
@@ -2333,6 +2352,7 @@ function EstadioPartidoPendiente({ partido }) {
 function DetalleArchivadoMovil({
   quinielaId,
   idx,
+  partido,
   mostrarStats,
   mostrarEventos,
   mostrarPenales,
@@ -2342,9 +2362,10 @@ function DetalleArchivadoMovil({
     idx,
     mostrarStats || mostrarEventos || mostrarPenales
   )
+  const ficha = useFichaPartido(partido, mostrarEventos && !!partido?.espnId, false)
   const stats = mostrarStats ? detalle?.stats : null
   const eventos = mostrarEventos
-    ? (detalle?.eventos ?? []).filter(ev => !ev.penalShootout)
+    ? (ficha?.eventos?.length ? ficha.eventos : (detalle?.eventos ?? [])).filter(ev => !ev.penalShootout)
     : []
   const penales = mostrarPenales ? (detalle?.penales ?? []) : []
   const posH = stats ? parseFloat(stats.home?.posesion) || 50 : 50
@@ -2405,7 +2426,7 @@ function DetalleArchivadoMovil({
                 </span>
                 <span className="ranking-match-event-minute">{ev.minuto}</span>
                 <span className="ranking-match-event-player">
-                  {ev.jugador}{ev.ownGoal ? ' (a.g.)' : ''}
+                  {textoJugadorEvento(ev)}
                 </span>
               </div>
             )
