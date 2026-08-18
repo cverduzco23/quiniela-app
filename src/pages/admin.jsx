@@ -301,6 +301,7 @@ function AdminIcon({ name, size = 14, style, strokeWidth = 2 }) {
   if (name === 'eye') return <svg {...common}><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" /></svg>
   if (name === 'info') return <svg {...common}><circle cx="12" cy="12" r="10" /><path d="M12 16v-4" /><path d="M12 8h.01" /></svg>
   if (name === 'clock') return <svg {...common}><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
+  if (name === 'history') return <svg {...common}><path d="M3 12a9 9 0 1 0 3-6.7" /><path d="M3 4v6h6" /><path d="M12 7v5l3 2" /></svg>
   if (name === 'trending-up') return <svg {...common}><path d="m3 17 6-6 4 4 8-8" /><path d="M17 7h4v4" /></svg>
   if (name === 'pencil') return <svg {...common}><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5Z" /></svg>
   if (name === 'link') return <svg {...common}><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1.5 1.5" /><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1.5-1.5" /></svg>
@@ -3319,6 +3320,14 @@ export default function Admin() {
                 const cajaPorCobrar = saldos.filter(s => s.saldo < 0).reduce((a, s) => a + s.saldo, 0)
                 const filtroCaja = buscarNombreCaja.trim().toLowerCase()
                 const saldosFiltrados = filtroCaja ? saldos.filter(s => s.nombre.toLowerCase().includes(filtroCaja)) : saldos
+                const nombreCajaDesktop = normalizarNombre(cajaMovNombre)
+                const movimientosCajaDesktop = nombreCajaDesktop
+                  ? movimientos.filter(m => m.nombre === nombreCajaDesktop)
+                  : []
+                const saldoCajaDesktop = movimientosCajaDesktop.reduce(
+                  (acc, m) => acc + ((m.tipo === 'premio' || m.tipo === 'deposito') ? m.monto : -m.monto),
+                  0
+                )
                 const kpiCaja = (valor, label, color) => (
                   <div style={{ background: 'linear-gradient(135deg, rgba(30,41,59,0.92), rgba(15,24,40,0.95))', border: '1px solid rgba(255,255,255,0.10)', borderRadius: 13, padding: '15px 16px', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 12px 26px rgba(0,0,0,0.32)' }}>
                     <p style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 700, color, margin: 0, lineHeight: 1 }}>{valor}</p>
@@ -3534,6 +3543,7 @@ export default function Admin() {
                           onClick={async () => {
                             const n = normalizarNombre(cajaMovNombre.trim())
                             if (!n) return
+                            setCajaMovNombre(n)
                             await guardarMovimiento(n)
                           }}
                           disabled={guardandoMov || !cajaMovNombre.trim() || !nuevoMonto || Number(nuevoMonto) <= 0}
@@ -3542,6 +3552,56 @@ export default function Admin() {
                           {guardandoMov ? 'Guardando…' : 'Guardar movimiento'}
                         </button>
                       </div>
+                    </div>
+                    <div style={{ marginTop: 16, background: 'linear-gradient(135deg, rgba(30,41,59,0.92), rgba(15,24,40,0.95))', border: '1px solid rgba(255,255,255,0.10)', borderRadius: 13, padding: '16px 18px', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 12px 26px rgba(0,0,0,0.32)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, marginBottom: nombreCajaDesktop ? 12 : 0 }}>
+                        <div style={{ minWidth: 0 }}>
+                          <p style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 14, fontWeight: 800, color: 'var(--text-strong)', margin: 0 }}>
+                            <AdminIcon name="history" size={15} /> Historial de movimientos
+                          </p>
+                          <p style={{ fontSize: 12, color: 'var(--muted)', margin: '4px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {nombreCajaDesktop || 'Selecciona un participante de la lista para consultar su actividad.'}
+                          </p>
+                        </div>
+                        {nombreCajaDesktop && (
+                          <div style={{ flexShrink: 0, textAlign: 'right' }}>
+                            <p style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--muted)', margin: '0 0 3px' }}>Saldo actual</p>
+                            <p style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, lineHeight: 1, color: saldoCajaDesktop > 0 ? 'var(--green)' : saldoCajaDesktop < 0 ? 'var(--red)' : 'var(--muted)', margin: 0 }}>
+                              {saldoCajaDesktop >= 0 ? '+' : ''}{formatearMXN(saldoCajaDesktop)}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                      {nombreCajaDesktop && (movimientosCajaDesktop.length === 0 ? (
+                        <p style={{ color: 'var(--muted)', fontSize: 13, padding: '8px 0 0', margin: 0 }}>Sin movimientos registrados todavía.</p>
+                      ) : movimientosCajaDesktop.map((m) => {
+                        const esPos = m.tipo === 'premio' || m.tipo === 'deposito'
+                        const tipoLabel = { premio: 'Premio', deposito: 'Depósito', inscripcion: 'Inscripción', retiro: 'Retiro' }[m.tipo] ?? m.tipo
+                        return (
+                          <div key={m.id} className="super-history-row">
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', margin: 0 }}>{tipoLabel}{m.nota ? ` · ${m.nota}` : ''}</p>
+                              <p style={{ fontSize: 11, color: 'var(--muted)', margin: '2px 0 0' }}>
+                                {new Date(m.fecha).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' })}
+                              </p>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                              <span style={{ fontSize: 13, fontWeight: 700, color: esPos ? 'var(--green)' : 'var(--red)' }}>
+                                {esPos ? '+' : '-'}{formatearMXN(m.monto)}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => eliminarMovimiento(m)}
+                                title="Eliminar movimiento"
+                                aria-label={`Eliminar movimiento de ${nombreCajaDesktop}`}
+                                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 26, borderRadius: 'var(--radius-sm)', border: '1px solid rgba(255,255,255,0.10)', background: 'transparent', color: 'var(--muted)', cursor: 'pointer' }}
+                              >
+                                <AdminIcon name="trash" size={13} />
+                              </button>
+                            </div>
+                          </div>
+                        )
+                      }))}
                     </div>
                   </div>
                 )
@@ -4900,6 +4960,7 @@ export default function Admin() {
                       quinielas={quinielasMias}
                       conteos={conteos}
                       movimientos={movimientosPropios}
+                      mostrarGanadores={clienteDesktop}
                       onGestionar={gestionarQuiniela}
                     />
                   </section>
@@ -6973,7 +7034,67 @@ function OrganizerKpiCard({ kpi }) {
   )
 }
 
-function EstadisticasOrganizador({ quinielas = [], conteos = {}, movimientos = [], onGestionar }) {
+function EstadisticasOrganizador({ quinielas = [], conteos = {}, movimientos = [], mostrarGanadores = false, onGestionar }) {
+  const [ganadoresHistorial, setGanadoresHistorial] = useState({})
+  const [ganadoresCargando, setGanadoresCargando] = useState(false)
+  const [ganadoresError, setGanadoresError] = useState(false)
+
+  useEffect(() => {
+    if (!mostrarGanadores) return undefined
+    const finalizadas = quinielas.filter(q => esFinalizadaQ(q))
+    let activo = true
+
+    const cargarGanadores = async () => {
+      setGanadoresCargando(finalizadas.length > 0)
+      setGanadoresError(false)
+      if (finalizadas.length === 0) {
+        setGanadoresHistorial({})
+        return
+      }
+
+      try {
+        // Firestore admite hasta 30 valores en una consulta `in`.
+        const lotes = []
+        for (let i = 0; i < finalizadas.length; i += 30) lotes.push(finalizadas.slice(i, i + 30))
+        const snaps = await Promise.all(lotes.map(lote => getDocs(query(
+          collection(db, 'predicciones'),
+          where('quinielaId', 'in', lote.map(q => q.id)),
+        ))))
+        if (!activo) return
+
+        const prediccionesPorQuiniela = {}
+        snaps.forEach(snap => snap.docs.forEach(predDoc => {
+          const pred = { id: predDoc.id, ...predDoc.data() }
+          ;(prediccionesPorQuiniela[pred.quinielaId] ||= []).push(pred)
+        }))
+
+        const siguientes = {}
+        finalizadas.forEach(q => {
+          const ocultos = new Set(q.ocultos ?? [])
+          const jugadores = (prediccionesPorQuiniela[q.id] ?? [])
+            .filter(p => !ocultos.has(p.id))
+            .map(p => ({
+              nombre: normalizarNombre(p.nombre),
+              ...calcularPuntos(p.picks, q.resultados ?? {}, {}, q.partidos ?? []),
+            }))
+            .sort((a, b) => b.puntos - a.puntos)
+          const puntosGanadores = jugadores[0]?.puntos ?? 0
+          siguientes[q.id] = puntosGanadores > 0
+            ? jugadores.filter(j => j.puntos === puntosGanadores).map(j => j.nombre)
+            : []
+        })
+        setGanadoresHistorial(siguientes)
+      } catch {
+        if (activo) setGanadoresError(true)
+      } finally {
+        if (activo) setGanadoresCargando(false)
+      }
+    }
+
+    cargarGanadores()
+    return () => { activo = false }
+  }, [mostrarGanadores, quinielas])
+
   const participantesDe = (q) => Math.max(0, (conteos[q.id] ?? 0) - (q.ocultos ?? []).length)
   const datos = quinielas.map(q => {
     const participantes = participantesDe(q)
@@ -7030,6 +7151,18 @@ function EstadisticasOrganizador({ quinielas = [], conteos = {}, movimientos = [
     return ms
       ? new Date(ms).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' })
       : 'Sin fecha'
+  }
+  const textoGanadores = (nombres) => {
+    if (nombres.length <= 1) return nombres[0] ?? ''
+    return `${nombres.slice(0, -1).join(', ')} y ${nombres.at(-1)}`
+  }
+  const ganadorDe = (q) => {
+    if (!esFinalizadaQ(q)) return { corto: 'Por definir', completo: 'Por definir' }
+    if (ganadoresCargando && !(q.id in ganadoresHistorial)) return { corto: 'Cargando…', completo: 'Cargando…' }
+    if (ganadoresError && !(q.id in ganadoresHistorial)) return { corto: 'No disponible', completo: 'No disponible' }
+    const nombres = ganadoresHistorial[q.id] ?? []
+    const completo = textoGanadores(nombres) || 'Sin ganador'
+    return { corto: completo, completo }
   }
 
   const kpis = [
@@ -7183,11 +7316,12 @@ function EstadisticasOrganizador({ quinielas = [], conteos = {}, movimientos = [
           <small>{quinielas.length} en total</small>
         </div>
         <div className="admin-organizer-history-head" aria-hidden="true">
-          <span>Quiniela</span><span>Estado</span><span>Participantes</span><span>Recaudación</span><span>Premio</span><span />
+          <span>Quiniela</span><span>Estado</span><span className="admin-organizer-history-winner">Ganador(es)</span><span>Participantes</span><span>Recaudación</span><span>Premio</span><span />
         </div>
         <div className="admin-organizer-history-list">
           {[...datos].sort((a, b) => b.creadaMs - a.creadaMs).map(d => {
             const estado = estadoDe(d.q)
+            const ganador = ganadorDe(d.q)
             return (
               <button key={d.q.id} type="button" className="admin-organizer-history-row" onClick={() => onGestionar(d.q)}>
                 <span className="admin-organizer-history-name">
@@ -7195,6 +7329,7 @@ function EstadisticasOrganizador({ quinielas = [], conteos = {}, movimientos = [
                   <small>{fechaCorta(d.q)}</small>
                 </span>
                 <span><i className={`admin-organizer-history-status ${estado.clase}`}>{estado.label}</i></span>
+                <span className="admin-organizer-history-winner" title={ganador.completo}>{ganador.corto}</span>
                 <span data-label="Participantes">{d.participantes}</span>
                 <span data-label="Recaudación">{formatearMXN(d.recaudacion)}</span>
                 <span data-label="Premio">{formatearMXN(d.premio)}</span>
