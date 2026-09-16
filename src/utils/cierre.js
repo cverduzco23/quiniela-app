@@ -65,14 +65,26 @@ export function quinielaFinalizada(q) {
 // + margen) y sin marcador final ni cancelación. No contempla retrasos.
 const FRESCURA_EN_VIVO = 25 * 60 * 1000 // 2.5 corridas de la función
 
-export function hayPartidoEnVivo(quiniela, ahora = Date.now()) {
+// Cuánto dura un partido como mucho: 90 min + medio tiempo + añadido + margen.
+// Es la ventana que usamos para considerar "en juego" un partido del que solo
+// conocemos su hora de inicio. La comparte `calcularEstadoPartido`.
+export const VENTANA_EN_VIVO = 2.5 * 60 * 60 * 1000
+
+// Ids de ESPN que la Cloud Function reportó en juego, siempre que el dato siga
+// fresco. Devuelve null cuando no hay dato o ya caducó: ahí toca el respaldo
+// por horario. Es la señal más confiable que tiene el navegador cuando él
+// mismo no logra hablar con ESPN (403, CORS, red del usuario).
+export function idsEnVivoFrescos(quiniela, ahora = Date.now()) {
   const escrito = quiniela?.enVivoActualizado ? new Date(quiniela.enVivoActualizado).getTime() : NaN
-  if (!isNaN(escrito) && ahora - escrito >= 0 && ahora - escrito <= FRESCURA_EN_VIVO) {
-    return (quiniela.enVivoEspnIds ?? []).length > 0
-  }
+  if (isNaN(escrito) || ahora - escrito < 0 || ahora - escrito > FRESCURA_EN_VIVO) return null
+  return (quiniela.enVivoEspnIds ?? []).map(String)
+}
+
+export function hayPartidoEnVivo(quiniela, ahora = Date.now()) {
+  const frescos = idsEnVivoFrescos(quiniela, ahora)
+  if (frescos) return frescos.length > 0
   const partidos = quiniela?.partidos ?? []
   const resultados = quiniela?.resultados ?? {}
-  const VENTANA = 2.5 * 60 * 60 * 1000
   return partidos.some((p, i) => {
     const r = resultados[i] ?? resultados[String(i)]
     // Ya tiene marcador final o está cancelado → no está en vivo.
@@ -81,7 +93,7 @@ export function hayPartidoEnVivo(quiniela, ahora = Date.now()) {
     if (!p?.hora) return false
     const inicio = new Date(p.hora).getTime()
     if (isNaN(inicio)) return false
-    return ahora >= inicio && ahora <= inicio + VENTANA
+    return ahora >= inicio && ahora <= inicio + VENTANA_EN_VIVO
   })
 }
 

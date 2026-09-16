@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { Link } from 'react-router-dom'
-import { cierreToDate, quinielaCerrada, quinielaFinalizada } from '../utils/cierre'
+import { cierreToDate, quinielaCerrada, quinielaFinalizada, idsEnVivoFrescos } from '../utils/cierre'
 import { goalsToResultado, getResultado, getPickResultado, getEfectivo, calcularPuntos, calcularRacha } from '../utils/scoring'
+import { calcularEstadoPartido } from '../utils/estadoPartido'
 import { tienePremio, calcularGanadores, formatearMXN, descripcionRegla } from '../utils/premios'
 import { simularUltimoPartido } from '../utils/escenarios'
 import { normalizarNombre } from '../utils/nombres'
@@ -99,37 +100,6 @@ const resultBorder = {
   away: 'rgba(250,204,21,0.4)',
 }
 const resultLabel = { home: 'Local', draw: 'Empate', away: 'Visitante' }
-// Estado de un partido a partir de lo guardado por el organizador y de lo que
-// reporta ESPN en vivo. Lo comparten el panel "Partidos" (móvil), el carrusel
-// y la columna del partido (escritorio) para que los tres digan lo mismo.
-function calcularEstadoPartido(partido, idx, resultados, liveScores) {
-  const live      = partido.espnId ? liveScores?.[partido.espnId] : null
-  const stored    = resultados[idx] ?? resultados[String(idx)]
-  const cancelado = !!stored?.cancelado || !!live?.cancelado
-  const noFinal   = !cancelado && !!live?.noFinal
-  const suspendido = noFinal && !!live?.suspendido
-  const esVivo    = !cancelado && live?.state === 'in'
-  const esFinish  = !cancelado && !noFinal && live?.state === 'post'
-  let scoreLocal = '-', scoreVisitante = '-', resDisplay = null
-  if (!cancelado && live && (esVivo || esFinish) && live.local !== '') {
-    scoreLocal = live.local; scoreVisitante = live.visitante
-    resDisplay = goalsToResultado(live.local, live.visitante)
-  } else if (noFinal && live?.local !== '' && live?.visitante !== '') {
-    scoreLocal = live.local; scoreVisitante = live.visitante
-  } else if (!cancelado && stored) {
-    scoreLocal = stored.local ?? '-'; scoreVisitante = stored.visitante ?? '-'
-    resDisplay = getResultado(stored)
-  }
-  const marcadorNoFinalVisible = noFinal && scoreLocal !== '-' && scoreVisitante !== '-'
-  const pendiente = !cancelado && !resDisplay && !esVivo && !esFinish && !noFinal
-  const jugado    = !cancelado && (esFinish || getResultado(stored) !== null)
-  return {
-    live, stored, cancelado, noFinal, suspendido, esVivo, esFinish,
-    scoreLocal, scoreVisitante, resDisplay, marcadorNoFinalVisible, pendiente, jugado,
-    marcadorVisible: !!resDisplay || marcadorNoFinalVisible,
-  }
-}
-
 // Badge de estado del partido (Local / Empate / Visitante / En vivo / Pendiente…).
 // `ocultarPendiente` es para la quiniela todavía abierta, donde marcar
 // "Pendiente" en todos los partidos no aporta nada.
@@ -145,6 +115,19 @@ function badgePartido(e, ocultarPendiente = false) {
   if (e.resDisplay) return (
     <span className="ranking-match-badge" style={{ background: resultColor[e.resDisplay].bg, color: resultColor[e.resDisplay].color, borderColor: resultBorder[e.resDisplay] }}>
       {resultLabel[e.resDisplay]}
+    </span>
+  )
+  // Sin marcador de ESPN en este navegador, el estado sale del respaldo del
+  // servidor o del horario (ver calcularEstadoPartido): decir "Pendiente" de un
+  // partido que ya arrancó es justo lo contrario de lo que ve el usuario.
+  if (e.enJuegoSinMarcador) return (
+    <span className="ranking-match-badge is-live-badge" style={{ background: 'var(--red-bg-strong)', color: '#FCA5A5', borderColor: 'rgba(239,68,68,0.4)' }}>
+      <span className="ranking-match-live-dot" />En juego
+    </span>
+  )
+  if (e.esperandoResultado) return (
+    <span className="ranking-match-badge" style={{ background: 'rgba(245,158,11,0.12)', color: '#FBBF24', borderColor: 'rgba(245,158,11,0.38)' }}>
+      Esperando resultado
     </span>
   )
   if (ocultarPendiente) return null
@@ -720,10 +703,13 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
   // Por defecto el que esté en vivo; si no hay ninguno, el siguiente por
   // jugarse; y si ya se jugaron todos, el último. El usuario puede cambiarlo
   // haciendo clic en cualquier tarjeta del carrusel.
-  const estadosPartidos = partidos.map((p, i) => calcularEstadoPartido(p, i, resultados, liveScores))
+  // Ids que el servidor vio en juego: respaldo cuando este navegador no pudo
+  // traer nada de ESPN (ver calcularEstadoPartido).
+  const idsEnVivoServidor = idsEnVivoFrescos(quiniela, ahora)
+  const estadosPartidos = partidos.map((p, i) => calcularEstadoPartido(p, i, resultados, liveScores, ahora, idsEnVivoServidor))
   const partidoDestacadoIdx = (() => {
     if (partidos.length === 0) return null
-    const vivo = estadosPartidos.findIndex(e => e.esVivo)
+    const vivo = estadosPartidos.findIndex(e => e.enCurso)
     if (vivo !== -1) return vivo
     const porJugar = partidos
       .map((p, i) => ({ i, t: cierreToDate(p.hora)?.getTime() ?? Infinity }))
@@ -879,10 +865,11 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
           </div>
           {partidos.map((p, i) => {
             if (enfoqueUltimoPartido && !partidosRestantesIdx.includes(i)) return null
-            const estado = calcularEstadoPartido(p, i, resultados, liveScores)
+            const estado = estadosPartidos[i]
             const {
               live, stored, cancelado, esVivo, esFinish,
               scoreLocal, scoreVisitante, resDisplay, marcadorNoFinalVisible, pendiente,
+              enCurso, porComenzar,
             } = estado
             const pendienteEnQuinielaAbierta = !cerrada && pendiente
             const tieneStats = !!p.espnId
@@ -927,7 +914,7 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
               <div
                 key={i}
                 onClick={tieneAlgo ? () => togglePartido(i) : undefined}
-                className={`ranking-match-row${enfoqueUltimoPartido ? ' is-featured' : ''}${finalesSimultaneas ? ' is-featured-pair' : ''}${esVivo ? ' is-live' : ''}${jugado ? ' is-played' : ''}${partidoAbierto ? ' is-open' : ''}${cancelado ? ' is-cancelled' : ''}${tieneAlgo ? ' is-clickable' : ''}`}
+                className={`ranking-match-row${enfoqueUltimoPartido ? ' is-featured' : ''}${finalesSimultaneas ? ' is-featured-pair' : ''}${enCurso ? ' is-live' : ''}${jugado ? ' is-played' : ''}${partidoAbierto ? ' is-open' : ''}${cancelado ? ' is-cancelled' : ''}${tieneAlgo ? ' is-clickable' : ''}`}
                 style={{ borderBottom: !enfoqueUltimoPartido && i < partidos.length - 1 ? '1px solid var(--border)' : 'none' }}
               >
                 {(p.escudoLocal || p.escudoVisitante) && (
@@ -981,7 +968,7 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
 
                 <div className={`ranking-match-compact${(muestraEstadoPartido || p.hora) ? ' has-meta' : ''}`}>
                   {(muestraEstadoPartido || p.hora) && (
-                    <div className={`ranking-match-status-row${esVivo ? ' is-live' : ''}${tieneAlgo ? ' has-toggle' : ''}`}>
+                    <div className={`ranking-match-status-row${enCurso ? ' is-live' : ''}${tieneAlgo ? ' has-toggle' : ''}`}>
                       {p.hora && !enfoqueUltimoPartido && <span className="ranking-match-status-date">{formatFecha(p.hora)}</span>}
                       {!enfoqueUltimoPartido && badgeNode}
                       {tieneAlgo && (
@@ -1095,15 +1082,27 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
                     {tienePrevio && !hayDetallesVisibles && (
                       <div className="ranking-match-preview">
                         <span className="ranking-match-preview-icon" aria-hidden="true">
-                          <SvgIcon name="calendar" size={17} />
+                          <SvgIcon name={porComenzar ? 'calendar' : 'broadcast'} size={17} />
                         </span>
                         <div>
-                          <span className="ranking-match-preview-kicker">Próximamente</span>
-                          <strong>{textoAntesDelPartido(p.hora, ahora)}</strong>
+                          <span className="ranking-match-preview-kicker">
+                            {porComenzar ? 'Próximamente' : 'Sin marcador en vivo'}
+                          </span>
+                          <strong>
+                            {porComenzar
+                              ? textoAntesDelPartido(p.hora, ahora)
+                              : 'Este partido ya comenzó'}
+                          </strong>
                           <p>
-                            El marcador y las estadísticas aparecerán aquí cuando comience el partido.
-                            {(p.streamUrl || p.streamUrl2 || p.streamUrl3) &&
-                              ' La transmisión se habilitará desde la hora de inicio.'}
+                            {porComenzar ? (
+                              <>
+                                El marcador y las estadísticas aparecerán aquí cuando comience el partido.
+                                {(p.streamUrl || p.streamUrl2 || p.streamUrl3) &&
+                                  ' La transmisión se habilitará desde la hora de inicio.'}
+                              </>
+                            ) : (
+                              'No estamos recibiendo el marcador en vivo de este partido. Aparecerá aquí en cuanto el organizador capture el resultado.'
+                            )}
                           </p>
                         </div>
                       </div>
@@ -1959,6 +1958,8 @@ export function ColumnaPartido({
     ? (e.live.penalesEnVivo ? 'Penales' : e.live.halftime ? 'Descanso' : e.live.clock || 'En vivo')
     : e.cancelado ? 'Cancelado'
     : e.jugado ? 'Final'
+    : e.enJuegoSinMarcador ? 'En juego'
+    : e.esperandoResultado ? 'Esperando resultado'
     : 'Por jugarse'
 
   // Tu pronóstico contra lo que va pasando en la cancha.
@@ -1988,7 +1989,7 @@ export function ColumnaPartido({
             </span>
           )}
         </span>
-        {e.esVivo && (
+        {e.enCurso && (
           <span className="rk-live-head-tag">
             <span className="rk-dot" aria-hidden="true" />
             EN VIVO
@@ -2292,8 +2293,7 @@ function PortadaResumenPartido({ partido, estado, buscando }) {
 // antes del partido, sin señal configurada, sin permiso o ya terminado.
 function ColumnaPartidoSinVideo({ partido, estado, puedeVerStream, hayFuentes, ahora }) {
   const e = estado
-  const horaInicio = cierreToDate(partido.hora)?.getTime()
-  const porComenzar = e.pendiente && Number.isFinite(horaInicio) && ahora < horaInicio
+  const porComenzar = e.porComenzar
 
   let icono, titulo, texto
   if (e.cancelado) {
@@ -2304,6 +2304,10 @@ function ColumnaPartidoSinVideo({ partido, estado, puedeVerStream, hayFuentes, a
     icono = 'calendar'
     titulo = textoAntesDelPartido(partido.hora, ahora)
     texto = 'Aquí verás el marcador, las estadísticas y la transmisión en cuanto arranque.'
+  } else if (e.enJuegoSinMarcador && !hayFuentes) {
+    icono = 'broadcast'
+    titulo = 'Partido en juego'
+    texto = 'No estamos recibiendo el marcador en vivo de este partido. Se actualizará cuando el organizador capture el resultado.'
   } else if (e.jugado) {
     icono = 'check'
     titulo = 'Partido terminado'
