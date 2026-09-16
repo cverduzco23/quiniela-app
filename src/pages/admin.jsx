@@ -16,7 +16,7 @@ import { calcularPuntos } from '../utils/scoring'
 import { normalizarNombre } from '../utils/nombres'
 import { detectarSimilares } from '../utils/duplicados'
 import { leerDias, leerQuiniela, leerGlobal, estaExcluido, marcarExcluido } from '../utils/analytics'
-import { clasificarEstadoNoFinalESPN, findEventByTeamsAndDate } from '../utils/espn'
+import { clasificarEstadoNoFinalESPN, findEventByTeamsAndDate, fetchEventosScoreboard } from '../utils/espn'
 import { EmojiPicker } from '../components/EmojiPicker'
 import { FechaHoraPicker } from '../components/FechaHoraPicker'
 import { NotificationBell } from '../components/NotificationBell'
@@ -152,23 +152,23 @@ function fmtDiaScoreboard(d) {
 
 async function fetchScoreboardResultados(cache, ligaId, partidos) {
   const fechas = partidos.map(p => p.hora).filter(Boolean).sort()
-  let inicio = ''
+  const hoy = new Date()
+  let inicio = null
   if (fechas[0]) {
     const d = new Date(fechas[0])
     if (!isNaN(d.getTime())) {
       d.setDate(d.getDate() - 1)
-      inicio = fmtDiaScoreboard(d)
+      inicio = d
     }
   }
-  const hoy = fmtDiaScoreboard(new Date())
-  const url = inicio
-    ? `https://site.api.espn.com/apis/site/v2/sports/soccer/${ligaId}/scoreboard?dates=${inicio}-${hoy}&limit=100`
-    : `https://site.api.espn.com/apis/site/v2/sports/soccer/${ligaId}/scoreboard?limit=100`
-  if (cache.has(url)) return cache.get(url)
-  const promesa = fetch(url)
-    .then(r => (r.ok ? r.json() : Promise.reject(new Error(`ESPN ${r.status}`))))
-    .then(data => data.events ?? [])
-  cache.set(url, promesa)
+  const clave = `${ligaId}|${inicio ? fmtDiaScoreboard(inicio) : ''}|${fmtDiaScoreboard(hoy)}`
+  if (cache.has(clave)) return cache.get(clave)
+  const promesa = inicio && inicio <= hoy
+    ? fetchEventosScoreboard(ligaId, inicio, hoy)
+    : fetch(`https://site.api.espn.com/apis/site/v2/sports/soccer/${ligaId}/scoreboard`)
+      .then(r => (r.ok ? r.json() : Promise.reject(new Error(`ESPN ${r.status}`))))
+      .then(data => data.events ?? [])
+  cache.set(clave, promesa)
   return promesa
 }
 
@@ -1840,14 +1840,10 @@ export default function Admin() {
     let vivo = true
     const porLiga = {}
     conEspn.forEach(p => { (porLiga[p.ligaId] ||= []).push(p) })
-    const fmtF = d => d.toISOString().slice(0, 10).replace(/-/g, '')
     const hoyD = new Date()
-    const rango = `${fmtF(new Date(hoyD.getTime() - 86400000))}-${fmtF(new Date(hoyD.getTime() + 86400000))}`
     Promise.all(Object.entries(porLiga).map(async ([liga, ps]) => {
       try {
-        const r = await fetch(`https://site.api.espn.com/apis/site/v2/sports/soccer/${liga}/scoreboard?dates=${rango}`)
-        const d = await r.json()
-        const events = d.events ?? []
+        const events = await fetchEventosScoreboard(liga, new Date(hoyD.getTime() - 86400000), new Date(hoyD.getTime() + 86400000))
         return ps.filter(p => events.find(e => e.id === p.espnId)?.status?.type?.state === 'in').map(p => String(p.espnId))
       } catch { return [] }
     })).then(res => { if (vivo) setStatsQLiveIds(new Set(res.flat())) })
@@ -2003,18 +1999,15 @@ export default function Admin() {
     setFixtures([])
     setSeleccionados([])
 
-    const fmt = d => d.toISOString().slice(0, 10).replace(/-/g, '')
     const hoy = new Date()
-    const desde = hoy
     const hasta = new Date(hoy); hasta.setDate(hasta.getDate() + 60)
 
     try {
-      const res = await fetch(
-        `https://site.api.espn.com/apis/site/v2/sports/soccer/${ligaId}/scoreboard?dates=${fmt(desde)}-${fmt(hasta)}&limit=50`
-      )
-      const data = await res.json()
-      const filtrados = (data.events ?? []).filter(e =>
-        e.status?.type?.state === 'pre' || !e.status?.type?.state
+      const eventos = await fetchEventosScoreboard(ligaId, hoy, hasta)
+      // Se piden meses completos: recortamos a los próximos 60 días.
+      const filtrados = eventos.filter(e =>
+        (e.status?.type?.state === 'pre' || !e.status?.type?.state) &&
+        !(new Date(e.date) > hasta)
       )
       if (filtrados.length === 0) {
         setErrorFixtures('No hay partidos próximos disponibles para esta competición.')

@@ -205,32 +205,62 @@ async function fetchScoreboard(cache, ligaId, partidos) {
   const fechas = partidos.map(p => p.hora).filter(Boolean).sort()
   // Un día antes del primer partido, por seguridad de zonas horarias
   // (la hora guardada es local de México; ESPN indexa por fecha UTC).
-  let inicio = ''
+  const hoyD = new Date()
+  let inicioD = null
   if (fechas[0]) {
     const d = new Date(fechas[0])
     if (!isNaN(d.getTime())) {
       d.setDate(d.getDate() - 1)
-      inicio = fmtDia(d)
+      inicioD = d
     }
   }
-  const hoy = fmtDia(new Date())
-  const url = inicio
-    ? `https://site.api.espn.com/apis/site/v2/sports/soccer/${ligaId}/scoreboard?dates=${inicio}-${hoy}&limit=100`
-    : `https://site.api.espn.com/apis/site/v2/sports/soccer/${ligaId}/scoreboard?limit=100`
-  if (cache.has(url)) return cache.get(url)
-  // ESPN empezó a rechazar con 403 el User-Agent predeterminado de Node/undici
-  // usado por Cloud Functions. Un agente HTTP genérico conserva el endpoint
-  // JSON estable sin depender de cookies ni de una sesión de navegador.
-  const promesa = fetch(url, {
-    headers: {
-      Accept: 'application/json',
-      'User-Agent': 'curl/8.7.1',
-    },
+  const claveCache = `${ligaId}|${inicioD ? fmtDia(inicioD) : ''}|${fmtDia(hoyD)}`
+  if (cache.has(claveCache)) return cache.get(claveCache)
+  // Desde sep-2026 ESPN rechaza con 400 los rangos `dates=AAAAMMDD-AAAAMMDD`;
+  // pedimos día por día (rangos cortos) o mes por mes y juntamos.
+  const claves = inicioD && inicioD <= hoyD ? clavesScoreboard(inicioD, hoyD) : ['']
+  const promesa = Promise.all(claves.map(clave => {
+    const url = `https://site.api.espn.com/apis/site/v2/sports/soccer/${ligaId}/scoreboard${clave ? `?dates=${clave}` : ''}`
+    // ESPN empezó a rechazar con 403 el User-Agent predeterminado de Node/undici
+    // usado por Cloud Functions. Un agente HTTP genérico conserva el endpoint
+    // JSON estable sin depender de cookies ni de una sesión de navegador.
+    return fetch(url, {
+      headers: {
+        Accept: 'application/json',
+        'User-Agent': 'curl/8.7.1',
+      },
+    })
+      .then(r => (r.ok ? r.json() : Promise.reject(new Error(`ESPN ${r.status}`))))
+      .then(d => d.events ?? [])
+  })).then(listas => {
+    const porId = new Map()
+    for (const lista of listas) for (const ev of lista) {
+      if (ev?.id != null && !porId.has(String(ev.id))) porId.set(String(ev.id), ev)
+    }
+    return [...porId.values()]
   })
-    .then(r => (r.ok ? r.json() : Promise.reject(new Error(`ESPN ${r.status}`))))
-    .then(d => d.events ?? [])
-  cache.set(url, promesa)
+  cache.set(claveCache, promesa)
   return promesa
+}
+
+/** Claves `dates=` válidas para ESPN que cubren [desde, hasta]: días o meses. */
+function clavesScoreboard(desde, hasta, maxDias = 3) {
+  const pad = n => String(n).padStart(2, '0')
+  const a = new Date(desde.getFullYear(), desde.getMonth(), desde.getDate())
+  const b = new Date(hasta.getFullYear(), hasta.getMonth(), hasta.getDate())
+  const dias = Math.round((b - a) / 86400000) + 1
+  const claves = []
+  if (dias <= maxDias) {
+    for (let d = new Date(a); d <= b; d.setDate(d.getDate() + 1)) claves.push(fmtDia(d))
+    return claves
+  }
+  // Margen de un día: ESPN agrupa por fecha del Este de EE.UU.
+  const ini = new Date(a); ini.setDate(ini.getDate() - 1)
+  const fin = new Date(b); fin.setDate(fin.getDate() + 1)
+  for (let d = new Date(ini.getFullYear(), ini.getMonth(), 1); d <= fin; d.setMonth(d.getMonth() + 1)) {
+    claves.push(`${d.getFullYear()}${pad(d.getMonth() + 1)}`)
+  }
+  return claves
 }
 
 async function fetchResumenPartido(cache, partido) {

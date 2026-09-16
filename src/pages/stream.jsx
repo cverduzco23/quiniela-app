@@ -16,7 +16,7 @@ import {
   resolverStreamFuente,
   streamDisponibleAhora,
 } from '../utils/streaming'
-import { clasificarEstadoNoFinalESPN } from '../utils/espn'
+import { clasificarEstadoNoFinalESPN, fetchEventosScoreboard } from '../utils/espn'
 
 const BRAVE_TIP_DISMISSED_KEY = 'quinielapp-stream-brave-tip-dismissed'
 
@@ -560,19 +560,16 @@ async function obtenerMarcadoresEnVivo(quiniela) {
     if (!p.espnId || !p.ligaId) return
     ;(porLiga[p.ligaId] ||= []).push(p)
   })
-  const fmt = d => d.toISOString().slice(0, 10).replace(/-/g, '')
   const hoy = new Date()
   const ayer = new Date(hoy.getTime() - 24 * 60 * 60 * 1000)
   const manana = new Date(hoy.getTime() + 24 * 60 * 60 * 1000)
-  const rango = `${fmt(ayer)}-${fmt(manana)}`
   const scores = {}
 
   await Promise.all(Object.entries(porLiga).map(async ([ligaId, lista]) => {
     try {
-      const res = await fetch(`https://site.api.espn.com/apis/site/v2/sports/soccer/${ligaId}/scoreboard?dates=${rango}`)
-      const data = await res.json()
+      const events = await fetchEventosScoreboard(ligaId, ayer, manana)
       lista.forEach(partido => {
-        const evento = (data.events ?? []).find(e => String(e.id) === String(partido.espnId))
+        const evento = events.find(e => String(e.id) === String(partido.espnId))
         if (!evento) return
         const competidores = evento.competitions?.[0]?.competitors ?? []
         const local = competidores.find(c => c.homeAway === 'home')

@@ -142,3 +142,55 @@ export function eventoDesdeSummary(datos) {
     competitions: [{ competitors: comp.competitors ?? [], details: [] }],
   }
 }
+
+// ── Consultas al scoreboard ─────────────────────────────────────────────────
+// Desde sep-2026 ESPN rechaza con 400 los rangos `dates=AAAAMMDD-AAAAMMDD`.
+// Solo acepta un día (`AAAAMMDD`), un mes (`AAAAMM`) o un año. Por eso
+// partimos cualquier rango en días (rangos cortos) o meses (rangos largos)
+// y juntamos los eventos sin duplicados.
+
+const pad2 = n => String(n).padStart(2, '0')
+
+/** Claves `dates=` que cubren [desde, hasta] (fechas locales, inclusivo). */
+export function clavesScoreboard(desde, hasta, maxDias = 3) {
+  const a = new Date(desde.getFullYear(), desde.getMonth(), desde.getDate())
+  const b = new Date(hasta.getFullYear(), hasta.getMonth(), hasta.getDate())
+  if (isNaN(a.getTime()) || isNaN(b.getTime()) || a > b) return []
+  const dias = Math.round((b - a) / 86400000) + 1
+  const claves = []
+  if (dias <= maxDias) {
+    for (let d = new Date(a); d <= b; d.setDate(d.getDate() + 1)) {
+      claves.push(`${d.getFullYear()}${pad2(d.getMonth() + 1)}${pad2(d.getDate())}`)
+    }
+    return claves
+  }
+  // ESPN agrupa por fecha del Este de EE.UU.: un partido de noche puede caer en
+  // el mes vecino, así que sumamos un día de margen en cada extremo.
+  const ini = new Date(a); ini.setDate(ini.getDate() - 1)
+  const fin = new Date(b); fin.setDate(fin.getDate() + 1)
+  for (let d = new Date(ini.getFullYear(), ini.getMonth(), 1); d <= fin; d.setMonth(d.getMonth() + 1)) {
+    claves.push(`${d.getFullYear()}${pad2(d.getMonth() + 1)}`)
+  }
+  return claves
+}
+
+/** Junta listas de eventos quitando duplicados por id. */
+export function unirEventos(listas) {
+  const vistos = new Map()
+  for (const lista of listas) for (const ev of lista ?? []) {
+    if (ev?.id != null && !vistos.has(String(ev.id))) vistos.set(String(ev.id), ev)
+  }
+  return [...vistos.values()].sort((x, y) => String(x.date ?? '').localeCompare(String(y.date ?? '')))
+}
+
+/** Trae los eventos de una liga entre dos fechas (una petición por día o mes). */
+export async function fetchEventosScoreboard(ligaId, desde, hasta, { maxDias = 3, fetchImpl = fetch } = {}) {
+  const claves = clavesScoreboard(desde, hasta, maxDias)
+  const listas = await Promise.all(claves.map(async clave => {
+    const r = await fetchImpl(`https://site.api.espn.com/apis/site/v2/sports/soccer/${ligaId}/scoreboard?dates=${clave}`)
+    if (!r.ok) throw new Error(`ESPN ${r.status}`)
+    const data = await r.json()
+    return data.events ?? []
+  }))
+  return unirEventos(listas)
+}

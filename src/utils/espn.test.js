@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { normalizarEquipo, mismoDiaLocal, findEventByTeamsAndDate, clasificarEstadoNoFinalESPN, marcadorDeEvento, eventoDesdeSummary } from './espn'
+import { normalizarEquipo, mismoDiaLocal, findEventByTeamsAndDate, clasificarEstadoNoFinalESPN, marcadorDeEvento, eventoDesdeSummary, clavesScoreboard, unirEventos, fetchEventosScoreboard } from './espn'
 
 describe('normalizarEquipo', () => {
   it('quita acentos y baja mayúsculas', () => {
@@ -227,5 +227,48 @@ describe('marcadorDeEvento', () => {
     expect(live.penalesEnVivo).toBe(true)
     expect(live.localPen).toBe(3)
     expect(live.visitantePen).toBe(2)
+  })
+})
+
+describe('clavesScoreboard', () => {
+  it('usa días sueltos para rangos cortos (nunca rangos con guion)', () => {
+    expect(clavesScoreboard(new Date(2026, 8, 15), new Date(2026, 8, 17))).toEqual(['20260915', '20260916', '20260917'])
+  })
+
+  it('usa meses (con un día de margen) para rangos largos', () => {
+    expect(clavesScoreboard(new Date(2026, 8, 16), new Date(2026, 10, 15))).toEqual(['202609', '202610', '202611'])
+    expect(clavesScoreboard(new Date(2026, 9, 1), new Date(2026, 9, 10))).toEqual(['202609', '202610'])
+  })
+
+  it('devuelve vacío si el rango está invertido', () => {
+    expect(clavesScoreboard(new Date(2026, 8, 20), new Date(2026, 8, 10))).toEqual([])
+  })
+})
+
+describe('unirEventos', () => {
+  it('quita duplicados por id y ordena por fecha', () => {
+    const r = unirEventos([
+      [{ id: '2', date: '2026-10-02T01:00Z' }, { id: '1', date: '2026-09-30T01:00Z' }],
+      [{ id: 2, date: '2026-10-02T01:00Z' }],
+    ])
+    expect(r.map(e => e.id)).toEqual(['1', '2'])
+  })
+})
+
+describe('fetchEventosScoreboard', () => {
+  it('pide una URL por clave y junta los eventos', async () => {
+    const urls = []
+    const fetchImpl = async url => {
+      urls.push(url)
+      return { ok: true, json: async () => ({ events: [{ id: url.slice(-8), date: '2026-09-16T00:00Z' }] }) }
+    }
+    const r = await fetchEventosScoreboard('mex.1', new Date(2026, 8, 15), new Date(2026, 8, 16), { fetchImpl })
+    expect(urls.every(u => !/dates=\d+-\d+/.test(u))).toBe(true)
+    expect(r).toHaveLength(2)
+  })
+
+  it('lanza error si ESPN responde mal', async () => {
+    const fetchImpl = async () => ({ ok: false, status: 400 })
+    await expect(fetchEventosScoreboard('mex.1', new Date(2026, 8, 15), new Date(2026, 8, 15), { fetchImpl })).rejects.toThrow('ESPN 400')
   })
 })

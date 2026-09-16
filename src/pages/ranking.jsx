@@ -16,7 +16,7 @@ import {
 import { db, track } from '../firebase'
 import { registrarVisita, registrarVisitaQuiniela, registrarEnVivo } from '../utils/analytics'
 import { getResultado } from '../utils/scoring'
-import { findEventByTeamsAndDate, marcadorDeEvento, eventoDesdeSummary } from '../utils/espn'
+import { findEventByTeamsAndDate, marcadorDeEvento, eventoDesdeSummary, fetchEventosScoreboard } from '../utils/espn'
 import { necesitaMarcadorEnVivo } from '../utils/estadoPartido'
 import { quinielaCerrada, quinielaFinalizada, cierreToDate, nivelUrgenciaCierre } from '../utils/cierre'
 import { RankingTable } from '../components/RankingTable'
@@ -170,17 +170,13 @@ export default function Ranking() {
     // arrancó tarde (ej. 10pm CDMX = 11pm ET) puede seguir "en vivo" pero ESPN ya
     // lo reporta bajo el día anterior. Pedimos un rango de 3 días (ayer-mañana)
     // para no perder esos partidos por el corte de fecha.
-    const fmtFecha = d => d.toISOString().slice(0, 10).replace(/-/g, '')
     const hoyDate    = new Date()
     const ayerDate   = new Date(hoyDate.getTime() - 24 * 60 * 60 * 1000)
     const mananaDate = new Date(hoyDate.getTime() + 24 * 60 * 60 * 1000)
-    const rangoFechas = `${fmtFecha(ayerDate)}-${fmtFecha(mananaDate)}`
 
     for (const [liga, ps] of Object.entries(porLiga)) {
       try {
-        const r = await fetch(`https://site.api.espn.com/apis/site/v2/sports/soccer/${liga}/scoreboard?dates=${rangoFechas}&limit=100`)
-        const d = await r.json()
-        const events = d.events ?? []
+        const events = await fetchEventosScoreboard(liga, ayerDate, mananaDate)
         ps.forEach(p => {
           let ev = events.find(e => e.id === p.espnId)
           if (!ev) {
