@@ -76,3 +76,69 @@ export function clasificarEstadoNoFinalESPN(evento) {
   if (/(CANCEL|POSTPON|ABANDON|FORFEIT)/.test(nombre)) return 'cancelado'
   return 'pendiente'
 }
+
+/**
+ * Traduce un evento de ESPN a la entrada de marcador en vivo que consume la UI.
+ * Sirve igual para un evento del `scoreboard` que para uno reconstruido desde
+ * la ficha individual (`summary`), porque ambos exponen la misma cabecera:
+ * `status` + `competitions[0].competitors`.
+ */
+export function marcadorDeEvento(ev) {
+  const state = ev?.status?.type?.state
+  const comps = ev?.competitions?.[0]?.competitors ?? []
+  const home  = comps.find(c => c.homeAway === 'home')
+  const away  = comps.find(c => c.homeAway === 'away')
+  const statusName = ev?.status?.type?.name ?? ''
+  // `post + completed=false` no siempre significa cancelado. ESPN usa esa
+  // combinación también para partidos suspendidos que reanudarán.
+  const estadoNoFinal = clasificarEstadoNoFinalESPN(ev)
+  if (estadoNoFinal === 'cancelado') {
+    return {
+      home, away, tienePenales: false,
+      live: { state, cancelado: true, halftime: false, local: '', visitante: '' },
+    }
+  }
+  // Tanda de penales: ESPN reporta el global aparte en `shootoutScore` (el
+  // `score` regular se queda en el empate). Lo detectamos por el status, por el
+  // detalle ("AET-pens" / "FT-Pens", que es lo que ESPN realmente manda para
+  // soccer: STATUS_SHOOTOUT casi no aparece) o por el marcador de penales.
+  const statusDetail = (ev?.status?.type?.shortDetail || ev?.status?.type?.detail || '')
+  const enFaseDePenales = /pen/i.test(statusDetail)
+  const homePen = home?.shootoutScore
+  const awayPen = away?.shootoutScore
+  const tienePenales = enFaseDePenales || homePen != null || awayPen != null ||
+    statusName === 'STATUS_SHOOTOUT' || statusName === 'STATUS_FINAL_PEN'
+  const penalesEnVivo = state === 'in' &&
+    (enFaseDePenales || statusName === 'STATUS_SHOOTOUT' || homePen != null || awayPen != null)
+  return {
+    home, away, tienePenales,
+    live: {
+      state, clock: ev?.status?.displayClock ?? '', halftime: statusName === 'STATUS_HALFTIME',
+      local: home?.score ?? '', visitante: away?.score ?? '',
+      noFinal: estadoNoFinal !== null,
+      suspendido: estadoNoFinal === 'suspendido',
+      penales: tienePenales, penalesEnVivo,
+      localPen: homePen ?? null, visitantePen: awayPen ?? null,
+    },
+  }
+}
+
+/**
+ * La ficha individual (`summary?event=`) trae la misma cabecera que el
+ * scoreboard, pero anidada bajo `header`. La reempacamos con la forma de evento
+ * para poder leerla con `marcadorDeEvento`.
+ *
+ * Este endpoint es el respaldo cuando el scoreboard no devuelve el partido: se
+ * pide por id exacto, así que no depende del rango de fechas ni del límite de
+ * eventos de la respuesta del scoreboard.
+ */
+export function eventoDesdeSummary(datos) {
+  const comp = datos?.header?.competitions?.[0]
+  if (!comp?.status) return null
+  return {
+    id: String(datos?.header?.id ?? comp.id ?? ''),
+    date: comp.date ?? '',
+    status: comp.status,
+    competitions: [{ competitors: comp.competitors ?? [], details: [] }],
+  }
+}

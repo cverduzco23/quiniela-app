@@ -60,3 +60,24 @@ export function calcularEstadoPartido(partido, idx, resultados, liveScores, ahor
     marcadorVisible: !!resDisplay || marcadorNoFinalVisible,
   }
 }
+
+// Ventana en la que tiene sentido pedirle a ESPN la ficha individual de un
+// partido: generosa para aguantar retrasos de cancha, pero acotada para no
+// consultar para siempre partidos viejos que nunca recibieron resultado.
+const VENTANA_FICHA = 6 * 60 * 60 * 1000
+
+/**
+ * ¿Este partido debería estar dando marcador ahora mismo?
+ *
+ * Se usa para decidir a cuáles pedirles la ficha individual cuando el
+ * scoreboard no los devolvió. No dice que el partido esté en vivo: dice que ya
+ * pasó su hora, que sigue sin resultado y que vale la pena preguntar por él.
+ */
+export function necesitaMarcadorEnVivo(partido, idx, resultados, ahora = Date.now()) {
+  if (!partido?.espnId || !partido?.ligaId) return false
+  const stored = resultados?.[idx] ?? resultados?.[String(idx)]
+  if (stored?.cancelado || getResultado(stored) !== null) return false
+  const inicio = cierreToDate(partido.hora)?.getTime()
+  if (!Number.isFinite(inicio)) return false
+  return ahora >= inicio && ahora <= inicio + VENTANA_FICHA
+}

@@ -16,7 +16,8 @@ import {
 import { db, track } from '../firebase'
 import { registrarVisita, registrarVisitaQuiniela, registrarEnVivo } from '../utils/analytics'
 import { getResultado } from '../utils/scoring'
-import { clasificarEstadoNoFinalESPN, findEventByTeamsAndDate } from '../utils/espn'
+import { findEventByTeamsAndDate, marcadorDeEvento, eventoDesdeSummary } from '../utils/espn'
+import { necesitaMarcadorEnVivo } from '../utils/estadoPartido'
 import { quinielaCerrada, quinielaFinalizada, cierreToDate, nivelUrgenciaCierre } from '../utils/cierre'
 import { RankingTable } from '../components/RankingTable'
 import { CuentaRegresiva } from '../components/CuentaRegresiva'
@@ -164,6 +165,7 @@ export default function Ranking() {
     const nuevosPenales = {}
     const penaltyMatches = []   // {key, evId, liga, homeId, awayId} para traer la tanda completa
     const idsCorregidos = []
+    const ligasFallidas = []
     // ESPN agrupa los eventos por fecha en hora del Este de EE.UU. Un partido que
     // arrancó tarde (ej. 10pm CDMX = 11pm ET) puede seguir "en vivo" pero ESPN ya
     // lo reporta bajo el día anterior. Pedimos un rango de 3 días (ayer-mañana)
@@ -176,7 +178,7 @@ export default function Ranking() {
 
     for (const [liga, ps] of Object.entries(porLiga)) {
       try {
-        const r = await fetch(`https://site.api.espn.com/apis/site/v2/sports/soccer/${liga}/scoreboard?dates=${rangoFechas}`)
+        const r = await fetch(`https://site.api.espn.com/apis/site/v2/sports/soccer/${liga}/scoreboard?dates=${rangoFechas}&limit=100`)
         const d = await r.json()
         const events = d.events ?? []
         ps.forEach(p => {
@@ -189,40 +191,10 @@ export default function Ranking() {
             if (!ev) return
             idsCorregidos.push({ idx: partidos.indexOf(p), nuevoId: ev.id })
           }
-          const state = ev.status?.type?.state
-          const comps = ev.competitions?.[0]?.competitors ?? []
-          const home  = comps.find(c => c.homeAway === 'home')
-          const away  = comps.find(c => c.homeAway === 'away')
-          const statusName = ev.status?.type?.name ?? ''
-          const esHalftime = statusName === 'STATUS_HALFTIME'
-          // `post + completed=false` no siempre significa cancelado. ESPN usa
-          // esa combinación también para partidos suspendidos que reanudarán.
-          const estadoNoFinal = clasificarEstadoNoFinalESPN(ev)
-          if (estadoNoFinal === 'cancelado') {
-            nuevos[p.espnId] = { state, cancelado: true, halftime: false, local: '', visitante: '' }
-            return
-          }
-          // Tanda de penales: ESPN reporta el global aparte en `shootoutScore`
-          // (el `score` regular se queda en el empate). Lo detectamos por el
-          // status, por el detalle ("AET-pens" / "FT-Pens", que es lo que ESPN
-          // realmente manda para soccer: STATUS_SHOOTOUT casi no aparece) o
-          // por la presencia del marcador de penales.
-          const statusDetail = (ev.status?.type?.shortDetail || ev.status?.type?.detail || '')
-          const enFaseDePenales = /pen/i.test(statusDetail)
-          const homePen = home?.shootoutScore
-          const awayPen = away?.shootoutScore
-          const tienePenales = enFaseDePenales || homePen != null || awayPen != null ||
-            statusName === 'STATUS_SHOOTOUT' || statusName === 'STATUS_FINAL_PEN'
-          const penalesEnVivo = state === 'in' &&
-            (enFaseDePenales || statusName === 'STATUS_SHOOTOUT' || homePen != null || awayPen != null)
-          nuevos[p.espnId] = {
-            state, clock: ev.status?.displayClock ?? '', halftime: esHalftime,
-            local: home?.score ?? '', visitante: away?.score ?? '',
-            noFinal: estadoNoFinal !== null,
-            suspendido: estadoNoFinal === 'suspendido',
-            penales: tienePenales, penalesEnVivo,
-            localPen: homePen ?? null, visitantePen: awayPen ?? null,
-          }
+          const { home, away, tienePenales, live } = marcadorDeEvento(ev)
+          const state = live.state
+          nuevos[p.espnId] = live
+          if (live.cancelado) return
           if (tienePenales) {
             penaltyMatches.push({
               key: p.espnId, evId: ev.id, liga,
@@ -298,8 +270,43 @@ export default function Ranking() {
           })
           if (eventos.length > 0) nuevosEventos[p.espnId] = eventos
         })
-      } catch { /* silencioso */ }
+      } catch (err) {
+        ligasFallidas.push(liga)
+        console.warn(`ESPN scoreboard falló para ${liga}:`, err?.message ?? err)
+      }
     }
+
+    // Respaldo por ficha individual. El scoreboard es una lista por fechas y a
+    // veces no trae un partido que sí existe (rango de fechas, recorte de la
+    // respuesta, caché de ESPN o un fallo puntual de la petición). Cuando eso
+    // pasa el partido se queda sin marcador en vivo hasta que la Cloud Function
+    // escribe el resultado final, aunque ESPN lo esté transmitiendo.
+    //
+    // `summary?event=` se pide por id exacto, así que no depende de nada de lo
+    // anterior. Solo lo usamos para los partidos que ya deberían estar rodando
+    // y que el scoreboard no devolvió: son pocos y la llamada es barata.
+    const sinMarcador = conEspn
+      .map(p => ({ p, idx: partidos.indexOf(p) }))
+      .filter(({ p, idx }) => !nuevos[p.espnId] &&
+        necesitaMarcadorEnVivo(p, idx, quinielaData?.resultados ?? {}))
+    await Promise.all(sinMarcador.map(async ({ p }) => {
+      try {
+        const r = await fetch(`https://site.api.espn.com/apis/site/v2/sports/soccer/${p.ligaId}/summary?event=${p.espnId}`)
+        if (!r.ok) throw new Error(`ESPN ${r.status}`)
+        const ev = eventoDesdeSummary(await r.json())
+        if (!ev) return
+        const { home, away, tienePenales, live } = marcadorDeEvento(ev)
+        nuevos[p.espnId] = live
+        if (!live.cancelado && tienePenales) {
+          penaltyMatches.push({
+            key: p.espnId, evId: ev.id || p.espnId, liga: p.ligaId,
+            homeId: home?.team?.id, awayId: away?.team?.id,
+          })
+        }
+      } catch (err) {
+        console.warn(`ESPN summary falló para ${p.espnId}:`, err?.message ?? err)
+      }
+    }))
 
     // Tanda de penales completa: el scoreboard solo trae los penales ANOTADOS.
     // Para mostrar también los fallados pedimos el `summary` del partido, que
@@ -329,7 +336,9 @@ export default function Ranking() {
     setLiveStats(prev => ({ ...prev, ...nuevosStats }))
     setLiveEventos(prev => ({ ...prev, ...nuevosEventos }))
     setLivePenales(prev => ({ ...prev, ...nuevosPenales }))
-    setUltimaAct(new Date())
+    // Si TODAS las ligas fallaron no actualizamos el sello: "Actualizado 20:30"
+    // con datos de hace media hora es peor que no decir nada.
+    if (ligasFallidas.length < Object.keys(porLiga).length) setUltimaAct(new Date())
 
     if (idsCorregidos.length > 0) {
       try {

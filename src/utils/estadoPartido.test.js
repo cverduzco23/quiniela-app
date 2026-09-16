@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { calcularEstadoPartido } from './estadoPartido'
+import { calcularEstadoPartido, necesitaMarcadorEnVivo } from './estadoPartido'
 import { VENTANA_EN_VIVO } from './cierre'
 
 const INICIO = new Date('2026-09-15T19:00:00').getTime()
@@ -110,5 +110,36 @@ describe('calcularEstadoPartido con el respaldo del servidor', () => {
     const e = calcularEstadoPartido(partidoConEspn, 0, {}, { 123: { state: 'post', local: '2', visitante: '0' } }, INICIO + 3 * 60 * 60000, ids)
     expect(e.jugado).toBe(true)
     expect(e.enJuegoSinMarcador).toBe(false)
+  })
+})
+
+describe('necesitaMarcadorEnVivo', () => {
+  const resultados = {}
+
+  it('pide la ficha de un partido que ya arrancó y sigue sin resultado', () => {
+    expect(necesitaMarcadorEnVivo(partidoConEspn, 0, resultados, INICIO + 69 * 60000)).toBe(true)
+  })
+
+  it('no la pide antes de la hora de inicio', () => {
+    expect(necesitaMarcadorEnVivo(partidoConEspn, 0, resultados, INICIO - 60000)).toBe(false)
+  })
+
+  it('no la pide si ya hay marcador guardado', () => {
+    const res = { 0: { local: '1', visitante: '0' } }
+    expect(necesitaMarcadorEnVivo(partidoConEspn, 0, res, INICIO + 60 * 60000)).toBe(false)
+  })
+
+  it('no la pide para un partido cancelado', () => {
+    const res = { 0: { cancelado: true } }
+    expect(necesitaMarcadorEnVivo(partidoConEspn, 0, res, INICIO + 60 * 60000)).toBe(false)
+  })
+
+  it('no la pide sin espnId o sin ligaId', () => {
+    expect(necesitaMarcadorEnVivo(partidoManual, 0, resultados, INICIO + 60 * 60000)).toBe(false)
+    expect(necesitaMarcadorEnVivo({ ...partidoConEspn, ligaId: null }, 0, resultados, INICIO + 60 * 60000)).toBe(false)
+  })
+
+  it('deja de pedirla para partidos viejos que nunca recibieron resultado', () => {
+    expect(necesitaMarcadorEnVivo(partidoConEspn, 0, resultados, INICIO + 7 * 60 * 60000)).toBe(false)
   })
 })

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { normalizarEquipo, mismoDiaLocal, findEventByTeamsAndDate, clasificarEstadoNoFinalESPN } from './espn'
+import { normalizarEquipo, mismoDiaLocal, findEventByTeamsAndDate, clasificarEstadoNoFinalESPN, marcadorDeEvento, eventoDesdeSummary } from './espn'
 
 describe('normalizarEquipo', () => {
   it('quita acentos y baja mayúsculas', () => {
@@ -122,5 +122,110 @@ describe('clasificarEstadoNoFinalESPN', () => {
   it('no clasifica partidos en vivo ni finales reales', () => {
     expect(clasificarEstadoNoFinalESPN(evento('STATUS_IN_PROGRESS', 'in', false))).toBeNull()
     expect(clasificarEstadoNoFinalESPN(evento('STATUS_FULL_TIME', 'post', true))).toBeNull()
+  })
+})
+
+// Forma real de la respuesta de `summary?event=`: la cabecera trae el mismo
+// estado y marcador que el scoreboard, solo que anidada bajo `header`.
+const summaryEnVivo = {
+  header: {
+    id: '742331',
+    competitions: [{
+      id: '742331',
+      date: '2026-09-16T01:00Z',
+      status: {
+        displayClock: "69'",
+        type: { state: 'in', name: 'STATUS_IN_PROGRESS', completed: false, shortDetail: "69'" },
+      },
+      competitors: [
+        { homeAway: 'home', score: '0', team: { id: '223', displayName: 'Puebla' } },
+        { homeAway: 'away', score: '0', team: { id: '221', displayName: 'Toluca' } },
+      ],
+    }],
+  },
+}
+
+describe('eventoDesdeSummary', () => {
+  it('reempaca la ficha individual con la forma de evento del scoreboard', () => {
+    const ev = eventoDesdeSummary(summaryEnVivo)
+    expect(ev.id).toBe('742331')
+    expect(ev.status.type.state).toBe('in')
+    expect(ev.competitions[0].competitors).toHaveLength(2)
+  })
+
+  it('devuelve null si la respuesta no trae cabecera utilizable', () => {
+    expect(eventoDesdeSummary(null)).toBe(null)
+    expect(eventoDesdeSummary({})).toBe(null)
+    expect(eventoDesdeSummary({ header: { competitions: [{}] } })).toBe(null)
+  })
+})
+
+describe('marcadorDeEvento', () => {
+  it('lee un 0-0 en vivo desde la ficha individual', () => {
+    const { live } = marcadorDeEvento(eventoDesdeSummary(summaryEnVivo))
+    expect(live.state).toBe('in')
+    expect(live.local).toBe('0')
+    expect(live.visitante).toBe('0')
+    expect(live.clock).toBe("69'")
+    expect(live.cancelado).toBeUndefined()
+    expect(live.noFinal).toBe(false)
+  })
+
+  it('lee lo mismo desde un evento del scoreboard', () => {
+    const ev = {
+      id: '742331',
+      status: { displayClock: "45'", type: { state: 'in', name: 'STATUS_HALFTIME', completed: false } },
+      competitions: [{ competitors: [
+        { homeAway: 'home', score: '1', team: { id: '223' } },
+        { homeAway: 'away', score: '2', team: { id: '221' } },
+      ] }],
+    }
+    const { live } = marcadorDeEvento(ev)
+    expect(live.halftime).toBe(true)
+    expect(live.local).toBe('1')
+    expect(live.visitante).toBe('2')
+  })
+
+  it('marca cancelado sin inventar marcador', () => {
+    const ev = {
+      status: { type: { state: 'post', name: 'STATUS_POSTPONED', completed: false } },
+      competitions: [{ competitors: [
+        { homeAway: 'home', score: '0', team: {} },
+        { homeAway: 'away', score: '0', team: {} },
+      ] }],
+    }
+    const { live } = marcadorDeEvento(ev)
+    expect(live.cancelado).toBe(true)
+    expect(live.local).toBe('')
+  })
+
+  it('distingue un suspendido de un cancelado', () => {
+    const ev = {
+      status: { type: { state: 'post', name: 'STATUS_SUSPENDED', completed: false } },
+      competitions: [{ competitors: [
+        { homeAway: 'home', score: '1', team: {} },
+        { homeAway: 'away', score: '0', team: {} },
+      ] }],
+    }
+    const { live } = marcadorDeEvento(ev)
+    expect(live.cancelado).toBeUndefined()
+    expect(live.noFinal).toBe(true)
+    expect(live.suspendido).toBe(true)
+    expect(live.local).toBe('1')
+  })
+
+  it('detecta la tanda de penales por el detalle del status', () => {
+    const ev = {
+      status: { displayClock: "120'", type: { state: 'in', name: 'STATUS_IN_PROGRESS', completed: false, shortDetail: 'AET-pens' } },
+      competitions: [{ competitors: [
+        { homeAway: 'home', score: '1', shootoutScore: 3, team: {} },
+        { homeAway: 'away', score: '1', shootoutScore: 2, team: {} },
+      ] }],
+    }
+    const { tienePenales, live } = marcadorDeEvento(ev)
+    expect(tienePenales).toBe(true)
+    expect(live.penalesEnVivo).toBe(true)
+    expect(live.localPen).toBe(3)
+    expect(live.visitantePen).toBe(2)
   })
 })
