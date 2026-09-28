@@ -107,22 +107,41 @@ describe('autoasignación StreamX', () => {
     expect(buscarPorNombre(quiniela, stream)?.confianza).toBeGreaterThan(0.97)
   })
 
-  it('no decide automáticamente cuando dos eventos son igual de probables', () => {
+  it('junta las señales cuando StreamX publica el mismo partido varias veces', () => {
     const partido = {
-      local: 'Monterrey',
-      visitante: 'Orlando City SC',
+      local: 'Necaxa',
+      visitante: 'América',
+      hora: '2026-09-27T21:00',
+    }
+    const base = {
+      homeTeam: 'Necaxa',
+      awayTeam: 'América',
+      time: '2026-09-27 22:00',
+      timezone: 'America/Lima',
+    }
+    const encontrado = buscarEventoStreamX(partido, [
+      { ...base, title: 'Necaxa vs América (ESPN)', servers: [{ ...servidor, name: 'ESPN', url: 'https://streamx-hd.com/live1.php?stream=espn1' }] },
+      { ...base, awayTeam: 'Club América', title: 'Necaxa vs América (Fox)', servers: [{ ...servidor, name: 'Fox', url: 'https://streamx-hd.com/live1.php?stream=fox1' }] },
+      { ...base, title: 'Necaxa vs América', servers: [{ ...servidor, name: 'ESPN', url: 'https://streamx-hd.com/live1.php?stream=espn1' }] },
+    ])
+    expect(encontrado?.servidores.map(item => item.key)).toEqual(['espn1', 'fox1'])
+  })
+
+  it('no decide automáticamente cuando dos partidos distintos son igual de probables', () => {
+    const partido = {
+      local: 'Universidad',
+      visitante: 'Equipo Rival FC',
       hora: '2026-08-05T17:30',
     }
     const base = {
-      homeTeam: 'Monterrey',
-      awayTeam: 'Orlando City',
+      awayTeam: 'Equipo Rival',
       time: '2026-08-05 18:30',
       timezone: 'America/Lima',
       servers: [servidor],
     }
     expect(buscarEventoStreamX(partido, [
-      { ...base, title: 'Evento A' },
-      { ...base, title: 'Evento B' },
+      { ...base, homeTeam: 'Universidad Catolica', title: 'Evento A' },
+      { ...base, homeTeam: 'Universidad Chile', title: 'Evento B' },
     ])).toBeNull()
   })
 

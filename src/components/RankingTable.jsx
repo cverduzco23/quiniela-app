@@ -904,7 +904,8 @@ export function RankingTable({ quiniela, predicciones, liveScores = {}, liveStat
             const tieneAlgo = hayDetallesVisibles || hayResumen || tienePrevio
             const jugado = estado.jugado
             const mostrarStream = quinielaEnJuego && !cancelado && !jugado &&
-              Number.isFinite(horaInicio) && ahora >= horaInicio
+              Number.isFinite(horaInicio) && ahora >= horaInicio &&
+              obtenerStreamFuentes(p).length > 0
             const mostrarReacciones = cerrada && !cancelado && jugado
             const matchScoreText = (resDisplay || marcadorNoFinalVisible) ? `${scoreLocal} - ${scoreVisitante}` : 'VS'
             const posH = hayStats ? parseFloat(st.home.posesion) || 50 : 50

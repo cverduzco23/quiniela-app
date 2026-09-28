@@ -780,8 +780,27 @@ export function buscarEventoStreamX(partido, eventos) {
     .filter(Boolean)
     .sort((a, b) => b.confianza - a.confianza || a.diferenciaMin - b.diferenciaMin)
   if (candidatos.length === 0) return null
-  if (candidatos[1] && candidatos[0].confianza - candidatos[1].confianza < 0.04) return null
-  return candidatos[0]
+  const mejor = candidatos[0]
+  const empatados = candidatos.filter(c => mejor.confianza - c.confianza < 0.04)
+  if (empatados.length === 1) return mejor
+  // StreamX a veces publica el mismo partido varias veces (una por canal).
+  // Si todos los empatados son el mismo encuentro, se juntan sus señales;
+  // solo se descarta cuando el empate es entre partidos distintos.
+  const clave = mismoEncuentroStreamX(mejor.evento)
+  if (!empatados.every(c => mismoEncuentroStreamX(c.evento) === clave)) return null
+  const vistos = new Set()
+  const servidores = empatados
+    .flatMap(c => c.servidores)
+    .filter(server => !vistos.has(server.url) && vistos.add(server.url))
+    .slice(0, 3)
+  return { ...mejor, servidores }
+}
+
+function mismoEncuentroStreamX(evento) {
+  return [evento?.homeTeam, evento?.awayTeam]
+    .map(normalizarEquipoStream)
+    .sort()
+    .join('|')
 }
 
 function tieneStreamConfigurado(partido) {
