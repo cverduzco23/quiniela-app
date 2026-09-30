@@ -27,7 +27,7 @@ import { onSchedule } from 'firebase-functions/v2/scheduler'
 import { defineSecret } from 'firebase-functions/params'
 import { logger } from 'firebase-functions'
 import { initializeApp } from 'firebase-admin/app'
-import { getFirestore } from 'firebase-admin/firestore'
+import { getFirestore, Timestamp } from 'firebase-admin/firestore'
 import { buscarResumenYoutube, extraerDetalles, extraerDetallesResumen } from './detalles.js'
 
 initializeApp()
@@ -868,6 +868,102 @@ async function sincronizarStreamsQuiniela(q, eventos, { forzar = false } = {}) {
   return { asignados, detalles, partidos }
 }
 
+// Horarios de los partidos
+//
+// La hora de cada partido se copia de ESPN una sola vez, al crear la quiniela.
+// Si ESPN la tenía provisional o la movió después, la quiniela se quedaba con
+// la vieja (y con un cierre que podía caer después del arranque real). Aquí
+// volvemos a pedir a ESPN la hora de los partidos que aún no empiezan y, si
+// cambió, la actualizamos junto con el cierre.
+
+// Solo revisamos partidos que empiezan dentro de este plazo (o que según lo
+// guardado empezaron hace poco, por si ESPN los atrasó).
+const HORARIOS_ADELANTE_MS = 45 * 24 * 60 * 60 * 1000
+const HORARIOS_ATRAS_MS = 6 * 60 * 60 * 1000
+const MARGEN_CIERRE_MS = 5 * 60 * 1000
+
+/** Fecha UTC de ESPN → "AAAA-MM-DDTHH:mm" en hora de México (formato de `partido.hora`). */
+export function horaLocalDeEspn(fechaUTC) {
+  const d = new Date(fechaUTC)
+  if (!fechaUTC || isNaN(d.getTime())) return null
+  const pad = n => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+/** Índices de partidos ESPN que aún no empiezan y conviene re-verificar. */
+export function partidosParaRevisarHorario(q, ahora = new Date()) {
+  if (!q || q.finalizada) return []
+  const resultados = q.resultados ?? {}
+  return (q.partidos ?? []).flatMap((p, idx) => {
+    if (!p?.espnId || !p?.ligaId || tieneMarcadorFinal(resultados[idx])) return []
+    const inicio = new Date(p.hora).getTime()
+    if (!p.hora || isNaN(inicio)) return [idx]
+    const dif = inicio - ahora.getTime()
+    return dif <= HORARIOS_ADELANTE_MS && dif >= -HORARIOS_ATRAS_MS ? [idx] : []
+  })
+}
+
+function primeraHoraMs(partidos) {
+  const horas = (partidos ?? []).map(p => new Date(p?.hora).getTime()).filter(t => !isNaN(t))
+  return horas.length ? Math.min(...horas) : null
+}
+
+/**
+ * Dado el cambio de horarios, ¿a qué hora debe quedar el cierre? Devuelve un
+ * Date o null si no hay que tocarlo.
+ *   - Si el cierre quedó DESPUÉS del nuevo arranque (menos el margen), se
+ *     adelanta: nunca se deben aceptar predicciones con el partido empezado.
+ *   - Si el cierre era justo "5 min antes" del primer partido viejo y el
+ *     partido se atrasó, lo sigue (el admin eligió esa regla, no una hora).
+ */
+export function nuevoCierreTrasCambioHorario(q, partidosNuevos, ahora = new Date()) {
+  if (!q || q.finalizada || q.cerrada) return null
+  const cierre = cierreToDate(q.cierre)
+  if (!cierre) return null
+  const primeraNueva = primeraHoraMs(partidosNuevos)
+  if (primeraNueva == null) return null
+  const limite = primeraNueva - MARGEN_CIERRE_MS
+  const cierreMs = cierre.getTime()
+  if (cierreMs > limite) return new Date(limite)
+  const primeraVieja = primeraHoraMs(q.partidos)
+  const seguiaAlPrimero = primeraVieja != null &&
+    Math.abs(cierreMs - (primeraVieja - MARGEN_CIERRE_MS)) < 60 * 1000
+  // Solo lo atrasamos si sigue abierta: no reabrimos una quiniela ya cerrada.
+  if (seguiaAlPrimero && limite > cierreMs && cierreMs > ahora.getTime()) return new Date(limite)
+  return null
+}
+
+async function revisarHorariosQuiniela(q, cache, ahora = new Date()) {
+  const indices = partidosParaRevisarHorario(q, ahora)
+  if (indices.length === 0) return null
+  const partidos = (q.partidos ?? []).map(p => ({ ...p }))
+  const cambios = []
+  for (const idx of indices) {
+    const p = partidos[idx]
+    let summary
+    try {
+      summary = await fetchResumenPartido(cache, p)
+    } catch (err) {
+      logger.warn(`Horario: ESPN falló para ${p.espnId}: ${err.message}`)
+      continue
+    }
+    const comp = summary?.header?.competitions?.[0]
+    // Solo partidos que no han empezado y con hora confirmada por ESPN.
+    if (!comp || comp.status?.type?.state !== 'pre' || comp.timeValid === false) continue
+    const hora = horaLocalDeEspn(comp.date)
+    if (!hora || hora === p.hora) continue
+    cambios.push(`${p.local} vs ${p.visitante}: ${p.hora} → ${hora}`)
+    p.hora = hora
+  }
+  if (cambios.length === 0) return null
+
+  const patch = { partidos }
+  const cierre = nuevoCierreTrasCambioHorario(q, partidos, ahora)
+  if (cierre) patch.cierre = Timestamp.fromDate(cierre)
+  await db.collection('quinielas').doc(q.id).update(patch)
+  return { cambios, cierre, partidos }
+}
+
 // La función programada
 
 export const sincronizarResultados = onSchedule({
@@ -900,6 +996,25 @@ export const sincronizarResultados = onSchedule({
       }
     } catch (error) {
       logger.warn(`Agenda StreamX no disponible: ${error.message}`)
+    }
+  }
+
+  // Una de cada cinco corridas (~cada 10 min) re-verificamos horarios en ESPN.
+  if (ahora.getMinutes() % 10 < 2) {
+    const cacheHorarios = new Map()
+    for (const q of todas) {
+      try {
+        const r = await revisarHorariosQuiniela(q, cacheHorarios, ahora)
+        if (r) {
+          // Que la sincronización de resultados de abajo parta de lo ya guardado.
+          q.partidos = r.partidos
+          if (r.cierre) q.cierre = Timestamp.fromDate(r.cierre)
+          logger.info(`Quiniela ${q.id} ("${q.nombre ?? ''}"): horario actualizado desde ESPN: ${r.cambios.join('; ')}` +
+            (r.cierre ? `. Cierre movido a ${r.cierre.toISOString()}` : ''))
+        }
+      } catch (err) {
+        logger.warn(`No se pudieron revisar horarios de ${q.id}: ${err.message}`)
+      }
     }
   }
 
