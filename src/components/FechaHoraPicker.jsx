@@ -153,7 +153,7 @@ export function FechaHoraPicker({ id, value, onChange, required = false }) {
                   cambiarHora({ hour: periodo === 'p.m.' ? h + 12 : h })
                 }}
               >
-                {Array.from({ length: 12 }, (_, i) => i + 1).map(h => <option key={h}>{dos(h)}</option>)}
+                {Array.from({ length: 12 }, (_, i) => i + 1).map(h => <option key={h} value={h}>{dos(h)}</option>)}
               </select>
               <span>:</span>
               <select aria-label="Minutos" value={base.minute} onChange={e => cambiarHora({ minute: Number(e.target.value) })}>
