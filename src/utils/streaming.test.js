@@ -25,8 +25,8 @@ describe('streaming', () => {
 
   it('acepta únicamente URLs HTTPS y conserva sus parámetros', () => {
     expect(normalizarStreamUrl('https://video.example/embed/123')).toBe('https://video.example/embed/123')
-    expect(normalizarStreamUrl('https://streamx-hd.com/live1.php?stream=fox_deportes_usa'))
-      .toBe('https://streamx-hd.com/live1.php?stream=fox_deportes_usa')
+    expect(normalizarStreamUrl('https://streamxhd.com/live1.php?stream=fox_deportes_usa'))
+      .toBe('https://streamxhd.com/live1.php?stream=fox_deportes_usa')
     expect(normalizarStreamUrl('http://video.example/embed/123')).toBe('')
     expect(normalizarStreamUrl('javascript:alert(1)')).toBe('')
     expect(normalizarStreamUrl('no-es-url')).toBe('')
@@ -57,21 +57,36 @@ describe('streaming', () => {
   })
 
   it('reconoce una señal StreamX y puede alternar live1/live2 conservando la clave', () => {
-    expect(analizarStreamXUrl('https://streamx-hd.com/live1.php?stream=appletv9')).toEqual({
+    expect(analizarStreamXUrl('https://streamxhd.com/live1.php?stream=appletv9')).toEqual({
       clave: 'appletv9',
       modo: 'live1',
-      origen: 'https://streamx-hd.com',
+      origen: 'https://streamxhd.com',
     })
     expect(construirStreamXUrl('appletv9', 'live2'))
-      .toBe('https://streamx-hd.com/live2.php?stream=appletv9')
+      .toBe('https://streamxhd.com/live2.php?stream=appletv9')
 
     const fuente = obtenerStreamFuentes({
-      streamUrl: 'https://streamx-hd.com/live1.php?stream=appletv9',
+      streamUrl: 'https://streamxhd.com/live1.php?stream=appletv9',
       streamNombre: 'Apple TV',
     })[0]
     expect(fuente.nombre).toBe('Apple TV')
     expect(resolverStreamFuente(fuente, 'live2'))
-      .toBe('https://streamx-hd.com/live2.php?stream=appletv9')
+      .toBe('https://streamxhd.com/live2.php?stream=appletv9')
+  })
+
+  it('actualiza enlaces antiguos guardados y conserva la señal en ambos reproductores', () => {
+    const fuente = obtenerStreamFuentes({
+      streamUrl: 'https://streamx-hd.com/live2.php?stream=claro1',
+      streamNombre: 'Claro Sports',
+    })[0]
+    expect(fuente.url).toBe('https://streamxhd.com/live2.php?stream=claro1')
+    expect(resolverStreamFuente(fuente, 'live1'))
+      .toBe('https://streamxhd.com/live1.php?stream=claro1')
+    expect(resolverStreamFuente(fuente, 'live2'))
+      .toBe('https://streamxhd.com/live2.php?stream=claro1')
+    expect(normalizarStreamUrl('https://otro.example/live1.php?stream=claro1'))
+      .toBe('https://otro.example/live1.php?stream=claro1')
+    expect(normalizarStreamUrl('http://streamx-hd.com/live1.php?stream=claro1')).toBe('')
   })
 
   it('acepta claves StreamX autoconfiguradas aun sin duplicar el enlace', () => {
@@ -80,8 +95,8 @@ describe('streaming', () => {
       streamNombre: 'Claro Sports',
       streamKey2: 'fox_deportes_usa',
     }, 'live2')).toEqual([
-      'https://streamx-hd.com/live2.php?stream=claro1',
-      'https://streamx-hd.com/live2.php?stream=fox_deportes_usa',
+      'https://streamxhd.com/live2.php?stream=claro1',
+      'https://streamxhd.com/live2.php?stream=fox_deportes_usa',
     ])
   })
 

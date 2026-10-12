@@ -8,6 +8,10 @@ export function normalizarStreamUrl(value) {
   if (!raw) return ''
   try {
     const url = new URL(raw)
+    // Las quinielas existentes pueden conservar enlaces del dominio anterior.
+    if (url.hostname === 'streamx-hd.com' && STREAMX_PATH_RE.test(url.pathname)) {
+      url.hostname = 'streamxhd.com'
+    }
     return url.protocol === 'https:' ? url.href : ''
   } catch {
     return ''
@@ -34,7 +38,7 @@ export function analizarStreamXUrl(value) {
   }
 }
 
-export function construirStreamXUrl(clave, modo = 'live1', origen = 'https://streamx-hd.com') {
+export function construirStreamXUrl(clave, modo = 'live1', origen = 'https://streamxhd.com') {
   const limpia = String(clave ?? '').trim()
   if (!/^[a-z0-9_-]{1,80}$/i.test(limpia)) return ''
   try {
@@ -61,7 +65,7 @@ export function obtenerStreamFuentes(partido) {
     const clave = /^[a-z0-9_-]{1,80}$/i.test(claveGuardada)
       ? claveGuardada
       : detectada?.clave
-    const origen = detectada?.origen ?? 'https://streamx-hd.com'
+    const origen = detectada?.origen ?? 'https://streamxhd.com'
     const directa = url || (clave ? construirStreamXUrl(clave, 'live1', origen) : '')
     if (!directa) return []
     return [{

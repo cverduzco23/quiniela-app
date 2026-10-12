@@ -35,7 +35,7 @@ const db = getFirestore()
 // Opcional: mientras no exista, el archivo de estadísticas y eventos funciona
 // igual y solo se queda sin el resumen en video.
 const YOUTUBE_API_KEY = defineSecret('YOUTUBE_API_KEY')
-const STREAMX_AGENDA_URL = 'https://streamx-hd.com/eventos.json'
+const STREAMX_AGENDA_URL = 'https://streamxhd.com/eventos.json'
 
 export { crearSesionDonativo, webhookDonativos } from './stripe.js'
 export { enviarAvisoAdmins } from './notifications.js'

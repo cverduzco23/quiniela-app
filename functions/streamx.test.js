@@ -3,7 +3,7 @@ import { buscarEventoStreamX, fechaEventoStreamX, necesitaSyncStreams } from './
 
 const servidor = {
   name: 'Claro Sports',
-  url: 'https://streamx-hd.com/live1.php?stream=claro1',
+  url: 'https://streamxhd.com/live1.php?stream=claro1',
   active: true,
 }
 
@@ -46,7 +46,7 @@ describe('autoasignación StreamX', () => {
     }])
     expect(encontrado?.servidores).toEqual([{
       nombre: 'Claro Sports',
-      url: 'https://streamx-hd.com/live1.php?stream=claro1',
+      url: 'https://streamxhd.com/live1.php?stream=claro1',
       key: 'claro1',
     }])
     expect(encontrado?.confianza).toBeGreaterThan(0.95)
@@ -64,8 +64,8 @@ describe('autoasignación StreamX', () => {
       time: '2026-08-05 21:30',
       timezone: 'America/Lima',
       servers: [
-        { ...servidor, name: 'Apple TV Español', url: 'https://streamx-hd.com/live1.php?stream=appletv11' },
-        { ...servidor, name: 'Apple TV English', url: 'https://streamx-hd.com/live1.php?stream=appletv12' },
+        { ...servidor, name: 'Apple TV Español', url: 'https://streamxhd.com/live1.php?stream=appletv11' },
+        { ...servidor, name: 'Apple TV English', url: 'https://streamxhd.com/live1.php?stream=appletv12' },
       ],
     }])
     expect(encontrado?.confianza).toBeGreaterThan(0.97)
