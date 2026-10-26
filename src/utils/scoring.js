@@ -19,10 +19,17 @@ export function getPickResultado(pick) {
   return pick
 }
 
-// Devuelve el resultado efectivo del partido: live si está en curso/terminado, sino el guardado
+// El marcador final persistido es común al ranking, al oráculo y a la temporada.
+// Las correcciones de ESPN se confirman y auditan en el servidor.
+export function esResultadoFinalGuardado(r) {
+  return !!r && (!!r.cancelado || [r.local, r.visitante].every(v =>
+    v != null && String(v).trim() !== '' && Number.isInteger(Number(v)) && Number(v) >= 0))
+}
+
+// Prefiere el final guardado; mientras falta, usa el marcador en vivo.
 export function getEfectivo(partido, idx, resultados, liveScores) {
   const stored = resultados?.[idx] ?? resultados?.[String(idx)] ?? null
-  if (stored?.cancelado) return stored
+  if (esResultadoFinalGuardado(stored)) return stored
   const live = partido?.espnId ? liveScores?.[partido.espnId] : null
   // ESPN puede reportar partidos cancelados / pospuestos con state="post" y score 0-0.
   // Si el polling lo marcó como cancelado, propagamos esa señal para que el scoring lo skip.

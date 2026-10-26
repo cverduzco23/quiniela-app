@@ -249,6 +249,16 @@ service cloud.firestore {
       // vez al terminar el partido y el ranking los lee desde aquí para
       // siempre. Solo escribe el servidor (Admin SDK se salta estas reglas):
       // desde el cliente son de lectura pública, igual que el ranking.
+      // Historial y discrepancias: visibles al organizador, solo escribe servidor.
+      match /historialResultados/{eventoId} {
+        allow read: if isSuperAdmin() || esDuenoDeQuiniela(quinielaId);
+        allow write: if false;
+      }
+      match /revisionResultados/{partidoIdx} {
+        allow read: if isSuperAdmin() || esDuenoDeQuiniela(quinielaId);
+        allow write: if false;
+      }
+
       match /detalles/{partidoIdx} {
         allow read: if true;
         allow write: if false;

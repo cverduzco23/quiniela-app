@@ -28,3 +28,6 @@ dist-ssr
 
 # Respaldos locales de Firestore (scripts/respaldo.mjs)
 respaldos/
+
+# Evidencia local de la investigación MXJ14 (no publicar datos)
+tmp/investigacion-mxj14/

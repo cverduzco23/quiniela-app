@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
-import { collection, addDoc, doc, updateDoc, getDoc, getDocs, deleteDoc, query, orderBy, where, setDoc, serverTimestamp, writeBatch, increment, getCountFromServer } from 'firebase/firestore'
+import { collection, addDoc, doc, updateDoc, getDoc, getDocs, deleteDoc, query, orderBy, where, setDoc, serverTimestamp, writeBatch, increment, getCountFromServer, runTransaction } from 'firebase/firestore'
 import { signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, updatePassword, createUserWithEmailAndPassword, sendEmailVerification, reload, updateProfile, deleteUser } from 'firebase/auth'
 import { db, auth, crearUsuarioAislado, generarPasswordTemporal } from '../firebase'
 import { CambioPassword } from '../components/CambioPassword'
@@ -20,6 +20,7 @@ import { clasificarEstadoNoFinalESPN, findEventByTeamsAndDate, fetchEventosScore
 import { EmojiPicker } from '../components/EmojiPicker'
 import { FechaHoraPicker } from '../components/FechaHoraPicker'
 import { NotificationBell } from '../components/NotificationBell'
+import { HistorialResultados } from '../components/HistorialResultados'
 import { AnnouncementComposer } from '../components/AnnouncementComposer'
 
 // UIDs con privilegios globales (ver/editar todas las quinielas).
@@ -224,7 +225,7 @@ async function prepararActualizacionMarcadores(q) {
       }
       const res = resultadoDeEventoESPN(ev)
       if (!res) return
-      resultados[p.idx] = res
+      resultados[p.idx] = { ...res, fuente: 'espn', registradoEn: new Date().toISOString() }
       actualizados++
     })
   }
@@ -2652,10 +2653,34 @@ export default function Admin() {
         return
       }
 
-      await updateDoc(doc(db, 'quinielas', quinielaActual.id), patch)
-      const actualizado = { ...quinielaActual, ...patch }
+      const ref = doc(db, 'quinielas', quinielaActual.id)
+      const actualizado = await runTransaction(db, async tx => {
+        const snap = await tx.get(ref)
+        if (!snap.exists()) throw new Error('Quiniela eliminada')
+        const fresh = snap.data()
+        const seguro = { ...patch }
+        delete seguro.resultados
+        delete seguro.finalizada
+        delete seguro.finalizadaEn
+        const combinados = { ...(fresh.resultados ?? {}) }
+        for (const [i, r] of Object.entries(patch.resultados ?? {})) {
+          if (r === quinielaActual.resultados?.[i] || resultadoPartidoListo(fresh.resultados?.[i])) continue
+          if (fresh.partidos?.[i]?.espnId !== quinielaActual.partidos?.[i]?.espnId) continue
+          seguro[`resultados.${i}`] = r
+          combinados[i] = r
+        }
+        if (seguro.partidos && JSON.stringify(fresh.partidos) !== JSON.stringify(quinielaActual.partidos)) delete seguro.partidos
+        if (!fresh.finalizada && resultadosCompletos({ partidos: fresh.partidos, resultados: combinados })) {
+          seguro.finalizada = true
+          seguro.finalizadaEn = new Date().toISOString()
+        }
+        if (Object.keys(seguro).length) tx.update(ref, seguro)
+        return { ...fresh, id: snap.id, resultados: combinados,
+          ...(seguro.partidos ? { partidos: seguro.partidos } : {}),
+          ...(seguro.finalizada ? { finalizada: true, finalizadaEn: seguro.finalizadaEn } : {}) }
+      })
       setQuinielaActual(actualizado)
-      setQuinielas(prev => prev.map(q => q.id === actualizado.id ? { ...q, ...patch } : q))
+      setQuinielas(prev => prev.map(q => q.id === actualizado.id ? actualizado : q))
       setResultados(resultadosParaUI(actualizado.resultados ?? {}))
 
       const partes = []
@@ -6023,6 +6048,7 @@ export default function Admin() {
               {/* Tab: Resultados */}
               {tab === 'resultados' && (
                 <>
+                  <HistorialResultados key={quinielaActual.id} quiniela={quinielaActual} />
                   {clienteDesktop ? (
                     <>
                       {barraEstadoResultados}

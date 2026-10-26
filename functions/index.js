@@ -37,6 +37,8 @@ const db = getFirestore()
 const YOUTUBE_API_KEY = defineSecret('YOUTUBE_API_KEY')
 const STREAMX_AGENDA_URL = 'https://streamxhd.com/eventos.json'
 
+export { auditarResultados, reconciliarResultados } from './auditoriaResultados.js'
+
 export { crearSesionDonativo, webhookDonativos } from './stripe.js'
 export { enviarAvisoAdmins } from './notifications.js'
 export { moderarComentario, avisarComentarioReportado } from './chat.js'
@@ -504,7 +506,7 @@ async function sincronizarQuiniela(q, cache) {
       if (ev.status?.type?.state === 'in') enVivoIds.push(String(ev.id))
       const res = resultadoDeEvento(ev)
       if (!res) return
-      resultados[p.idx] = res
+      resultados[p.idx] = { ...res, fuente: 'espn', registradoEn: new Date().toISOString() }
       actualizados++
       // Este es el último momento en que ESPN todavía tiene las estadísticas y
       // los eventos de este partido: los archivamos ahora o se pierden.
@@ -551,7 +553,33 @@ async function sincronizarQuiniela(q, cache) {
     patch.finalizada = true
     patch.finalizadaEn = new Date().toISOString()
   }
-  await db.collection('quinielas').doc(q.id).update(patch)
+  // No reemplazar el mapa completo con la copia que leímos antes de consultar
+  // ESPN: otra escritura pudo corregir un partido mientras esperábamos.
+  const ref = db.collection('quinielas').doc(q.id)
+  await db.runTransaction(async tx => {
+    const snap = await tx.get(ref)
+    if (!snap.exists) return
+    const fresh = snap.data()
+    const seguros = { ...patch }
+    delete seguros.resultados
+    delete seguros.finalizada
+    delete seguros.finalizadaEn
+    const combinados = { ...(fresh.resultados ?? {}) }
+    for (const [i, r] of Object.entries(resultados)) {
+      if (r === q.resultados?.[i]) continue
+      if (tieneMarcadorFinal(fresh.resultados?.[i])) continue
+      if (fresh.partidos?.[i]?.espnId !== partidos[i]?.espnId) continue
+      seguros[`resultados.${i}`] = r
+      combinados[i] = r
+    }
+    // No pisar una edición de equipos o referencias hecha durante la petición.
+    if (nuevosPartidos && JSON.stringify(fresh.partidos) !== JSON.stringify(partidos)) delete seguros.partidos
+    if (!fresh.finalizada && resultadosCompletos({ partidos: fresh.partidos, resultados: combinados })) {
+      seguros.finalizada = true
+      seguros.finalizadaEn = new Date().toISOString()
+    }
+    tx.update(ref, seguros)
+  })
   return {
     actualizados, idsCorregidos, enVivo: enVivoIds.length,
     finalizada: !!patch.finalizada, archivados: porArchivar.length,

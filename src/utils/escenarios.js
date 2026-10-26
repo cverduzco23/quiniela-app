@@ -1,4 +1,4 @@
-import { goalsToResultado, getResultado, getPickResultado, getEfectivo } from './scoring'
+import { goalsToResultado, getResultado, getPickResultado, getEfectivo, esResultadoFinalGuardado } from './scoring'
 import { normalizarNombre } from './nombres'
 
 // ¿Quién gana según el marcador del último partido?
@@ -44,7 +44,7 @@ export function simularUltimoPartido(quiniela, predicciones, liveScores = {}) {
   const pendientes = []
   partidos.forEach((p, i) => {
     const live = p?.espnId ? liveScores?.[p.espnId] : null
-    const enCurso = live?.state === 'in'
+    const enCurso = live?.state === 'in' && !esResultadoFinalGuardado(resultados[i])
     const res = getEfectivo(p, i, resultados, liveScores)
     if (res?.cancelado) return // cancelado: no cuenta, se trata como decidido
     const decidido = !enCurso && !!res && getResultado(res) !== null

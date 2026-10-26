@@ -143,3 +143,13 @@ describe('necesitaMarcadorEnVivo', () => {
     expect(necesitaMarcadorEnVivo(partidoConEspn, 0, resultados, INICIO + 7 * 60 * 60000)).toBe(false)
   })
 })
+
+it('muestra el mismo final guardado que usa el cálculo de puntos aunque ESPN difiera', () => {
+  const e = calcularEstadoPartido(partidoConEspn, 0,
+    { 0: { local: '0', visitante: '1', resultado: 'away' } },
+    { 123: { state: 'in', local: '1', visitante: '1' } }, INICIO + 86400000)
+  expect(e.scoreLocal).toBe('0')
+  expect(e.scoreVisitante).toBe('1')
+  expect(e.enCurso).toBe(false)
+  expect(e.jugado).toBe(true)
+})

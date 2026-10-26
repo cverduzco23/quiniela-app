@@ -252,3 +252,15 @@ describe('calcularRacha', () => {
     expect(calcularRacha({}, {}, {}, partidos)).toEqual({ correctas: 0, exactas: 0 })
   })
 })
+
+describe('final persistido compartido por todos los clientes', () => {
+  it('no cambia los puntos cuando ESPN aparece o desaparece del navegador', () => {
+    const partido = { espnId: 'mty' }
+    const resultados = { 0: { local: '0', visitante: '1', resultado: 'away' } }
+    const picks = { 0: { local: '1', visitante: '1' } }
+    for (const live of [{}, { mty: { state: 'post', local: '1', visitante: '1' } }, { mty: { state: 'in', local: '1', visitante: '1' } }]) {
+      expect(calcularPuntos(picks, resultados, live, [partido]).puntos).toBe(0)
+      expect(getEfectivo(partido, 0, resultados, live)).toEqual(resultados[0])
+    }
+  })
+})

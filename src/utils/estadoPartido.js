@@ -1,5 +1,5 @@
 import { cierreToDate, VENTANA_EN_VIVO } from './cierre'
-import { goalsToResultado, getResultado } from './scoring'
+import { goalsToResultado, getResultado, esResultadoFinalGuardado } from './scoring'
 
 // Estado de un partido a partir de lo guardado por el organizador y de lo que
 // reporta ESPN en vivo. Lo comparten el panel "Partidos" (móvil), el carrusel
@@ -18,8 +18,9 @@ import { goalsToResultado, getResultado } from './scoring'
 //
 // Ninguno de los dos inventa marcador: solo cambian "Pendiente" por "En juego".
 export function calcularEstadoPartido(partido, idx, resultados, liveScores, ahora = Date.now(), enVivoIds = null) {
-  const live      = partido?.espnId ? liveScores?.[partido.espnId] : null
   const stored    = resultados?.[idx] ?? resultados?.[String(idx)]
+  const live      = esResultadoFinalGuardado(stored) ? null
+    : partido?.espnId ? liveScores?.[partido.espnId] : null
   const cancelado = !!stored?.cancelado || !!live?.cancelado
   const noFinal   = !cancelado && !!live?.noFinal
   const suspendido = noFinal && !!live?.suspendido
